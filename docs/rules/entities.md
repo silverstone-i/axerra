@@ -9,13 +9,13 @@
 | Employee | `employees` | Yes | Auto-creates sources record; manages nap_users lifecycle |
 | Contact | `contacts` | Yes | Auto-creates source; codes auto-numbered |
 | Address | `addresses` | Via source_id | Linked to vendor/client/employee through sources |
-| Inter-Company | `inter_companies` | Yes | Auto-creates source; `code` is required (not auto-numbered) |
+| Company | `companies` | Yes | Auto-creates source; `code` is required (not auto-numbered) |
 
 > **Note:** Vendors, clients, and contacts have `is_app_user` and `roles` schema columns reserved for future portal-user provisioning. Lifecycle management is not yet implemented — only employees support app-user toggling today.
 
 ## Auto-Source Creation
 
-When a vendor, client, employee, contact, or inter-company is created, a `sources` record is automatically inserted in the same transaction:
+When a vendor, client, employee, contact, or company is created, a `sources` record is automatically inserted in the same transaction:
 
 1. Insert the entity record
 2. Insert a `sources` record with `table_id = entity.id` and appropriate `source_type`

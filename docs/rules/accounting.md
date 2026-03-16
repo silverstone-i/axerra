@@ -5,13 +5,13 @@
 | Table | Parent FK | Cascade | Soft Delete | Notes |
 |-------|-----------|---------|-------------|-------|
 | `chart_of_accounts` | — | — | Yes | Code unique per tenant; optional bank fields |
-| `journal_entries` | inter_companies (RESTRICT), projects (SET NULL) | — | Yes | Status-gated; self-ref `corrects_id` (SET NULL) for reversals |
+| `journal_entries` | companies (RESTRICT), projects (SET NULL) | — | Yes | Status-gated; self-ref `corrects_id` (SET NULL) for reversals |
 | `journal_entry_lines` | journal_entries (CASCADE), chart_of_accounts (RESTRICT) | CASCADE from entry | Yes | Polymorphic `related_table` / `related_id` |
 | `ledger_balances` | chart_of_accounts (RESTRICT) | — | **No** | Append-only; unique (account_id, as_of_date) |
 | `posting_queues` | journal_entries (CASCADE) | CASCADE from entry | **No** | Async posting status tracker |
 | `category_account_map` | categories (RESTRICT), chart_of_accounts (RESTRICT) | — | Yes | Temporal validity (valid_from, valid_to) |
-| `inter_company_accounts` | inter_companies (RESTRICT) ×2, chart_of_accounts (RESTRICT) | — | Yes | Unique (tenant_id, source_company_id, target_company_id) |
-| `inter_company_transactions` | inter_companies (RESTRICT) ×2, journal_entries (SET NULL) ×2 | — | Yes | Module IN (ar, ap, je) — controller-validated, no schema CHECK; elimination flag |
+| `company_accounts` | companies (RESTRICT) ×2, chart_of_accounts (RESTRICT) | — | Yes | Unique (tenant_id, source_company_id, target_company_id) |
+| `company_transactions` | companies (RESTRICT) ×2, journal_entries (SET NULL) ×2 | — | Yes | Module IN (ar, ap, je) — controller-validated, no schema CHECK; elimination flag |
 | `internal_transfers` | chart_of_accounts (RESTRICT) ×2 | — | Yes | from_account_id ≠ to_account_id — controller-validated (HTTP 400), no schema CHECK |
 
 ## Journal Entry Lifecycle
@@ -105,6 +105,6 @@ All accounting module routes are mounted under `/api/accounting/v1/`:
 | `/api/accounting/v1/ledger-balances` | Ledger Balances | Read-only append view |
 | `/api/accounting/v1/posting-queues` | Posting Queues | `POST /retry` |
 | `/api/accounting/v1/category-account-map` | Category–Account Map | — |
-| `/api/accounting/v1/inter-company-accounts` | Inter-Company Accounts | — |
-| `/api/accounting/v1/inter-company-transactions` | Inter-Company Transactions | — |
+| `/api/accounting/v1/company-accounts` | Company Accounts | — |
+| `/api/accounting/v1/company-transactions` | Company Transactions | — |
 | `/api/accounting/v1/internal-transfers` | Internal Transfers | — |
