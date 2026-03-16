@@ -147,6 +147,7 @@ export default function EmployeesPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
   const [viewEmployee, setViewEmployee] = useState(null);
+  const [viewSourceId, setViewSourceId] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editRow, setEditRow] = useState(null);
@@ -157,6 +158,14 @@ export default function EmployeesPage() {
   const { data: phonesRes } = usePhoneNumbers({ source_id: editSourceId, includeDeactivated: 'false' }, { enabled: !!editSourceId });
   const { data: addressesRes } = useAddresses({ source_id: editSourceId, includeDeactivated: 'false' }, { enabled: !!editSourceId });
   const { data: taxIdsRes } = useTaxIdentifiers({ source_id: editSourceId, includeDeactivated: 'false' }, { enabled: !!editSourceId });
+
+  // View dialog child data
+  const { data: viewPhonesRes } = usePhoneNumbers({ source_id: viewSourceId, includeDeactivated: 'false' }, { enabled: !!viewSourceId });
+  const { data: viewAddressesRes } = useAddresses({ source_id: viewSourceId, includeDeactivated: 'false' }, { enabled: !!viewSourceId });
+  const { data: viewTaxIdsRes } = useTaxIdentifiers({ source_id: viewSourceId, includeDeactivated: 'false' }, { enabled: !!viewSourceId });
+  const viewPhones = viewPhonesRes?.rows ?? [];
+  const viewAddresses = viewAddressesRes?.rows ?? [];
+  const viewTaxIds = viewTaxIdsRes?.rows ?? [];
 
   const [createForm, setCreateForm] = useState(BLANK_CREATE);
   const [editForm, setEditForm] = useState(BLANK_EDIT);
@@ -245,6 +254,7 @@ export default function EmployeesPage() {
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {
     setViewEmployee(row);
+    setViewSourceId(row.source_id || null);
     setViewOpen(true);
   }, []);
 
@@ -488,7 +498,7 @@ export default function EmployeesPage() {
       />
 
       {/* ── View Details Dialog ──────────────────────────────────── */}
-      <Dialog open={viewOpen} onClose={() => setViewOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={viewOpen} onClose={() => { setViewOpen(false); setViewSourceId(null); }} maxWidth="sm" fullWidth>
         <DialogTitle sx={dialogHeaderSx}>
           <Box>
             <span>Employee Details</span>
@@ -499,7 +509,7 @@ export default function EmployeesPage() {
             )}
           </Box>
           <Box sx={dialogActionBoxSx}>
-            <Button size="small" color="inherit" onClick={() => setViewOpen(false)}>
+            <Button size="small" color="inherit" onClick={() => { setViewOpen(false); setViewSourceId(null); }}>
               Close
             </Button>
           </Box>
@@ -524,6 +534,56 @@ export default function EmployeesPage() {
                 <FieldRow label="Created" value={fmtDate(viewEmployee.created_at)} />
                 <FieldRow label="Updated" value={fmtDate(viewEmployee.updated_at)} />
               </Box>
+
+              {/* ── Phone Numbers ──────────────────────────────── */}
+              {viewPhones.length > 0 && (
+                <>
+                  <Divider />
+                  <Typography variant="subtitle2" color="text.secondary">Phone Numbers</Typography>
+                  {viewPhones.map((p) => (
+                    <Box key={p.id} sx={detailGridSx}>
+                      <FieldRow label="Type" value={p.phone_type} />
+                      <FieldRow label="Number" value={p.phone_number} />
+                      <FieldRow label="Primary" value={p.is_primary ? 'Yes' : 'No'} />
+                    </Box>
+                  ))}
+                </>
+              )}
+
+              {/* ── Addresses ─────────────────────────────────── */}
+              {viewAddresses.length > 0 && (
+                <>
+                  <Divider />
+                  <Typography variant="subtitle2" color="text.secondary">Addresses</Typography>
+                  {viewAddresses.map((a) => (
+                    <Box key={a.id} sx={detailGridSx}>
+                      <FieldRow label="Label" value={a.label || '\u2014'} />
+                      <FieldRow label="Address" value={[a.address_line_1, a.address_line_2, a.address_line_3].filter(Boolean).join(', ') || '\u2014'} />
+                      <FieldRow label="City" value={a.city || '\u2014'} />
+                      <FieldRow label="State" value={a.state_province || '\u2014'} />
+                      <FieldRow label="Postal Code" value={a.postal_code || '\u2014'} />
+                      <FieldRow label="Country" value={a.country_code || '\u2014'} />
+                      <FieldRow label="Primary" value={a.is_primary ? 'Yes' : 'No'} />
+                    </Box>
+                  ))}
+                </>
+              )}
+
+              {/* ── Tax Identifiers ───────────────────────────── */}
+              {viewTaxIds.length > 0 && (
+                <>
+                  <Divider />
+                  <Typography variant="subtitle2" color="text.secondary">Tax Identifiers</Typography>
+                  {viewTaxIds.map((t) => (
+                    <Box key={t.id} sx={detailGridSx}>
+                      <FieldRow label="Country" value={t.country_code} />
+                      <FieldRow label="Type" value={t.tax_type} />
+                      <FieldRow label="Value" value={t.tax_value} />
+                      <FieldRow label="Primary" value={t.is_primary ? 'Yes' : 'No'} />
+                    </Box>
+                  ))}
+                </>
+              )}
             </Box>
           )}
         </DialogContent>
