@@ -367,7 +367,7 @@ You are continuing the NAP build. Phases 1-3 established the monorepo, admin sch
 
 You are continuing the NAP build. Phases 1-4 established the monorepo, admin schema, JWT auth, 4-layer RBAC, tenant provisioning, user management, full client layout shell (Sidebar, TenantBar, ModuleBar), and tenant/user management pages.
 
-**Goal:** Shared reference data — vendors, clients, employees, contacts with polymorphic sources, addresses, phone numbers, and inter-companies. Full management UI for employees and roles.
+**Goal:** Shared reference data — vendors, clients, employees, contacts with polymorphic sources, addresses, phone numbers, and companies. Full management UI for employees and roles.
 
 #### Context from Phase 4
 
@@ -389,7 +389,7 @@ You are continuing the NAP build. Phases 1-4 established the monorepo, admin sch
 5. `contactsSchema.js` — id, tenant_id, source_id (FK sources CASCADE), name, code, email, tax_id, roles (text[]), is_app_user, is_active (miscellaneous payees)
 6. `addressesSchema.js` — id, source_id (FK sources CASCADE), label (billing/physical/mailing), address_line_1/2/3, city, state_province, postal_code, country_code (char 2), is_primary
 7. `phoneNumbersSchema.js` — id, source_id (FK sources CASCADE, NOT NULL), phone_type (cell/work/home/fax/other), phone_number, is_primary
-8. `interCompaniesSchema.js` — id, tenant_id, code (unique), name, tax_id, is_active
+8. `companiesSchema.js` — id, tenant_id, code (unique), name, tax_id, is_active
 
 Migration: `202502110011_coreEntities.js`
 
@@ -410,7 +410,7 @@ Migration: `202502110011_coreEntities.js`
 
 #### Tests
 
-- Contract tests for vendors, clients, employees, contacts, sources, addresses, phoneNumbers, interCompanies
+- Contract tests for vendors, clients, employees, contacts, sources, addresses, phoneNumbers, companies
 - `tests/integration/entityCascade.test.js` — deactivate employee → nap_user locked → cannot login
 - `tests/integration/rolesAssignment.test.js` — assign roles → set is_app_user → register nap_user → login
 - `tests/integration/rolesValidation.test.js` — reject is_app_user without roles, reject nap_user without is_app_user
@@ -421,13 +421,13 @@ Migration: `202502110011_coreEntities.js`
 
 ### Prompt
 
-You are continuing the NAP build. Phases 1-5 established the full platform foundation: admin schema, auth, RBAC, tenant management, and core entities (vendors, clients, employees, contacts, sources, addresses, phones, inter-companies).
+You are continuing the NAP build. Phases 1-5 established the full platform foundation: admin schema, auth, RBAC, tenant management, and core entities (vendors, clients, employees, contacts, sources, addresses, phones, companies).
 
 **Goal:** Project management — projects, units, tasks, cost items, change orders, and templates. Full project management UI.
 
 #### Context from Phase 5
 
-- Core entities exist in tenant schemas: vendors, clients, employees, contacts, sources, addresses, phone_numbers, inter_companies
+- Core entities exist in tenant schemas: vendors, clients, employees, contacts, sources, addresses, phone_numbers, companies
 - `createRouter` + `BaseController` provide standard CRUD with RBAC
 - Entity tables have `roles` text[] and `is_app_user` columns
 - `project_members` and `company_members` tables exist (from Phase 3 RBAC) for scope resolution
@@ -437,7 +437,7 @@ You are continuing the NAP build. Phases 1-5 established the full platform found
 **Note:** Feature modules live in `src/modules/`. They import platform code via relative paths (e.g., `../../../lib/BaseController.js`, `../../../system/core/` for platform modules). Register in `moduleRegistry.js` and mount in `apiRoutes.js`.
 
 **Schemas** (PRD §3.4):
-1. `projectsSchema.js` — id, tenant_id, company_id (FK inter_companies RESTRICT), address_id (FK addresses SET NULL), project_code (unique per tenant), name, description, notes, status (planning→budgeting→released→complete), contract_amount (numeric 14,2)
+1. `projectsSchema.js` — id, tenant_id, company_id (FK companies RESTRICT), address_id (FK addresses SET NULL), project_code (unique per tenant), name, description, notes, status (planning→budgeting→released→complete), contract_amount (numeric 14,2)
 2. `projectClientsSchema.js` — Junction: id, project_id (FK CASCADE), client_id (FK RESTRICT), role (varchar 32), is_primary. Unique: (project_id, client_id)
 3. `unitsSchema.js` — id, project_id (FK CASCADE), template_unit_id (FK SET NULL), version_used, name, unit_code (unique per project), status (draft→in_progress→complete)
 4. `taskGroupsSchema.js` — id, code (unique), name, description, sort_order
@@ -564,7 +564,7 @@ You are continuing the NAP build. Phases 1-8 established admin, auth, RBAC, tena
 
 #### Context from Phase 8
 
-- Vendors, clients, inter-companies, projects exist with full CRUD
+- Vendors, clients, companies, projects exist with full CRUD
 - Activities provide categories, deliverables, budgets, cost lines
 - `project_id` FKs on AP/AR invoices and journal entries enable cashflow tracking
 - Budget approval workflow is in place
@@ -601,8 +601,8 @@ Migration: `202502110060_arTables.js`
 4. `ledgerBalancesSchema.js` — account_id (FK RESTRICT), as_of_date, balance
 5. `postingQueuesSchema.js` — journal_entry_id (FK CASCADE), status (pending→posted→failed), error_message, processed_at
 6. `categoryAccountMapSchema.js` — category_id (FK RESTRICT), account_id (FK RESTRICT), valid_from, valid_to
-7. `interCompanyAccountsSchema.js` — source_company_id, target_company_id, inter_company_account_id (FK RESTRICT), is_active. Unique: (tenant_id, source_company_id, target_company_id)
-8. `interCompanyTransactionsSchema.js` — source/target company IDs, source/target journal_entry_ids, module, status
+7. `companyAccountsSchema.js` — source_company_id, target_company_id, inter_company_account_id (FK RESTRICT), is_active. Unique: (tenant_id, source_company_id, target_company_id)
+8. `companyTransactionsSchema.js` — source/target company IDs, source/target journal_entry_ids, module, status
 9. `internalTransfersSchema.js` — from_account_id, to_account_id, transfer_date, amount
 
 **GL Posting Service:** Validate balance (debits = credits), post entries, update ledger balances. Reject unbalanced entries.

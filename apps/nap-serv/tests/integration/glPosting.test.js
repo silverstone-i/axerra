@@ -60,7 +60,7 @@ describe('GL Posting — journal entries, ledger balances, double-entry', () => 
   }, 30000);
 
   test('2. Create COA accounts (cash + expense)', async () => {
-    const icRes = await request(app).post('/api/core/v1/inter-companies').set('Cookie', cookies).send({ code: 'GLCO', name: 'GL Test Co' });
+    const icRes = await request(app).post('/api/core/v1/companies').set('Cookie', cookies).send({ code: 'GLCO', name: 'GL Test Co' });
     companyId = icRes.body.id;
 
     const cashRes = await request(app).post('/api/accounting/v1/chart-of-accounts').set('Cookie', cookies).send({ code: '1010', name: 'Operating Cash', type: 'cash' });

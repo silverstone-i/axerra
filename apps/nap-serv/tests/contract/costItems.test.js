@@ -62,9 +62,9 @@ describe('Cost Item CRUD — /api/projects/v1/cost-items', () => {
       .send({ email: 'admin@citest.com', password: 'CitestPass123!' });
     cookies = loginRes.headers['set-cookie'];
 
-    // Create inter-company → project → unit → task
+    // Create company → project → unit → task
     const icRes = await request(app)
-      .post('/api/core/v1/inter-companies')
+      .post('/api/core/v1/companies')
       .set('Cookie', cookies)
       .send({ code: 'CICO', name: 'CostItem Test Company' });
 

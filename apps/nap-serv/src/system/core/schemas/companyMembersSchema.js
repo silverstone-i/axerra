@@ -2,11 +2,11 @@
  * @file Schema definition for tenant-scope company_members table (RBAC Layer 2)
  * @module core/schemas/companyMembersSchema
  *
- * Maps users to inter-companies for data-scope enforcement.
+ * Maps users to companies for data-scope enforcement.
  * When a role has scope = 'assigned_companies', the user only sees data
- * from projects belonging to their assigned inter-companies.
+ * from projects belonging to their assigned companies.
  *
- * FK to inter_companies is added via ALTER TABLE in migration (cross-module dependency).
+ * FK to companies is added via ALTER TABLE in migration (cross-module dependency).
  *
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */

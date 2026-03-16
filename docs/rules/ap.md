@@ -4,7 +4,7 @@
 
 | Table | Parent FK | Cascade | Notes |
 |-------|-----------|---------|-------|
-| `ap_invoices` | inter_companies (RESTRICT), vendors (RESTRICT), projects (SET NULL) | — | Status-gated lifecycle with GL posting |
+| `ap_invoices` | companies (RESTRICT), vendors (RESTRICT), projects (SET NULL) | — | Status-gated lifecycle with GL posting |
 | `ap_invoice_lines` | ap_invoices (CASCADE) | CASCADE from invoice | Links to chart_of_accounts (RESTRICT), cost_lines (SET NULL), activities (SET NULL) |
 | `payments` | vendors (RESTRICT), ap_invoices (SET NULL) | — | Partial payments supported |
 | `ap_credit_memos` | vendors (RESTRICT), ap_invoices (SET NULL) | — | Reduces outstanding balance |

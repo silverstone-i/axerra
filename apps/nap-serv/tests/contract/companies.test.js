@@ -1,6 +1,6 @@
 /**
- * @file Contract tests for inter-company CRUD endpoints
- * @module tests/contract/interCompanies
+ * @file Contract tests for company CRUD endpoints
+ * @module tests/contract/companies
  *
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
@@ -45,7 +45,7 @@ async function provisionTenant(cookies) {
     });
 }
 
-describe('Inter-Company CRUD — /api/core/v1/inter-companies', () => {
+describe('Company CRUD — /api/core/v1/companies', () => {
   let cookies;
   let icId;
 
@@ -59,9 +59,9 @@ describe('Inter-Company CRUD — /api/core/v1/inter-companies', () => {
     cookies = loginRes.headers['set-cookie'];
   }, 30000);
 
-  test('creates an inter-company', async () => {
+  test('creates a company', async () => {
     const res = await request(app)
-      .post('/api/core/v1/inter-companies')
+      .post('/api/core/v1/companies')
       .set('Cookie', cookies)
       .send({ code: 'SUB01', name: 'Subsidiary One' });
 
@@ -72,37 +72,37 @@ describe('Inter-Company CRUD — /api/core/v1/inter-companies', () => {
     icId = res.body.id;
   });
 
-  test('lists inter-companies', async () => {
-    const res = await request(app).get('/api/core/v1/inter-companies').set('Cookie', cookies);
+  test('lists companies', async () => {
+    const res = await request(app).get('/api/core/v1/companies').set('Cookie', cookies);
     expect(res.status).toBe(200);
     const rows = res.body.rows ?? res.body;
     expect(rows.length).toBeGreaterThanOrEqual(1);
   });
 
-  test('gets inter-company by id', async () => {
-    const res = await request(app).get(`/api/core/v1/inter-companies/${icId}`).set('Cookie', cookies);
+  test('gets company by id', async () => {
+    const res = await request(app).get(`/api/core/v1/companies/${icId}`).set('Cookie', cookies);
     expect(res.status).toBe(200);
     expect(res.body.code).toBe('SUB01');
   });
 
   test('returns 409 for duplicate code', async () => {
     const res = await request(app)
-      .post('/api/core/v1/inter-companies')
+      .post('/api/core/v1/companies')
       .set('Cookie', cookies)
       .send({ code: 'SUB01', name: 'Duplicate' });
 
     expect(res.status).toBe(409);
   });
 
-  test('archives and restores an inter-company', async () => {
+  test('archives and restores a company', async () => {
     const archiveRes = await request(app)
-      .delete(`/api/core/v1/inter-companies/archive?id=${icId}`)
+      .delete(`/api/core/v1/companies/archive?id=${icId}`)
       .set('Cookie', cookies)
       .send({});
     expect(archiveRes.status).toBe(200);
 
     const restoreRes = await request(app)
-      .patch(`/api/core/v1/inter-companies/restore?id=${icId}`)
+      .patch(`/api/core/v1/companies/restore?id=${icId}`)
       .set('Cookie', cookies)
       .send({});
     expect(restoreRes.status).toBe(200);

@@ -4,7 +4,7 @@
 
 | Table | Parent FK | Cascade | Notes |
 |-------|-----------|---------|-------|
-| `projects` | inter_companies (RESTRICT), addresses (SET NULL) | — | Root entity, tenant-scoped; clients via `project_clients` junction |
+| `projects` | companies (RESTRICT), addresses (SET NULL) | — | Root entity, tenant-scoped; clients via `project_clients` junction |
 | `units` | projects (CASCADE) | CASCADE from project | Also optionally references template_units (SET NULL) |
 | `tasks` | units (CASCADE) | CASCADE from unit | Self-referential parent_task_id (SET NULL) |
 | `cost_items` | tasks (CASCADE) | CASCADE from task | Generated `amount` column |

@@ -265,7 +265,7 @@ RBAC uses a four-layer model where each layer narrows what the previous layer gr
 
 **Layer 2 — Data Model:**
 - `project_members`: Maps `(project_id, user_id)` with a `role` label (e.g., `member`, `lead`). When `roles.scope = 'assigned_projects'`, only data from the user's assigned projects is visible.
-- `company_members`: Maps `(company_id, user_id)`. When `roles.scope = 'assigned_companies'`, only data from projects belonging to the user's assigned inter-companies is visible. The permission loader eagerly resolves both `companyIds` and corresponding `projectIds`.
+- `company_members`: Maps `(company_id, user_id)`. When `roles.scope = 'assigned_companies'`, only data from projects belonging to the user's assigned companies is visible. The permission loader eagerly resolves both `companyIds` and corresponding `projectIds`.
 - **`self` scope:** When `roles.scope = 'self'`, the permission loader reads `entity_type` and `entity_id` from `nap_users`. The canon includes `entityType` and `entityId`. `_applyRbacFilters()` maps the entity type to the appropriate FK column on the queried resource (e.g., `vendor_id` for AP invoices, `client_id` for AR invoices, `employee_id` for timecards). This enables portal access where vendors/clients see only their own records.
 - `policy_catalog`: Registry of valid `(module, router, action)` combinations for role configuration UI discovery. Includes `label` (varchar(128), human-readable name), `description` (varchar(512), optional explanation), `sort_order` (integer, display ordering), `valid_statuses` (text[], valid status values for state filter UI), `available_fields` (text[], columns available for field group UI), and `policy_required` (boolean, default true — whether a policy must exist for this combination). Seed-only reference data — no audit fields, no tenant_code.
 
@@ -565,7 +565,7 @@ The `sources` table implements a **discriminated union** pattern linking vendors
 | `id` | uuid | PK |
 | `tenant_id` | uuid | Not null |
 | `table_id` | uuid | References the parent entity |
-| `source_type` | varchar(32) | `vendor`, `client`, `employee`, `contact`, `inter_company` |
+| `source_type` | varchar(32) | `vendor`, `client`, `employee`, `contact`, `company` |
 | `label` | varchar(64) | Human-friendly label |
 
 **Contacts (First-Class Entity — Miscellaneous Payees):**
@@ -640,7 +640,7 @@ Unique constraint: `(source_id, country_code, tax_type) WHERE deactivated_at IS 
 
 **Endpoints:** `/api/core/v1/sources`, `/api/core/v1/contacts`, `/api/core/v1/addresses`, `/api/core/v1/phone-numbers`, `/api/core/v1/tax-identifiers`
 
-#### 3.3.5 Inter-Companies
+#### 3.3.5 Companies
 
 | Field | Type | Description |
 |---|---|---|
@@ -651,7 +651,7 @@ Unique constraint: `(source_id, country_code, tax_type) WHERE deactivated_at IS 
 | `name` | varchar(128) | Company name |
 | `is_active` | boolean | Default true |
 
-**Endpoint:** `/api/core/v1/inter-companies`
+**Endpoint:** `/api/core/v1/companies`
 
 ---
 
@@ -667,7 +667,7 @@ Unique constraint: `(source_id, country_code, tax_type) WHERE deactivated_at IS 
 |---|---|---|
 | `id` | uuid | PK |
 | `tenant_id` | uuid | Not null |
-| `company_id` | uuid | FK to inter_companies (RESTRICT) |
+| `company_id` | uuid | FK to companies (RESTRICT) |
 | `address_id` | uuid | FK to addresses (SET NULL) |
 | `project_code` | varchar(32) | Unique per tenant |
 | `name` | varchar(255) | Project name |
@@ -864,7 +864,7 @@ Templates serve as reusable blueprints for project creation:
 | Field | Type | Description |
 |---|---|---|
 | `id` | uuid | PK |
-| `company_id` | uuid | FK to inter_companies (RESTRICT) |
+| `company_id` | uuid | FK to companies (RESTRICT) |
 | `deliverable_id` | uuid | FK to deliverables (CASCADE) |
 | `vendor_id` | uuid | FK to vendors (SET NULL) |
 | `activity_id` | uuid | FK to activities (CASCADE) |
@@ -980,7 +980,7 @@ Templates serve as reusable blueprints for project creation:
 | Field | Type | Description |
 |---|---|---|
 | `id` | uuid | PK |
-| `company_id` | uuid | FK to inter_companies (RESTRICT) |
+| `company_id` | uuid | FK to companies (RESTRICT) |
 | `vendor_id` | uuid | FK to vendors (RESTRICT) |
 | `project_id` | uuid | FK to projects (SET NULL) — required for project cashflow tracking |
 | `invoice_number` | varchar(64) | Invoice number |
@@ -1056,7 +1056,7 @@ Templates serve as reusable blueprints for project creation:
 | Field | Type | Description |
 |---|---|---|
 | `id` | uuid | PK |
-| `company_id` | uuid | FK to inter_companies (RESTRICT) |
+| `company_id` | uuid | FK to companies (RESTRICT) |
 | `client_id` | uuid | FK to clients (RESTRICT) |
 | `project_id` | uuid | FK to projects (SET NULL) — required for project revenue tracking |
 | `deliverable_id` | uuid | FK to deliverables (SET NULL) |
@@ -1133,7 +1133,7 @@ Templates serve as reusable blueprints for project creation:
 | Field | Type | Description |
 |---|---|---|
 | `id` | uuid | PK |
-| `company_id` | uuid | FK to inter_companies (RESTRICT) |
+| `company_id` | uuid | FK to companies (RESTRICT) |
 | `project_id` | uuid | FK to projects (SET NULL) — enables project-level GL analysis |
 | `entry_date` | date | Entry date |
 | `description` | text | Description |
@@ -1204,21 +1204,21 @@ Maps cost categories to GL accounts with date-range validity:
 
 #### 3.9.7 Intercompany Accounting
 
-**Inter-Company Accounts:**
+**Company Accounts:**
 | Field | Type | Description |
 |---|---|---|
-| `source_company_id` | uuid | FK to inter_companies (RESTRICT) |
-| `target_company_id` | uuid | FK to inter_companies (RESTRICT) |
+| `source_company_id` | uuid | FK to companies (RESTRICT) |
+| `target_company_id` | uuid | FK to companies (RESTRICT) |
 | `inter_company_account_id` | uuid | FK to chart_of_accounts (RESTRICT) |
 | `is_active` | boolean | Default true |
 
 Unique constraint: `(tenant_id, source_company_id, target_company_id)`
 
-**Inter-Company Transactions:**
+**Company Transactions:**
 | Field | Type | Description |
 |---|---|---|
-| `source_company_id` | uuid | FK to inter_companies (RESTRICT) |
-| `target_company_id` | uuid | FK to inter_companies (RESTRICT) |
+| `source_company_id` | uuid | FK to companies (RESTRICT) |
+| `target_company_id` | uuid | FK to companies (RESTRICT) |
 | `source_journal_entry_id` | uuid | FK to journal_entries (SET NULL) |
 | `target_journal_entry_id` | uuid | FK to journal_entries (SET NULL) |
 | `module` | varchar(32) | Intended values: `ar`, `ap`, `je` (no CHECK constraint — any varchar accepted) |
@@ -1241,7 +1241,7 @@ Unique constraint: `(tenant_id, source_company_id, target_company_id)`
 - Carry elimination flags for consolidated reporting
 - Consolidation targets tenant-level P&L, balance sheet, and elimination reports
 
-**Endpoints:** `/api/accounting/v1/inter-company-accounts`, `/api/accounting/v1/inter-company-transactions`, `/api/accounting/v1/internal-transfers`
+**Endpoints:** `/api/accounting/v1/company-accounts`, `/api/accounting/v1/company-transactions`, `/api/accounting/v1/internal-transfers`
 
 ---
 
@@ -1677,12 +1677,12 @@ Generated columns are deliberately excluded from pg-schemata schema definitions 
 **Migration Order:**
 1. `202502110001` — Bootstrap admin (tenants, nap_users, impersonation_logs, match_review_logs). Seeds root tenant + super user. Note: `nap_users` uses polymorphic `entity_type`/`entity_id` instead of `employee_id`; `nap_admin_phones` and `nap_admin_addresses` removed.
 2. `202502110010` — Core RBAC tables (roles, policies, policy_catalog, state_filters, field_group_definitions, field_group_grants, project_members, company_members). Note: `role_members` has been removed — role assignment is stored as a `roles` text array on entity tables.
-3. `202502110011` — Core entity tables (sources, vendors, clients, employees, contacts, addresses, phone_numbers, inter_companies, tax_identifiers). Note: all four entity tables include `roles` (text[]) and `is_app_user`; `contacts` is a first-class entity (miscellaneous payees); `sources` CHECK includes `'contact'` and `'inter_company'`; `clients` includes `email`; `employees` includes `email`, `is_primary_contact`, `is_billing_contact`; `tax_identifiers` replaces the former `tax_id` column on entity tables.
+3. `202502110011` — Core entity tables (sources, vendors, clients, employees, contacts, addresses, phone_numbers, companies, tax_identifiers). Note: all four entity tables include `roles` (text[]) and `is_app_user`; `contacts` is a first-class entity (miscellaneous payees); `sources` CHECK includes `'contact'` and `'company'`; `clients` includes `email`; `employees` includes `email`, `is_primary_contact`, `is_billing_contact`; `tax_identifiers` replaces the former `tax_id` column on entity tables.
 4. `202502250012` — Numbering system tables (tenant_numbering_config, tenant_number_sequence_state).
 5. `202502110020` — Project tables (projects, project_clients, units, task_groups, tasks_master, tasks, cost_items, change_orders, template_units, template_tasks, template_cost_items, template_change_orders). Note: `projects.client_id` removed; replaced by `project_clients` junction table.
 6. `202502110040` — Activity tables (categories, activities, deliverables, deliverable_assignments, budgets, cost_lines, actual_costs, vendor_parts)
 7. `202502110030` — BOM tables (catalog_skus, vendor_skus, vendor_pricing) with pgvector
-8. `202502110070` — Accounting tables (chart_of_accounts, journal_entries, journal_entry_lines, ledger_balances, posting_queues, category_account_map, inter_company_accounts, inter_company_transactions, internal_transfers). Note: accounting runs before AP/AR because `ap_invoice_lines` and `ar_invoice_lines` FK to `chart_of_accounts`.
+8. `202502110070` — Accounting tables (chart_of_accounts, journal_entries, journal_entry_lines, ledger_balances, posting_queues, category_account_map, company_accounts, company_transactions, internal_transfers). Note: accounting runs before AP/AR because `ap_invoice_lines` and `ar_invoice_lines` FK to `chart_of_accounts`.
 9. `202502110050` — AP tables (ap_invoices, ap_invoice_lines, payments, ap_credit_memos)
 10. `202502110060` — AR tables (ar_invoices, ar_invoice_lines, receipts). Note: `ar_clients` removed — AR invoices reference the unified `clients` table directly.
 11. `202502120080` — SQL views (export views, profitability views, cashflow views, aging views)
@@ -2023,7 +2023,7 @@ const { max_by_groups } = rule;
 
 - **`auth`** — authentication (login, JWT, session management) **and** admin-schema data layer (schemas, models, migrations, repositories for `tenants`, `nap_users`, `impersonation_logs`, `match_review_logs`). The auth module is registered in the module registry with `scope: 'admin'` and owns the `202502110001_bootstrapAdmin` migration that creates the admin schema.
 - **`tenants`** — API layer for multi-tenant administration (controllers and routes for tenant CRUD, nap-user registration, impersonation, and match review logs). Tenants has **no schemas or models of its own** — controllers resolve models from the `auth` module's repositories via the global `db()` singleton. Routes are mounted at `/api/tenants/v1/`. This module is **not in the module registry** because it has no database artifacts; it is loaded directly in the route aggregator.
-- **`core`** — tables required by all optional modules (sources, vendors, clients, employees, contacts, addresses, inter_companies, RBAC)
+- **`core`** — tables required by all optional modules (sources, vendors, clients, employees, contacts, addresses, companies, RBAC)
 
 `src/modules/` contains **optional feature modules** that tenants enable based on their needs:
 

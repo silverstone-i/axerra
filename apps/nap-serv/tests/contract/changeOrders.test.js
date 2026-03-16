@@ -62,9 +62,9 @@ describe('Change Order CRUD — /api/projects/v1/change-orders', () => {
       .send({ email: 'admin@cotest.com', password: 'CotestPass123!' });
     cookies = loginRes.headers['set-cookie'];
 
-    // Create inter-company → project → unit
+    // Create company → project → unit
     const icRes = await request(app)
-      .post('/api/core/v1/inter-companies')
+      .post('/api/core/v1/companies')
       .set('Cookie', cookies)
       .send({ code: 'COCO', name: 'CO Test Company' });
 

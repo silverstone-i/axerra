@@ -3,7 +3,7 @@
  * @module ap/schemas/apInvoicesSchema
  *
  * Vendor invoices with status workflow: open → approved → paid → voided.
- * Links to inter_companies, vendors, and optionally projects for cashflow tracking.
+ * Links to companies, vendors, and optionally projects for cashflow tracking.
  *
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
@@ -38,7 +38,7 @@ const apInvoicesSchema = {
       {
         type: 'ForeignKey',
         columns: ['company_id'],
-        references: { table: 'inter_companies', columns: ['id'] },
+        references: { table: 'companies', columns: ['id'] },
         onDelete: 'RESTRICT',
       },
       {

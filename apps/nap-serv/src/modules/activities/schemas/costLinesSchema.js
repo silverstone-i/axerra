@@ -46,7 +46,7 @@ const costLinesSchema = {
       {
         type: 'ForeignKey',
         columns: ['company_id'],
-        references: { table: 'inter_companies', columns: ['id'] },
+        references: { table: 'companies', columns: ['id'] },
         onDelete: 'RESTRICT',
       },
       {

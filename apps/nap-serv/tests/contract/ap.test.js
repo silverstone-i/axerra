@@ -68,9 +68,9 @@ let accountId;
 beforeAll(async () => {
   cookies = await provisionAndLogin();
 
-  // Create prerequisite: inter-company
+  // Create prerequisite: company
   const icRes = await request(app)
-    .post('/api/core/v1/inter-companies')
+    .post('/api/core/v1/companies')
     .set('Cookie', cookies)
     .send({ code: 'APCO', name: 'AP Test Company' });
   companyId = icRes.body.id;

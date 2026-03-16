@@ -65,7 +65,7 @@ async function createIntercompanyTransaction(schema, data) {
     });
 
     const txn = await t.one(
-      `INSERT INTO ${s}.inter_company_transactions
+      `INSERT INTO ${s}.company_transactions
        (tenant_id, source_company_id, target_company_id, source_journal_entry_id, target_journal_entry_id, module, amount, status, description)
        VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8)
        RETURNING *`,

@@ -24,7 +24,7 @@
   `assigned_projects` > `self`
 - Multi-role merge: broadest scope wins
 - `assigned_companies`: user sees data from projects
-  belonging to their assigned inter-companies
+  belonging to their assigned companies
 - `assigned_projects`: user sees data from their assigned
   projects only
 - `self`: user sees only records matching their entity FK

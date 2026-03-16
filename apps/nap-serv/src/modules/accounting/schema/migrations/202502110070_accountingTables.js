@@ -9,8 +9,8 @@
  *   ledger_balances → chart_of_accounts
  *   posting_queues → journal_entries
  *   category_account_map → chart_of_accounts
- *   inter_company_accounts (company FKs)
- *   inter_company_transactions → journal_entries
+ *   company_accounts (company FKs)
+ *   company_transactions → journal_entries
  *   internal_transfers → chart_of_accounts
  *
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
@@ -25,8 +25,8 @@ const ACCOUNTING_MODELS = [
   'ledgerBalances',
   'postingQueues',
   'categoryAccountMap',
-  'interCompanyAccounts',
-  'interCompanyTransactions',
+  'companyAccounts',
+  'companyTransactions',
   'internalTransfers',
 ];
 

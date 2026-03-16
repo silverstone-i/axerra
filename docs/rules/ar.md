@@ -4,7 +4,7 @@
 
 | Table | Parent FK | Cascade | Notes |
 |-------|-----------|---------|-------|
-| `ar_invoices` | inter_companies (RESTRICT), clients (RESTRICT), projects (SET NULL), deliverables (SET NULL) | — | Status-gated lifecycle with GL posting |
+| `ar_invoices` | companies (RESTRICT), clients (RESTRICT), projects (SET NULL), deliverables (SET NULL) | — | Status-gated lifecycle with GL posting |
 | `ar_invoice_lines` | ar_invoices (CASCADE) | CASCADE from invoice | Links to chart_of_accounts (RESTRICT) |
 | `receipts` | clients (RESTRICT), ar_invoices (SET NULL) | — | Partial receipts supported |
 

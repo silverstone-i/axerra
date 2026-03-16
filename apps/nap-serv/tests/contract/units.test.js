@@ -62,9 +62,9 @@ describe('Unit CRUD — /api/projects/v1/units', () => {
       .send({ email: 'admin@utest.com', password: 'UtestPass123!' });
     cookies = loginRes.headers['set-cookie'];
 
-    // Create inter-company + project for unit FK
+    // Create company + project for unit FK
     const icRes = await request(app)
-      .post('/api/core/v1/inter-companies')
+      .post('/api/core/v1/companies')
       .set('Cookie', cookies)
       .send({ code: 'UTCO', name: 'Unit Test Company' });
 
