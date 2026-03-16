@@ -1,6 +1,6 @@
 /**
  * @file Accounting API methods — CRUD for chart of accounts, journal entries, ledger, posting,
- *       category-account map, inter-company accounts/transactions, internal transfers
+ *       category-account map, company accounts/transactions, internal transfers
  * @module nap-client/services/accountingApi
  *
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
@@ -80,28 +80,28 @@ export const categoryAccountMapApi = {
   restore: (filterParams) => client.patch(`${CAM}/restore${qs(filterParams)}`, {}),
 };
 
-/* ---- Inter-Company Accounts ---- */
-const ICA = '/accounting/v1/inter-company-accounts';
+/* ---- Company Accounts ---- */
+const CA = '/accounting/v1/company-accounts';
 
-export const interCompanyAccountApi = {
-  list: (params = {}) => client.get(`${ICA}${qs(params)}`),
-  getById: (id) => client.get(`${ICA}/${id}`),
-  create: (body) => client.post(ICA, body),
-  update: (filterParams, changes) => client.put(`${ICA}/update${qs(filterParams)}`, changes),
-  archive: (filterParams) => client.del(`${ICA}/archive${qs(filterParams)}`, {}),
-  restore: (filterParams) => client.patch(`${ICA}/restore${qs(filterParams)}`, {}),
+export const companyAccountApi = {
+  list: (params = {}) => client.get(`${CA}${qs(params)}`),
+  getById: (id) => client.get(`${CA}/${id}`),
+  create: (body) => client.post(CA, body),
+  update: (filterParams, changes) => client.put(`${CA}/update${qs(filterParams)}`, changes),
+  archive: (filterParams) => client.del(`${CA}/archive${qs(filterParams)}`, {}),
+  restore: (filterParams) => client.patch(`${CA}/restore${qs(filterParams)}`, {}),
 };
 
-/* ---- Inter-Company Transactions ---- */
-const ICT = '/accounting/v1/inter-company-transactions';
+/* ---- Company Transactions ---- */
+const CT = '/accounting/v1/company-transactions';
 
-export const interCompanyTransactionApi = {
-  list: (params = {}) => client.get(`${ICT}${qs(params)}`),
-  getById: (id) => client.get(`${ICT}/${id}`),
-  create: (body) => client.post(ICT, body),
-  update: (filterParams, changes) => client.put(`${ICT}/update${qs(filterParams)}`, changes),
-  archive: (filterParams) => client.del(`${ICT}/archive${qs(filterParams)}`, {}),
-  restore: (filterParams) => client.patch(`${ICT}/restore${qs(filterParams)}`, {}),
+export const companyTransactionApi = {
+  list: (params = {}) => client.get(`${CT}${qs(params)}`),
+  getById: (id) => client.get(`${CT}/${id}`),
+  create: (body) => client.post(CT, body),
+  update: (filterParams, changes) => client.put(`${CT}/update${qs(filterParams)}`, changes),
+  archive: (filterParams) => client.del(`${CT}/archive${qs(filterParams)}`, {}),
+  restore: (filterParams) => client.patch(`${CT}/restore${qs(filterParams)}`, {}),
 };
 
 /* ---- Internal Transfers ---- */

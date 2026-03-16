@@ -1,22 +1,22 @@
 /**
- * @file Inter-company API methods — CRUD for inter-company entities
- * @module nap-client/services/interCompanyApi
+ * @file Company API methods — CRUD for company entities
+ * @module nap-client/services/companyApi
  *
- * Base path: /core/v1/inter-companies
+ * Base path: /core/v1/companies
  *
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
 
 import { client } from './client.js';
 
-const BASE = '/core/v1/inter-companies';
+const BASE = '/core/v1/companies';
 
 const qs = (params) => {
   const s = new URLSearchParams(params).toString();
   return s ? `?${s}` : '';
 };
 
-export const interCompanyApi = {
+export const companyApi = {
   list: (params = {}) => client.get(`${BASE}${qs(params)}`),
   getById: (id) => client.get(`${BASE}/${id}`),
   create: (body) => client.post(BASE, body),
@@ -27,4 +27,4 @@ export const interCompanyApi = {
   exportXls: (body = {}) => client.post(`${BASE}/export-xls`, body, { responseType: 'blob' }),
 };
 
-export default interCompanyApi;
+export default companyApi;

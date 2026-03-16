@@ -1,6 +1,6 @@
 /**
  * @file React Query hooks for Accounting module (COA, journal entries, ledger, posting,
- *       category-account map, inter-company accounts/transactions, internal transfers)
+ *       category-account map, company accounts/transactions, internal transfers)
  * @module nap-client/hooks/useAccounting
  *
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
@@ -14,8 +14,8 @@ import {
   ledgerBalanceApi,
   postingQueueApi,
   categoryAccountMapApi,
-  interCompanyAccountApi,
-  interCompanyTransactionApi,
+  companyAccountApi,
+  companyTransactionApi,
   internalTransferApi,
 } from '../services/accountingApi.js';
 
@@ -230,81 +230,81 @@ export function useRestoreCategoryAccountMap() {
   });
 }
 
-/* ---- Inter-Company Accounts ---- */
-const ICA_KEY = ['interCompanyAccounts'];
+/* ---- Company Accounts ---- */
+const CA_KEY = ['companyAccounts'];
 
-export function useInterCompanyAccounts(params = { limit: 200, includeDeactivated: 'true' }) {
-  return useQuery({ queryKey: [...ICA_KEY, params], queryFn: () => interCompanyAccountApi.list(params) });
+export function useCompanyAccounts(params = { limit: 200, includeDeactivated: 'true' }) {
+  return useQuery({ queryKey: [...CA_KEY, params], queryFn: () => companyAccountApi.list(params) });
 }
 
-export function useCreateInterCompanyAccount() {
+export function useCreateCompanyAccount() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body) => interCompanyAccountApi.create(body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ICA_KEY }),
+    mutationFn: (body) => companyAccountApi.create(body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CA_KEY }),
   });
 }
 
-export function useUpdateInterCompanyAccount() {
+export function useUpdateCompanyAccount() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ filter, changes }) => interCompanyAccountApi.update(filter, changes),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ICA_KEY }),
+    mutationFn: ({ filter, changes }) => companyAccountApi.update(filter, changes),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CA_KEY }),
   });
 }
 
-export function useArchiveInterCompanyAccount() {
+export function useArchiveCompanyAccount() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (filter) => interCompanyAccountApi.archive(filter),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ICA_KEY }),
+    mutationFn: (filter) => companyAccountApi.archive(filter),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CA_KEY }),
   });
 }
 
-export function useRestoreInterCompanyAccount() {
+export function useRestoreCompanyAccount() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (filter) => interCompanyAccountApi.restore(filter),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ICA_KEY }),
+    mutationFn: (filter) => companyAccountApi.restore(filter),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CA_KEY }),
   });
 }
 
-/* ---- Inter-Company Transactions ---- */
-const ICT_KEY = ['interCompanyTransactions'];
+/* ---- Company Transactions ---- */
+const CT_KEY = ['companyTransactions'];
 
-export function useInterCompanyTransactions(params = { limit: 200, includeDeactivated: 'true' }) {
-  return useQuery({ queryKey: [...ICT_KEY, params], queryFn: () => interCompanyTransactionApi.list(params) });
+export function useCompanyTransactions(params = { limit: 200, includeDeactivated: 'true' }) {
+  return useQuery({ queryKey: [...CT_KEY, params], queryFn: () => companyTransactionApi.list(params) });
 }
 
-export function useCreateInterCompanyTransaction() {
+export function useCreateCompanyTransaction() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body) => interCompanyTransactionApi.create(body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ICT_KEY }),
+    mutationFn: (body) => companyTransactionApi.create(body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CT_KEY }),
   });
 }
 
-export function useUpdateInterCompanyTransaction() {
+export function useUpdateCompanyTransaction() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ filter, changes }) => interCompanyTransactionApi.update(filter, changes),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ICT_KEY }),
+    mutationFn: ({ filter, changes }) => companyTransactionApi.update(filter, changes),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CT_KEY }),
   });
 }
 
-export function useArchiveInterCompanyTransaction() {
+export function useArchiveCompanyTransaction() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (filter) => interCompanyTransactionApi.archive(filter),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ICT_KEY }),
+    mutationFn: (filter) => companyTransactionApi.archive(filter),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CT_KEY }),
   });
 }
 
-export function useRestoreInterCompanyTransaction() {
+export function useRestoreCompanyTransaction() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (filter) => interCompanyTransactionApi.restore(filter),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ICT_KEY }),
+    mutationFn: (filter) => companyTransactionApi.restore(filter),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CT_KEY }),
   });
 }
 
