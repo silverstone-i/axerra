@@ -4,7 +4,7 @@
  *
  * Tests the projects API: create (tenant_id injection), list, getById,
  * update, status transitions (valid + invalid), archive, restore, duplicate code.
- * Requires a provisioned tenant schema with an inter_company for company_id FK.
+ * Requires a provisioned tenant schema with a company for company_id FK.
  *
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
@@ -64,9 +64,9 @@ describe('Project CRUD — /api/projects/v1/projects', () => {
       .send({ email: 'admin@ptest.com', password: 'PtestPass123!' });
     cookies = loginRes.headers['set-cookie'];
 
-    // Create an inter-company for the company_id FK
+    // Create a company for the company_id FK
     const icRes = await request(app)
-      .post('/api/core/v1/inter-companies')
+      .post('/api/core/v1/companies')
       .set('Cookie', cookies)
       .send({ code: 'PTCO', name: 'Project Test Company' });
     companyId = icRes.body.id;

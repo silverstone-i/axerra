@@ -1,6 +1,6 @@
 /**
- * @file Schema definition for tenant-scope inter_company_accounts table
- * @module accounting/schemas/interCompanyAccountsSchema
+ * @file Schema definition for tenant-scope company_accounts table
+ * @module accounting/schemas/companyAccountsSchema
  *
  * Maps intercompany pairs to their due-to/due-from GL account.
  * Unique constraint: (tenant_id, source_company_id, target_company_id).
@@ -9,9 +9,9 @@
  */
 
 /** @type {import('pg-schemata').TableSchema} */
-const interCompanyAccountsSchema = {
+const companyAccountsSchema = {
   dbSchema: 'tenantid',
-  table: 'inter_company_accounts',
+  table: 'company_accounts',
   version: '1.0.0',
   hasAuditFields: { enabled: true, userFields: { type: 'uuid', nullable: true, default: null } },
   softDelete: true,
@@ -30,13 +30,13 @@ const interCompanyAccountsSchema = {
       {
         type: 'ForeignKey',
         columns: ['source_company_id'],
-        references: { table: 'inter_companies', columns: ['id'] },
+        references: { table: 'companies', columns: ['id'] },
         onDelete: 'RESTRICT',
       },
       {
         type: 'ForeignKey',
         columns: ['target_company_id'],
-        references: { table: 'inter_companies', columns: ['id'] },
+        references: { table: 'companies', columns: ['id'] },
         onDelete: 'RESTRICT',
       },
       {
@@ -54,4 +54,4 @@ const interCompanyAccountsSchema = {
   },
 };
 
-export default interCompanyAccountsSchema;
+export default companyAccountsSchema;

@@ -3,7 +3,7 @@
  * @module nap-serv/lib/spreadsheetHelpers
  *
  * Provides config-driven export/import for source entities (employees, vendors,
- * clients, contacts, inter_companies) with child sheets (phones, addresses,
+ * clients, contacts, companies) with child sheets (phones, addresses,
  * tax identifiers) linked via the polymorphic sources table.
  *
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.

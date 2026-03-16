@@ -24,7 +24,7 @@ import Employees from './models/Employees.js';
 import Contacts from './models/Contacts.js';
 import Addresses from './models/Addresses.js';
 import PhoneNumbers from './models/PhoneNumbers.js';
-import InterCompanies from './models/InterCompanies.js';
+import Companies from './models/Companies.js';
 import TaxIdentifiers from './models/TaxIdentifiers.js';
 import TenantNumberingConfig from './models/TenantNumberingConfig.js';
 import TenantNumberSequenceState from './models/TenantNumberSequenceState.js';
@@ -48,7 +48,7 @@ const repositories = {
   contacts: Contacts,
   addresses: Addresses,
   phoneNumbers: PhoneNumbers,
-  interCompanies: InterCompanies,
+  companies: Companies,
   taxIdentifiers: TaxIdentifiers,
 
   // Numbering system

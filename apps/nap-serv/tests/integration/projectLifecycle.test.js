@@ -2,7 +2,7 @@
  * @file Integration test — project lifecycle end-to-end
  * @module tests/integration/projectLifecycle
  *
- * Verifies: Provision tenant → create inter_company → create project →
+ * Verifies: Provision tenant → create company → create project →
  * add units → add tasks (with parent hierarchy) → add cost items →
  * create change order → status transitions → archive cascade.
  *
@@ -73,9 +73,9 @@ describe('Project lifecycle — full hierarchy creation, status workflow, and ar
     expect(tenantCookies).toBeDefined();
   }, 30000);
 
-  test('2. Create inter-company for project FK', async () => {
+  test('2. Create company for project FK', async () => {
     const res = await request(app)
-      .post('/api/core/v1/inter-companies')
+      .post('/api/core/v1/companies')
       .set('Cookie', tenantCookies)
       .send({ code: 'PLCO', name: 'Lifecycle Company' });
 

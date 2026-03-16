@@ -63,9 +63,9 @@ describe('Task CRUD — /api/projects/v1/tasks', () => {
       .send({ email: 'admin@tktest.com', password: 'TktestPass123!' });
     cookies = loginRes.headers['set-cookie'];
 
-    // Create inter-company → project → unit
+    // Create company → project → unit
     const icRes = await request(app)
-      .post('/api/core/v1/inter-companies')
+      .post('/api/core/v1/companies')
       .set('Cookie', cookies)
       .send({ code: 'TKCO', name: 'Task Test Company' });
 

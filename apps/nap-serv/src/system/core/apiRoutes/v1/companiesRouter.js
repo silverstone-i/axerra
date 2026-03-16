@@ -1,17 +1,17 @@
 /**
- * @file Inter-companies router — /api/core/v1/inter-companies
- * @module core/apiRoutes/v1/interCompaniesRouter
+ * @file Companies router — /api/core/v1/companies
+ * @module core/apiRoutes/v1/companiesRouter
  *
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
 
 import createRouter from '../../../../lib/createRouter.js';
-import interCompaniesController from '../../controllers/interCompaniesController.js';
+import companiesController from '../../controllers/companiesController.js';
 import { withMeta } from '../../../../middleware/withMeta.js';
 
-const meta = withMeta({ module: 'core', router: 'inter-companies' });
+const meta = withMeta({ module: 'core', router: 'companies' });
 
-export default createRouter(interCompaniesController, null, {
+export default createRouter(companiesController, null, {
   getMiddlewares: [meta],
   postMiddlewares: [meta],
   putMiddlewares: [meta],

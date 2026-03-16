@@ -62,7 +62,7 @@ describe('AR Invoice Lifecycle — full workflow', () => {
   }, 30000);
 
   test('2. Create prerequisites (company, client, COA accounts)', async () => {
-    const icRes = await request(app).post('/api/core/v1/inter-companies').set('Cookie', cookies).send({ code: 'ARLC', name: 'AR Life Co' });
+    const icRes = await request(app).post('/api/core/v1/companies').set('Cookie', cookies).send({ code: 'ARLC', name: 'AR Life Co' });
     companyId = icRes.body.id;
 
     const cRes = await request(app).post('/api/core/v1/clients').set('Cookie', cookies).send({ client_code: 'ARLCL', name: 'AR Life Client' });

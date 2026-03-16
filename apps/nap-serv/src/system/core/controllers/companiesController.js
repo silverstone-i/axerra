@@ -1,6 +1,6 @@
 /**
- * @file Inter-companies controller — auto-creates a sources record on creation
- * @module core/controllers/interCompaniesController
+ * @file Companies controller — auto-creates a sources record on creation
+ * @module core/controllers/companiesController
  *
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
@@ -8,14 +8,14 @@
 import BaseController from '../../../lib/BaseController.js';
 import db, { pgp } from '../../../db/db.js';
 
-class InterCompaniesController extends BaseController {
+class CompaniesController extends BaseController {
   constructor() {
-    super('interCompanies');
-    this.rbacConfig = { module: 'core', router: 'inter-companies' };
+    super('companies');
+    this.rbacConfig = { module: 'core', router: 'companies' };
   }
 
   /**
-   * POST / — insert inter-company with auto-created sources record.
+   * POST / — insert company with auto-created sources record.
    */
   async create(req, res) {
     try {
@@ -27,27 +27,27 @@ class InterCompaniesController extends BaseController {
       }
 
       const record = await db.tx(async (t) => {
-        const icModel = this.model(schema);
-        icModel.tx = t;
+        const companyModel = this.model(schema);
+        companyModel.tx = t;
 
-        const ic = await icModel.insert(req.body);
+        const company = await companyModel.insert(req.body);
 
         const sourcesModel = db('sources', schema);
         sourcesModel.tx = t;
         const source = await sourcesModel.insert({
-          tenant_id: ic.tenant_id,
-          table_id: ic.id,
-          source_type: 'inter_company',
-          label: ic.name,
+          tenant_id: company.tenant_id,
+          table_id: company.id,
+          source_type: 'company',
+          label: company.name,
           created_by: req.body.created_by || null,
         });
 
         await t.none(
-          `UPDATE ${s}.inter_companies SET source_id = $1, updated_by = $2 WHERE id = $3`,
-          [source.id, req.body.created_by || null, ic.id],
+          `UPDATE ${s}.companies SET source_id = $1, updated_by = $2 WHERE id = $3`,
+          [source.id, req.body.created_by || null, company.id],
         );
 
-        return { ...ic, source_id: source.id };
+        return { ...company, source_id: source.id };
       });
 
       res.status(201).json(record);
@@ -58,6 +58,6 @@ class InterCompaniesController extends BaseController {
   }
 }
 
-const instance = new InterCompaniesController();
+const instance = new CompaniesController();
 export default instance;
-export { InterCompaniesController };
+export { CompaniesController };

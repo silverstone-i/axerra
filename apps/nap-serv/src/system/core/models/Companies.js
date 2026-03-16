@@ -1,12 +1,12 @@
 /**
- * @file InterCompanies model — extends TableModel with multi-sheet upsert export/import
- * @module core/models/InterCompanies
+ * @file Companies model — extends TableModel with multi-sheet upsert export/import
+ * @module core/models/Companies
  *
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
 
 import { TableModel } from 'pg-schemata';
-import interCompaniesSchema from '../schemas/interCompaniesSchema.js';
+import companiesSchema from '../schemas/companiesSchema.js';
 import {
   exportSourceEntity,
   importSourceEntity,
@@ -17,10 +17,10 @@ import {
 
 /** @type {import('../../../lib/spreadsheetHelpers.js').SourceEntityConfig} */
 const CONFIG = {
-  entityName: 'inter_companies',
-  sheetName: 'Inter-Companies',
-  sourceType: 'inter_company',
-  linkColName: 'inter_company_id',
+  entityName: 'companies',
+  sheetName: 'Companies',
+  sourceType: 'company',
+  linkColName: 'company_id',
   idType: null,
   buildLabel: (row) => row.name,
   returningCols: ['id', 'name'],
@@ -39,9 +39,9 @@ const CONFIG = {
   appUserProvisioning: null,
 };
 
-export default class InterCompanies extends TableModel {
+export default class Companies extends TableModel {
   constructor(db, pgp, logger = null) {
-    super(db, pgp, interCompaniesSchema, logger);
+    super(db, pgp, companiesSchema, logger);
   }
 
   async exportToSpreadsheet(filePath, where = [], joinType = 'AND', options = {}) {

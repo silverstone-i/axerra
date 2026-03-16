@@ -63,9 +63,9 @@ describe('Generated columns — cost_items.amount = quantity * unit_cost', () =>
       .send({ email: 'admin@gctest.com', password: 'GctestPass123!' });
     tenantCookies = loginRes.headers['set-cookie'];
 
-    // Create inter-company → project → unit → task for cost items
+    // Create company → project → unit → task for cost items
     const icRes = await request(app)
-      .post('/api/core/v1/inter-companies')
+      .post('/api/core/v1/companies')
       .set('Cookie', tenantCookies)
       .send({ code: 'GCCO', name: 'Gen Column Company' });
 

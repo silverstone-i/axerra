@@ -101,7 +101,7 @@ vi.mock('../../src/db/db.js', () => {
     'arInvoices', 'arInvoiceLines', 'receipts',
     'chartOfAccounts', 'journalEntries', 'journalEntryLines',
     'ledgerBalances', 'postingQueues', 'categoryAccountMap',
-    'interCompanyAccounts', 'interCompanyTransactions', 'internalTransfers',
+    'companyAccounts', 'companyTransactions', 'internalTransfers',
   ];
   for (const name of modelNames) {
     dbProxy[name] = model;

@@ -60,7 +60,7 @@ describe('AP Invoice Lifecycle — full workflow', () => {
   }, 30000);
 
   test('2. Create prerequisites (company, vendor, COA accounts)', async () => {
-    const icRes = await request(app).post('/api/core/v1/inter-companies').set('Cookie', cookies).send({ code: 'APLC', name: 'AP Life Co' });
+    const icRes = await request(app).post('/api/core/v1/companies').set('Cookie', cookies).send({ code: 'APLC', name: 'AP Life Co' });
     companyId = icRes.body.id;
 
     const vRes = await request(app).post('/api/core/v1/vendors').set('Cookie', cookies).send({ code: 'APLV', name: 'AP Life Vendor' });

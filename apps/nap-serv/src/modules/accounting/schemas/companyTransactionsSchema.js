@@ -1,6 +1,6 @@
 /**
- * @file Schema definition for tenant-scope inter_company_transactions table
- * @module accounting/schemas/interCompanyTransactionsSchema
+ * @file Schema definition for tenant-scope company_transactions table
+ * @module accounting/schemas/companyTransactionsSchema
  *
  * Paired journal entry references for intercompany transactions.
  * Module enum: ar, ap, je. Carries elimination flags for consolidation.
@@ -9,9 +9,9 @@
  */
 
 /** @type {import('pg-schemata').TableSchema} */
-const interCompanyTransactionsSchema = {
+const companyTransactionsSchema = {
   dbSchema: 'tenantid',
-  table: 'inter_company_transactions',
+  table: 'company_transactions',
   version: '1.0.0',
   hasAuditFields: { enabled: true, userFields: { type: 'uuid', nullable: true, default: null } },
   softDelete: true,
@@ -37,13 +37,13 @@ const interCompanyTransactionsSchema = {
       {
         type: 'ForeignKey',
         columns: ['source_company_id'],
-        references: { table: 'inter_companies', columns: ['id'] },
+        references: { table: 'companies', columns: ['id'] },
         onDelete: 'RESTRICT',
       },
       {
         type: 'ForeignKey',
         columns: ['target_company_id'],
-        references: { table: 'inter_companies', columns: ['id'] },
+        references: { table: 'companies', columns: ['id'] },
         onDelete: 'RESTRICT',
       },
       {
@@ -69,4 +69,4 @@ const interCompanyTransactionsSchema = {
   },
 };
 
-export default interCompanyTransactionsSchema;
+export default companyTransactionsSchema;
