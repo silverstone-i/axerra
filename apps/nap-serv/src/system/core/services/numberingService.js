@@ -9,7 +9,16 @@
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
 
-import db, { pgp } from '../../../db/db.js';
+/** Lazy-load db to avoid triggering DB.init() at module load (breaks unit tests) */
+let _db, _pgp;
+async function getDb() {
+  if (!_db) {
+    const mod = await import('../../../db/db.js');
+    _db = mod.default;
+    _pgp = mod.pgp;
+  }
+  return { db: _db, pgp: _pgp };
+}
 
 const NIL_UUID = '00000000-0000-0000-0000-000000000000';
 
@@ -68,6 +77,7 @@ export function buildDisplayId(config, serial, periodKey) {
  * @returns {Promise<{ serial: number, periodKey: string, displayId: string } | null>}
  */
 export async function allocateNumber(schema, idType, scopeId = null, issuedAt = new Date(), t = null) {
+  const { db, pgp } = await getDb();
   const s = pgp.as.name(schema);
   const effectiveScopeId = scopeId || NIL_UUID;
 
@@ -141,6 +151,7 @@ export async function backfillCodes(schema, idType, tx) {
   const table = ID_TYPE_TABLE[idType];
   if (!table) return 0;
 
+  const { pgp } = await getDb();
   const s = pgp.as.name(schema);
   const rows = await tx.manyOrNone(
     `SELECT id FROM ${s}.${table}

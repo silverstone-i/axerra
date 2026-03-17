@@ -29,6 +29,12 @@ export default createRouter(
       meta,
       (req, res) => tenantsController.getContacts(req, res),
     );
+    router.get(
+      '/:id/company',
+      requireNapsoftTenant,
+      meta,
+      (req, res) => tenantsController.getCompany(req, res),
+    );
   },
   {
     postMiddlewares: [requireNapsoftTenant, meta],

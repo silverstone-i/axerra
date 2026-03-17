@@ -51,6 +51,7 @@ async function provisionAndLogin() {
       admin_last_name: 'Admin',
       admin_email: TENANT_ADMIN_EMAIL,
       admin_password: TENANT_ADMIN_PASSWORD,
+      billing_address: { address_line_1: '1 Test St', country_code: 'US' },
     });
 
   const loginRes = await request(app)
@@ -70,9 +71,9 @@ let accountId;
 beforeAll(async () => {
   cookies = await provisionAndLogin();
 
-  // Create prerequisite: inter-company
+  // Create prerequisite: company
   const icRes = await request(app)
-    .post('/api/core/v1/inter-companies')
+    .post('/api/core/v1/companies')
     .set('Cookie', cookies)
     .send({ code: 'ARCO', name: 'AR Test Company' });
   companyId = icRes.body.id;

@@ -9,7 +9,7 @@
 | `deliverables` | — | — | Status-gated lifecycle |
 | `deliverable_assignments` | deliverables (CASCADE), projects (CASCADE), employees (SET NULL) | CASCADE from deliverable or project | Junction table |
 | `budgets` | deliverables (CASCADE), activities (CASCADE) | CASCADE from deliverable or activity | Versioned; version + is_current tracking |
-| `cost_lines` | inter_companies (RESTRICT), deliverables (CASCADE), activities (CASCADE), vendors (SET NULL), budgets (SET NULL) | CASCADE from deliverable or activity | Generated `amount` column |
+| `cost_lines` | companies (RESTRICT), deliverables (CASCADE), activities (CASCADE), vendors (SET NULL), budgets (SET NULL) | CASCADE from deliverable or activity | Generated `amount` column |
 | `actual_costs` | activities (CASCADE), projects (SET NULL) | CASCADE from activity | Approval-gated GL posting |
 | `vendor_parts` | vendors (CASCADE) | CASCADE from vendor | Vendor SKU → tenant SKU pricing map |
 

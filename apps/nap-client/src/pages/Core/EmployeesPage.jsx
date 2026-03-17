@@ -32,6 +32,7 @@ import ConfirmDialog from '../../components/shared/ConfirmDialog.jsx';
 import DataTable from '../../components/shared/DataTable.jsx';
 import FieldRow from '../../components/shared/FieldRow.jsx';
 import FormDialog from '../../components/shared/FormDialog.jsx';
+import ImportDialog from '../../components/shared/ImportDialog.jsx';
 import PatternTextField from '../../components/shared/PatternTextField.jsx';
 import ResetPasswordDialog from '../../components/shared/ResetPasswordDialog.jsx';
 import SetPasswordPopover from '../../components/shared/SetPasswordPopover.jsx';
@@ -50,7 +51,9 @@ import {
 import {
   useTaxIdentifiers, useCreateTaxIdentifier, useUpdateTaxIdentifier, useArchiveTaxIdentifier,
 } from '../../hooks/useTaxIdentifiers.js';
+import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import { TAX_TYPES, COUNTRIES } from '@nap/shared';
+import { employeeApi } from '../../services/employeeApi.js';
 import { pageContainerSx, formGridSx, formGroupCardSx, formFullSpanSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
@@ -102,6 +105,8 @@ export default function EmployeesPage() {
   const { user } = useAuth();
   const caps = user?.perms?.caps || {};
   const canResetPassword = resolveLevel(caps, 'core', '', 'reset-password') === 'full';
+  const canImport = resolveLevel(caps, 'core', 'employees', 'import') === 'full';
+  const canExport = resolveLevel(caps, 'core', 'employees', 'export') !== 'none';
 
   const { data: res, isLoading } = useEmployees();
   const allRows = res?.rows ?? [];
@@ -121,6 +126,9 @@ export default function EmployeesPage() {
   const archiveMut = useArchiveEmployee();
   const restoreMut = useRestoreEmployee();
 
+  const importMut = useImportXls(employeeApi.importXls, ['employees']);
+  const exportMut = useExportXls(employeeApi.exportXls, 'employees');
+
   const createPhoneMut = useCreatePhoneNumber();
   const updatePhoneMut = useUpdatePhoneNumber();
   const archivePhoneMut = useArchivePhoneNumber();
@@ -136,8 +144,10 @@ export default function EmployeesPage() {
   const { selectedRows, allActive, allArchived } = selection;
 
   /* ── Dialog state ───────────────────────────────────────────── */
+  const [importOpen, setImportOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
   const [viewEmployee, setViewEmployee] = useState(null);
+  const [viewSourceId, setViewSourceId] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editRow, setEditRow] = useState(null);
@@ -148,6 +158,14 @@ export default function EmployeesPage() {
   const { data: phonesRes } = usePhoneNumbers({ source_id: editSourceId, includeDeactivated: 'false' }, { enabled: !!editSourceId });
   const { data: addressesRes } = useAddresses({ source_id: editSourceId, includeDeactivated: 'false' }, { enabled: !!editSourceId });
   const { data: taxIdsRes } = useTaxIdentifiers({ source_id: editSourceId, includeDeactivated: 'false' }, { enabled: !!editSourceId });
+
+  // View dialog child data
+  const { data: viewPhonesRes } = usePhoneNumbers({ source_id: viewSourceId, includeDeactivated: 'false' }, { enabled: !!viewSourceId });
+  const { data: viewAddressesRes } = useAddresses({ source_id: viewSourceId, includeDeactivated: 'false' }, { enabled: !!viewSourceId });
+  const { data: viewTaxIdsRes } = useTaxIdentifiers({ source_id: viewSourceId, includeDeactivated: 'false' }, { enabled: !!viewSourceId });
+  const viewPhones = viewPhonesRes?.rows ?? [];
+  const viewAddresses = viewAddressesRes?.rows ?? [];
+  const viewTaxIds = viewTaxIdsRes?.rows ?? [];
 
   const [createForm, setCreateForm] = useState(BLANK_CREATE);
   const [editForm, setEditForm] = useState(BLANK_EDIT);
@@ -236,6 +254,7 @@ export default function EmployeesPage() {
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {
     setViewEmployee(row);
+    setViewSourceId(row.source_id || null);
     setViewOpen(true);
   }, []);
 
@@ -373,6 +392,25 @@ export default function EmployeesPage() {
     }
   };
 
+  const handleImport = useCallback(async (formData) => {
+    try {
+      const result = await importMut.mutateAsync(formData);
+      toast(`Imported ${result.inserted} records`);
+      setImportOpen(false);
+    } catch (err) {
+      toast(errMsg(err), 'error');
+    }
+  }, [importMut.mutateAsync, toast]);
+
+  const handleExport = useCallback(async () => {
+    try {
+      await exportMut.mutateAsync({});
+      toast('Export downloaded');
+    } catch (err) {
+      toast(errMsg(err), 'error');
+    }
+  }, [exportMut.mutateAsync, toast]);
+
   const { setArchiveOpen, setRestoreOpen, archiveConfirmProps, restoreConfirmProps } = useArchiveRestore({
     selectedRows,
     archiveMut,
@@ -407,6 +445,22 @@ export default function EmployeesPage() {
       });
     }
 
+    if (canExport) {
+      primary.push({
+        label: 'Export',
+        variant: 'outlined',
+        disabled: exportMut.isPending,
+        onClick: handleExport,
+      });
+    }
+    if (canImport) {
+      primary.push({
+        label: 'Import',
+        variant: 'outlined',
+        onClick: () => setImportOpen(true),
+      });
+    }
+
     primary.push({
       label: 'Create Employee',
       variant: 'contained',
@@ -423,7 +477,7 @@ export default function EmployeesPage() {
       filters: [],
       primaryActions: primary,
     };
-  }, [viewFilter, selectedRows.length, allActive, allArchived, selection.clearSelection, setArchiveOpen, setRestoreOpen]);
+  }, [viewFilter, selectedRows.length, allActive, allArchived, selection.clearSelection, setArchiveOpen, setRestoreOpen, canImport, canExport, exportMut.isPending, handleExport]);
   useModuleToolbarRegistration(toolbar);
 
   /* ── Visible (non-deleted) sub-collections for the form ──── */
@@ -444,7 +498,7 @@ export default function EmployeesPage() {
       />
 
       {/* ── View Details Dialog ──────────────────────────────────── */}
-      <Dialog open={viewOpen} onClose={() => setViewOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={viewOpen} onClose={() => { setViewOpen(false); setViewSourceId(null); }} maxWidth="sm" fullWidth>
         <DialogTitle sx={dialogHeaderSx}>
           <Box>
             <span>Employee Details</span>
@@ -455,7 +509,7 @@ export default function EmployeesPage() {
             )}
           </Box>
           <Box sx={dialogActionBoxSx}>
-            <Button size="small" color="inherit" onClick={() => setViewOpen(false)}>
+            <Button size="small" color="inherit" onClick={() => { setViewOpen(false); setViewSourceId(null); }}>
               Close
             </Button>
           </Box>
@@ -480,6 +534,56 @@ export default function EmployeesPage() {
                 <FieldRow label="Created" value={fmtDate(viewEmployee.created_at)} />
                 <FieldRow label="Updated" value={fmtDate(viewEmployee.updated_at)} />
               </Box>
+
+              {/* ── Phone Numbers ──────────────────────────────── */}
+              {viewPhones.length > 0 && (
+                <>
+                  <Divider />
+                  <Typography variant="subtitle2" color="text.secondary">Phone Numbers</Typography>
+                  {viewPhones.map((p) => (
+                    <Box key={p.id} sx={detailGridSx}>
+                      <FieldRow label="Type" value={p.phone_type} />
+                      <FieldRow label="Number" value={p.phone_number} />
+                      <FieldRow label="Primary" value={p.is_primary ? 'Yes' : 'No'} />
+                    </Box>
+                  ))}
+                </>
+              )}
+
+              {/* ── Addresses ─────────────────────────────────── */}
+              {viewAddresses.length > 0 && (
+                <>
+                  <Divider />
+                  <Typography variant="subtitle2" color="text.secondary">Addresses</Typography>
+                  {viewAddresses.map((a) => (
+                    <Box key={a.id} sx={detailGridSx}>
+                      <FieldRow label="Label" value={a.label || '\u2014'} />
+                      <FieldRow label="Address" value={[a.address_line_1, a.address_line_2, a.address_line_3].filter(Boolean).join(', ') || '\u2014'} />
+                      <FieldRow label="City" value={a.city || '\u2014'} />
+                      <FieldRow label="State" value={a.state_province || '\u2014'} />
+                      <FieldRow label="Postal Code" value={a.postal_code || '\u2014'} />
+                      <FieldRow label="Country" value={a.country_code || '\u2014'} />
+                      <FieldRow label="Primary" value={a.is_primary ? 'Yes' : 'No'} />
+                    </Box>
+                  ))}
+                </>
+              )}
+
+              {/* ── Tax Identifiers ───────────────────────────── */}
+              {viewTaxIds.length > 0 && (
+                <>
+                  <Divider />
+                  <Typography variant="subtitle2" color="text.secondary">Tax Identifiers</Typography>
+                  {viewTaxIds.map((t) => (
+                    <Box key={t.id} sx={detailGridSx}>
+                      <FieldRow label="Country" value={t.country_code} />
+                      <FieldRow label="Type" value={t.tax_type} />
+                      <FieldRow label="Value" value={t.tax_value} />
+                      <FieldRow label="Primary" value={t.is_primary ? 'Yes' : 'No'} />
+                    </Box>
+                  ))}
+                </>
+              )}
             </Box>
           )}
         </DialogContent>
@@ -707,6 +811,14 @@ export default function EmployeesPage() {
           );
         })}
       </FormDialog>
+
+      <ImportDialog
+        open={importOpen}
+        title="Import Employees"
+        loading={importMut.isPending}
+        onSubmit={handleImport}
+        onCancel={() => setImportOpen(false)}
+      />
 
       <ConfirmDialog {...archiveConfirmProps} />
       <ConfirmDialog {...restoreConfirmProps} />

@@ -47,6 +47,7 @@ describe('GL Posting — journal entries, ledger balances, double-entry', () => 
         tenant_code: TENANT_CODE, company: 'GL Test Corp', status: 'active',
         tier: 'starter', admin_first_name: 'Test', admin_last_name: 'Admin',
         admin_email: TENANT_ADMIN_EMAIL, admin_password: TENANT_ADMIN_PASSWORD,
+        billing_address: { address_line_1: '1 Test St', country_code: 'US' },
       });
     expect(provRes.status).toBe(201);
 
@@ -60,7 +61,7 @@ describe('GL Posting — journal entries, ledger balances, double-entry', () => 
   }, 30000);
 
   test('2. Create COA accounts (cash + expense)', async () => {
-    const icRes = await request(app).post('/api/core/v1/inter-companies').set('Cookie', cookies).send({ code: 'GLCO', name: 'GL Test Co' });
+    const icRes = await request(app).post('/api/core/v1/companies').set('Cookie', cookies).send({ code: 'GLCO', name: 'GL Test Co' });
     companyId = icRes.body.id;
 
     const cashRes = await request(app).post('/api/accounting/v1/chart-of-accounts').set('Cookie', cookies).send({ code: '1010', name: 'Operating Cash', type: 'cash' });

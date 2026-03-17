@@ -22,6 +22,8 @@ export const apInvoiceApi = {
   update: (filterParams, changes) => client.put(`${INVOICES}/update${qs(filterParams)}`, changes),
   archive: (filterParams) => client.del(`${INVOICES}/archive${qs(filterParams)}`, {}),
   restore: (filterParams) => client.patch(`${INVOICES}/restore${qs(filterParams)}`, {}),
+  importXls: (formData) => client.post(`${INVOICES}/import-xls`, formData),
+  exportXls: (body = {}) => client.post(`${INVOICES}/export-xls`, body, { responseType: 'blob' }),
 };
 
 /* ---- AP Invoice Lines ---- */
@@ -46,6 +48,8 @@ export const paymentApi = {
   update: (filterParams, changes) => client.put(`${PAYMENTS}/update${qs(filterParams)}`, changes),
   archive: (filterParams) => client.del(`${PAYMENTS}/archive${qs(filterParams)}`, {}),
   restore: (filterParams) => client.patch(`${PAYMENTS}/restore${qs(filterParams)}`, {}),
+  importXls: (formData) => client.post(`${PAYMENTS}/import-xls`, formData),
+  exportXls: (body = {}) => client.post(`${PAYMENTS}/export-xls`, body, { responseType: 'blob' }),
 };
 
 /* ---- AP Credit Memos ---- */
@@ -58,4 +62,6 @@ export const apCreditMemoApi = {
   update: (filterParams, changes) => client.put(`${CREDITS}/update${qs(filterParams)}`, changes),
   archive: (filterParams) => client.del(`${CREDITS}/archive${qs(filterParams)}`, {}),
   restore: (filterParams) => client.patch(`${CREDITS}/restore${qs(filterParams)}`, {}),
+  importXls: (formData) => client.post(`${CREDITS}/import-xls`, formData),
+  exportXls: (body = {}) => client.post(`${CREDITS}/export-xls`, body, { responseType: 'blob' }),
 };

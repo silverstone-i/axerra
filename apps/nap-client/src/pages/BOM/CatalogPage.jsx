@@ -22,7 +22,9 @@ import ConfirmDialog from '../../components/shared/ConfirmDialog.jsx';
 import DataTable from '../../components/shared/DataTable.jsx';
 import FieldRow from '../../components/shared/FieldRow.jsx';
 import FormDialog from '../../components/shared/FormDialog.jsx';
+import ImportDialog from '../../components/shared/ImportDialog.jsx';
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
+import { useAuth } from '../../contexts/AuthContext.jsx';
 import {
   useCatalogSkus,
   useCreateCatalogSku,
@@ -31,6 +33,9 @@ import {
   useRestoreCatalogSku,
   useRefreshCatalogEmbeddings,
 } from '../../hooks/useBom.js';
+import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
+import { resolveLevel } from '@nap/shared';
+import { catalogSkuApi } from '../../services/bomApi.js';
 import { pageContainerSx, formGridSx, dialogHeaderSx, dialogActionBoxSx, formFullSpanSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
@@ -55,6 +60,11 @@ const columns = [
 ];
 
 export default function CatalogPage() {
+  const { user } = useAuth();
+  const caps = user?.perms?.caps || {};
+  const canImport = resolveLevel(caps, 'bom', 'catalog-skus', 'import') === 'full';
+  const canExport = resolveLevel(caps, 'bom', 'catalog-skus', 'export') !== 'none';
+
   const { data: res, isLoading } = useCatalogSkus();
   const allRows = res?.rows ?? [];
 
@@ -71,11 +81,15 @@ export default function CatalogPage() {
   const restoreMut = useRestoreCatalogSku();
   const refreshMut = useRefreshCatalogEmbeddings();
 
+  const importMut = useImportXls(catalogSkuApi.importXls, ['catalogSkus']);
+  const exportMut = useExportXls(catalogSkuApi.exportXls, 'catalog_skus');
+
   /* ── Selection (new system) ─────────────────────────────────── */
   const selection = useListSelection(rows);
   const { selectedRows, allActive, allArchived } = selection;
 
   /* ── Dialog state ───────────────────────────────────────────── */
+  const [importOpen, setImportOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
   const [viewSku, setViewSku] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -142,6 +156,25 @@ export default function CatalogPage() {
     }
   };
 
+  const handleImport = useCallback(async (formData) => {
+    try {
+      const result = await importMut.mutateAsync(formData);
+      toast(`Imported ${result.inserted} records`);
+      setImportOpen(false);
+    } catch (err) {
+      toast(errMsg(err), 'error');
+    }
+  }, [importMut.mutateAsync, toast]);
+
+  const handleExport = useCallback(async () => {
+    try {
+      await exportMut.mutateAsync({});
+      toast('Export downloaded');
+    } catch (err) {
+      toast(errMsg(err), 'error');
+    }
+  }, [exportMut.mutateAsync, toast]);
+
   const { setArchiveOpen, setRestoreOpen, archiveConfirmProps, restoreConfirmProps } = useArchiveRestore({
     selectedRows,
     archiveMut,
@@ -183,6 +216,13 @@ export default function CatalogPage() {
       onClick: handleRefreshEmbeddings,
     });
 
+    if (canExport) {
+      primary.push({ label: 'Export', variant: 'outlined', disabled: exportMut.isPending, onClick: handleExport });
+    }
+    if (canImport) {
+      primary.push({ label: 'Import', variant: 'outlined', onClick: () => setImportOpen(true) });
+    }
+
     primary.push({
       label: 'Create',
       variant: 'contained',
@@ -199,7 +239,7 @@ export default function CatalogPage() {
       filters: [],
       primaryActions: primary,
     };
-  }, [viewFilter, selectedRows.length, allActive, allArchived, selection.clearSelection, setArchiveOpen, setRestoreOpen, refreshMut.isPending]);
+  }, [viewFilter, selectedRows.length, allActive, allArchived, selection.clearSelection, setArchiveOpen, setRestoreOpen, refreshMut.isPending, canImport, canExport, exportMut.isPending, handleExport]);
   useModuleToolbarRegistration(toolbar);
 
   return (
@@ -271,6 +311,8 @@ export default function CatalogPage() {
           <TextField label="Description" required multiline rows={3} value={editForm.description} onChange={onEditField('description')} sx={formFullSpanSx} />
         </Box>
       </FormDialog>
+
+      <ImportDialog open={importOpen} title="Import Catalog SKUs" loading={importMut.isPending} onSubmit={handleImport} onCancel={() => setImportOpen(false)} />
 
       <ConfirmDialog {...archiveConfirmProps} />
       <ConfirmDialog {...restoreConfirmProps} />

@@ -1,7 +1,7 @@
 /**
  * @file Contract tests for Accounting module — chart-of-accounts, journal-entries,
  *       journal-entry-lines, ledger-balances, posting-queues, category-account-map,
- *       inter-company-accounts, inter-company-transactions, internal-transfers
+ *       company-accounts, company-transactions, internal-transfers
  * @module tests/contract/accounting
  *
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
@@ -50,6 +50,7 @@ async function provisionAndLogin() {
       admin_last_name: 'Admin',
       admin_email: TENANT_ADMIN_EMAIL,
       admin_password: TENANT_ADMIN_PASSWORD,
+      billing_address: { address_line_1: '1 Test St', country_code: 'US' },
     });
 
   const loginRes = await request(app)
@@ -65,16 +66,16 @@ let accountId2;
 let journalEntryId;
 let journalEntryLineId;
 let categoryAccountMapId;
-let interCompanyAccountId;
-let interCompanyTransactionId;
+let companyAccountId;
+let companyTransactionId;
 let internalTransferId;
 
 beforeAll(async () => {
   cookies = await provisionAndLogin();
 
-  // Create prerequisite: inter-company
+  // Create prerequisite: company
   const icRes = await request(app)
-    .post('/api/core/v1/inter-companies')
+    .post('/api/core/v1/companies')
     .set('Cookie', cookies)
     .send({ code: 'ACTCO', name: 'Accounting Test Company' });
   companyId = icRes.body.id;
@@ -252,10 +253,10 @@ describe('Category Account Map — /api/accounting/v1/category-account-map', () 
   });
 });
 
-describe('Inter-Company Accounts — /api/accounting/v1/inter-company-accounts', () => {
-  test('POST creates an inter-company account', async () => {
+describe('Company Accounts — /api/accounting/v1/company-accounts', () => {
+  test('POST creates a company account', async () => {
     const res = await request(app)
-      .post('/api/accounting/v1/inter-company-accounts')
+      .post('/api/accounting/v1/company-accounts')
       .set('Cookie', cookies)
       .send({
         source_company_id: companyId,
@@ -264,22 +265,22 @@ describe('Inter-Company Accounts — /api/accounting/v1/inter-company-accounts',
         is_active: true,
       });
     expect(res.status).toBe(201);
-    interCompanyAccountId = res.body.id;
+    companyAccountId = res.body.id;
   });
 
-  test('GET lists inter-company accounts', async () => {
+  test('GET lists company accounts', async () => {
     const res = await request(app)
-      .get('/api/accounting/v1/inter-company-accounts')
+      .get('/api/accounting/v1/company-accounts')
       .set('Cookie', cookies);
     expect(res.status).toBe(200);
     expect(res.body.rows.length).toBeGreaterThanOrEqual(1);
   });
 });
 
-describe('Inter-Company Transactions — /api/accounting/v1/inter-company-transactions', () => {
-  test('POST creates an inter-company transaction', async () => {
+describe('Company Transactions — /api/accounting/v1/company-transactions', () => {
+  test('POST creates a company transaction', async () => {
     const res = await request(app)
-      .post('/api/accounting/v1/inter-company-transactions')
+      .post('/api/accounting/v1/company-transactions')
       .set('Cookie', cookies)
       .send({
         source_company_id: companyId,
@@ -288,12 +289,12 @@ describe('Inter-Company Transactions — /api/accounting/v1/inter-company-transa
         status: 'pending',
       });
     expect(res.status).toBe(201);
-    interCompanyTransactionId = res.body.id;
+    companyTransactionId = res.body.id;
   });
 
-  test('GET lists inter-company transactions', async () => {
+  test('GET lists company transactions', async () => {
     const res = await request(app)
-      .get('/api/accounting/v1/inter-company-transactions')
+      .get('/api/accounting/v1/company-transactions')
       .set('Cookie', cookies);
     expect(res.status).toBe(200);
     expect(res.body.rows.length).toBeGreaterThanOrEqual(1);

@@ -28,7 +28,9 @@ import ConfirmDialog from '../../components/shared/ConfirmDialog.jsx';
 import DataTable from '../../components/shared/DataTable.jsx';
 import FieldRow from '../../components/shared/FieldRow.jsx';
 import FormDialog from '../../components/shared/FormDialog.jsx';
+import ImportDialog from '../../components/shared/ImportDialog.jsx';
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
+import { useAuth } from '../../contexts/AuthContext.jsx';
 import {
   useCategories,
   useCreateCategory,
@@ -36,6 +38,9 @@ import {
   useArchiveCategory,
   useRestoreCategory,
 } from '../../hooks/useCategories.js';
+import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
+import { resolveLevel } from '@nap/shared';
+import { categoryApi } from '../../services/categoryApi.js';
 import { pageContainerSx, formGridSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
@@ -56,6 +61,11 @@ const columns = [
 ];
 
 export default function CategoriesPage() {
+  const { user } = useAuth();
+  const caps = user?.perms?.caps || {};
+  const canImport = resolveLevel(caps, 'activities', 'categories', 'import') === 'full';
+  const canExport = resolveLevel(caps, 'activities', 'categories', 'export') !== 'none';
+
   const { data: res, isLoading } = useCategories();
   const allRows = res?.rows ?? [];
 
@@ -71,11 +81,15 @@ export default function CategoriesPage() {
   const archiveMut = useArchiveCategory();
   const restoreMut = useRestoreCategory();
 
+  const importMut = useImportXls(categoryApi.importXls, ['categories']);
+  const exportMut = useExportXls(categoryApi.exportXls, 'categories');
+
   /* ── Selection (new system) ─────────────────────────────────── */
   const selection = useListSelection(rows);
   const { selectedRows, allActive, allArchived } = selection;
 
   /* ── Dialog state ───────────────────────────────────────────── */
+  const [importOpen, setImportOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
   const [viewCategory, setViewCategory] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -130,6 +144,25 @@ export default function CategoriesPage() {
     }
   };
 
+  const handleImport = useCallback(async (formData) => {
+    try {
+      const result = await importMut.mutateAsync(formData);
+      toast(`Imported ${result.inserted} records`);
+      setImportOpen(false);
+    } catch (err) {
+      toast(errMsg(err), 'error');
+    }
+  }, [importMut.mutateAsync, toast]);
+
+  const handleExport = useCallback(async () => {
+    try {
+      await exportMut.mutateAsync({});
+      toast('Export downloaded');
+    } catch (err) {
+      toast(errMsg(err), 'error');
+    }
+  }, [exportMut.mutateAsync, toast]);
+
   const { setArchiveOpen, setRestoreOpen, archiveConfirmProps, restoreConfirmProps } = useArchiveRestore({
     selectedRows,
     archiveMut,
@@ -164,6 +197,13 @@ export default function CategoriesPage() {
       });
     }
 
+    if (canExport) {
+      primary.push({ label: 'Export', variant: 'outlined', disabled: exportMut.isPending, onClick: handleExport });
+    }
+    if (canImport) {
+      primary.push({ label: 'Import', variant: 'outlined', onClick: () => setImportOpen(true) });
+    }
+
     primary.push({
       label: 'Create',
       variant: 'contained',
@@ -180,7 +220,7 @@ export default function CategoriesPage() {
       filters: [],
       primaryActions: primary,
     };
-  }, [viewFilter, selectedRows.length, allActive, allArchived, selection.clearSelection, setArchiveOpen, setRestoreOpen]);
+  }, [viewFilter, selectedRows.length, allActive, allArchived, selection.clearSelection, setArchiveOpen, setRestoreOpen, canImport, canExport, exportMut.isPending, handleExport]);
   useModuleToolbarRegistration(toolbar);
 
   return (
@@ -250,6 +290,14 @@ export default function CategoriesPage() {
           </TextField>
         </Box>
       </FormDialog>
+
+      <ImportDialog
+        open={importOpen}
+        title="Import Categories"
+        loading={importMut.isPending}
+        onSubmit={handleImport}
+        onCancel={() => setImportOpen(false)}
+      />
 
       <ConfirmDialog {...archiveConfirmProps} />
       <ConfirmDialog {...restoreConfirmProps} />

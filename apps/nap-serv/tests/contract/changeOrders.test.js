@@ -45,6 +45,7 @@ async function provisionTenant(cookies) {
       admin_last_name: 'Admin',
       admin_email: 'admin@cotest.com',
       admin_password: 'CotestPass123!',
+      billing_address: { address_line_1: '1 Test St', country_code: 'US' },
     });
 }
 
@@ -62,9 +63,9 @@ describe('Change Order CRUD — /api/projects/v1/change-orders', () => {
       .send({ email: 'admin@cotest.com', password: 'CotestPass123!' });
     cookies = loginRes.headers['set-cookie'];
 
-    // Create inter-company → project → unit
+    // Create company → project → unit
     const icRes = await request(app)
-      .post('/api/core/v1/inter-companies')
+      .post('/api/core/v1/companies')
       .set('Cookie', cookies)
       .send({ code: 'COCO', name: 'CO Test Company' });
 

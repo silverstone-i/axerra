@@ -49,6 +49,15 @@ export function useTenantContacts(tenantId) {
   });
 }
 
+/** Fetch tenant's self-company with addresses and tax identifiers. */
+export function useTenantCompany(tenantId) {
+  return useQuery({
+    queryKey: [...TENANTS_KEY, tenantId, 'company'],
+    queryFn: () => tenantApi.getCompany(tenantId),
+    enabled: !!tenantId,
+  });
+}
+
 /** Create a new tenant (with admin user + schema provisioning). */
 export function useCreateTenant() {
   const qc = useQueryClient();

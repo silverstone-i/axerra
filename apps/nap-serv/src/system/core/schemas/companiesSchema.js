@@ -1,14 +1,14 @@
 /**
- * @file Schema definition for tenant-scope inter_companies table
- * @module core/schemas/interCompaniesSchema
+ * @file Schema definition for tenant-scope companies table
+ * @module core/schemas/companiesSchema
  *
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
 
 /** @type {import('pg-schemata').TableSchema} */
-const interCompaniesSchema = {
+const companiesSchema = {
   dbSchema: 'tenantid',
-  table: 'inter_companies',
+  table: 'companies',
   version: '1.0.0',
   hasAuditFields: { enabled: true, userFields: { type: 'uuid', nullable: true, default: null } },
   softDelete: true,
@@ -38,4 +38,4 @@ const interCompaniesSchema = {
   },
 };
 
-export default interCompaniesSchema;
+export default companiesSchema;

@@ -51,6 +51,7 @@ describe('Entity lifecycle — employee is_app_user with nap_users cascade', () 
         admin_last_name: 'Admin',
         admin_email: 'admin@eltest.com',
         admin_password: 'EltestPass123!',
+        billing_address: { address_line_1: '1 Test St', country_code: 'US' },
       });
     expect(res.status).toBe(201);
 

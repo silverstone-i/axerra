@@ -46,6 +46,7 @@ async function provisionTenant(cookies) {
       admin_last_name: 'Admin',
       admin_email: 'admin@vtest.com',
       admin_password: 'VtestPass123!',
+      billing_address: { address_line_1: '1 Test St', country_code: 'US' },
     });
   return res.body;
 }

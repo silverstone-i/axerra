@@ -21,10 +21,15 @@ import ConfirmDialog from '../../components/shared/ConfirmDialog.jsx';
 import DataTable from '../../components/shared/DataTable.jsx';
 import FieldRow from '../../components/shared/FieldRow.jsx';
 import FormDialog from '../../components/shared/FormDialog.jsx';
+import ImportDialog from '../../components/shared/ImportDialog.jsx';
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
+import { useAuth } from '../../contexts/AuthContext.jsx';
 import {
   useChangeOrders, useCreateChangeOrder, useUpdateChangeOrder, useArchiveChangeOrder, useRestoreChangeOrder,
 } from '../../hooks/useChangeOrders.js';
+import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
+import { resolveLevel } from '@nap/shared';
+import { changeOrderApi } from '../../services/changeOrderApi.js';
 import { pageContainerSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
@@ -49,6 +54,11 @@ const columns = [
 ];
 
 export default function ChangeOrdersPage() {
+  const { user } = useAuth();
+  const caps = user?.perms?.caps || {};
+  const canImport = resolveLevel(caps, 'projects', 'change-orders', 'import') === 'full';
+  const canExport = resolveLevel(caps, 'projects', 'change-orders', 'export') !== 'none';
+
   const { data: res, isLoading } = useChangeOrders();
   const allRows = res?.rows ?? [];
 
@@ -64,11 +74,15 @@ export default function ChangeOrdersPage() {
   const archiveMut = useArchiveChangeOrder();
   const restoreMut = useRestoreChangeOrder();
 
+  const importMut = useImportXls(changeOrderApi.importXls, ['changeOrders']);
+  const exportMut = useExportXls(changeOrderApi.exportXls, 'change_orders');
+
   /* ── Selection (new system) ─────────────────────────────────── */
   const selection = useListSelection(rows);
   const { selectedRows, allActive, allArchived } = selection;
 
   /* ── Dialog state ───────────────────────────────────────────── */
+  const [importOpen, setImportOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
   const [viewCO, setViewCO] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -124,6 +138,25 @@ export default function ChangeOrdersPage() {
     }
   };
 
+  const handleImport = useCallback(async (formData) => {
+    try {
+      const result = await importMut.mutateAsync(formData);
+      toast(`Imported ${result.inserted} records`);
+      setImportOpen(false);
+    } catch (err) {
+      toast(errMsg(err), 'error');
+    }
+  }, [importMut.mutateAsync, toast]);
+
+  const handleExport = useCallback(async () => {
+    try {
+      await exportMut.mutateAsync({});
+      toast('Export downloaded');
+    } catch (err) {
+      toast(errMsg(err), 'error');
+    }
+  }, [exportMut.mutateAsync, toast]);
+
   const { setArchiveOpen, setRestoreOpen, archiveConfirmProps, restoreConfirmProps } = useArchiveRestore({
     selectedRows,
     archiveMut,
@@ -159,6 +192,13 @@ export default function ChangeOrdersPage() {
       });
     }
 
+    if (canExport) {
+      primary.push({ label: 'Export', variant: 'outlined', disabled: exportMut.isPending, onClick: handleExport });
+    }
+    if (canImport) {
+      primary.push({ label: 'Import', variant: 'outlined', onClick: () => setImportOpen(true) });
+    }
+
     primary.push({
       label: 'Create CO',
       variant: 'contained',
@@ -175,7 +215,7 @@ export default function ChangeOrdersPage() {
       filters: [],
       primaryActions: primary,
     };
-  }, [viewFilter, selectedRows.length, allActive, allArchived, selection.clearSelection, setArchiveOpen, setRestoreOpen]);
+  }, [viewFilter, selectedRows.length, allActive, allArchived, selection.clearSelection, setArchiveOpen, setRestoreOpen, canImport, canExport, exportMut.isPending, handleExport]);
   useModuleToolbarRegistration(toolbar);
 
   return (
@@ -238,6 +278,8 @@ export default function ChangeOrdersPage() {
         <TextField label="Reason" multiline minRows={2} value={editForm.reason} onChange={onEditField('reason')} />
         <TextField label="Total Amount" type="number" value={editForm.total_amount} onChange={onEditField('total_amount')} />
       </FormDialog>
+
+      <ImportDialog open={importOpen} title="Import Change Orders" loading={importMut.isPending} onSubmit={handleImport} onCancel={() => setImportOpen(false)} />
 
       <ConfirmDialog {...archiveConfirmProps} />
       <ConfirmDialog {...restoreConfirmProps} />

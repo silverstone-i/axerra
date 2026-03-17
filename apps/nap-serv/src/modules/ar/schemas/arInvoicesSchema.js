@@ -3,7 +3,7 @@
  * @module ar/schemas/arInvoicesSchema
  *
  * Client invoices with status workflow: open → sent → paid → voided.
- * Links to inter_companies, clients (core entity), and optionally projects/deliverables
+ * Links to companies, clients (core entity), and optionally projects/deliverables
  * for revenue and profitability tracking.
  *
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
@@ -40,7 +40,7 @@ const arInvoicesSchema = {
       {
         type: 'ForeignKey',
         columns: ['company_id'],
-        references: { table: 'inter_companies', columns: ['id'] },
+        references: { table: 'companies', columns: ['id'] },
         onDelete: 'RESTRICT',
       },
       {

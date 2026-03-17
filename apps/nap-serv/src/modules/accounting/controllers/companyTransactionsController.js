@@ -1,6 +1,6 @@
 /**
- * @file Inter-Company Transactions controller — CRUD with module validation
- * @module accounting/controllers/interCompanyTransactionsController
+ * @file Company Transactions controller — CRUD with module validation
+ * @module accounting/controllers/companyTransactionsController
  *
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
@@ -9,10 +9,10 @@ import BaseController from '../../../lib/BaseController.js';
 
 const VALID_MODULES = ['ar', 'ap', 'je'];
 
-class InterCompanyTransactionsController extends BaseController {
+class CompanyTransactionsController extends BaseController {
   constructor() {
-    super('interCompanyTransactions', 'inter-company-transaction');
-    this.rbacConfig = { module: 'accounting', router: 'inter-company-transactions' };
+    super('companyTransactions', 'company-transaction');
+    this.rbacConfig = { module: 'accounting', router: 'company-transactions' };
   }
 
   async create(req, res) {
@@ -25,6 +25,6 @@ class InterCompanyTransactionsController extends BaseController {
   }
 }
 
-const instance = new InterCompanyTransactionsController();
+const instance = new CompanyTransactionsController();
 export default instance;
-export { InterCompanyTransactionsController, VALID_MODULES };
+export { CompanyTransactionsController, VALID_MODULES };

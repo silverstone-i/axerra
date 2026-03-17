@@ -53,6 +53,7 @@ describe('Generated columns — cost_items.amount = quantity * unit_cost', () =>
         admin_last_name: 'Admin',
         admin_email: 'admin@gctest.com',
         admin_password: 'GctestPass123!',
+        billing_address: { address_line_1: '1 Test St', country_code: 'US' },
       });
 
     const tenant = await db.one("SELECT schema_name FROM admin.tenants WHERE tenant_code = 'GCTEST'");
@@ -63,9 +64,9 @@ describe('Generated columns — cost_items.amount = quantity * unit_cost', () =>
       .send({ email: 'admin@gctest.com', password: 'GctestPass123!' });
     tenantCookies = loginRes.headers['set-cookie'];
 
-    // Create inter-company → project → unit → task for cost items
+    // Create company → project → unit → task for cost items
     const icRes = await request(app)
-      .post('/api/core/v1/inter-companies')
+      .post('/api/core/v1/companies')
       .set('Cookie', tenantCookies)
       .send({ code: 'GCCO', name: 'Gen Column Company' });
 

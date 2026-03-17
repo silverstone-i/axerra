@@ -31,6 +31,11 @@ import { useClients } from '../../hooks/useClients.js';
 import { pageContainerSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
+import { useAuth } from '../../contexts/AuthContext.jsx';
+import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
+import ImportDialog from '../../components/shared/ImportDialog.jsx';
+import { resolveLevel } from '@nap/shared';
+import { receiptApi } from '../../services/arApi.js';
 
 const METHOD_OPTS = ['check', 'ach', 'wire'];
 const cap = (s) => (s ? s.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : '');
@@ -62,10 +67,17 @@ export default function ReceiptsPage() {
     return allRows;
   }, [allRows, viewFilter]);
 
+  const { user } = useAuth();
+  const caps = user?.perms?.caps || {};
+  const canImport = resolveLevel(caps, 'ar', 'receipts', 'import') === 'full';
+  const canExport = resolveLevel(caps, 'ar', 'receipts', 'export') !== 'none';
+
   const createMut = useCreateReceipt();
   const updateMut = useUpdateReceipt();
   const archiveMut = useArchiveReceipt();
   const restoreMut = useRestoreReceipt();
+  const importMut = useImportXls(receiptApi.importXls, ['receipts']);
+  const exportMut = useExportXls(receiptApi.exportXls, 'receipts');
 
   /* ── Selection (new system) ─────────────────────────────────── */
   const selection = useListSelection(rows);
@@ -85,8 +97,29 @@ export default function ReceiptsPage() {
   const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
   const errMsg = (err) => err.payload?.error || err.payload?.message || err.message;
 
+  const [importOpen, setImportOpen] = useState(false);
+
   const onCreateField = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.value }));
   const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));
+
+  const handleImport = useCallback(async (formData) => {
+    try {
+      const result = await importMut.mutateAsync(formData);
+      toast(`Imported ${result.inserted} records`);
+      setImportOpen(false);
+    } catch (err) {
+      toast(errMsg(err), 'error');
+    }
+  }, [importMut.mutateAsync, toast]);
+
+  const handleExport = useCallback(async () => {
+    try {
+      await exportMut.mutateAsync({});
+      toast('Export downloaded');
+    } catch (err) {
+      toast(errMsg(err), 'error');
+    }
+  }, [exportMut.mutateAsync, toast]);
 
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {
@@ -137,6 +170,13 @@ export default function ReceiptsPage() {
       });
     }
 
+    if (canExport) {
+      primary.push({ label: 'Export', variant: 'outlined', disabled: exportMut.isPending, onClick: handleExport });
+    }
+    if (canImport) {
+      primary.push({ label: 'Import', variant: 'outlined', onClick: () => setImportOpen(true) });
+    }
+
     primary.push({
       label: 'Record Receipt',
       variant: 'contained',
@@ -153,7 +193,7 @@ export default function ReceiptsPage() {
       filters: [],
       primaryActions: primary,
     };
-  }, [viewFilter, selectedRows.length, allActive, allArchived, selection.clearSelection, setArchiveOpen, setRestoreOpen]);
+  }, [viewFilter, selectedRows.length, allActive, allArchived, selection.clearSelection, setArchiveOpen, setRestoreOpen, canImport, canExport, exportMut.isPending, handleExport]);
   useModuleToolbarRegistration(toolbar);
 
   return (
@@ -227,6 +267,8 @@ export default function ReceiptsPage() {
 
       <ConfirmDialog {...archiveConfirmProps} />
       <ConfirmDialog {...restoreConfirmProps} />
+
+      <ImportDialog open={importOpen} title="Import Receipts" loading={importMut.isPending} onSubmit={handleImport} onCancel={() => setImportOpen(false)} />
 
       <Snackbar open={snack.open} autoHideDuration={4000} onClose={() => setSnack((s) => ({ ...s, open: false }))} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
         <Alert severity={snack.sev} variant="filled" onClose={() => setSnack((s) => ({ ...s, open: false }))}>{snack.msg}</Alert>

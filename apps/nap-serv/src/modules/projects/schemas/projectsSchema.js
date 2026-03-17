@@ -2,7 +2,7 @@
  * @file Schema definition for tenant-scope projects table
  * @module projects/schemas/projectsSchema
  *
- * Projects reference inter_companies (RESTRICT) and addresses (SET NULL)
+ * Projects reference companies (RESTRICT) and addresses (SET NULL)
  * from the core module. Client associations are managed via the
  * project_clients junction table.
  * Status workflow: planning → budgeting → released → complete.
@@ -39,7 +39,7 @@ const projectsSchema = {
       {
         type: 'ForeignKey',
         columns: ['company_id'],
-        references: { table: 'inter_companies', columns: ['id'] },
+        references: { table: 'companies', columns: ['id'] },
         onDelete: 'RESTRICT',
       },
       {

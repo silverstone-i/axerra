@@ -24,7 +24,7 @@
   `assigned_projects` > `self`
 - Multi-role merge: broadest scope wins
 - `assigned_companies`: user sees data from projects
-  belonging to their assigned inter-companies
+  belonging to their assigned companies
 - `assigned_projects`: user sees data from their assigned
   projects only
 - `self`: user sees only records matching their entity FK
@@ -79,6 +79,18 @@ All system roles resolve through full RBAC — no bypass.
 - Empty array = all modules allowed
 - Enforced by `moduleEntitlement` middleware before RBAC
 - Returns 403 if module not entitled
+
+## Import/Export RBAC
+
+- Import routes: `setImportAction` overrides
+  `req.resource.action = 'import'` → `rbac('full')`
+- Export routes: `setExportAction` overrides
+  `req.resource.action = 'export'` → `rbac('view')`
+- Client checks: `resolveLevel(caps, module, entity, 'import')`
+  for import, `resolveLevel(caps, module, entity, 'export')`
+  for export
+- Both auto-applied by `createRouter` on `/import-xls`
+  and `/export-xls`
 
 ## Middleware Chain
 

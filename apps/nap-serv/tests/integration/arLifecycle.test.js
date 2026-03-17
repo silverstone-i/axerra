@@ -49,6 +49,7 @@ describe('AR Invoice Lifecycle — full workflow', () => {
         tenant_code: TENANT_CODE, company: 'AR Lifecycle Corp', status: 'active',
         tier: 'starter', admin_first_name: 'Test', admin_last_name: 'Admin',
         admin_email: TENANT_ADMIN_EMAIL, admin_password: TENANT_ADMIN_PASSWORD,
+        billing_address: { address_line_1: '1 Test St', country_code: 'US' },
       });
     expect(provRes.status).toBe(201);
 
@@ -62,7 +63,7 @@ describe('AR Invoice Lifecycle — full workflow', () => {
   }, 30000);
 
   test('2. Create prerequisites (company, client, COA accounts)', async () => {
-    const icRes = await request(app).post('/api/core/v1/inter-companies').set('Cookie', cookies).send({ code: 'ARLC', name: 'AR Life Co' });
+    const icRes = await request(app).post('/api/core/v1/companies').set('Cookie', cookies).send({ code: 'ARLC', name: 'AR Life Co' });
     companyId = icRes.body.id;
 
     const cRes = await request(app).post('/api/core/v1/clients').set('Cookie', cookies).send({ client_code: 'ARLCL', name: 'AR Life Client' });

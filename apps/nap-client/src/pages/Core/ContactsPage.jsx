@@ -28,10 +28,15 @@ import ConfirmDialog from '../../components/shared/ConfirmDialog.jsx';
 import DataTable from '../../components/shared/DataTable.jsx';
 import FieldRow from '../../components/shared/FieldRow.jsx';
 import FormDialog from '../../components/shared/FormDialog.jsx';
+import ImportDialog from '../../components/shared/ImportDialog.jsx';
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
+import { useAuth } from '../../contexts/AuthContext.jsx';
 import {
   useContacts, useCreateContact, useUpdateContact, useArchiveContact, useRestoreContact,
 } from '../../hooks/useContacts.js';
+import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
+import { resolveLevel } from '@nap/shared';
+import { contactApi } from '../../services/contactApi.js';
 import { pageContainerSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
@@ -56,6 +61,11 @@ const columns = [
 ];
 
 export default function ContactsPage() {
+  const { user } = useAuth();
+  const caps = user?.perms?.caps || {};
+  const canImport = resolveLevel(caps, 'core', 'contacts', 'import') === 'full';
+  const canExport = resolveLevel(caps, 'core', 'contacts', 'export') !== 'none';
+
   const { data: res, isLoading } = useContacts();
   const allRows = res?.rows ?? [];
 
@@ -71,11 +81,15 @@ export default function ContactsPage() {
   const archiveMut = useArchiveContact();
   const restoreMut = useRestoreContact();
 
+  const importMut = useImportXls(contactApi.importXls, ['contacts']);
+  const exportMut = useExportXls(contactApi.exportXls, 'contacts');
+
   /* ── Selection (new system) ─────────────────────────────────── */
   const selection = useListSelection(rows);
   const { selectedRows, allActive, allArchived } = selection;
 
   /* ── Dialog state ───────────────────────────────────────────── */
+  const [importOpen, setImportOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
   const [viewContact, setViewContact] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -136,6 +150,25 @@ export default function ContactsPage() {
     }
   };
 
+  const handleImport = useCallback(async (formData) => {
+    try {
+      const result = await importMut.mutateAsync(formData);
+      toast(`Imported ${result.inserted} records`);
+      setImportOpen(false);
+    } catch (err) {
+      toast(errMsg(err), 'error');
+    }
+  }, [importMut.mutateAsync, toast]);
+
+  const handleExport = useCallback(async () => {
+    try {
+      await exportMut.mutateAsync({});
+      toast('Export downloaded');
+    } catch (err) {
+      toast(errMsg(err), 'error');
+    }
+  }, [exportMut.mutateAsync, toast]);
+
   const { setArchiveOpen, setRestoreOpen, archiveConfirmProps, restoreConfirmProps } = useArchiveRestore({
     selectedRows,
     archiveMut,
@@ -169,6 +202,22 @@ export default function ContactsPage() {
       });
     }
 
+    if (canExport) {
+      primary.push({
+        label: 'Export',
+        variant: 'outlined',
+        disabled: exportMut.isPending,
+        onClick: handleExport,
+      });
+    }
+    if (canImport) {
+      primary.push({
+        label: 'Import',
+        variant: 'outlined',
+        onClick: () => setImportOpen(true),
+      });
+    }
+
     primary.push({
       label: 'Create Contact',
       variant: 'contained',
@@ -185,7 +234,7 @@ export default function ContactsPage() {
       filters: [],
       primaryActions: primary,
     };
-  }, [viewFilter, selectedRows.length, allActive, allArchived, selection.clearSelection, setArchiveOpen, setRestoreOpen]);
+  }, [viewFilter, selectedRows.length, allActive, allArchived, selection.clearSelection, setArchiveOpen, setRestoreOpen, canImport, canExport, exportMut.isPending, handleExport]);
   useModuleToolbarRegistration(toolbar);
 
   return (
@@ -257,6 +306,14 @@ export default function ContactsPage() {
         <TextField label="Position" value={editForm.position} onChange={onEditField('position')} />
         <FormControlLabel control={<Checkbox checked={editForm.is_primary} onChange={onEditCheck('is_primary')} />} label="Primary Contact" />
       </FormDialog>
+
+      <ImportDialog
+        open={importOpen}
+        title="Import Contacts"
+        loading={importMut.isPending}
+        onSubmit={handleImport}
+        onCancel={() => setImportOpen(false)}
+      />
 
       <ConfirmDialog {...archiveConfirmProps} />
       <ConfirmDialog {...restoreConfirmProps} />
