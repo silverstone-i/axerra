@@ -60,6 +60,7 @@ describe('Tenant lifecycle — create, provision, archive, restore', () => {
         admin_last_name: 'User',
         admin_email: 'admin@testco.com',
         admin_password: 'TestCoPass123!',
+        billing_address: { address_line_1: '1 Test St', country_code: 'US' },
       });
 
     expect(res.status).toBe(201);
@@ -174,6 +175,7 @@ describe('Employee auto-numbering — backfill on enable', () => {
         admin_last_name: 'Doe',
         admin_email: 'jane@numco.com',
         admin_password: 'NumCoPass123!',
+        billing_address: { address_line_1: '1 Test St', country_code: 'US' },
       });
 
     expect(res.status).toBe(201);
@@ -269,6 +271,7 @@ describe('Employee auto-numbering — backfill on enable', () => {
         admin_last_name: 'Lee',
         admin_email: 'sam@nonum.com',
         admin_password: 'NoNumPass123!',
+        billing_address: { address_line_1: '1 Test St', country_code: 'US' },
       });
 
     expect(res.status).toBe(201);

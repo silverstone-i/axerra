@@ -58,6 +58,7 @@ describe('Project lifecycle — full hierarchy creation, status workflow, and ar
         admin_last_name: 'Admin',
         admin_email: 'admin@pltest.com',
         admin_password: 'PltestPass123!',
+        billing_address: { address_line_1: '1 Test St', country_code: 'US' },
       });
     expect(res.status).toBe(201);
 

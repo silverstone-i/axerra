@@ -47,6 +47,7 @@ describe('AP Invoice Lifecycle — full workflow', () => {
         tenant_code: TENANT_CODE, company: 'AP Lifecycle Corp', status: 'active',
         tier: 'starter', admin_first_name: 'Test', admin_last_name: 'Admin',
         admin_email: TENANT_ADMIN_EMAIL, admin_password: TENANT_ADMIN_PASSWORD,
+        billing_address: { address_line_1: '1 Test St', country_code: 'US' },
       });
     expect(provRes.status).toBe(201);
 

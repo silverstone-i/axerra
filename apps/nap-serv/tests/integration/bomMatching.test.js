@@ -55,6 +55,7 @@ describe('BOM matching workflow — embed, find similar, auto-match, audit log',
         admin_last_name: 'Admin',
         admin_email: 'admin@bmtest.com',
         admin_password: 'BmtestPass123!',
+        billing_address: { address_line_1: '1 Test St', country_code: 'US' },
       });
     expect(res.status).toBe(201);
 
