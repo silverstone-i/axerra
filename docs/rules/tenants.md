@@ -13,8 +13,9 @@ Creating a tenant is a three-step atomic operation:
 
 1. **Insert tenant record** in `admin.tenants`
 2. **Provision schema** — creates a PostgreSQL schema, runs tenant-scope
-   migrations, seeds system RBAC roles (`admin`, `manager`, `viewer`),
-   and seeds `tenant_numbering_config` rows (all `is_enabled = false`)
+   migrations, seeds system RBAC roles (`admin` only; NapSoft also gets
+   `super_user` and `support`), seeds policy catalog, and seeds
+   `tenant_numbering_config` rows (all `is_enabled = false`)
 3. **Create admin user** — inserts an `employees` record with
    `roles: ['admin']`, `is_app_user: true`, and `is_primary_contact: true`,
    then a linked `nap_user` with the provided email and password. The

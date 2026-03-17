@@ -1633,6 +1633,16 @@ Built into pg-schemata's TableModel and exposed as a full-stack feature across a
 - **Import**: `importFromSpreadsheet(filePath, sheetIndex, callbackFn?)` — parses XLSX, validates against schema, bulk inserts with audit fields. `BaseController.importXls()` handles file upload via multer (`/tmp/uploads/`), injects `tenant_code` and `created_by` via the callback, and returns `{ inserted: number }`.
 - **Export**: `exportToSpreadsheet(filePath, where?, joinType?, options?)` — queries with filtering, writes to XLSX. `ViewController.exportXls()` generates a temp file, sends it via `res.download()`, and cleans up the temp file after transfer. Accepts optional `where` array and `joinType` (`AND`/`OR`) in the request body for filtered exports.
 
+**Core Entity Override — Multi-Sheet Import/Export:**
+
+The 5 core entity models (Vendors, Clients, Employees, Contacts, Companies) override the default pg-schemata `importFromSpreadsheet()` / `exportToSpreadsheet()` methods with custom multi-sheet logic via `spreadsheetHelpers.js`. These entities use the polymorphic `sources` pattern with child tables (phone numbers, addresses, tax identifiers), which requires:
+
+- **Export** (`exportSourceEntity`): Queries the parent table, strips internal columns (audit fields, `tenant_id`, `source_id`, `deactivated_at`), appends a derived `status` column, and writes child data (phones, addresses, tax IDs) to separate sheets in a single XLSX workbook via `@nap-sft/tablsx` WorkbookBuilder.
+- **Import** (`importSourceEntity`): Parses multi-sheet workbooks, partitions rows into inserts vs updates (by `id` presence), executes updates with soft-delete/restore logic, bulk inserts new records with auto-generated source records and numbering-service codes, optionally provisions `nap_users` login records (when `appUserProvisioning` is enabled), and imports child sheets with delete-and-reinsert per parent. Returns an extended result: `{ inserted, updated, phones, addresses, taxIds, appUserSkipped }`.
+- **Config-driven**: Each entity defines a `SourceEntityConfig` specifying `entityName`, `sheetName`, `sourceType`, `idType`, `buildLabel`, `boolCols`, `childSheets`, and `appUserProvisioning`.
+
+All other entities (non-source) use the default pg-schemata single-sheet import/export path.
+
 **RBAC Enforcement:**
 - Import routes require `rbac('full')` — `setImportAction` overrides `req.resource.action = 'import'` before RBAC resolution
 - Export routes require `rbac('view')` — `setExportAction` overrides `req.resource.action = 'export'` before RBAC resolution
@@ -1669,6 +1679,11 @@ All resources using `createRouter` have import/export endpoints. The following p
 
 | Page | Module | Entity | API Service | Query Key |
 |------|--------|--------|-------------|-----------|
+| VendorsPage | core | vendors | `vendorApi` | `vendors` |
+| ClientsPage | core | clients | `clientApi` | `clients` |
+| EmployeesPage | core | employees | `employeeApi` | `employees` |
+| ContactsPage | core | contacts | `contactApi` | `contacts` |
+| CompaniesPage | core | companies | `companyApi` | `companies` |
 | ChartOfAccountsPage | accounting | chart-of-accounts | `chartOfAccountsApi` | `chartOfAccounts` |
 | JournalEntriesPage | accounting | journal-entries | `journalEntryApi` | `journalEntries` |
 | ProjectsPage | projects | projects | `projectApi` | `projects` |
@@ -1684,7 +1699,6 @@ All resources using `createRouter` have import/export endpoints. The following p
 | ArInvoicesPage | ar | ar-invoices | `arInvoiceApi` | `arInvoices` |
 | ReceiptsPage | ar | receipts | `receiptApi` | `receipts` |
 | CatalogPage | bom | catalog-skus | `catalogSkuApi` | `catalogSkus` |
-| CompaniesPage | core | companies | `companyApi` | `companies` |
 
 ---
 
