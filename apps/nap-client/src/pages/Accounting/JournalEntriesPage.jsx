@@ -60,8 +60,8 @@ export default function JournalEntriesPage() {
 
   const createMut = useCreateJournalEntry();
   const updateMut = useUpdateJournalEntry();
-  const postMut = usePostJournalEntry();
-  const reverseMut = useReverseJournalEntry();
+  const { mutateAsync: postEntryAsync } = usePostJournalEntry();
+  const { mutateAsync: reverseEntryAsync } = useReverseJournalEntry();
   const archiveMut = useArchiveJournalEntry();
   const restoreMut = useRestoreJournalEntry();
 
@@ -127,21 +127,21 @@ export default function JournalEntriesPage() {
 
   const handlePost = useCallback(async () => {
     try {
-      await postMut.mutateAsync({ entry_id: selection.selected.id });
+      await postEntryAsync({ entry_id: selection.selected.id });
       toast('Entry posted');
     } catch (err) {
       toast(errMsg(err), 'error');
     }
-  }, [selection.selected, postMut, toast]);
+  }, [selection.selected, postEntryAsync, toast]);
 
   const handleReverse = useCallback(async () => {
     try {
-      await reverseMut.mutateAsync({ entry_id: selection.selected.id });
+      await reverseEntryAsync({ entry_id: selection.selected.id });
       toast('Entry reversed');
     } catch (err) {
       toast(errMsg(err), 'error');
     }
-  }, [selection.selected, reverseMut, toast]);
+  }, [selection.selected, reverseEntryAsync, toast]);
 
   const { setArchiveOpen, setRestoreOpen, archiveConfirmProps, restoreConfirmProps } = useArchiveRestore({
     selectedRows,

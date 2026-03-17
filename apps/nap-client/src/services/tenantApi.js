@@ -39,6 +39,9 @@ export const tenantApi = {
 
   /** GET /:id/contacts — primary and billing contacts with phone/address. */
   getContacts: (tenantId) => client.get(`${BASE}/${tenantId}/contacts`),
+
+  /** GET /:id/company — tenant's self-company with addresses and tax identifiers. */
+  getCompany: (tenantId) => client.get(`${BASE}/${tenantId}/company`),
 };
 
 export default tenantApi;
