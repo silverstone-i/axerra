@@ -22,12 +22,17 @@ import ConfirmDialog from '../../components/shared/ConfirmDialog.jsx';
 import DataTable from '../../components/shared/DataTable.jsx';
 import FieldRow from '../../components/shared/FieldRow.jsx';
 import FormDialog from '../../components/shared/FormDialog.jsx';
+import ImportDialog from '../../components/shared/ImportDialog.jsx';
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
+import { useAuth } from '../../contexts/AuthContext.jsx';
 import {
   useJournalEntries, useCreateJournalEntry, useUpdateJournalEntry,
   usePostJournalEntry, useReverseJournalEntry,
   useArchiveJournalEntry, useRestoreJournalEntry,
 } from '../../hooks/useAccounting.js';
+import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
+import { resolveLevel } from '@nap/shared';
+import { journalEntryApi } from '../../services/accountingApi.js';
 import { pageContainerSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
@@ -48,6 +53,11 @@ const columns = [
 ];
 
 export default function JournalEntriesPage() {
+  const { user } = useAuth();
+  const caps = user?.perms?.caps || {};
+  const canImport = resolveLevel(caps, 'accounting', 'journal-entries', 'import') === 'full';
+  const canExport = resolveLevel(caps, 'accounting', 'journal-entries', 'export') !== 'none';
+
   const { data: res, isLoading } = useJournalEntries();
   const allRows = res?.rows ?? [];
 
@@ -65,11 +75,15 @@ export default function JournalEntriesPage() {
   const archiveMut = useArchiveJournalEntry();
   const restoreMut = useRestoreJournalEntry();
 
+  const importMut = useImportXls(journalEntryApi.importXls, ['journalEntries']);
+  const exportMut = useExportXls(journalEntryApi.exportXls, 'journal_entries');
+
   /* ── Selection (new system) ─────────────────────────────────── */
   const selection = useListSelection(rows);
   const { selectedRows, allActive, allArchived } = selection;
 
   /* ── Dialog state ───────────────────────────────────────────── */
+  const [importOpen, setImportOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
   const [viewEntry, setViewEntry] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -143,6 +157,25 @@ export default function JournalEntriesPage() {
     }
   }, [selection.selected, reverseEntryAsync, toast]);
 
+  const handleImport = useCallback(async (formData) => {
+    try {
+      const result = await importMut.mutateAsync(formData);
+      toast(`Imported ${result.inserted} records`);
+      setImportOpen(false);
+    } catch (err) {
+      toast(errMsg(err), 'error');
+    }
+  }, [importMut.mutateAsync, toast]);
+
+  const handleExport = useCallback(async () => {
+    try {
+      await exportMut.mutateAsync({});
+      toast('Export downloaded');
+    } catch (err) {
+      toast(errMsg(err), 'error');
+    }
+  }, [exportMut.mutateAsync, toast]);
+
   const { setArchiveOpen, setRestoreOpen, archiveConfirmProps, restoreConfirmProps } = useArchiveRestore({
     selectedRows,
     archiveMut,
@@ -177,6 +210,13 @@ export default function JournalEntriesPage() {
       });
     }
 
+    if (canExport) {
+      primary.push({ label: 'Export', variant: 'outlined', disabled: exportMut.isPending, onClick: handleExport });
+    }
+    if (canImport) {
+      primary.push({ label: 'Import', variant: 'outlined', onClick: () => setImportOpen(true) });
+    }
+
     primary.push({
       label: 'Post',
       variant: 'outlined',
@@ -208,7 +248,7 @@ export default function JournalEntriesPage() {
       filters: [],
       primaryActions: primary,
     };
-  }, [viewFilter, selectedRows.length, allActive, allArchived, selection.isSingle, selection.selected, selection.clearSelection, handlePost, handleReverse, setArchiveOpen, setRestoreOpen]);
+  }, [viewFilter, selectedRows.length, allActive, allArchived, selection.isSingle, selection.selected, selection.clearSelection, handlePost, handleReverse, setArchiveOpen, setRestoreOpen, canImport, canExport, exportMut.isPending, handleExport]);
   useModuleToolbarRegistration(toolbar);
 
   return (
@@ -275,6 +315,14 @@ export default function JournalEntriesPage() {
         </TextField>
         <TextField label="Source Type" value={editForm.source_type} onChange={onEditField('source_type')} />
       </FormDialog>
+
+      <ImportDialog
+        open={importOpen}
+        title="Import Journal Entries"
+        loading={importMut.isPending}
+        onSubmit={handleImport}
+        onCancel={() => setImportOpen(false)}
+      />
 
       <ConfirmDialog {...archiveConfirmProps} />
       <ConfirmDialog {...restoreConfirmProps} />

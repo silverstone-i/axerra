@@ -23,6 +23,8 @@ export const catalogSkuApi = {
   archive: (filterParams) => client.del(`${CATALOG}/archive${qs(filterParams)}`, {}),
   restore: (filterParams) => client.patch(`${CATALOG}/restore${qs(filterParams)}`, {}),
   refreshEmbeddings: () => client.post(`${CATALOG}/refresh-embeddings`, {}),
+  importXls: (formData) => client.post(`${CATALOG}/import-xls`, formData),
+  exportXls: (body = {}) => client.post(`${CATALOG}/export-xls`, body, { responseType: 'blob' }),
 };
 
 /* ---- Vendor SKUs ---- */

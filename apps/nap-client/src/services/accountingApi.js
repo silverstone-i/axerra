@@ -23,6 +23,8 @@ export const chartOfAccountsApi = {
   update: (filterParams, changes) => client.put(`${COA}/update${qs(filterParams)}`, changes),
   archive: (filterParams) => client.del(`${COA}/archive${qs(filterParams)}`, {}),
   restore: (filterParams) => client.patch(`${COA}/restore${qs(filterParams)}`, {}),
+  importXls: (formData) => client.post(`${COA}/import-xls`, formData),
+  exportXls: (body = {}) => client.post(`${COA}/export-xls`, body, { responseType: 'blob' }),
 };
 
 /* ---- Journal Entries ---- */
@@ -37,6 +39,8 @@ export const journalEntryApi = {
   restore: (filterParams) => client.patch(`${JE}/restore${qs(filterParams)}`, {}),
   post: (body) => client.post(`${JE}/post`, body),
   reverse: (body) => client.post(`${JE}/reverse`, body),
+  importXls: (formData) => client.post(`${JE}/import-xls`, formData),
+  exportXls: (body = {}) => client.post(`${JE}/export-xls`, body, { responseType: 'blob' }),
 };
 
 /* ---- Journal Entry Lines ---- */

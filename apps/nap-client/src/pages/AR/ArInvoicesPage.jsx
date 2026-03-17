@@ -35,6 +35,11 @@ import { useClients } from '../../hooks/useClients.js';
 import { pageContainerSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
+import { useAuth } from '../../contexts/AuthContext.jsx';
+import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
+import ImportDialog from '../../components/shared/ImportDialog.jsx';
+import { resolveLevel } from '@nap/shared';
+import { arInvoiceApi } from '../../services/arApi.js';
 
 const STATUS_OPTS = ['open', 'sent', 'paid', 'voided'];
 const cap = (s) => (s ? s.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : '');
@@ -66,11 +71,18 @@ export default function ArInvoicesPage() {
     return allRows;
   }, [allRows, viewFilter]);
 
+  const { user } = useAuth();
+  const caps = user?.perms?.caps || {};
+  const canImport = resolveLevel(caps, 'ar', 'ar-invoices', 'import') === 'full';
+  const canExport = resolveLevel(caps, 'ar', 'ar-invoices', 'export') !== 'none';
+
   const createMut = useCreateArInvoice();
   const updateMut = useUpdateArInvoice();
   const archiveMut = useArchiveArInvoice();
   const restoreMut = useRestoreArInvoice();
   const approveMut = useApproveArInvoice();
+  const importMut = useImportXls(arInvoiceApi.importXls, ['arInvoices']);
+  const exportMut = useExportXls(arInvoiceApi.exportXls, 'ar_invoices');
 
   /* ── Selection (new system) ─────────────────────────────────── */
   const selection = useListSelection(rows);
@@ -90,8 +102,29 @@ export default function ArInvoicesPage() {
   const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
   const errMsg = (err) => err.payload?.error || err.payload?.message || err.message;
 
+  const [importOpen, setImportOpen] = useState(false);
+
   const onCreateField = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.value }));
   const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));
+
+  const handleImport = useCallback(async (formData) => {
+    try {
+      const result = await importMut.mutateAsync(formData);
+      toast(`Imported ${result.inserted} records`);
+      setImportOpen(false);
+    } catch (err) {
+      toast(errMsg(err), 'error');
+    }
+  }, [importMut.mutateAsync, toast]);
+
+  const handleExport = useCallback(async () => {
+    try {
+      await exportMut.mutateAsync({});
+      toast('Export downloaded');
+    } catch (err) {
+      toast(errMsg(err), 'error');
+    }
+  }, [exportMut.mutateAsync, toast]);
 
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {
@@ -160,6 +193,13 @@ export default function ArInvoicesPage() {
       onClick: handleApprove,
     });
 
+    if (canExport) {
+      primary.push({ label: 'Export', variant: 'outlined', disabled: exportMut.isPending, onClick: handleExport });
+    }
+    if (canImport) {
+      primary.push({ label: 'Import', variant: 'outlined', onClick: () => setImportOpen(true) });
+    }
+
     primary.push({
       label: 'Create Invoice',
       variant: 'contained',
@@ -176,7 +216,7 @@ export default function ArInvoicesPage() {
       filters: [],
       primaryActions: primary,
     };
-  }, [viewFilter, selectedRows.length, allActive, allArchived, selection.clearSelection, selection.isSingle, selection.selected, handleApprove, setArchiveOpen, setRestoreOpen]);
+  }, [viewFilter, selectedRows.length, allActive, allArchived, selection.clearSelection, selection.isSingle, selection.selected, handleApprove, setArchiveOpen, setRestoreOpen, canImport, canExport, exportMut.isPending, handleExport]);
   useModuleToolbarRegistration(toolbar);
 
   return (
@@ -254,6 +294,8 @@ export default function ArInvoicesPage() {
 
       <ConfirmDialog {...archiveConfirmProps} />
       <ConfirmDialog {...restoreConfirmProps} />
+
+      <ImportDialog open={importOpen} title="Import AR Invoices" loading={importMut.isPending} onSubmit={handleImport} onCancel={() => setImportOpen(false)} />
 
       <Snackbar open={snack.open} autoHideDuration={4000} onClose={() => setSnack((s) => ({ ...s, open: false }))} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
         <Alert severity={snack.sev} variant="filled" onClose={() => setSnack((s) => ({ ...s, open: false }))}>{snack.msg}</Alert>

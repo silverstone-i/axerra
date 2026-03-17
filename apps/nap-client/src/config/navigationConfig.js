@@ -68,8 +68,8 @@ export const NAV_ITEMS = [
   {
     label: 'Change Orders',
     icon: SwapHorizIcon,
-    capability: 'change-orders::',
-    children: [{ label: 'Change Order Management', path: '/change-orders', capability: 'change-orders::' }],
+    capability: 'projects::change-orders',
+    children: [{ label: 'Change Order Management', path: '/change-orders', capability: 'projects::change-orders' }],
   },
   {
     label: 'AP',
@@ -102,7 +102,6 @@ export const NAV_ITEMS = [
       { label: 'Chart of Accounts', path: '/accounting/chart-of-accounts', capability: 'accounting::' },
       { label: 'Journal Entries', path: '/accounting/journal-entries', capability: 'accounting::' },
       { label: 'Ledger', path: '/accounting/ledger', capability: 'accounting::' },
-      { label: 'Intercompany', path: '/accounting/intercompany', capability: 'accounting::' },
     ],
   },
   {
@@ -144,6 +143,7 @@ export const NAV_ITEMS = [
       { label: 'Clients', path: '/core/clients', capability: 'core::clients' },
       { label: 'Employees', path: '/core/employees', capability: 'core::employees' },
       { label: 'Contacts', path: '/core/contacts', capability: 'core::contacts' },
+      { label: 'Companies', path: '/core/companies', capability: 'core::companies' },
       { label: 'Roles', path: '/tenant/manage-roles', capability: 'core::roles' },
     ],
   },

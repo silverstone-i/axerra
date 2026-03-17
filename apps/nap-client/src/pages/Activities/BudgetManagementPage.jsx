@@ -28,8 +28,13 @@ import ConfirmDialog from '../../components/shared/ConfirmDialog.jsx';
 import DataTable from '../../components/shared/DataTable.jsx';
 import FieldRow from '../../components/shared/FieldRow.jsx';
 import FormDialog from '../../components/shared/FormDialog.jsx';
+import ImportDialog from '../../components/shared/ImportDialog.jsx';
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
+import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useBudgets, useCreateBudget, useUpdateBudget, useArchiveBudget, useCreateBudgetVersion } from '../../hooks/useBudgets.js';
+import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
+import { resolveLevel } from '@nap/shared';
+import { budgetApi } from '../../services/budgetApi.js';
 import { useDeliverables } from '../../hooks/useDeliverables.js';
 import { useActivities } from '../../hooks/useActivities.js';
 import { pageContainerSx, formGridSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
@@ -44,6 +49,11 @@ const STATUSES = ['draft', 'submitted', 'approved', 'locked', 'rejected'];
 const fmtDate = (v) => (v ? new Date(v).toLocaleDateString() : '\u2014');
 
 export default function BudgetManagementPage() {
+  const { user } = useAuth();
+  const caps = user?.perms?.caps || {};
+  const canImport = resolveLevel(caps, 'activities', 'budgets', 'import') === 'full';
+  const canExport = resolveLevel(caps, 'activities', 'budgets', 'export') !== 'none';
+
   const { data: res, isLoading } = useBudgets();
   const { data: delivRes } = useDeliverables();
   const { data: actRes } = useActivities();
@@ -67,11 +77,15 @@ export default function BudgetManagementPage() {
   const archiveMut = useArchiveBudget();
   const newVersionMut = useCreateBudgetVersion();
 
+  const importMut = useImportXls(budgetApi.importXls, ['budgets']);
+  const exportMut = useExportXls(budgetApi.exportXls, 'budgets');
+
   /* ── Selection (new system) ─────────────────────────────────── */
   const selection = useListSelection(rows);
   const { selectedRows, allActive } = selection;
 
   /* ── Dialog state ───────────────────────────────────────────── */
+  const [importOpen, setImportOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
   const [viewBudget, setViewBudget] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -133,6 +147,25 @@ export default function BudgetManagementPage() {
       toast(errMsg(err), 'error');
     }
   };
+
+  const handleImport = useCallback(async (formData) => {
+    try {
+      const result = await importMut.mutateAsync(formData);
+      toast(`Imported ${result.inserted} records`);
+      setImportOpen(false);
+    } catch (err) {
+      toast(errMsg(err), 'error');
+    }
+  }, [importMut.mutateAsync, toast]);
+
+  const handleExport = useCallback(async () => {
+    try {
+      await exportMut.mutateAsync({});
+      toast('Export downloaded');
+    } catch (err) {
+      toast(errMsg(err), 'error');
+    }
+  }, [exportMut.mutateAsync, toast]);
 
   const { setArchiveOpen, archiveConfirmProps } = useArchiveRestore({
     selectedRows,
@@ -202,6 +235,13 @@ export default function BudgetManagementPage() {
       onClick: () => setVersionOpen(true),
     });
 
+    if (canExport) {
+      primary.push({ label: 'Export', variant: 'outlined', disabled: exportMut.isPending, onClick: handleExport });
+    }
+    if (canImport) {
+      primary.push({ label: 'Import', variant: 'outlined', onClick: () => setImportOpen(true) });
+    }
+
     primary.push({
       label: 'Create Budget',
       variant: 'contained',
@@ -219,7 +259,7 @@ export default function BudgetManagementPage() {
       filters: [],
       primaryActions: primary,
     };
-  }, [viewFilter, selectedRows.length, allActive, canNewVersion, selection.clearSelection, setArchiveOpen]);
+  }, [viewFilter, selectedRows.length, allActive, canNewVersion, selection.clearSelection, setArchiveOpen, canImport, canExport, exportMut.isPending, handleExport]);
   useModuleToolbarRegistration(toolbar);
 
   return (
@@ -306,6 +346,8 @@ export default function BudgetManagementPage() {
         onConfirm={handleNewVersion}
         onCancel={() => setVersionOpen(false)}
       />
+
+      <ImportDialog open={importOpen} title="Import Budgets" loading={importMut.isPending} onSubmit={handleImport} onCancel={() => setImportOpen(false)} />
 
       <ConfirmDialog {...archiveConfirmProps} />
 

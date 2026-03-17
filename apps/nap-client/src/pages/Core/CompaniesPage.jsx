@@ -1,11 +1,6 @@
 /**
- * @file Deliverables management page — list, create, edit, view, assign, status workflow
- * @module nap-client/pages/Activities/DeliverablesPage
- *
- * Status workflow: pending -> released -> finished -> canceled
- *
- * Migrated to standardised list-view selection system:
- *   useListSelection + DataTable + RowActionsMenu
+ * @file Companies CRUD page — DataTable + create/edit/view/archive/restore
+ * @module nap-client/pages/Core/CompaniesPage
  *
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
@@ -19,7 +14,6 @@ import DialogTitle from '@mui/material/DialogTitle';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import TextField from '@mui/material/TextField';
-import MenuItem from '@mui/material/MenuItem';
 import Typography from '@mui/material/Typography';
 
 import StatusBadge from '../../components/shared/StatusBadge.jsx';
@@ -31,46 +25,38 @@ import ImportDialog from '../../components/shared/ImportDialog.jsx';
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import {
-  useDeliverables,
-  useCreateDeliverable,
-  useUpdateDeliverable,
-  useArchiveDeliverable,
-  useRestoreDeliverable,
-} from '../../hooks/useDeliverables.js';
+  useCompanies, useCreateCompany, useUpdateCompany, useArchiveCompany, useRestoreCompany,
+} from '../../hooks/useCompanies.js';
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import { resolveLevel } from '@nap/shared';
-import { deliverableApi } from '../../services/deliverableApi.js';
-import { pageContainerSx, formGridSx, dialogHeaderSx, dialogActionBoxSx, formFullSpanSx, detailGridSx } from '../../config/layoutTokens.js';
+import { companyApi } from '../../services/companyApi.js';
+import { pageContainerSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
 
-const BLANK_CREATE = { name: '', description: '', status: 'pending', start_date: '', end_date: '' };
-const BLANK_EDIT = { name: '', description: '', status: '', start_date: '', end_date: '' };
-
-const STATUSES = ['pending', 'released', 'finished', 'canceled'];
+const BLANK_CREATE = { name: '', code: '' };
+const BLANK_EDIT = { name: '', code: '' };
 
 const fmtDate = (v) => (v ? new Date(v).toLocaleDateString() : '\u2014');
 
 const columns = [
-  { field: 'name', headerName: 'Name', flex: 1, minWidth: 200 },
+  { field: 'code', headerName: 'Code', width: 120 },
+  { field: 'name', headerName: 'Company Name', flex: 1, minWidth: 200 },
   {
-    field: 'status',
-    headerName: 'Status',
-    width: 120,
-    renderCell: ({ value }) => <StatusBadge status={value} />,
+    field: 'is_active',
+    headerName: 'Active',
+    width: 100,
+    renderCell: ({ value }) => <StatusBadge status={value ? 'active' : 'suspended'} />,
   },
-  { field: 'start_date', headerName: 'Start', width: 120 },
-  { field: 'end_date', headerName: 'End', width: 120 },
-  { field: 'created_at', headerName: 'Created', width: 160, valueGetter: (params) => params.row.created_at?.slice(0, 10) },
 ];
 
-export default function DeliverablesPage() {
+export default function CompaniesPage() {
   const { user } = useAuth();
   const caps = user?.perms?.caps || {};
-  const canImport = resolveLevel(caps, 'activities', 'deliverables', 'import') === 'full';
-  const canExport = resolveLevel(caps, 'activities', 'deliverables', 'export') !== 'none';
+  const canImport = resolveLevel(caps, 'core', 'companies', 'import') === 'full';
+  const canExport = resolveLevel(caps, 'core', 'companies', 'export') !== 'none';
 
-  const { data: res, isLoading } = useDeliverables();
+  const { data: res, isLoading } = useCompanies();
   const allRows = res?.rows ?? [];
 
   const [viewFilter, setViewFilter] = useState('active');
@@ -80,13 +66,13 @@ export default function DeliverablesPage() {
     return allRows;
   }, [allRows, viewFilter]);
 
-  const createMut = useCreateDeliverable();
-  const updateMut = useUpdateDeliverable();
-  const archiveMut = useArchiveDeliverable();
-  const restoreMut = useRestoreDeliverable();
+  const createMut = useCreateCompany();
+  const updateMut = useUpdateCompany();
+  const archiveMut = useArchiveCompany();
+  const restoreMut = useRestoreCompany();
 
-  const importMut = useImportXls(deliverableApi.importXls, ['deliverables']);
-  const exportMut = useExportXls(deliverableApi.exportXls, 'deliverables');
+  const importMut = useImportXls(companyApi.importXls, ['companies']);
+  const exportMut = useExportXls(companyApi.exportXls, 'companies');
 
   /* ── Selection (new system) ─────────────────────────────────── */
   const selection = useListSelection(rows);
@@ -95,7 +81,7 @@ export default function DeliverablesPage() {
   /* ── Dialog state ───────────────────────────────────────────── */
   const [importOpen, setImportOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
-  const [viewDeliverable, setViewDeliverable] = useState(null);
+  const [viewCompany, setViewCompany] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editRow, setEditRow] = useState(null);
@@ -112,26 +98,20 @@ export default function DeliverablesPage() {
 
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {
-    setViewDeliverable(row);
+    setViewCompany(row);
     setViewOpen(true);
   }, []);
 
   const handleEdit = useCallback((row) => {
     setEditRow(row);
-    setEditForm({
-      name: row.name || '',
-      description: row.description || '',
-      status: row.status || '',
-      start_date: row.start_date || '',
-      end_date: row.end_date || '',
-    });
+    setEditForm({ name: row.name ?? '', code: row.code ?? '' });
     setEditOpen(true);
   }, []);
 
   const handleCreate = async () => {
     try {
       await createMut.mutateAsync(createForm);
-      toast('Deliverable created');
+      toast('Company created');
       setCreateOpen(false);
       setCreateForm(BLANK_CREATE);
     } catch (err) {
@@ -142,7 +122,7 @@ export default function DeliverablesPage() {
   const handleUpdate = async () => {
     try {
       await updateMut.mutateAsync({ filter: { id: editRow.id }, changes: editForm });
-      toast('Deliverable updated');
+      toast('Company updated');
       setEditOpen(false);
       setEditRow(null);
     } catch (err) {
@@ -173,7 +153,7 @@ export default function DeliverablesPage() {
     selectedRows,
     archiveMut,
     restoreMut,
-    entityName: 'deliverable',
+    entityName: 'company',
     setSelectionModel: () => selection.clearSelection(),
     toast,
     errMsg,
@@ -204,14 +184,23 @@ export default function DeliverablesPage() {
     }
 
     if (canExport) {
-      primary.push({ label: 'Export', variant: 'outlined', disabled: exportMut.isPending, onClick: handleExport });
+      primary.push({
+        label: 'Export',
+        variant: 'outlined',
+        disabled: exportMut.isPending,
+        onClick: handleExport,
+      });
     }
     if (canImport) {
-      primary.push({ label: 'Import', variant: 'outlined', onClick: () => setImportOpen(true) });
+      primary.push({
+        label: 'Import',
+        variant: 'outlined',
+        onClick: () => setImportOpen(true),
+      });
     }
 
     primary.push({
-      label: 'Create',
+      label: 'Create Company',
       variant: 'contained',
       color: 'primary',
       onClick: () => { setCreateForm(BLANK_CREATE); setCreateOpen(true); },
@@ -244,10 +233,10 @@ export default function DeliverablesPage() {
       <Dialog open={viewOpen} onClose={() => setViewOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={dialogHeaderSx}>
           <Box>
-            <span>Deliverable Details</span>
-            {viewDeliverable && (
+            <span>Company Details</span>
+            {viewCompany && (
               <Typography variant="body2" color="text.secondary">
-                {viewDeliverable.name}
+                {viewCompany.name}
               </Typography>
             )}
           </Box>
@@ -258,53 +247,35 @@ export default function DeliverablesPage() {
           </Box>
         </DialogTitle>
         <DialogContent dividers>
-          {viewDeliverable && (
+          {viewCompany && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box sx={detailGridSx}>
-                <FieldRow label="Name" value={viewDeliverable.name} />
+                <FieldRow label="Code" value={viewCompany.code || '\u2014'} />
+                <FieldRow label="Name" value={viewCompany.name} />
                 <FieldRow label="Status">
-                  <StatusBadge status={viewDeliverable.status} />
+                  <StatusBadge status={viewCompany.deactivated_at ? 'archived' : 'active'} />
                 </FieldRow>
-                <FieldRow label="Start Date" value={fmtDate(viewDeliverable.start_date)} />
-                <FieldRow label="End Date" value={fmtDate(viewDeliverable.end_date)} />
-                <FieldRow label="Description" value={viewDeliverable.description || '\u2014'} />
-                <FieldRow label="Created" value={fmtDate(viewDeliverable.created_at)} />
-                <FieldRow label="Updated" value={fmtDate(viewDeliverable.updated_at)} />
+                <FieldRow label="Created" value={fmtDate(viewCompany.created_at)} />
+                <FieldRow label="Updated" value={fmtDate(viewCompany.updated_at)} />
               </Box>
             </Box>
           )}
         </DialogContent>
       </Dialog>
 
-      {/* Create Dialog */}
-      <FormDialog open={createOpen} title="Create Deliverable" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={() => setCreateOpen(false)}>
-        <Box sx={formGridSx}>
-          <TextField label="Name" required value={createForm.name} onChange={onCreateField('name')} inputProps={{ maxLength: 128 }} />
-          <TextField label="Status" select value={createForm.status} onChange={onCreateField('status')}>
-            {STATUSES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
-          </TextField>
-          <TextField label="Start Date" type="date" value={createForm.start_date} onChange={onCreateField('start_date')} InputLabelProps={{ shrink: true }} />
-          <TextField label="End Date" type="date" value={createForm.end_date} onChange={onCreateField('end_date')} InputLabelProps={{ shrink: true }} />
-          <TextField label="Description" multiline rows={3} value={createForm.description} onChange={onCreateField('description')} sx={formFullSpanSx} />
-        </Box>
+      <FormDialog open={createOpen} title="Create Company" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={() => setCreateOpen(false)}>
+        <TextField label="Company Name" required value={createForm.name} onChange={onCreateField('name')} />
+        <TextField label="Code" value={createForm.code} onChange={onCreateField('code')} inputProps={{ maxLength: 16 }} />
       </FormDialog>
 
-      {/* Edit Dialog */}
-      <FormDialog open={editOpen} title="Edit Deliverable" submitLabel="Save" loading={updateMut.isPending} onSubmit={handleUpdate} onCancel={() => { setEditOpen(false); setEditRow(null); }}>
-        <Box sx={formGridSx}>
-          <TextField label="Name" required value={editForm.name} onChange={onEditField('name')} inputProps={{ maxLength: 128 }} />
-          <TextField label="Status" select value={editForm.status} onChange={onEditField('status')}>
-            {STATUSES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
-          </TextField>
-          <TextField label="Start Date" type="date" value={editForm.start_date} onChange={onEditField('start_date')} InputLabelProps={{ shrink: true }} />
-          <TextField label="End Date" type="date" value={editForm.end_date} onChange={onEditField('end_date')} InputLabelProps={{ shrink: true }} />
-          <TextField label="Description" multiline rows={3} value={editForm.description} onChange={onEditField('description')} sx={formFullSpanSx} />
-        </Box>
+      <FormDialog open={editOpen} title="Edit Company" submitLabel="Save Changes" loading={updateMut.isPending} onSubmit={handleUpdate} onCancel={() => { setEditOpen(false); setEditRow(null); }}>
+        <TextField label="Company Name" required value={editForm.name} onChange={onEditField('name')} />
+        <TextField label="Code" value={editForm.code} onChange={onEditField('code')} inputProps={{ maxLength: 16 }} />
       </FormDialog>
 
       <ImportDialog
         open={importOpen}
-        title="Import Deliverables"
+        title="Import Companies"
         loading={importMut.isPending}
         onSubmit={handleImport}
         onCancel={() => setImportOpen(false)}

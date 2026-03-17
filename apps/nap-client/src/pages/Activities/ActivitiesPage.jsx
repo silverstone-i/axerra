@@ -28,7 +28,9 @@ import ConfirmDialog from '../../components/shared/ConfirmDialog.jsx';
 import DataTable from '../../components/shared/DataTable.jsx';
 import FieldRow from '../../components/shared/FieldRow.jsx';
 import FormDialog from '../../components/shared/FormDialog.jsx';
+import ImportDialog from '../../components/shared/ImportDialog.jsx';
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
+import { useAuth } from '../../contexts/AuthContext.jsx';
 import {
   useActivities,
   useCreateActivity,
@@ -37,6 +39,9 @@ import {
   useRestoreActivity,
 } from '../../hooks/useActivities.js';
 import { useCategories } from '../../hooks/useCategories.js';
+import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
+import { resolveLevel } from '@nap/shared';
+import { activityApi } from '../../services/activityApi.js';
 import { pageContainerSx, formGridSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
@@ -47,6 +52,11 @@ const BLANK_EDIT = { code: '', name: '', category_id: '', is_active: true };
 const fmtDate = (v) => (v ? new Date(v).toLocaleDateString() : '\u2014');
 
 export default function ActivitiesPage() {
+  const { user } = useAuth();
+  const caps = user?.perms?.caps || {};
+  const canImport = resolveLevel(caps, 'activities', 'activities', 'import') === 'full';
+  const canExport = resolveLevel(caps, 'activities', 'activities', 'export') !== 'none';
+
   const { data: res, isLoading } = useActivities();
   const { data: catRes } = useCategories({ limit: 200, includeDeactivated: 'false' });
   const categories = catRes?.rows ?? [];
@@ -87,11 +97,15 @@ export default function ActivitiesPage() {
   const archiveMut = useArchiveActivity();
   const restoreMut = useRestoreActivity();
 
+  const importMut = useImportXls(activityApi.importXls, ['activities']);
+  const exportMut = useExportXls(activityApi.exportXls, 'activities');
+
   /* ── Selection (new system) ─────────────────────────────────── */
   const selection = useListSelection(rows);
   const { selectedRows, allActive, allArchived } = selection;
 
   /* ── Dialog state ───────────────────────────────────────────── */
+  const [importOpen, setImportOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
   const [viewActivity, setViewActivity] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -147,6 +161,25 @@ export default function ActivitiesPage() {
     }
   };
 
+  const handleImport = useCallback(async (formData) => {
+    try {
+      const result = await importMut.mutateAsync(formData);
+      toast(`Imported ${result.inserted} records`);
+      setImportOpen(false);
+    } catch (err) {
+      toast(errMsg(err), 'error');
+    }
+  }, [importMut.mutateAsync, toast]);
+
+  const handleExport = useCallback(async () => {
+    try {
+      await exportMut.mutateAsync({});
+      toast('Export downloaded');
+    } catch (err) {
+      toast(errMsg(err), 'error');
+    }
+  }, [exportMut.mutateAsync, toast]);
+
   const { setArchiveOpen, setRestoreOpen, archiveConfirmProps, restoreConfirmProps } = useArchiveRestore({
     selectedRows,
     archiveMut,
@@ -181,6 +214,13 @@ export default function ActivitiesPage() {
       });
     }
 
+    if (canExport) {
+      primary.push({ label: 'Export', variant: 'outlined', disabled: exportMut.isPending, onClick: handleExport });
+    }
+    if (canImport) {
+      primary.push({ label: 'Import', variant: 'outlined', onClick: () => setImportOpen(true) });
+    }
+
     primary.push({
       label: 'Create',
       variant: 'contained',
@@ -197,7 +237,7 @@ export default function ActivitiesPage() {
       filters: [],
       primaryActions: primary,
     };
-  }, [viewFilter, selectedRows.length, allActive, allArchived, selection.clearSelection, setArchiveOpen, setRestoreOpen]);
+  }, [viewFilter, selectedRows.length, allActive, allArchived, selection.clearSelection, setArchiveOpen, setRestoreOpen, canImport, canExport, exportMut.isPending, handleExport]);
   useModuleToolbarRegistration(toolbar);
 
   return (
@@ -275,6 +315,14 @@ export default function ActivitiesPage() {
           </TextField>
         </Box>
       </FormDialog>
+
+      <ImportDialog
+        open={importOpen}
+        title="Import Activities"
+        loading={importMut.isPending}
+        onSubmit={handleImport}
+        onCancel={() => setImportOpen(false)}
+      />
 
       <ConfirmDialog {...archiveConfirmProps} />
       <ConfirmDialog {...restoreConfirmProps} />
