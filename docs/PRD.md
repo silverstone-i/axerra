@@ -201,7 +201,7 @@ Browser -> Vite Dev Proxy (/api -> :3000) -> Express
   -> Response
 ```
 
-> **Note:** `createRouter` automatically prepends `addAuditFields` on mutation routes (POST, PUT, DELETE, PATCH) and appends `moduleEntitlement` on all routes — with two exceptions: `/ping` has no middleware, and `POST /export-xls` uses read-level middleware (no `addAuditFields`). The `withMeta` middleware is passed by each router via per-method middleware arrays. `rbac()` is **not** auto-applied — it must be explicitly added on routes that require per-action permission level checks (currently only `employees/:id/reset-password` and `ar-invoices/approve`).
+> **Note:** `createRouter` automatically prepends `addAuditFields` on mutation routes (POST, PUT, DELETE, PATCH) and appends `moduleEntitlement` on all routes — with two exceptions: `/ping` has no middleware, and `POST /export-xls` uses read-level middleware (no `addAuditFields`). The `withMeta` middleware is passed by each router via per-method middleware arrays. `rbac()` is auto-applied on `/import-xls` (`rbac('full')`) and `/export-xls` (`rbac('view')`) routes with action overrides (`setImportAction` / `setExportAction`). For other routes, `rbac()` must be explicitly added (currently `employees/:id/reset-password` and `ar-invoices/approve`).
 
 ---
 
@@ -327,7 +327,7 @@ All roles — including system roles — go through the full RBAC policy resolut
 
 **Enforcement:**
 - **Module Entitlement (middleware):** `moduleEntitlement` is auto-applied by `createRouter` on all routes. Checks `tenants.allowed_modules` — if the tenant doesn't have the module enabled, returns 403 regardless of user permissions. Empty array means all modules allowed.
-- **Layer 1 (opt-in middleware):** `withMeta({ module, router, action })` annotates `req.resource`. `rbac(requiredLevel)` can be explicitly added to routes that need per-action permission checks — it resolves the user's policy level from `caps` and returns 403 if insufficient. GET/HEAD default to `view`; mutations default to `full`. Currently only used on `employees/:id/reset-password` and `ar-invoices/approve`. Standard CRUD routes from `createRouter` do **not** include `rbac()` — they rely on `moduleEntitlement` for access control. Permissions are resolved from entity `roles` array → `policies` for ALL users — no role-based bypass or short-circuit.
+- **Layer 1 (opt-in middleware):** `withMeta({ module, router, action })` annotates `req.resource`. `rbac(requiredLevel)` can be explicitly added to routes that need per-action permission checks — it resolves the user's policy level from `caps` and returns 403 if insufficient. GET/HEAD default to `view`; mutations default to `full`. `createRouter` auto-applies `rbac()` on import/export routes: `rbac('full')` on `/import-xls` (with `setImportAction` overriding `req.resource.action = 'import'`) and `rbac('view')` on `/export-xls` (with `setExportAction` overriding `req.resource.action = 'export'`). For custom endpoints, `rbac()` is manually added (e.g., `employees/:id/reset-password`, `ar-invoices/approve`). Standard CRUD routes (POST, GET, PUT, DELETE, PATCH) from `createRouter` do **not** include `rbac()` — they rely on `moduleEntitlement` for access control. Permissions are resolved from entity `roles` array → `policies` for ALL users — no role-based bypass or short-circuit.
 - **Layers 2-4 (service layer):** `ViewController._applyRbacFilters()` applies scope, state, and field filters. Controllers opt in via `this.rbacConfig = { module, router, scopeColumn, entityScopeColumns }`. The `entityScopeColumns` mapping tells the `self` scope which FK column to filter for each entity type (e.g., `{ vendor: 'vendor_id', client: 'client_id', employee: 'employee_id' }`).
 
 **Admin Policy Auto-Seeding:**
@@ -1589,8 +1589,8 @@ Every resource entity uses `createRouter` to generate a consistent REST API back
 | `GET /ping` | Health check | none | — |
 | `GET /:id` | Get by ID | `moduleEntitlement` | `model.findById()` |
 | `POST /bulk-insert` | Batch create | `addAuditFields`, `moduleEntitlement` | `model.bulkInsert()` |
-| `POST /import-xls` | Import from Excel | `addAuditFields`, `moduleEntitlement`, `multer` | `model.importFromSpreadsheet()` |
-| `POST /export-xls` | Export to Excel | `moduleEntitlement` (read-level) | `model.exportToSpreadsheet()` |
+| `POST /import-xls` | Import from Excel | `addAuditFields`, `moduleEntitlement`, `setImportAction`, `rbac('full')`, `multer` | `model.importFromSpreadsheet()` |
+| `POST /export-xls` | Export to Excel | `moduleEntitlement` (read-level), `setExportAction`, `rbac('view')` | `model.exportToSpreadsheet()` |
 | `PUT /bulk-update` | Batch update | `addAuditFields`, `moduleEntitlement` | `model.bulkUpdate()` |
 | `PUT /update` | Update by query-param filters | `addAuditFields`, `moduleEntitlement` | `model.updateWhere()` |
 | `DELETE /archive` | Soft-delete | `addAuditFields`, `moduleEntitlement` | `model.updateWhere()` (manually sets `deactivated_at = new Date()`) |
@@ -1624,9 +1624,67 @@ pg-schemata auto-generates Zod validators from schema definitions:
 
 ### 4.6 Excel Import/Export
 
-Built into pg-schemata's TableModel:
-- **Import**: `importFromSpreadsheet(filePath, sheetIndex, callbackFn?)` — parses XLSX, validates against schema, bulk inserts with audit fields
-- **Export**: `exportToSpreadsheet(filePath, where?, joinType?, options?)` — queries with filtering, streams to XLSX
+> **ADR Reference:** [ADR-0023](./decisions/0023-excel-import-export.md)
+
+Built into pg-schemata's TableModel and exposed as a full-stack feature across all `createRouter`-generated resources.
+
+#### 4.6.1 Backend (pg-schemata + Controller Layer)
+
+- **Import**: `importFromSpreadsheet(filePath, sheetIndex, callbackFn?)` — parses XLSX, validates against schema, bulk inserts with audit fields. `BaseController.importXls()` handles file upload via multer (`/tmp/uploads/`), injects `tenant_code` and `created_by` via the callback, and returns `{ inserted: number }`.
+- **Export**: `exportToSpreadsheet(filePath, where?, joinType?, options?)` — queries with filtering, writes to XLSX. `ViewController.exportXls()` generates a temp file, sends it via `res.download()`, and cleans up the temp file after transfer. Accepts optional `where` array and `joinType` (`AND`/`OR`) in the request body for filtered exports.
+
+**RBAC Enforcement:**
+- Import routes require `rbac('full')` — `setImportAction` overrides `req.resource.action = 'import'` before RBAC resolution
+- Export routes require `rbac('view')` — `setExportAction` overrides `req.resource.action = 'export'` before RBAC resolution
+- Both routes also enforce `moduleEntitlement`
+
+**Disabling:** Individual resources can disable import/export via `disableImportXls: true` or `disableExportXls: true` in the `createRouter` options.
+
+#### 4.6.2 Frontend (Hooks + Components)
+
+**Custom Hooks** (`hooks/useImportExport.js`):
+- `useImportXls(importFn, queryKey)` — TanStack `useMutation` wrapper. Calls the API import function with FormData, invalidates the query cache on success. Returns a mutation object.
+- `useExportXls(exportFn, filePrefix)` — TanStack `useMutation` wrapper. Calls the API export function, creates a blob URL, triggers browser download as `${filePrefix}_${Date.now()}.xlsx`, and cleans up the URL. Returns a mutation object.
+
+**Shared Component** (`components/shared/ImportDialog.jsx`):
+- Wraps `FormDialog` with a file picker (accepts `.xlsx`, `.xls`)
+- Displays file size in KB
+- Passes FormData with `file` field to the `onSubmit` callback
+- Submit button disabled until a file is selected; resets file state on close
+
+**Page Integration Pattern:**
+All pages with import/export follow this pattern:
+
+1. **Permission check**: `resolveLevel(caps, module, entity, 'import') === 'full'` for import; `resolveLevel(caps, module, entity, 'export') !== 'none'` for export
+2. **Mutation setup**: `useImportXls(api.importXls, [queryKey])` / `useExportXls(api.exportXls, 'prefix')`
+3. **Handlers**: `useCallback` wrapping `mutateAsync` — import handler toasts `Imported ${result.inserted} records`, export handler toasts `Export downloaded`
+4. **Toolbar registration**: Import/Export buttons added to `useModuleToolbarRegistration()` actions, gated by permission booleans, disabled while `isPending`
+5. **Dialog**: `<ImportDialog>` controlled by `importOpen` state
+
+> **Stability note**: Destructure `mutateAsync` directly from mutations (e.g., `const { mutateAsync: importAsync } = useImportXls(...)`) — `mutateAsync` is a stable reference. Never pass the whole mutation object as a `useCallback` dependency (causes infinite re-renders via the toolbar registration cycle).
+
+#### 4.6.3 Pages with Import/Export
+
+All resources using `createRouter` have import/export endpoints. The following pages have full client-side import/export wiring:
+
+| Page | Module | Entity | API Service | Query Key |
+|------|--------|--------|-------------|-----------|
+| ChartOfAccountsPage | accounting | chart-of-accounts | `chartOfAccountsApi` | `chartOfAccounts` |
+| JournalEntriesPage | accounting | journal-entries | `journalEntryApi` | `journalEntries` |
+| ProjectsPage | projects | projects | `projectApi` | `projects` |
+| ChangeOrdersPage | projects | change-orders | `changeOrderApi` | `changeOrders` |
+| ActivitiesPage | activities | activities | `activityApi` | `activities` |
+| CategoriesPage | activities | categories | `categoryApi` | `categories` |
+| DeliverablesPage | activities | deliverables | `deliverableApi` | `deliverables` |
+| BudgetManagementPage | activities | budgets | `budgetApi` | `budgets` |
+| CostTrackingPage | activities | actual-costs | `actualCostApi` | `actualCosts` |
+| ApInvoicesPage | ap | ap-invoices | `apInvoiceApi` | `apInvoices` |
+| PaymentsPage | ap | payments | `paymentApi` | `payments` |
+| CreditMemosPage | ap | ap-credit-memos | `apCreditMemoApi` | `apCreditMemos` |
+| ArInvoicesPage | ar | ar-invoices | `arInvoiceApi` | `arInvoices` |
+| ReceiptsPage | ar | receipts | `receiptApi` | `receipts` |
+| CatalogPage | bom | catalog-skus | `catalogSkuApi` | `catalogSkus` |
+| CompaniesPage | core | companies | `companyApi` | `companies` |
 
 ---
 
@@ -1827,7 +1885,7 @@ The Module Bar has two zones:
 - **Right zone**: Dynamic toolbar actions registered by page components via `useModuleToolbarRegistration()`:
   - **Tabs**: Toggle button groups with exclusive/non-exclusive selection
   - **Filters**: Text fields or select dropdowns
-  - **Primary Actions**: Action buttons (Create, Edit, Archive, Restore, etc.)
+  - **Primary Actions**: Action buttons (Create, Edit, Archive, Restore, Import, Export, etc.)
 
 ### 6.4 Dependencies (Client)
 
@@ -1883,7 +1941,7 @@ All DataGrid CRUD pages use `useListSelection` + `DataTable` as the standard sel
 - Data-grid column definitions that repeat across modules should be centralised in a `columnDefs/` config folder.
 - Form field groupings that appear in multiple create/edit dialogs should become reusable form section components.
 
-**Shared Components (`components/shared/`):** The following reusable components exist but are not individually documented: `ChangePasswordDialog`, `ConfirmDialog`, `CurrencyCell`, `DataTable`, `FieldRow`, `FormDialog`, `PasswordField`, `PatternTextField`, `PercentCell`, `ResetPasswordDialog`, `RowActionsMenu`, `SetPasswordPopover`, `StatusBadge`, `SummaryCard`. See their source files for usage patterns.
+**Shared Components (`components/shared/`):** The following reusable components exist but are not individually documented: `ChangePasswordDialog`, `ConfirmDialog`, `CurrencyCell`, `DataTable`, `FieldRow`, `FormDialog`, `ImportDialog`, `PasswordField`, `PatternTextField`, `PercentCell`, `ResetPasswordDialog`, `RowActionsMenu`, `SetPasswordPopover`, `StatusBadge`, `SummaryCard`. See their source files for usage patterns.
 
 ---
 
@@ -1898,23 +1956,23 @@ Based on the sidebar navigation config (`navigationConfig.js`) and client-side r
 | **Activities** | Categories (`activities::categories`), Activities (`activities::activities`) | `/activities` | `activities::` |
 | **Budgets** | Deliverables (`activities::deliverables`), Budget Management (`activities::budgets`) | `/deliverables`, `/budgets` | `activities::` |
 | **Actual Costs** | Cost Tracking (`activities::actual-costs`) | `/actual-costs` | `activities::` |
-| **Change Orders** | Change Order Management | `/change-orders` | `change-orders::` *(nav guard — see note below)* |
+| **Change Orders** | Change Order Management (`projects::change-orders`) | `/change-orders` | `projects::change-orders` |
 | **AP** | Vendors (→ `/core/vendors`), AP Invoices, Payments, Credit Memos, AP Aging | `/ap` | `ap::` |
 | **AR** | Clients (→ `/core/clients`), AR Invoices, Receipts, AR Aging | `/ar` | `ar::` |
-| **Accounting & GL** | Chart of Accounts, Journal Entries, Ledger, Intercompany *(nav-only, no page yet)* | `/accounting` | `accounting::` |
+| **Accounting & GL** | Chart of Accounts, Journal Entries, Ledger | `/accounting` | `accounting::` |
 | **Reports** | Budget vs Actual, Profitability, Cashflow, Margin Analysis, P&L *(nav-only)*, Balance Sheet *(nav-only)* | `/reports` | `reports::` |
 | **BOM** | Catalog SKUs (`bom::catalog-skus`), Vendor SKU Matching (`bom::vendor-skus`) | `/bom` | `bom::` |
 | **Settings** | Numbering (`core::numbering-config`) | `/settings` | `core::` |
-| **Admin** | Vendors (`core::vendors`), Clients (`core::clients`), Employees (`core::employees`), Contacts (`core::contacts`), Roles (`core::roles`) | `/core`, `/tenant` | `core::` |
+| **Admin** | Vendors (`core::vendors`), Clients (`core::clients`), Employees (`core::employees`), Contacts (`core::contacts`), Companies (`core::companies`), Roles (`core::roles`) | `/core`, `/tenant` | `core::` |
 | **Tenants** *(NapSoft only)* | Manage Tenants (`tenants::`), Manage Users (`tenants::`) | `/tenant` | `tenants::` |
 
-> **Nav-only items (no route or page component yet):** Intercompany (`/accounting/intercompany`), P&L (`/reports/pnl`), and Balance Sheet (`/reports/balance-sheet`) appear in the sidebar navigation config but have no matching routes in `App.jsx`. Clicking them falls through to the catch-all redirect (`/dashboard`).
+> **Nav-only items (no route or page component yet):** P&L (`/reports/pnl`) and Balance Sheet (`/reports/balance-sheet`) appear in the sidebar navigation config but have no matching routes in `App.jsx`. Clicking them falls through to the catch-all redirect (`/dashboard`).
 
 > **Broken nav paths (route exists at a different path):** Project Profitability is listed under the Projects nav group at `/projects/profitability`, but the page component (`ProjectProfitabilityPage`) is routed at `/reports/profitability`. A working duplicate "Profitability" item also exists under the Reports nav group at `/reports/profitability`. Project Detail is listed at `/projects/detail`, but the actual route is dynamic (`/projects/:id`) — users navigate to it by clicking a row in the projects list, not via the sidebar.
 
 > **AP/AR entity links:** The "Vendors" item under AP and "Clients" item under AR are `<Navigate>` redirects to `/core/vendors` and `/core/clients` respectively — they do not render separate pages.
 
-> **Change Orders capability mismatch:** The nav guard uses `change-orders::` but the server router registers `withMeta({ module: 'projects', router: 'change-orders' })`, so RBAC policies are stored under `projects::change-orders`. The sidebar's `hasCap('change-orders::')` looks for keys starting with `change-orders::` in the user's caps, which won't match. The nav group may be invisible unless a wildcard policy (`::::`) exists.
+> **Change Orders capability:** The nav guard now correctly uses `projects::change-orders`, matching the server router's `withMeta({ module: 'projects', router: 'change-orders' })`.
 
 ---
 
@@ -2801,6 +2859,7 @@ nap/
       0020-reports-module-architecture.md
       0021-architecture-ci-gates.md
       0022-eslint-module-boundaries.md
+      0023-excel-import-export.md
     PRD.md                      # This file
 ```
 
