@@ -29,11 +29,14 @@ class TenantsController extends BaseController {
   }
 
   /**
-   * POST / — create tenant, provision schema, create admin user
+   * POST / — create tenant, provision schema, create company + address + tax IDs, create admin user
    *
    * Body: { tenant_code, company, schema_name?, status?, tier?, region?,
    *         allowed_modules?, max_users?, notes?,
-   *         admin_email, admin_password }
+   *         billing_address: { address_line_1, address_line_2?, address_line_3?,
+   *                            city?, state_province?, postal_code?, country_code },
+   *         tax_identifiers?: [{ country_code, tax_type, tax_value }],
+   *         admin_first_name, admin_last_name, admin_email, admin_password }
    */
   async create(req, res) {
     const {
@@ -46,6 +49,8 @@ class TenantsController extends BaseController {
       allowed_modules,
       max_users,
       notes,
+      billing_address,
+      tax_identifiers,
       admin_first_name,
       admin_last_name,
       admin_email,
@@ -54,6 +59,9 @@ class TenantsController extends BaseController {
 
     if (!tenant_code || !company) {
       return res.status(400).json({ error: 'tenant_code and company are required' });
+    }
+    if (!billing_address || !billing_address.address_line_1 || !billing_address.country_code) {
+      return res.status(400).json({ error: 'billing_address with address_line_1 and country_code is required' });
     }
     if (!admin_first_name || !admin_last_name) {
       return res.status(400).json({ error: 'admin_first_name and admin_last_name are required' });
@@ -105,16 +113,69 @@ class TenantsController extends BaseController {
         return res.status(500).json({ error: `Schema provisioning failed: ${provisionErr.message}` });
       }
 
-      // 3. Create admin employee + nap_users login in a single transaction
-      //    PRD §3.2.1: employee record first (roles + is_app_user), then
-      //    nap_users linked via entity_type/entity_id.
+      // 3. Create company + address + tax IDs + admin employee + nap_users in a single transaction
       const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
       const passwordHash = await bcrypt.hash(admin_password, rounds);
       const actorId = req.user?.id || null;
       const sch = pgp.as.name(schemaName);
+      const taxIds = Array.isArray(tax_identifiers) ? tax_identifiers : [];
 
-      const adminUser = await db.tx(async (t) => {
-        // 3a. Create employee record in the tenant schema
+      const result = await db.tx(async (t) => {
+        // 3a. Create the tenant's self-company record
+        const comp = await t.one(
+          `INSERT INTO ${sch}.companies (tenant_id, code, name, created_by)
+           VALUES ($1, $2, $3, $4)
+           RETURNING *`,
+          [tenant.id, upperCode, company, actorId],
+        );
+
+        // 3b. Create sources record for the company (polymorphic link)
+        const source = await t.one(
+          `INSERT INTO ${sch}.sources (tenant_id, table_id, source_type, label, created_by)
+           VALUES ($1, $2, $3, $4, $5)
+           RETURNING *`,
+          [tenant.id, comp.id, 'company', company, actorId],
+        );
+
+        // 3c. Back-link source_id onto the company
+        await t.none(
+          `UPDATE ${sch}.companies SET source_id = $1, updated_by = $2 WHERE id = $3`,
+          [source.id, actorId, comp.id],
+        );
+
+        // 3d. Insert billing address
+        await t.one(
+          `INSERT INTO ${sch}.addresses
+             (tenant_id, source_id, label, address_line_1, address_line_2, address_line_3,
+              city, state_province, postal_code, country_code, is_primary, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+           RETURNING id`,
+          [
+            tenant.id, source.id, 'billing',
+            billing_address.address_line_1,
+            billing_address.address_line_2 || null,
+            billing_address.address_line_3 || null,
+            billing_address.city || null,
+            billing_address.state_province || null,
+            billing_address.postal_code || null,
+            billing_address.country_code,
+            true, actorId,
+          ],
+        );
+
+        // 3e. Insert tax identifiers (if any)
+        for (let i = 0; i < taxIds.length; i++) {
+          const ti = taxIds[i];
+          await t.one(
+            `INSERT INTO ${sch}.tax_identifiers
+               (tenant_id, source_id, country_code, tax_type, tax_value, is_primary, created_by)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             RETURNING id`,
+            [tenant.id, source.id, ti.country_code, ti.tax_type, ti.tax_value, i === 0, actorId],
+          );
+        }
+
+        // 3f. Create employee record in the tenant schema
         const emp = await t.one(
           `INSERT INTO ${sch}.employees
              (tenant_id, first_name, last_name, email, roles, is_app_user, is_primary_contact, created_by)
@@ -123,7 +184,7 @@ class TenantsController extends BaseController {
           [tenant.id, admin_first_name, admin_last_name, admin_email, '{admin}', true, true, actorId],
         );
 
-        // 3b. Create nap_users login linked to the employee
+        // 3g. Create nap_users login linked to the employee
         const user = await t.one(
           `INSERT INTO admin.nap_users
              (tenant_id, entity_type, entity_id, email, password_hash, status, created_by)
@@ -132,11 +193,10 @@ class TenantsController extends BaseController {
           [tenant.id, 'employee', emp.id, admin_email, passwordHash, 'active', actorId],
         );
 
-        return user;
+        return { admin_user_id: user.id, company_id: comp.id, source_id: source.id };
       });
 
-      // Return the created tenant with admin user id
-      res.status(201).json({ ...tenant, admin_user_id: adminUser.id });
+      res.status(201).json({ ...tenant, ...result });
     } catch (err) {
       this.handleError(err, res, 'creating', this.errorLabel);
     }
@@ -264,6 +324,52 @@ class TenantsController extends BaseController {
       res.json({ primary, billing });
     } catch (err) {
       this.handleError(err, res, 'fetching contacts for', this.errorLabel);
+    }
+  }
+
+  /**
+   * GET /:id/company — tenant's self-company with billing address and tax identifiers
+   *
+   * Cross-schema query: resolves tenant's schema_name, then queries companies
+   * joined through sources to addresses and tax_identifiers.
+   */
+  async getCompany(req, res) {
+    try {
+      const tenant = await this.model('admin').findById(req.params.id);
+      if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+      const sch = pgp.as.name(tenant.schema_name);
+
+      const company = await db.oneOrNone(
+        `SELECT c.id, c.code, c.name, c.source_id
+         FROM ${sch}.companies c
+         WHERE c.code = $1 AND c.deactivated_at IS NULL
+         LIMIT 1`,
+        [tenant.tenant_code],
+      );
+
+      if (!company) return res.json({ company: null, addresses: [], tax_identifiers: [] });
+
+      const addresses = await db.any(
+        `SELECT a.id, a.label, a.address_line_1, a.address_line_2, a.address_line_3,
+                a.city, a.state_province, a.postal_code, a.country_code, a.is_primary
+         FROM ${sch}.addresses a
+         WHERE a.source_id = $1 AND a.deactivated_at IS NULL
+         ORDER BY a.is_primary DESC, a.created_at`,
+        [company.source_id],
+      );
+
+      const taxIdentifiers = await db.any(
+        `SELECT ti.id, ti.country_code, ti.tax_type, ti.tax_value, ti.is_primary
+         FROM ${sch}.tax_identifiers ti
+         WHERE ti.source_id = $1 AND ti.deactivated_at IS NULL
+         ORDER BY ti.is_primary DESC, ti.created_at`,
+        [company.source_id],
+      );
+
+      res.json({ company, addresses, tax_identifiers: taxIdentifiers });
+    } catch (err) {
+      this.handleError(err, res, 'fetching company for', this.errorLabel);
     }
   }
 }
