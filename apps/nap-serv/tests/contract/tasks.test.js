@@ -45,6 +45,7 @@ async function provisionTenant(cookies) {
       admin_last_name: 'Admin',
       admin_email: 'admin@tktest.com',
       admin_password: 'TktestPass123!',
+      billing_address: { address_line_1: '1 Test St', country_code: 'US' },
     });
 }
 

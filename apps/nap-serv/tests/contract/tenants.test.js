@@ -65,6 +65,7 @@ describe('POST /api/tenants/v1/tenants', () => {
       admin_last_name: 'Admin',
       admin_email: 'admin@acme.com',
       admin_password: 'AcmePass123!',
+      billing_address: { address_line_1: '1 Test St', country_code: 'US' },
     };
 
     const res = await request(app).post('/api/tenants/v1/tenants').set('Cookie', cookies).send(body);

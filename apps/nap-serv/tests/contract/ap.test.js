@@ -48,6 +48,7 @@ async function provisionAndLogin() {
       admin_last_name: 'Admin',
       admin_email: TENANT_ADMIN_EMAIL,
       admin_password: TENANT_ADMIN_PASSWORD,
+      billing_address: { address_line_1: '1 Test St', country_code: 'US' },
     });
 
   const loginRes = await request(app)
