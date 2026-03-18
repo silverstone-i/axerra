@@ -144,17 +144,24 @@ class EmployeesController extends BaseController {
       // Normalize empty code to null — avoids unique constraint violation on ''
       if (req.body.code !== undefined && !req.body.code?.trim()) req.body.code = null;
 
-      // Extract email — it's managed in the emails table, not the employees table
+      // Detect is_app_user toggle — validate BEFORE persisting the update
+      const wasAppUser = !!before.is_app_user;
+      const isNowAppUser = req.body.is_app_user !== undefined ? !!req.body.is_app_user : wasAppUser;
+
+      // Extract email — it's managed in the emails table, not the employees table.
+      // Only accept it when toggling is_app_user ON; otherwise reject with guidance.
       const suppliedEmail = req.body.email;
       delete req.body.email;
+
+      if (suppliedEmail && !(!wasAppUser && isNowAppUser)) {
+        return res.status(400).json({
+          error: 'Email is managed via /api/core/v1/emails. Use that endpoint to update email addresses.',
+        });
+      }
 
       // Extract password before update — it's for nap_users, not the employees table
       const suppliedPassword = req.body.password;
       delete req.body.password;
-
-      // Detect is_app_user toggle — validate BEFORE persisting the update
-      const wasAppUser = !!before.is_app_user;
-      const isNowAppUser = req.body.is_app_user !== undefined ? !!req.body.is_app_user : wasAppUser;
 
       // Resolve login email from the emails table
       const s = pgp.as.name(schema);
@@ -196,11 +203,15 @@ class EmployeesController extends BaseController {
             created_by: req.user?.id || null,
           });
         } else if (loginEmail && !hasLoginEmail) {
-          // Existing primary email but not flagged as login — promote it
-          await db.none(
-            `UPDATE ${s}.emails SET is_login = true WHERE id = $1`,
-            [loginEmail.id],
-          );
+          // Existing primary email but not flagged as login — promote it.
+          // If a different email was supplied, update the value to keep nap_users in sync.
+          const emailUpdate = suppliedEmail && suppliedEmail !== loginEmail.email
+            ? `UPDATE ${s}.emails SET is_login = true, email = $2 WHERE id = $1`
+            : `UPDATE ${s}.emails SET is_login = true WHERE id = $1`;
+          const emailParams = suppliedEmail && suppliedEmail !== loginEmail.email
+            ? [loginEmail.id, suppliedEmail]
+            : [loginEmail.id];
+          await db.none(emailUpdate, emailParams);
         }
         const updatedEmployee = { ...before, ...req.body, id: before.id };
         await this.#provisionAppUser(updatedEmployee, req, suppliedPassword, resolvedEmail);
