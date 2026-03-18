@@ -228,7 +228,14 @@ export default function EmployeesPage() {
 
   /* ── Email edit helpers ──────────────────────────────────────── */
   const updateEmail = (idx, field, value) =>
-    setEditEmails((prev) => prev.map((e, i) => (i === idx ? { ...e, [field]: value } : e)));
+    setEditEmails((prev) => prev.map((e, i) => {
+      if (i !== idx) {
+        // Radio behavior: when setting is_login on one row, clear it on all others
+        if (field === 'is_login' && value) return { ...e, is_login: false };
+        return e;
+      }
+      return { ...e, [field]: value };
+    }));
   const addEmail = () => setEditEmails((prev) => [...prev, { ...BLANK_EMAIL }]);
   const removeEmail = (idx) =>
     setEditEmails((prev) => prev.map((e, i) => (i === idx ? { ...e, _deleted: true } : e)));
@@ -370,7 +377,14 @@ export default function EmployeesPage() {
 
   const handleUpdate = async () => {
     try {
-      await updateMut.mutateAsync({ filter: { id: editRow.id }, changes: editForm });
+      // When toggling is_app_user on, include the selected login email in the
+      // employee update payload so the backend can provision before email mutations run
+      const changes = { ...editForm };
+      if (changes.is_app_user && !editRow.is_app_user) {
+        const loginEm = editEmails.find((em) => em.is_login && !em._deleted);
+        if (loginEm) changes.email = loginEm.email;
+      }
+      await updateMut.mutateAsync({ filter: { id: editRow.id }, changes });
 
       if (editRow.source_id) {
         for (const p of editPhones) {
@@ -798,7 +812,7 @@ export default function EmployeesPage() {
               />
               {editForm.is_app_user && (
                 <FormControlLabel
-                  control={<Checkbox checked={em.is_login} onChange={(e) => updateEmail(idx, 'is_login', e.target.checked)} size="small" />}
+                  control={<Checkbox checked={em.is_login} onChange={(e) => updateEmail(idx, 'is_login', e.target.checked)} size="small" disabled={isLoginEmail} />}
                   label="Login"
                   sx={{ mr: 0 }}
                 />
