@@ -163,12 +163,13 @@ class EmployeesController extends BaseController {
       const suppliedPassword = req.body.password;
       delete req.body.password;
 
-      // Resolve login email from the emails table
+      // Resolve login email from the emails table — prefer is_login, fall back to is_primary
       const s = pgp.as.name(schema);
       const loginEmail = await db.oneOrNone(
         `SELECT id, email, is_login FROM ${s}.emails
-         WHERE source_id = $1 AND is_primary = true AND deactivated_at IS NULL
-         ORDER BY is_login DESC LIMIT 1`,
+         WHERE source_id = $1 AND deactivated_at IS NULL
+         AND (is_login = true OR is_primary = true)
+         ORDER BY is_login DESC, is_primary DESC LIMIT 1`,
         [before.source_id],
       );
       const hasLoginEmail = loginEmail?.is_login;

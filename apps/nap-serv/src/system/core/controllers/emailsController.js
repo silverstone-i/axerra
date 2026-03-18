@@ -2,8 +2,9 @@
  * @file Emails controller — CRUD with is_login sync to nap_users
  * @module core/controllers/emailsController
  *
- * When an email with is_login=true is created, updated, or archived,
- * the change is synced to the corresponding admin.nap_users record.
+ * When an email with is_login=true is created or updated, the change
+ * is synced to the corresponding admin.nap_users record. Archive of a
+ * login email is blocked while the entity is an active app user.
  *
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
