@@ -64,7 +64,7 @@ import { useAuth } from '../../contexts/AuthContext.jsx';
 import { resolveLevel } from '@nap/shared';
 
 const BLANK_CREATE = {
-  first_name: '', last_name: '', code: '', position: '', department: '',
+  first_name: '', last_name: '', code: '', position: '', department: '', email: '',
   is_app_user: false, password: '', roles: [], is_primary_contact: false, is_billing_contact: false,
 };
 const BLANK_EDIT = {
@@ -654,6 +654,7 @@ export default function EmployeesPage() {
         <TextField label="Code" value={createForm.code} onChange={onCreateField('code')} inputProps={{ maxLength: 16 }} />
         <TextField label="Position" value={createForm.position} onChange={onCreateField('position')} />
         <TextField label="Department" value={createForm.department} onChange={onCreateField('department')} />
+        <TextField label="Email" type="email" value={createForm.email} onChange={onCreateField('email')} helperText={createForm.is_app_user && !createForm.email ? 'Email required for app users' : ''} error={createForm.is_app_user && !createForm.email} />
         <FormControlLabel control={<Checkbox checked={createForm.is_app_user} onChange={handleAppUserToggle('create', setCreateForm)} />} label="App User (creates login account)" />
         <Autocomplete
           multiple
