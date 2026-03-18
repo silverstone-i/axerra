@@ -14,7 +14,7 @@ import db, { pgp } from '../../../db/db.js';
 class VendorContactsController extends BaseController {
   constructor() {
     super('vendorContacts');
-    this.rbacConfig = { module: 'core', router: 'vendorContacts' };
+    this.rbacConfig = { module: 'core', router: 'vendor-contacts' };
   }
 
   /**

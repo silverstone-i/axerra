@@ -159,10 +159,12 @@ class EmployeesController extends BaseController {
       // Resolve login email from the emails table
       const s = pgp.as.name(schema);
       const loginEmail = await db.oneOrNone(
-        `SELECT email FROM ${s}.emails
-         WHERE source_id = $1 AND is_login = true AND deactivated_at IS NULL`,
+        `SELECT id, email, is_login FROM ${s}.emails
+         WHERE source_id = $1 AND is_primary = true AND deactivated_at IS NULL
+         ORDER BY is_login DESC LIMIT 1`,
         [before.source_id],
       );
+      const hasLoginEmail = loginEmail?.is_login;
       const resolvedEmail = suppliedEmail || loginEmail?.email;
 
       if (!wasAppUser && isNowAppUser) {
@@ -181,7 +183,7 @@ class EmployeesController extends BaseController {
 
       if (!wasAppUser && isNowAppUser) {
         // Toggled ON: provision or restore nap_user
-        // If a login email doesn't exist yet, create one from the supplied email
+        // If no email exists at all, create one from the supplied email
         if (suppliedEmail && !loginEmail) {
           const emailsModel = db('emails', schema);
           await emailsModel.insert({
@@ -193,11 +195,11 @@ class EmployeesController extends BaseController {
             is_login: true,
             created_by: req.user?.id || null,
           });
-        } else if (loginEmail && !loginEmail.is_login) {
-          // Mark existing email as login
+        } else if (loginEmail && !hasLoginEmail) {
+          // Existing primary email but not flagged as login — promote it
           await db.none(
-            `UPDATE ${s}.emails SET is_login = true WHERE source_id = $1 AND is_primary = true AND deactivated_at IS NULL`,
-            [before.source_id],
+            `UPDATE ${s}.emails SET is_login = true WHERE id = $1`,
+            [loginEmail.id],
           );
         }
         const updatedEmployee = { ...before, ...req.body, id: before.id };

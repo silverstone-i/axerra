@@ -54,7 +54,7 @@ const CATALOG_ENTRIES = [
   { module: 'core', router: 'tax-identifiers', action: 'export', label: 'Export Tax Identifiers', description: 'Export tax identifier records to spreadsheet', sort_order: 177, policy_required: false },
   { module: 'core', router: 'emails', action: null, label: 'Emails', description: 'Emails linked to entities via sources', sort_order: 178, policy_required: false, available_fields: ['email', 'label', 'is_primary', 'is_login'] },
   { module: 'core', router: 'emails', action: 'import', label: 'Import Emails', description: 'Import email records from spreadsheet', sort_order: 179, policy_required: false },
-  { module: 'core', router: 'emails', action: 'export', label: 'Export Emails', description: 'Export email records to spreadsheet', sort_order: 179, policy_required: false },
+  { module: 'core', router: 'emails', action: 'export', label: 'Export Emails', description: 'Export email records to spreadsheet', sort_order: 180, policy_required: false },
   { module: 'core', router: 'vendor-contacts', action: null, label: 'Vendor Contacts', description: 'Individual contacts associated with vendors', sort_order: 183, policy_required: false, available_fields: ['first_name', 'last_name', 'position', 'is_primary'] },
   { module: 'core', router: 'vendor-contacts', action: 'import', label: 'Import Vendor Contacts', description: 'Import vendor contact records from spreadsheet', sort_order: 184, policy_required: false },
   { module: 'core', router: 'vendor-contacts', action: 'export', label: 'Export Vendor Contacts', description: 'Export vendor contact records to spreadsheet', sort_order: 185, policy_required: false },

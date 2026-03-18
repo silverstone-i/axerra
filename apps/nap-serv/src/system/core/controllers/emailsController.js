@@ -100,12 +100,13 @@ class EmailsController extends BaseController {
 
   async archive(req, res) {
     const schema = this.getSchema(req);
-    const emailId = req.query.id;
 
     try {
-      if (emailId) {
-        const email = await this.model(schema).findById(emailId);
-        if (email?.is_login) {
+      // Fetch all matching rows and block if any is a login email for an active app user
+      const filters = Array.isArray(req.query) ? req.query : [{ ...req.query }];
+      const matching = await this.model(schema).find(filters);
+      for (const email of matching) {
+        if (email.is_login) {
           const canUnset = await this.#canUnsetLogin(schema, email.source_id);
           if (!canUnset) {
             return res.status(400).json({ error: 'Cannot archive the login email while entity is an active app user' });
@@ -114,7 +115,6 @@ class EmailsController extends BaseController {
       }
 
       req.body.deactivated_at = new Date();
-      const filters = Array.isArray(req.query) ? req.query : [{ ...req.query }];
       const count = await this.model(schema).updateWhere(filters, req.body);
       if (!count) return res.status(404).json({ error: `${this.errorLabel} not found or already inactive` });
       res.status(200).json({ message: `${this.errorLabel} marked as inactive` });

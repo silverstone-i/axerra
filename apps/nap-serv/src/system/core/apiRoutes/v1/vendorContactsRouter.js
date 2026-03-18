@@ -9,7 +9,7 @@ import createRouter from '../../../../lib/createRouter.js';
 import vendorContactsController from '../../controllers/vendorContactsController.js';
 import { withMeta } from '../../../../middleware/withMeta.js';
 
-const meta = withMeta({ module: 'core' });
+const meta = withMeta({ module: 'core', router: 'vendor-contacts' });
 
 export default createRouter(vendorContactsController, null, {
   getMiddlewares: [meta],
