@@ -28,10 +28,10 @@ class EmailsController extends BaseController {
 
       // If is_login, validate no other is_login email exists for this source
       if (req.body.is_login && req.body.source_id) {
-        const existing = await this.model(schema).findOne({
+        const existing = await this.model(schema).findOneBy([{
           source_id: req.body.source_id,
           is_login: true,
-        });
+        }]);
         if (existing) {
           return res.status(400).json({ error: 'Only one login email is allowed per entity. Remove the existing login email first.' });
         }
@@ -64,10 +64,10 @@ class EmailsController extends BaseController {
 
       // If setting is_login to true, check no other login email exists
       if (req.body.is_login && !before.is_login) {
-        const existing = await this.model(schema).findOne({
+        const existing = await this.model(schema).findOneBy([{
           source_id: before.source_id,
           is_login: true,
-        });
+        }]);
         if (existing) {
           return res.status(400).json({ error: 'Only one login email is allowed per entity. Remove the existing login email first.' });
         }
@@ -104,7 +104,7 @@ class EmailsController extends BaseController {
     try {
       // Fetch all matching rows and block if any is a login email for an active app user
       const filters = Array.isArray(req.query) ? req.query : [{ ...req.query }];
-      const matching = await this.model(schema).find(filters);
+      const matching = await this.model(schema).findWhere(filters);
       for (const email of matching) {
         if (email.is_login) {
           const canUnset = await this.#canUnsetLogin(schema, email.source_id);

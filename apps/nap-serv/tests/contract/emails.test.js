@@ -102,8 +102,14 @@ describe('Email CRUD — /api/core/v1/emails', () => {
   });
 
   test('enforces single is_login per source — rejects second login email', async () => {
-    // The employee was created with tester@emtest.com which was auto-set as login via create flow
-    // Try to create another is_login email
+    // Create first login email
+    const first = await request(app)
+      .post('/api/core/v1/emails')
+      .set('Cookie', cookies)
+      .send({ source_id: employeeSourceId, email: 'first-login@emtest.com', label: 'login', is_login: true });
+    expect(first.status).toBe(201);
+
+    // Try to create another is_login email — should be rejected
     const res = await request(app)
       .post('/api/core/v1/emails')
       .set('Cookie', cookies)
