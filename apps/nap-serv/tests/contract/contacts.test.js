@@ -87,7 +87,7 @@ describe('Contact CRUD — /api/core/v1/contacts', () => {
   test('gets contact by id', async () => {
     const res = await request(app).get(`/api/core/v1/contacts/${contactId}`).set('Cookie', cookies);
     expect(res.status).toBe(200);
-    expect(res.body.email).toBe('john@example.com');
+    expect(res.body.name).toBe('John Doe');
   });
 
   test('archives and restores a contact', async () => {
