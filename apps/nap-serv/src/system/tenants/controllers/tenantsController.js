@@ -178,10 +178,33 @@ class TenantsController extends BaseController {
         // 3f. Create employee record in the tenant schema
         const emp = await t.one(
           `INSERT INTO ${sch}.employees
-             (tenant_id, first_name, last_name, email, roles, is_app_user, is_primary_contact, created_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+             (tenant_id, first_name, last_name, roles, is_app_user, is_primary_contact, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
            RETURNING *`,
-          [tenant.id, admin_first_name, admin_last_name, admin_email, '{admin}', true, true, actorId],
+          [tenant.id, admin_first_name, admin_last_name, '{admin}', true, true, actorId],
+        );
+
+        // 3f-ii. Create sources record for the employee
+        const empSource = await t.one(
+          `INSERT INTO ${sch}.sources (tenant_id, table_id, source_type, label, created_by)
+           VALUES ($1, $2, $3, $4, $5)
+           RETURNING *`,
+          [tenant.id, emp.id, 'employee', `${admin_first_name} ${admin_last_name}`, actorId],
+        );
+
+        // 3f-iii. Back-link source_id onto the employee
+        await t.none(
+          `UPDATE ${sch}.employees SET source_id = $1, updated_by = $2 WHERE id = $3`,
+          [empSource.id, actorId, emp.id],
+        );
+
+        // 3f-iv. Create the admin employee's login email
+        await t.one(
+          `INSERT INTO ${sch}.emails
+             (tenant_id, source_id, email, label, is_primary, is_login, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           RETURNING id`,
+          [tenant.id, empSource.id, admin_email, 'work', true, true, actorId],
         );
 
         // 3g. Create nap_users login linked to the employee
@@ -302,7 +325,8 @@ class TenantsController extends BaseController {
       const sch = pgp.as.name(tenant.schema_name);
 
       const contacts = await db.any(
-        `SELECT e.id, e.first_name, e.last_name, e.email,
+        `SELECT e.id, e.first_name, e.last_name,
+                em.email,
                 e.is_primary_contact, e.is_billing_contact,
                 pn.phone_number AS primary_phone, pn.phone_type AS primary_phone_type,
                 a.address_line_1, a.address_line_2, a.city,
@@ -310,6 +334,8 @@ class TenantsController extends BaseController {
          FROM ${sch}.employees e
          LEFT JOIN ${sch}.sources s
            ON s.table_id = e.id AND s.source_type = 'employee' AND s.deactivated_at IS NULL
+         LEFT JOIN ${sch}.emails em
+           ON em.source_id = s.id AND em.is_primary = true AND em.deactivated_at IS NULL
          LEFT JOIN ${sch}.phone_numbers pn
            ON pn.source_id = s.id AND pn.is_primary = true AND pn.deactivated_at IS NULL
          LEFT JOIN ${sch}.addresses a
