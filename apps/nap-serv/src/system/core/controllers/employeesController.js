@@ -206,12 +206,13 @@ class EmployeesController extends BaseController {
         } else if (loginEmail && !hasLoginEmail) {
           // Existing primary email but not flagged as login — promote it.
           // If a different email was supplied, update the value to keep nap_users in sync.
+          const updatedBy = req.user?.id || null;
           const emailUpdate = suppliedEmail && suppliedEmail !== loginEmail.email
-            ? `UPDATE ${s}.emails SET is_login = true, email = $2 WHERE id = $1`
-            : `UPDATE ${s}.emails SET is_login = true WHERE id = $1`;
+            ? `UPDATE ${s}.emails SET is_login = true, email = $2, updated_by = $3 WHERE id = $1`
+            : `UPDATE ${s}.emails SET is_login = true, updated_by = $2 WHERE id = $1`;
           const emailParams = suppliedEmail && suppliedEmail !== loginEmail.email
-            ? [loginEmail.id, suppliedEmail]
-            : [loginEmail.id];
+            ? [loginEmail.id, suppliedEmail, updatedBy]
+            : [loginEmail.id, updatedBy];
           await db.none(emailUpdate, emailParams);
         }
         const updatedEmployee = { ...before, ...req.body, id: before.id };

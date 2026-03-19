@@ -3,7 +3,8 @@
  * @module tests/contract/emails
  *
  * Covers: single is_login enforcement, blocking unset/archive of login email
- * while employee is_app_user, and nap_users.email sync on create/update.
+ * while employee is_app_user. (nap_users sync is exercised implicitly but not
+ * asserted directly — cross-schema assertions deferred to integration tests.)
  *
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
