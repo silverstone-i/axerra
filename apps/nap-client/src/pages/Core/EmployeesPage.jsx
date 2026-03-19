@@ -391,9 +391,9 @@ export default function EmployeesPage() {
           if (p._deleted && p.id) {
             await archivePhoneMut.mutateAsync({ id: p.id });
           } else if (!p.id && !p._deleted) {
-            await createPhoneMut.mutateAsync({ source_id: editRow.source_id, phone_type: p.phone_type, phone_number: p.phone_number, is_primary: p.is_primary });
+            await createPhoneMut.mutateAsync({ source_id: editRow.source_id, country_code: p.country_code, phone_type: p.phone_type, phone_number: p.phone_number, is_primary: p.is_primary });
           } else if (p.id && !p._deleted) {
-            await updatePhoneMut.mutateAsync({ filter: { id: p.id }, changes: { phone_type: p.phone_type, phone_number: p.phone_number, is_primary: p.is_primary } });
+            await updatePhoneMut.mutateAsync({ filter: { id: p.id }, changes: { country_code: p.country_code, phone_type: p.phone_type, phone_number: p.phone_number, is_primary: p.is_primary } });
           }
         }
         for (const em of editEmails) {
@@ -812,7 +812,7 @@ export default function EmployeesPage() {
               />
               {editForm.is_app_user && (
                 <FormControlLabel
-                  control={<Checkbox checked={em.is_login} onChange={(e) => updateEmail(idx, 'is_login', e.target.checked)} size="small" disabled={isLoginEmail} />}
+                  control={<Checkbox checked={em.is_login} onChange={(e) => updateEmail(idx, 'is_login', e.target.checked)} size="small" disabled={editRow.is_app_user} />}
                   label="Login"
                   sx={{ mr: 0 }}
                 />
