@@ -1,5 +1,5 @@
 /**
- * @file Vendors CRUD page — DataTable + create/edit/view/archive/restore with tax identifiers
+ * @file Vendors CRUD page — DataTable + create/edit/view/archive/restore with sub-forms
  * @module nap-client/pages/Core/VendorsPage
  *
  * Reference implementation for the standardised list-view selection system:
@@ -8,7 +8,7 @@
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -39,19 +39,42 @@ import {
   useVendors, useCreateVendor, useUpdateVendor, useArchiveVendor, useRestoreVendor,
 } from '../../hooks/useVendors.js';
 import {
+  useEmails, useCreateEmail, useUpdateEmail, useArchiveEmail,
+} from '../../hooks/useEmails.js';
+import {
+  usePhoneNumbers, useCreatePhoneNumber, useUpdatePhoneNumber, useArchivePhoneNumber,
+} from '../../hooks/usePhoneNumbers.js';
+import {
+  useAddresses, useCreateAddress, useUpdateAddress, useArchiveAddress,
+} from '../../hooks/useAddresses.js';
+import {
   useTaxIdentifiers, useCreateTaxIdentifier, useUpdateTaxIdentifier, useArchiveTaxIdentifier,
 } from '../../hooks/useTaxIdentifiers.js';
+import {
+  useVendorContacts, useCreateVendorContact, useUpdateVendorContact, useArchiveVendorContact,
+} from '../../hooks/useVendorContacts.js';
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import { TAX_TYPES, COUNTRIES, resolveLevel } from '@nap/shared';
 import { vendorApi } from '../../services/vendorApi.js';
-import { pageContainerSx, formGridSx, formGroupCardSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
+import { pageContainerSx, formGridSx, formGroupCardSx, formFullSpanSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
 
 const BLANK_CREATE = { name: '', code: '', payment_terms: '', notes: '' };
 const BLANK_EDIT = { name: '', code: '', payment_terms: '', notes: '' };
+const BLANK_EMAIL = { email: '', label: 'work', is_primary: false };
+const BLANK_PHONE = { country_code: 'US', phone_type: 'cell', phone_number: '', is_primary: false };
+const BLANK_ADDRESS = {
+  label: '', address_line_1: '', address_line_2: '', city: '',
+  state_province: '', postal_code: '', country_code: 'US', is_primary: false,
+};
 const BLANK_TAX_ID = { country_code: 'US', tax_type: 'TIN', tax_value: '', is_primary: false };
+const BLANK_CONTACT = { first_name: '', last_name: '', position: '', is_primary: false };
 
+const PHONE_TYPES = ['cell', 'work', 'home', 'fax', 'other'];
+const EMAIL_LABELS = ['work', 'personal', 'billing', 'other'];
+
+const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
 const fmtDate = (v) => (v ? new Date(v).toLocaleDateString() : '\u2014');
 
 const columns = [
@@ -90,9 +113,21 @@ export default function VendorsPage() {
   const importMut = useImportXls(vendorApi.importXls, ['vendors']);
   const exportMut = useExportXls(vendorApi.exportXls, 'vendors');
 
+  const createEmailMut = useCreateEmail();
+  const updateEmailMut = useUpdateEmail();
+  const archiveEmailMut = useArchiveEmail();
+  const createPhoneMut = useCreatePhoneNumber();
+  const updatePhoneMut = useUpdatePhoneNumber();
+  const archivePhoneMut = useArchivePhoneNumber();
+  const createAddrMut = useCreateAddress();
+  const updateAddrMut = useUpdateAddress();
+  const archiveAddrMut = useArchiveAddress();
   const createTaxIdMut = useCreateTaxIdentifier();
   const updateTaxIdMut = useUpdateTaxIdentifier();
   const archiveTaxIdMut = useArchiveTaxIdentifier();
+  const createContactMut = useCreateVendorContact();
+  const updateContactMut = useUpdateVendorContact();
+  const archiveContactMut = useArchiveVendorContact();
 
   /* ── Selection (new system) ─────────────────────────────────── */
   const selection = useListSelection(rows);
@@ -102,19 +137,46 @@ export default function VendorsPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
   const [viewVendor, setViewVendor] = useState(null);
+  const [viewSourceId, setViewSourceId] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editRow, setEditRow] = useState(null);
 
   const [editSourceId, setEditSourceId] = useState(null);
-  const { data: taxIdsRes } = useTaxIdentifiers(
-    { source_id: editSourceId, includeDeactivated: 'false' },
-    { enabled: !!editSourceId },
+  const { data: emailsRes } = useEmails({ source_id: editSourceId, includeDeactivated: 'false' }, { enabled: !!editSourceId });
+  const { data: phonesRes } = usePhoneNumbers({ source_id: editSourceId, includeDeactivated: 'false' }, { enabled: !!editSourceId });
+  const { data: addressesRes } = useAddresses({ source_id: editSourceId, includeDeactivated: 'false' }, { enabled: !!editSourceId });
+  const { data: taxIdsRes } = useTaxIdentifiers({ source_id: editSourceId, includeDeactivated: 'false' }, { enabled: !!editSourceId });
+
+  const [editVendorId, setEditVendorId] = useState(null);
+  const { data: contactsRes } = useVendorContacts(
+    { vendor_id: editVendorId, includeDeactivated: 'false' },
+    { enabled: !!editVendorId },
   );
+
+  // View dialog child data
+  const { data: viewEmailsRes } = useEmails({ source_id: viewSourceId, includeDeactivated: 'false' }, { enabled: !!viewSourceId });
+  const { data: viewPhonesRes } = usePhoneNumbers({ source_id: viewSourceId, includeDeactivated: 'false' }, { enabled: !!viewSourceId });
+  const { data: viewAddressesRes } = useAddresses({ source_id: viewSourceId, includeDeactivated: 'false' }, { enabled: !!viewSourceId });
+  const { data: viewTaxIdsRes } = useTaxIdentifiers({ source_id: viewSourceId, includeDeactivated: 'false' }, { enabled: !!viewSourceId });
+  const { data: viewContactsRes } = useVendorContacts(
+    { vendor_id: viewVendor?.id, includeDeactivated: 'false' },
+    { enabled: !!viewVendor?.id },
+  );
+  const viewEmails = viewEmailsRes?.rows ?? [];
+  const viewPhones = viewPhonesRes?.rows ?? [];
+  const viewAddresses = viewAddressesRes?.rows ?? [];
+  const viewTaxIds = viewTaxIdsRes?.rows ?? [];
+  const viewContacts = viewContactsRes?.rows ?? [];
 
   const [createForm, setCreateForm] = useState(BLANK_CREATE);
   const [editForm, setEditForm] = useState(BLANK_EDIT);
+  const [editEmails, setEditEmails] = useState([]);
+  const [editPhones, setEditPhones] = useState([]);
+  const [editAddresses, setEditAddresses] = useState([]);
   const [editTaxIds, setEditTaxIds] = useState([]);
+  const [editContacts, setEditContacts] = useState([]);
+  const editInitial = useRef({ form: null, emails: null, phones: null, addresses: null, taxIds: null, contacts: null });
 
   const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
   const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
@@ -123,6 +185,27 @@ export default function VendorsPage() {
   const onCreateField = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.value }));
   const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));
 
+  /* ── Email edit helpers ─────────────────────────────────────── */
+  const updateEmail = (idx, field, value) =>
+    setEditEmails((prev) => prev.map((e, i) => (i === idx ? { ...e, [field]: value } : e)));
+  const addEmail = () => setEditEmails((prev) => [...prev, { ...BLANK_EMAIL }]);
+  const removeEmail = (idx) =>
+    setEditEmails((prev) => prev.map((e, i) => (i === idx ? { ...e, _deleted: true } : e)));
+
+  /* ── Phone edit helpers ─────────────────────────────────────── */
+  const updatePhone = (idx, field, value) =>
+    setEditPhones((prev) => prev.map((p, i) => (i === idx ? { ...p, [field]: value } : p)));
+  const addPhone = () => setEditPhones((prev) => [...prev, { ...BLANK_PHONE }]);
+  const removePhone = (idx) =>
+    setEditPhones((prev) => prev.map((p, i) => (i === idx ? { ...p, _deleted: true } : p)));
+
+  /* ── Address edit helpers ───────────────────────────────────── */
+  const updateAddress = (idx, field, value) =>
+    setEditAddresses((prev) => prev.map((a, i) => (i === idx ? { ...a, [field]: value } : a)));
+  const addAddress = () => setEditAddresses((prev) => [...prev, { ...BLANK_ADDRESS }]);
+  const removeAddress = (idx) =>
+    setEditAddresses((prev) => prev.map((a, i) => (i === idx ? { ...a, _deleted: true } : a)));
+
   /* ── Tax ID edit helpers ──────────────────────────────────── */
   const updateTaxId = (idx, field, value) =>
     setEditTaxIds((prev) => prev.map((t, i) => (i === idx ? { ...t, [field]: value } : t)));
@@ -130,29 +213,109 @@ export default function VendorsPage() {
   const removeTaxId = (idx) =>
     setEditTaxIds((prev) => prev.map((t, i) => (i === idx ? { ...t, _deleted: true } : t)));
 
-  /* ── Sync query-fetched tax identifiers into edit state ──── */
+  /* ── Vendor Contact edit helpers ────────────────────────────── */
+  const updateContact = (idx, field, value) =>
+    setEditContacts((prev) => prev.map((c, i) => (i === idx ? { ...c, [field]: value } : c)));
+  const addContact = () => setEditContacts((prev) => [...prev, { ...BLANK_CONTACT }]);
+  const removeContact = (idx) =>
+    setEditContacts((prev) => prev.map((c, i) => (i === idx ? { ...c, _deleted: true } : c)));
+
+  /* ── Sync query-fetched sub-collections into edit state ────── */
   useEffect(() => {
-    if (editOpen && taxIdsRes?.rows) setEditTaxIds(taxIdsRes.rows);
+    if (editOpen && emailsRes?.rows) {
+      setEditEmails(emailsRes.rows);
+      editInitial.current.emails = emailsRes.rows;
+    }
+  }, [editOpen, emailsRes]);
+
+  useEffect(() => {
+    if (editOpen && phonesRes?.rows) {
+      setEditPhones(phonesRes.rows);
+      editInitial.current.phones = phonesRes.rows;
+    }
+  }, [editOpen, phonesRes]);
+
+  useEffect(() => {
+    if (editOpen && addressesRes?.rows) {
+      setEditAddresses(addressesRes.rows);
+      editInitial.current.addresses = addressesRes.rows;
+    }
+  }, [editOpen, addressesRes]);
+
+  useEffect(() => {
+    if (editOpen && taxIdsRes?.rows) {
+      setEditTaxIds(taxIdsRes.rows);
+      editInitial.current.taxIds = taxIdsRes.rows;
+    }
   }, [editOpen, taxIdsRes]);
+
+  useEffect(() => {
+    if (editOpen && contactsRes?.rows) {
+      setEditContacts(contactsRes.rows);
+      editInitial.current.contacts = contactsRes.rows;
+    }
+  }, [editOpen, contactsRes]);
 
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {
     setViewVendor(row);
+    setViewSourceId(row.source_id || null);
     setViewOpen(true);
   }, []);
 
   const handleEdit = useCallback((row) => {
     setEditRow(row);
-    setEditForm({
+    const form = {
       name: row.name ?? '',
       code: row.code ?? '',
       payment_terms: row.payment_terms ?? '',
       notes: row.notes ?? '',
-    });
+    };
+    setEditForm(form);
+    editInitial.current.form = form;
+
     setEditSourceId(row.source_id || null);
-    if (!row.source_id) setEditTaxIds([]);
+    setEditVendorId(row.id || null);
+    if (!row.source_id) {
+      setEditEmails([]);
+      setEditPhones([]);
+      setEditAddresses([]);
+      setEditTaxIds([]);
+      editInitial.current.emails = [];
+      editInitial.current.phones = [];
+      editInitial.current.addresses = [];
+      editInitial.current.taxIds = [];
+    }
+    if (!row.id) {
+      setEditContacts([]);
+      editInitial.current.contacts = [];
+    }
+
     setEditOpen(true);
   }, []);
+
+  /* ── Dirty-check: disable Save when nothing changed ──────── */
+  const hasEditChanges = useMemo(() => {
+    const init = editInitial.current;
+    if (!init.form) return false;
+    if (JSON.stringify(editForm) !== JSON.stringify(init.form)) return true;
+    const collectionChanged = (current, initial, fields) => {
+      if (!initial) return false;
+      if (current.some((c) => c._deleted)) return true;
+      if (current.some((c) => !c.id && !c._deleted)) return true;
+      const initMap = new Map(initial.map((r) => [r.id, r]));
+      return current.filter((c) => c.id && !c._deleted).some((c) => {
+        const orig = initMap.get(c.id);
+        return !orig || fields.some((f) => c[f] !== orig[f]);
+      });
+    };
+    if (collectionChanged(editEmails, init.emails, ['email', 'label', 'is_primary'])) return true;
+    if (collectionChanged(editPhones, init.phones, ['country_code', 'phone_type', 'phone_number', 'is_primary'])) return true;
+    if (collectionChanged(editAddresses, init.addresses, ['label', 'address_line_1', 'address_line_2', 'city', 'state_province', 'postal_code', 'country_code', 'is_primary'])) return true;
+    if (collectionChanged(editTaxIds, init.taxIds, ['country_code', 'tax_type', 'tax_value', 'is_primary'])) return true;
+    if (collectionChanged(editContacts, init.contacts, ['first_name', 'last_name', 'position', 'is_primary'])) return true;
+    return false;
+  }, [editForm, editEmails, editPhones, editAddresses, editTaxIds, editContacts]);
 
   const handleCreate = async () => {
     try {
@@ -170,28 +333,65 @@ export default function VendorsPage() {
       await updateMut.mutateAsync({ filter: { id: editRow.id }, changes: editForm });
 
       if (editRow.source_id) {
+        for (const em of editEmails) {
+          if (em._deleted && em.id) {
+            await archiveEmailMut.mutateAsync({ id: em.id });
+          } else if (!em.id && !em._deleted) {
+            await createEmailMut.mutateAsync({ source_id: editRow.source_id, email: em.email, label: em.label, is_primary: em.is_primary });
+          } else if (em.id && !em._deleted) {
+            await updateEmailMut.mutateAsync({ filter: { id: em.id }, changes: { email: em.email, label: em.label, is_primary: em.is_primary } });
+          }
+        }
+        for (const p of editPhones) {
+          if (p._deleted && p.id) {
+            await archivePhoneMut.mutateAsync({ id: p.id });
+          } else if (!p.id && !p._deleted) {
+            await createPhoneMut.mutateAsync({ source_id: editRow.source_id, country_code: p.country_code, phone_type: p.phone_type, phone_number: p.phone_number, is_primary: p.is_primary });
+          } else if (p.id && !p._deleted) {
+            await updatePhoneMut.mutateAsync({ filter: { id: p.id }, changes: { country_code: p.country_code, phone_type: p.phone_type, phone_number: p.phone_number, is_primary: p.is_primary } });
+          }
+        }
+        for (const a of editAddresses) {
+          if (a._deleted && a.id) {
+            await archiveAddrMut.mutateAsync({ id: a.id });
+          } else if (!a.id && !a._deleted) {
+            const { _deleted, ...rest } = a;
+            await createAddrMut.mutateAsync({ ...rest, source_id: editRow.source_id });
+          } else if (a.id && !a._deleted) {
+            const { id, source_id: _sid, created_at: _ca, updated_at: _ua, created_by: _cb, updated_by: _ub, deactivated_at: _da, ...changes } = a;
+            await updateAddrMut.mutateAsync({ filter: { id }, changes });
+          }
+        }
         for (const t of editTaxIds) {
           if (t._deleted && t.id) {
             await archiveTaxIdMut.mutateAsync({ id: t.id });
           } else if (!t.id && !t._deleted) {
             await createTaxIdMut.mutateAsync({
-              source_id: editRow.source_id,
-              country_code: t.country_code,
-              tax_type: t.tax_type,
-              tax_value: t.tax_value,
-              is_primary: t.is_primary,
+              source_id: editRow.source_id, country_code: t.country_code,
+              tax_type: t.tax_type, tax_value: t.tax_value, is_primary: t.is_primary,
             });
           } else if (t.id && !t._deleted) {
             await updateTaxIdMut.mutateAsync({
               filter: { id: t.id },
-              changes: {
-                country_code: t.country_code,
-                tax_type: t.tax_type,
-                tax_value: t.tax_value,
-                is_primary: t.is_primary,
-              },
+              changes: { country_code: t.country_code, tax_type: t.tax_type, tax_value: t.tax_value, is_primary: t.is_primary },
             });
           }
+        }
+      }
+
+      for (const c of editContacts) {
+        if (c._deleted && c.id) {
+          await archiveContactMut.mutateAsync({ id: c.id });
+        } else if (!c.id && !c._deleted) {
+          await createContactMut.mutateAsync({
+            vendor_id: editRow.id, first_name: c.first_name, last_name: c.last_name,
+            position: c.position, is_primary: c.is_primary,
+          });
+        } else if (c.id && !c._deleted) {
+          await updateContactMut.mutateAsync({
+            filter: { id: c.id },
+            changes: { first_name: c.first_name, last_name: c.last_name, position: c.position, is_primary: c.is_primary },
+          });
         }
       }
 
@@ -199,6 +399,7 @@ export default function VendorsPage() {
       setEditOpen(false);
       setEditRow(null);
       setEditSourceId(null);
+      setEditVendorId(null);
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -292,7 +493,12 @@ export default function VendorsPage() {
   }, [viewFilter, selectedRows.length, allActive, allArchived, selection.clearSelection, setArchiveOpen, setRestoreOpen, canImport, canExport, exportMut.isPending, handleExport]);
   useModuleToolbarRegistration(toolbar);
 
+  /* ── Visible (non-deleted) sub-collections for the form ──── */
+  const visibleEmails = editEmails.filter((e) => !e._deleted);
+  const visiblePhones = editPhones.filter((p) => !p._deleted);
+  const visibleAddresses = editAddresses.filter((a) => !a._deleted);
   const visibleTaxIds = editTaxIds.filter((t) => !t._deleted);
+  const visibleContacts = editContacts.filter((c) => !c._deleted);
 
   return (
     <Box sx={pageContainerSx}>
@@ -306,7 +512,7 @@ export default function VendorsPage() {
       />
 
       {/* ── View Details Dialog ──────────────────────────────────── */}
-      <Dialog open={viewOpen} onClose={() => setViewOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={viewOpen} onClose={() => { setViewOpen(false); setViewSourceId(null); }} maxWidth="sm" fullWidth>
         <DialogTitle sx={dialogHeaderSx}>
           <Box>
             <span>Vendor Details</span>
@@ -317,7 +523,7 @@ export default function VendorsPage() {
             )}
           </Box>
           <Box sx={dialogActionBoxSx}>
-            <Button size="small" color="inherit" onClick={() => setViewOpen(false)}>
+            <Button size="small" color="inherit" onClick={() => { setViewOpen(false); setViewSourceId(null); }}>
               Close
             </Button>
           </Box>
@@ -341,6 +547,87 @@ export default function VendorsPage() {
                   <FieldRow label="Notes" value={viewVendor.notes} />
                 </>
               )}
+
+              {/* ── Emails ───────────────────────────────────────── */}
+              {viewEmails.length > 0 && (
+                <>
+                  <Divider />
+                  <Typography variant="subtitle2" color="text.secondary">Emails</Typography>
+                  {viewEmails.map((em) => (
+                    <Box key={em.id} sx={detailGridSx}>
+                      <FieldRow label="Email" value={em.email} />
+                      <FieldRow label="Label" value={cap(em.label)} />
+                      <FieldRow label="Primary" value={em.is_primary ? 'Yes' : 'No'} />
+                    </Box>
+                  ))}
+                </>
+              )}
+
+              {/* ── Phone Numbers ──────────────────────────────── */}
+              {viewPhones.length > 0 && (
+                <>
+                  <Divider />
+                  <Typography variant="subtitle2" color="text.secondary">Phone Numbers</Typography>
+                  {viewPhones.map((p) => (
+                    <Box key={p.id} sx={detailGridSx}>
+                      <FieldRow label="Type" value={p.phone_type} />
+                      <FieldRow label="Number" value={p.phone_number} />
+                      <FieldRow label="Primary" value={p.is_primary ? 'Yes' : 'No'} />
+                    </Box>
+                  ))}
+                </>
+              )}
+
+              {/* ── Addresses ─────────────────────────────────── */}
+              {viewAddresses.length > 0 && (
+                <>
+                  <Divider />
+                  <Typography variant="subtitle2" color="text.secondary">Addresses</Typography>
+                  {viewAddresses.map((a) => (
+                    <Box key={a.id} sx={detailGridSx}>
+                      <FieldRow label="Label" value={a.label || '\u2014'} />
+                      <FieldRow label="Address" value={[a.address_line_1, a.address_line_2, a.address_line_3].filter(Boolean).join(', ') || '\u2014'} />
+                      <FieldRow label="City" value={a.city || '\u2014'} />
+                      <FieldRow label="State" value={a.state_province || '\u2014'} />
+                      <FieldRow label="Postal Code" value={a.postal_code || '\u2014'} />
+                      <FieldRow label="Country" value={a.country_code || '\u2014'} />
+                      <FieldRow label="Primary" value={a.is_primary ? 'Yes' : 'No'} />
+                    </Box>
+                  ))}
+                </>
+              )}
+
+              {/* ── Tax Identifiers ───────────────────────────── */}
+              {viewTaxIds.length > 0 && (
+                <>
+                  <Divider />
+                  <Typography variant="subtitle2" color="text.secondary">Tax Identifiers</Typography>
+                  {viewTaxIds.map((t) => (
+                    <Box key={t.id} sx={detailGridSx}>
+                      <FieldRow label="Country" value={t.country_code} />
+                      <FieldRow label="Type" value={t.tax_type} />
+                      <FieldRow label="Value" value={t.tax_value} />
+                      <FieldRow label="Primary" value={t.is_primary ? 'Yes' : 'No'} />
+                    </Box>
+                  ))}
+                </>
+              )}
+
+              {/* ── Vendor Contacts ───────────────────────────── */}
+              {viewContacts.length > 0 && (
+                <>
+                  <Divider />
+                  <Typography variant="subtitle2" color="text.secondary">Vendor Contacts</Typography>
+                  {viewContacts.map((c) => (
+                    <Box key={c.id} sx={detailGridSx}>
+                      <FieldRow label="First Name" value={c.first_name} />
+                      <FieldRow label="Last Name" value={c.last_name} />
+                      <FieldRow label="Position" value={c.position || '\u2014'} />
+                      <FieldRow label="Primary" value={c.is_primary ? 'Yes' : 'No'} />
+                    </Box>
+                  ))}
+                </>
+              )}
             </Box>
           )}
         </DialogContent>
@@ -355,13 +642,162 @@ export default function VendorsPage() {
       </FormDialog>
 
       {/* ── Edit Vendor Dialog ──────────────────────────────────── */}
-      <FormDialog open={editOpen} title="Edit Vendor" submitLabel="Save Changes" maxWidth="md" loading={updateMut.isPending} onSubmit={handleUpdate} onCancel={() => { setEditOpen(false); setEditRow(null); setEditSourceId(null); }}>
+      <FormDialog open={editOpen} title="Edit Vendor" submitLabel="Save Changes" maxWidth="md" loading={updateMut.isPending} submitDisabled={!hasEditChanges} onSubmit={handleUpdate} onCancel={() => { setEditOpen(false); setEditRow(null); setEditSourceId(null); setEditVendorId(null); }}>
         <Box sx={formGridSx}>
           <TextField label="Vendor Name" required value={editForm.name} onChange={onEditField('name')} />
           <TextField label="Code" value={editForm.code} onChange={onEditField('code')} inputProps={{ maxLength: 16 }} />
           <TextField label="Payment Terms" value={editForm.payment_terms} onChange={onEditField('payment_terms')} />
           <TextField label="Notes" multiline minRows={2} value={editForm.notes} onChange={onEditField('notes')} />
         </Box>
+
+        {/* ── Emails ──────────────────────────────────────────── */}
+        <Divider />
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Typography variant="subtitle2">Emails</Typography>
+          <Button size="small" startIcon={<AddIcon />} onClick={addEmail}>Add Email</Button>
+        </Box>
+        {visibleEmails.length === 0 && (
+          <Typography variant="body2" color="text.secondary">No emails</Typography>
+        )}
+        {visibleEmails.map((em) => {
+          const idx = editEmails.indexOf(em);
+          return (
+            <Box key={em.id || idx} sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+              <TextField
+                label="Email"
+                type="email"
+                value={em.email}
+                onChange={(e) => updateEmail(idx, 'email', e.target.value)}
+                size="small"
+                sx={{ flex: 1, minWidth: 200 }}
+              />
+              <TextField
+                select
+                label="Label"
+                value={em.label}
+                onChange={(e) => updateEmail(idx, 'label', e.target.value)}
+                size="small"
+                sx={{ minWidth: 120 }}
+              >
+                {EMAIL_LABELS.map((l) => (
+                  <MenuItem key={l} value={l}>{cap(l)}</MenuItem>
+                ))}
+              </TextField>
+              <FormControlLabel
+                control={<Checkbox checked={em.is_primary} onChange={(e) => updateEmail(idx, 'is_primary', e.target.checked)} size="small" />}
+                label="Primary"
+                sx={{ mr: 0 }}
+              />
+              <IconButton size="small" onClick={() => removeEmail(idx)} color="error">
+                <DeleteOutlineIcon fontSize="small" />
+              </IconButton>
+            </Box>
+          );
+        })}
+
+        {/* ── Phone Numbers ──────────────────────────────────── */}
+        <Divider />
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Typography variant="subtitle2">Phone Numbers</Typography>
+          <Button size="small" startIcon={<AddIcon />} onClick={addPhone}>Add Phone</Button>
+        </Box>
+        {visiblePhones.length === 0 && (
+          <Typography variant="body2" color="text.secondary">No phone numbers</Typography>
+        )}
+        {visiblePhones.map((phone) => {
+          const idx = editPhones.indexOf(phone);
+          const countryCode = phone.country_code?.trim() || 'US';
+          const country = COUNTRIES.find((c) => c.code === countryCode);
+          return (
+            <Box key={phone.id || idx} sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+              <TextField
+                select
+                label="Type"
+                value={phone.phone_type}
+                onChange={(e) => updatePhone(idx, 'phone_type', e.target.value)}
+                sx={{ minWidth: 120 }}
+                size="small"
+              >
+                {PHONE_TYPES.map((t) => (
+                  <MenuItem key={t} value={t}>{cap(t)}</MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                select
+                label="Country"
+                value={countryCode}
+                onChange={(e) => updatePhone(idx, 'country_code', e.target.value)}
+                SelectProps={{ renderValue: (val) => COUNTRIES.find((c) => c.code === val)?.dial_code || val }}
+                sx={{ minWidth: 80 }}
+                size="small"
+              >
+                {COUNTRIES.map((c) => (
+                  <MenuItem key={c.code} value={c.code}>{c.dial_code} {c.code} - {c.name}</MenuItem>
+                ))}
+              </TextField>
+              <PatternTextField
+                label="Number"
+                value={phone.phone_number}
+                onChange={(raw) => updatePhone(idx, 'phone_number', raw)}
+                pattern={country?.placeholder}
+                size="small"
+                sx={{ flex: 1, minWidth: 160 }}
+              />
+              <FormControlLabel
+                control={<Checkbox checked={phone.is_primary} onChange={(e) => updatePhone(idx, 'is_primary', e.target.checked)} size="small" />}
+                label="Primary"
+                sx={{ mr: 0 }}
+              />
+              <IconButton size="small" onClick={() => removePhone(idx)} color="error">
+                <DeleteOutlineIcon fontSize="small" />
+              </IconButton>
+            </Box>
+          );
+        })}
+
+        {/* ── Addresses ──────────────────────────────────────── */}
+        <Divider />
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Typography variant="subtitle2">Addresses</Typography>
+          <Button size="small" startIcon={<AddIcon />} onClick={addAddress}>Add Address</Button>
+        </Box>
+        {visibleAddresses.length === 0 && (
+          <Typography variant="body2" color="text.secondary">No addresses</Typography>
+        )}
+        {visibleAddresses.map((addr) => {
+          const idx = editAddresses.indexOf(addr);
+          return (
+            <Box key={addr.id || idx} sx={{ ...formGroupCardSx, gridColumn: undefined }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                <TextField
+                  label="Label"
+                  value={addr.label}
+                  onChange={(e) => updateAddress(idx, 'label', e.target.value)}
+                  size="small"
+                  sx={{ width: 200 }}
+                />
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <FormControlLabel
+                    control={<Checkbox checked={addr.is_primary} onChange={(e) => updateAddress(idx, 'is_primary', e.target.checked)} size="small" />}
+                    label="Primary"
+                    sx={{ mr: 0 }}
+                  />
+                  <IconButton size="small" onClick={() => removeAddress(idx)} color="error">
+                    <DeleteOutlineIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+              </Box>
+              <Box sx={formGridSx}>
+                <TextField label="Address Line 1" value={addr.address_line_1} onChange={(e) => updateAddress(idx, 'address_line_1', e.target.value)} size="small" sx={formFullSpanSx} />
+                <TextField label="Address Line 2" value={addr.address_line_2} onChange={(e) => updateAddress(idx, 'address_line_2', e.target.value)} size="small" sx={formFullSpanSx} />
+                <TextField label="City" value={addr.city} onChange={(e) => updateAddress(idx, 'city', e.target.value)} size="small" />
+                <TextField label="State / Province" value={addr.state_province} onChange={(e) => updateAddress(idx, 'state_province', e.target.value)} size="small" />
+                <TextField label="Postal Code" value={addr.postal_code} onChange={(e) => updateAddress(idx, 'postal_code', e.target.value)} size="small" />
+                <TextField label="Country Code" value={addr.country_code} onChange={(e) => updateAddress(idx, 'country_code', e.target.value)} size="small" inputProps={{ maxLength: 2 }} />
+              </Box>
+            </Box>
+          );
+        })}
 
         {/* ── Tax Identifiers ──────────────────────────────────── */}
         <Divider />
@@ -423,6 +859,54 @@ export default function VendorsPage() {
                   sx={{ mr: 0 }}
                 />
                 <IconButton size="small" onClick={() => removeTaxId(idx)} color="error">
+                  <DeleteOutlineIcon fontSize="small" />
+                </IconButton>
+              </Box>
+            </Box>
+          );
+        })}
+
+        {/* ── Vendor Contacts ──────────────────────────────────── */}
+        <Divider />
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Typography variant="subtitle2">Vendor Contacts</Typography>
+          <Button size="small" startIcon={<AddIcon />} onClick={addContact}>Add Contact</Button>
+        </Box>
+        {visibleContacts.length === 0 && (
+          <Typography variant="body2" color="text.secondary">No vendor contacts</Typography>
+        )}
+        {visibleContacts.map((contact) => {
+          const idx = editContacts.indexOf(contact);
+          return (
+            <Box key={contact.id || idx} sx={{ ...formGroupCardSx, gridColumn: undefined }}>
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                <TextField
+                  label="First Name"
+                  value={contact.first_name}
+                  onChange={(e) => updateContact(idx, 'first_name', e.target.value)}
+                  size="small"
+                  sx={{ flex: 1, minWidth: 140 }}
+                />
+                <TextField
+                  label="Last Name"
+                  value={contact.last_name}
+                  onChange={(e) => updateContact(idx, 'last_name', e.target.value)}
+                  size="small"
+                  sx={{ flex: 1, minWidth: 140 }}
+                />
+                <TextField
+                  label="Position"
+                  value={contact.position}
+                  onChange={(e) => updateContact(idx, 'position', e.target.value)}
+                  size="small"
+                  sx={{ flex: 1, minWidth: 140 }}
+                />
+                <FormControlLabel
+                  control={<Checkbox checked={contact.is_primary} onChange={(e) => updateContact(idx, 'is_primary', e.target.checked)} size="small" />}
+                  label="Primary"
+                  sx={{ mr: 0 }}
+                />
+                <IconButton size="small" onClick={() => removeContact(idx)} color="error">
                   <DeleteOutlineIcon fontSize="small" />
                 </IconButton>
               </Box>

@@ -16,6 +16,7 @@ import {
   PHONE_HEADERS,
   ADDRESS_HEADERS,
   TAX_ID_HEADERS,
+  EMAIL_HEADERS,
 } from '../../../lib/spreadsheetHelpers.js';
 
 /** @type {import('../../../lib/spreadsheetHelpers.js').SourceEntityConfig} */
@@ -36,6 +37,7 @@ const CONFIG = {
   ],
   extraImportStrip: [],
   childSheets: [
+    { sheetName: 'Emails', modelName: 'emails', headers: EMAIL_HEADERS },
     { sheetName: 'Phone Numbers', modelName: 'phoneNumbers', headers: PHONE_HEADERS },
     { sheetName: 'Addresses', modelName: 'addresses', headers: ADDRESS_HEADERS },
     { sheetName: 'Tax Identifiers', modelName: 'taxIdentifiers', headers: TAX_ID_HEADERS },

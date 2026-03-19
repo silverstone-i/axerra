@@ -46,6 +46,9 @@ import {
   usePhoneNumbers, useCreatePhoneNumber, useUpdatePhoneNumber, useArchivePhoneNumber,
 } from '../../hooks/usePhoneNumbers.js';
 import {
+  useEmails, useCreateEmail, useUpdateEmail, useArchiveEmail,
+} from '../../hooks/useEmails.js';
+import {
   useAddresses, useCreateAddress, useUpdateAddress, useArchiveAddress,
 } from '../../hooks/useAddresses.js';
 import {
@@ -65,12 +68,14 @@ const BLANK_CREATE = {
   is_app_user: false, password: '', roles: [], is_primary_contact: false, is_billing_contact: false,
 };
 const BLANK_EDIT = {
-  first_name: '', last_name: '', code: '', position: '', department: '', email: '',
+  first_name: '', last_name: '', code: '', position: '', department: '',
   is_app_user: false, password: '', roles: [], is_primary_contact: false, is_billing_contact: false,
 };
 
 const PHONE_TYPES = ['cell', 'work', 'home', 'fax', 'other'];
+const EMAIL_LABELS = ['work', 'personal', 'billing', 'other'];
 const BLANK_PHONE = { country_code: 'US', phone_type: 'cell', phone_number: '', is_primary: false };
+const BLANK_EMAIL = { email: '', label: 'work', is_primary: false, is_login: false };
 const BLANK_ADDRESS = {
   label: '', address_line_1: '', address_line_2: '', city: '',
   state_province: '', postal_code: '', country_code: 'US', is_primary: false,
@@ -86,7 +91,6 @@ const columns = [
   { field: 'last_name', headerName: 'Last Name', width: 140 },
   { field: 'position', headerName: 'Position', width: 140 },
   { field: 'department', headerName: 'Department', width: 140 },
-  { field: 'email', headerName: 'Email', flex: 1, minWidth: 200 },
   {
     field: 'roles',
     headerName: 'Roles',
@@ -132,6 +136,9 @@ export default function EmployeesPage() {
   const createPhoneMut = useCreatePhoneNumber();
   const updatePhoneMut = useUpdatePhoneNumber();
   const archivePhoneMut = useArchivePhoneNumber();
+  const createEmailMut = useCreateEmail();
+  const updateEmailMut = useUpdateEmail();
+  const archiveEmailMut = useArchiveEmail();
   const createAddrMut = useCreateAddress();
   const updateAddrMut = useUpdateAddress();
   const archiveAddrMut = useArchiveAddress();
@@ -156,23 +163,27 @@ export default function EmployeesPage() {
 
   const [editSourceId, setEditSourceId] = useState(null);
   const { data: phonesRes } = usePhoneNumbers({ source_id: editSourceId, includeDeactivated: 'false' }, { enabled: !!editSourceId });
+  const { data: emailsRes } = useEmails({ source_id: editSourceId, includeDeactivated: 'false' }, { enabled: !!editSourceId });
   const { data: addressesRes } = useAddresses({ source_id: editSourceId, includeDeactivated: 'false' }, { enabled: !!editSourceId });
   const { data: taxIdsRes } = useTaxIdentifiers({ source_id: editSourceId, includeDeactivated: 'false' }, { enabled: !!editSourceId });
 
   // View dialog child data
   const { data: viewPhonesRes } = usePhoneNumbers({ source_id: viewSourceId, includeDeactivated: 'false' }, { enabled: !!viewSourceId });
+  const { data: viewEmailsRes } = useEmails({ source_id: viewSourceId, includeDeactivated: 'false' }, { enabled: !!viewSourceId });
   const { data: viewAddressesRes } = useAddresses({ source_id: viewSourceId, includeDeactivated: 'false' }, { enabled: !!viewSourceId });
   const { data: viewTaxIdsRes } = useTaxIdentifiers({ source_id: viewSourceId, includeDeactivated: 'false' }, { enabled: !!viewSourceId });
   const viewPhones = viewPhonesRes?.rows ?? [];
+  const viewEmails = viewEmailsRes?.rows ?? [];
   const viewAddresses = viewAddressesRes?.rows ?? [];
   const viewTaxIds = viewTaxIdsRes?.rows ?? [];
 
   const [createForm, setCreateForm] = useState(BLANK_CREATE);
   const [editForm, setEditForm] = useState(BLANK_EDIT);
   const [editPhones, setEditPhones] = useState([]);
+  const [editEmails, setEditEmails] = useState([]);
   const [editAddresses, setEditAddresses] = useState([]);
   const [editTaxIds, setEditTaxIds] = useState([]);
-  const editInitial = useRef({ form: null, phones: null, addresses: null, taxIds: null });
+  const editInitial = useRef({ form: null, phones: null, emails: null, addresses: null, taxIds: null });
 
   const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
   const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
@@ -215,6 +226,20 @@ export default function EmployeesPage() {
   const removePhone = (idx) =>
     setEditPhones((prev) => prev.map((p, i) => (i === idx ? { ...p, _deleted: true } : p)));
 
+  /* ── Email edit helpers ──────────────────────────────────────── */
+  const updateEmail = (idx, field, value) =>
+    setEditEmails((prev) => prev.map((e, i) => {
+      if (i !== idx) {
+        // Radio behavior: when setting is_login on one row, clear it on all others
+        if (field === 'is_login' && value) return { ...e, is_login: false };
+        return e;
+      }
+      return { ...e, [field]: value };
+    }));
+  const addEmail = () => setEditEmails((prev) => [...prev, { ...BLANK_EMAIL }]);
+  const removeEmail = (idx) =>
+    setEditEmails((prev) => prev.map((e, i) => (i === idx ? { ...e, _deleted: true } : e)));
+
   /* ── Address edit helpers ───────────────────────────────────── */
   const updateAddress = (idx, field, value) =>
     setEditAddresses((prev) => prev.map((a, i) => (i === idx ? { ...a, [field]: value } : a)));
@@ -236,6 +261,13 @@ export default function EmployeesPage() {
       editInitial.current.phones = phonesRes.rows;
     }
   }, [editOpen, phonesRes]);
+
+  useEffect(() => {
+    if (editOpen && emailsRes?.rows) {
+      setEditEmails(emailsRes.rows);
+      editInitial.current.emails = emailsRes.rows;
+    }
+  }, [editOpen, emailsRes]);
 
   useEffect(() => {
     if (editOpen && addressesRes?.rows) {
@@ -266,7 +298,6 @@ export default function EmployeesPage() {
       code: row.code ?? '',
       position: row.position ?? '',
       department: row.department ?? '',
-      email: row.email ?? '',
       is_app_user: !!row.is_app_user,
       roles: row.roles ?? [],
       is_primary_contact: !!row.is_primary_contact,
@@ -278,9 +309,11 @@ export default function EmployeesPage() {
     setEditSourceId(row.source_id || null);
     if (!row.source_id) {
       setEditPhones([]);
+      setEditEmails([]);
       setEditAddresses([]);
       setEditTaxIds([]);
       editInitial.current.phones = [];
+      editInitial.current.emails = [];
       editInitial.current.addresses = [];
       editInitial.current.taxIds = [];
     }
@@ -325,10 +358,11 @@ export default function EmployeesPage() {
       });
     };
     if (collectionChanged(editPhones, init.phones, ['country_code', 'phone_type', 'phone_number', 'is_primary'])) return true;
+    if (collectionChanged(editEmails, init.emails, ['email', 'label', 'is_primary', 'is_login'])) return true;
     if (collectionChanged(editAddresses, init.addresses, ['label', 'address_line_1', 'address_line_2', 'city', 'state_province', 'postal_code', 'country_code', 'is_primary'])) return true;
     if (collectionChanged(editTaxIds, init.taxIds, ['country_code', 'tax_type', 'tax_value', 'is_primary'])) return true;
     return false;
-  }, [editForm, editPhones, editAddresses, editTaxIds]);
+  }, [editForm, editPhones, editEmails, editAddresses, editTaxIds]);
 
   const handleCreate = async () => {
     try {
@@ -343,16 +377,38 @@ export default function EmployeesPage() {
 
   const handleUpdate = async () => {
     try {
-      await updateMut.mutateAsync({ filter: { id: editRow.id }, changes: editForm });
+      // When toggling is_app_user on, include the selected login email in the
+      // employee update payload so the backend can provision before email mutations run
+      const changes = { ...editForm };
+      if (changes.is_app_user && !editRow.is_app_user) {
+        const loginEm = editEmails.find((em) => em.is_login && !em._deleted);
+        if (loginEm) changes.email = loginEm.email;
+      }
+      await updateMut.mutateAsync({ filter: { id: editRow.id }, changes });
 
       if (editRow.source_id) {
         for (const p of editPhones) {
           if (p._deleted && p.id) {
             await archivePhoneMut.mutateAsync({ id: p.id });
           } else if (!p.id && !p._deleted) {
-            await createPhoneMut.mutateAsync({ source_id: editRow.source_id, phone_type: p.phone_type, phone_number: p.phone_number, is_primary: p.is_primary });
+            await createPhoneMut.mutateAsync({ source_id: editRow.source_id, country_code: p.country_code, phone_type: p.phone_type, phone_number: p.phone_number, is_primary: p.is_primary });
           } else if (p.id && !p._deleted) {
-            await updatePhoneMut.mutateAsync({ filter: { id: p.id }, changes: { phone_type: p.phone_type, phone_number: p.phone_number, is_primary: p.is_primary } });
+            await updatePhoneMut.mutateAsync({ filter: { id: p.id }, changes: { country_code: p.country_code, phone_type: p.phone_type, phone_number: p.phone_number, is_primary: p.is_primary } });
+          }
+        }
+        for (const em of editEmails) {
+          if (em._deleted && em.id) {
+            await archiveEmailMut.mutateAsync({ id: em.id });
+          } else if (!em.id && !em._deleted) {
+            await createEmailMut.mutateAsync({
+              source_id: editRow.source_id, email: em.email, label: em.label,
+              is_primary: em.is_primary, is_login: em.is_login,
+            });
+          } else if (em.id && !em._deleted) {
+            await updateEmailMut.mutateAsync({
+              filter: { id: em.id },
+              changes: { email: em.email, label: em.label, is_primary: em.is_primary, is_login: em.is_login },
+            });
           }
         }
         for (const a of editAddresses) {
@@ -482,6 +538,7 @@ export default function EmployeesPage() {
 
   /* ── Visible (non-deleted) sub-collections for the form ──── */
   const visiblePhones = editPhones.filter((p) => !p._deleted);
+  const visibleEmails = editEmails.filter((e) => !e._deleted);
   const visibleAddresses = editAddresses.filter((a) => !a._deleted);
   const visibleTaxIds = editTaxIds.filter((t) => !t._deleted);
 
@@ -523,7 +580,6 @@ export default function EmployeesPage() {
                 <FieldRow label="Last Name" value={viewEmployee.last_name} />
                 <FieldRow label="Position" value={viewEmployee.position || '\u2014'} />
                 <FieldRow label="Department" value={viewEmployee.department || '\u2014'} />
-                <FieldRow label="Email" value={viewEmployee.email || '\u2014'} />
                 <FieldRow label="App User" value={viewEmployee.is_app_user ? 'Yes' : 'No'} />
                 <FieldRow label="Roles" value={(viewEmployee.roles ?? []).join(', ') || '\u2014'} />
                 <FieldRow label="Status">
@@ -545,6 +601,22 @@ export default function EmployeesPage() {
                       <FieldRow label="Type" value={p.phone_type} />
                       <FieldRow label="Number" value={p.phone_number} />
                       <FieldRow label="Primary" value={p.is_primary ? 'Yes' : 'No'} />
+                    </Box>
+                  ))}
+                </>
+              )}
+
+              {/* ── Emails ──────────────────────────────────── */}
+              {viewEmails.length > 0 && (
+                <>
+                  <Divider />
+                  <Typography variant="subtitle2" color="text.secondary">Emails</Typography>
+                  {viewEmails.map((em) => (
+                    <Box key={em.id} sx={detailGridSx}>
+                      <FieldRow label="Email" value={em.email} />
+                      <FieldRow label="Label" value={cap(em.label)} />
+                      <FieldRow label="Primary" value={em.is_primary ? 'Yes' : 'No'} />
+                      {em.is_login && <FieldRow label="Login" value="Yes" />}
                     </Box>
                   ))}
                 </>
@@ -619,7 +691,6 @@ export default function EmployeesPage() {
           <TextField label="Code" value={editForm.code} onChange={onEditField('code')} inputProps={{ maxLength: 16 }} />
           <TextField label="Position" value={editForm.position} onChange={onEditField('position')} />
           <TextField label="Department" value={editForm.department} onChange={onEditField('department')} />
-          <TextField label="Email" type="email" value={editForm.email} onChange={onEditField('email')} helperText={editForm.is_app_user && !editForm.email ? 'Email required for app users' : ''} error={editForm.is_app_user && !editForm.email} />
           <FormControlLabel control={<Checkbox checked={editForm.is_app_user} onChange={handleAppUserToggle('edit', setEditForm)} />} label="App User (creates login account)" />
           <Autocomplete
             multiple
@@ -694,6 +765,59 @@ export default function EmployeesPage() {
                 sx={{ mr: 0 }}
               />
               <IconButton size="small" onClick={() => removePhone(idx)} color="error">
+                <DeleteOutlineIcon fontSize="small" />
+              </IconButton>
+            </Box>
+          );
+        })}
+
+        {/* ── Emails ────────────────────────────────────────── */}
+        <Divider />
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Typography variant="subtitle2">Emails</Typography>
+          <Button size="small" startIcon={<AddIcon />} onClick={addEmail}>Add Email</Button>
+        </Box>
+        {visibleEmails.length === 0 && (
+          <Typography variant="body2" color="text.secondary">No emails</Typography>
+        )}
+        {visibleEmails.map((em) => {
+          const idx = editEmails.indexOf(em);
+          const isLoginEmail = em.is_login && editForm.is_app_user;
+          return (
+            <Box key={em.id || idx} sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+              <TextField
+                label="Email"
+                type="email"
+                value={em.email}
+                onChange={(e) => updateEmail(idx, 'email', e.target.value)}
+                size="small"
+                sx={{ flex: 1, minWidth: 200 }}
+              />
+              <TextField
+                select
+                label="Label"
+                value={em.label}
+                onChange={(e) => updateEmail(idx, 'label', e.target.value)}
+                sx={{ minWidth: 120 }}
+                size="small"
+              >
+                {EMAIL_LABELS.map((l) => (
+                  <MenuItem key={l} value={l}>{cap(l)}</MenuItem>
+                ))}
+              </TextField>
+              <FormControlLabel
+                control={<Checkbox checked={em.is_primary} onChange={(e) => updateEmail(idx, 'is_primary', e.target.checked)} size="small" />}
+                label="Primary"
+                sx={{ mr: 0 }}
+              />
+              {editForm.is_app_user && (
+                <FormControlLabel
+                  control={<Checkbox checked={em.is_login} onChange={(e) => updateEmail(idx, 'is_login', e.target.checked)} size="small" disabled={editRow.is_app_user} />}
+                  label="Login"
+                  sx={{ mr: 0 }}
+                />
+              )}
+              <IconButton size="small" onClick={() => removeEmail(idx)} color="error" disabled={isLoginEmail}>
                 <DeleteOutlineIcon fontSize="small" />
               </IconButton>
             </Box>

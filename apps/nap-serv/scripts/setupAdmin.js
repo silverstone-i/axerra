@@ -114,10 +114,10 @@ async function main() {
         // 1. Insert employee with super_user role
         const employee = await db.one(
           `INSERT INTO ${s}.employees
-             (tenant_id, first_name, last_name, email, is_app_user, roles, is_primary_contact)
-           VALUES ($1, 'System', 'Administrator', $2, true, '{super_user}', true)
+             (tenant_id, first_name, last_name, is_app_user, roles, is_primary_contact)
+           VALUES ($1, 'System', 'Administrator', true, '{super_user}', true)
            RETURNING id`,
-          [tenant.id, rootEmail],
+          [tenant.id],
         );
 
         // 2. Create polymorphic source record
@@ -130,6 +130,15 @@ async function main() {
 
         // 3. Link source back to employee
         await db.none(`UPDATE ${s}.employees SET source_id = $1 WHERE id = $2`, [source.id, employee.id]);
+
+        // 3b. Create login email in the emails table
+        await db.one(
+          `INSERT INTO ${s}.emails
+             (tenant_id, source_id, email, label, is_primary, is_login)
+           VALUES ($1, $2, $3, 'work', true, true)
+           RETURNING id`,
+          [tenant.id, source.id, rootEmail],
+        );
 
         // 4. Link nap_user to employee
         await db.none("UPDATE admin.nap_users SET entity_type = 'employee', entity_id = $1 WHERE id = $2", [

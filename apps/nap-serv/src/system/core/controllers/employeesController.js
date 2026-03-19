@@ -40,13 +40,17 @@ class EmployeesController extends BaseController {
       // Normalize empty code to null — avoids unique constraint violation on ''
       if (req.body.code !== undefined && !req.body.code?.trim()) req.body.code = null;
 
+      // Extract email before insert — it goes in the emails table, not the employees table
+      const suppliedEmail = req.body.email;
+      delete req.body.email;
+
       // Validate: roles must be non-empty before is_app_user can be true
       if (req.body.is_app_user) {
         const roles = req.body.roles || [];
         if (!roles.length) {
           return res.status(400).json({ error: 'Roles must be assigned before enabling app user access' });
         }
-        if (!req.body.email) {
+        if (!suppliedEmail) {
           return res.status(400).json({ error: 'Email is required to enable app user access' });
         }
       }
@@ -91,12 +95,27 @@ class EmployeesController extends BaseController {
           }
         }
 
+        // 5. Create email record if provided
+        if (suppliedEmail) {
+          const emailsModel = db('emails', schema);
+          emailsModel.tx = t;
+          await emailsModel.insert({
+            tenant_id: employee.tenant_id,
+            source_id: source.id,
+            email: suppliedEmail,
+            label: 'work',
+            is_primary: true,
+            is_login: !!req.body.is_app_user,
+            created_by: req.body.created_by || null,
+          });
+        }
+
         return { ...employee, source_id: source.id };
       });
 
-      // 5. If is_app_user, create the nap_users login record
-      if (record.is_app_user && record.email) {
-        await this.#provisionAppUser(record, req, suppliedPassword);
+      // 6. If is_app_user, create the nap_users login record
+      if (record.is_app_user && suppliedEmail) {
+        await this.#provisionAppUser(record, req, suppliedPassword, suppliedEmail);
       }
 
       res.status(201).json(record);
@@ -125,22 +144,44 @@ class EmployeesController extends BaseController {
       // Normalize empty code to null — avoids unique constraint violation on ''
       if (req.body.code !== undefined && !req.body.code?.trim()) req.body.code = null;
 
+      // Detect is_app_user toggle — validate BEFORE persisting the update
+      const wasAppUser = !!before.is_app_user;
+      const isNowAppUser = req.body.is_app_user !== undefined ? !!req.body.is_app_user : wasAppUser;
+
+      // Extract email — it's managed in the emails table, not the employees table.
+      // Only accept it when toggling is_app_user ON; otherwise reject with guidance.
+      const suppliedEmail = req.body.email;
+      delete req.body.email;
+
+      if (suppliedEmail && !(!wasAppUser && isNowAppUser)) {
+        return res.status(400).json({
+          error: 'Email is managed via /api/core/v1/emails. Use that endpoint to update email addresses.',
+        });
+      }
+
       // Extract password before update — it's for nap_users, not the employees table
       const suppliedPassword = req.body.password;
       delete req.body.password;
 
-      // Detect is_app_user toggle — validate BEFORE persisting the update
-      const wasAppUser = !!before.is_app_user;
-      const isNowAppUser = req.body.is_app_user !== undefined ? !!req.body.is_app_user : wasAppUser;
-      const email = req.body.email || before.email;
+      // Resolve login email from the emails table — prefer is_login, fall back to is_primary
+      const s = pgp.as.name(schema);
+      const loginEmail = await db.oneOrNone(
+        `SELECT id, email, is_login FROM ${s}.emails
+         WHERE source_id = $1 AND deactivated_at IS NULL
+         AND (is_login = true OR is_primary = true)
+         ORDER BY is_login DESC, is_primary DESC LIMIT 1`,
+        [before.source_id],
+      );
+      const hasLoginEmail = loginEmail?.is_login;
+      const resolvedEmail = suppliedEmail || loginEmail?.email;
 
       if (!wasAppUser && isNowAppUser) {
         const roles = req.body.roles || before.roles || [];
         if (!roles.length) {
           return res.status(400).json({ error: 'Roles must be assigned before enabling app user access' });
         }
-        if (!email) {
-          return res.status(400).json({ error: 'Email is required to enable app user access' });
+        if (!resolvedEmail) {
+          return res.status(400).json({ error: 'A login email is required to enable app user access' });
         }
       }
 
@@ -150,18 +191,35 @@ class EmployeesController extends BaseController {
 
       if (!wasAppUser && isNowAppUser) {
         // Toggled ON: provision or restore nap_user
-        const updatedEmployee = { ...before, ...req.body, id: before.id, email };
-        await this.#provisionAppUser(updatedEmployee, req, suppliedPassword);
+        // If no email exists at all, create one from the supplied email
+        if (suppliedEmail && !loginEmail) {
+          const emailsModel = db('emails', schema);
+          await emailsModel.insert({
+            tenant_id: before.tenant_id,
+            source_id: before.source_id,
+            email: suppliedEmail,
+            label: 'work',
+            is_primary: true,
+            is_login: true,
+            created_by: req.user?.id || null,
+          });
+        } else if (loginEmail && !hasLoginEmail) {
+          // Existing primary email but not flagged as login — promote it.
+          // If a different email was supplied, update the value to keep nap_users in sync.
+          const updatedBy = req.user?.id || null;
+          const emailUpdate = suppliedEmail && suppliedEmail !== loginEmail.email
+            ? `UPDATE ${s}.emails SET is_login = true, email = $2, updated_by = $3 WHERE id = $1`
+            : `UPDATE ${s}.emails SET is_login = true, updated_by = $2 WHERE id = $1`;
+          const emailParams = suppliedEmail && suppliedEmail !== loginEmail.email
+            ? [loginEmail.id, suppliedEmail, updatedBy]
+            : [loginEmail.id, updatedBy];
+          await db.none(emailUpdate, emailParams);
+        }
+        const updatedEmployee = { ...before, ...req.body, id: before.id };
+        await this.#provisionAppUser(updatedEmployee, req, suppliedPassword, resolvedEmail);
       } else if (wasAppUser && !isNowAppUser) {
         // Toggled OFF: archive the linked nap_user
         await this.#archiveAppUser(before.id, req);
-      } else if (wasAppUser && isNowAppUser && req.body.email && req.body.email !== before.email) {
-        // Email changed on an existing app user — sync to nap_users
-        await db.none(
-          `UPDATE admin.nap_users SET email = $1, updated_by = $2
-           WHERE entity_type = 'employee' AND entity_id = $3 AND deactivated_at IS NULL`,
-          [req.body.email, req.user?.id || null, before.id],
-        );
       }
 
       // Flush permission cache if roles changed
@@ -306,7 +364,7 @@ class EmployeesController extends BaseController {
    * nap_users is a pure identity table: tenant_id, entity_type, entity_id,
    * email, password_hash, status. No role/full_name columns.
    */
-  async #provisionAppUser(employee, req, suppliedPassword) {
+  async #provisionAppUser(employee, req, suppliedPassword, loginEmail) {
     const tenantId = req.user?.tenant_id;
     if (!tenantId) throw new Error('Tenant context required to provision app user');
 
@@ -345,7 +403,7 @@ class EmployeesController extends BaseController {
          SET deactivated_at = NULL, status = 'invited',
              password_hash = $1, email = $2, updated_by = $3
          WHERE id = $4`,
-        [passwordHash, employee.email, req.user?.id || null, existing.id],
+        [passwordHash, loginEmail, req.user?.id || null, existing.id],
       );
       logger.info(`Restored nap_user ${existing.id} for employee ${employee.id}`);
       return existing.id;
@@ -356,7 +414,7 @@ class EmployeesController extends BaseController {
       tenant_id: tenantId,
       entity_type: 'employee',
       entity_id: employee.id,
-      email: employee.email,
+      email: loginEmail,
       password_hash: passwordHash,
       status: 'invited',
       created_by: req.user?.id || null,
