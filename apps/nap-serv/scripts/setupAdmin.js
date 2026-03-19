@@ -95,6 +95,25 @@ async function main() {
 
   logger.info(`NapSoft tenant schema "${tenantSchema}" provisioned.`);
 
+  // ── Seed NapSoft self-company record ─────────────────────────────
+  const rootCompany = process.env.ROOT_COMPANY || 'NapSoft LLC';
+  const tenant = await db.oneOrNone('SELECT id FROM admin.tenants WHERE tenant_code = $1', [rootTenantCode]);
+
+  if (tenant) {
+    const s = DB.pgp.as.name(tenantSchema);
+    const existingCompany = await db.oneOrNone(`SELECT id FROM ${s}.companies WHERE code = $1`, [rootTenantCode]);
+
+    if (!existingCompany) {
+      await db.none(
+        `INSERT INTO ${s}.companies (tenant_id, code, name) VALUES ($1, $2, $3)`,
+        [tenant.id, rootTenantCode, rootCompany],
+      );
+      logger.info(`NapSoft self-company seeded (code=${rootTenantCode}, name=${rootCompany}).`);
+    } else {
+      logger.info('NapSoft self-company already exists, skipping.');
+    }
+  }
+
   // ── Link root super user to an employee record ──────────────
   const rootEmail = process.env.ROOT_EMAIL;
   if (rootEmail) {
@@ -105,8 +124,6 @@ async function main() {
 
     if (superUser && !superUser.entity_type) {
       logger.info('Linking root super user to employee record...');
-
-      const tenant = await db.oneOrNone('SELECT id FROM admin.tenants WHERE tenant_code = $1', [rootTenantCode]);
 
       if (tenant) {
         const s = DB.pgp.as.name(tenantSchema);
