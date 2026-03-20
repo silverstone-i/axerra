@@ -54,14 +54,15 @@ import {
   useVendorContacts, useCreateVendorContact, useUpdateVendorContact, useArchiveVendorContact,
 } from '../../hooks/useVendorContacts.js';
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
+import { useActivePaymentTerms } from '../../hooks/usePaymentTerms.js';
 import { TAX_TYPES, COUNTRIES, resolveLevel } from '@nap/shared';
 import { vendorApi } from '../../services/vendorApi.js';
 import { pageContainerSx, formGridSx, formGroupCardSx, formFullSpanSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
 
-const BLANK_CREATE = { name: '', code: '', payment_terms: '', notes: '' };
-const BLANK_EDIT = { name: '', code: '', payment_terms: '', notes: '' };
+const BLANK_CREATE = { name: '', code: '', payment_term_id: '', notes: '' };
+const BLANK_EDIT = { name: '', code: '', payment_term_id: '', notes: '' };
 const BLANK_EMAIL = { email: '', label: 'work', is_primary: false };
 const BLANK_PHONE = { country_code: 'US', phone_type: 'cell', phone_number: '', is_primary: false };
 const BLANK_ADDRESS = {
@@ -69,7 +70,7 @@ const BLANK_ADDRESS = {
   state_province: '', postal_code: '', country_code: 'US', is_primary: false,
 };
 const BLANK_TAX_ID = { country_code: 'US', tax_type: 'TIN', tax_value: '', is_primary: false };
-const BLANK_CONTACT = { first_name: '', last_name: '', position: '', is_primary: false };
+const BLANK_CONTACT = { first_name: '', last_name: '', position: '', department: '', is_app_user: false, roles: [], is_primary: false };
 
 const PHONE_TYPES = ['cell', 'work', 'home', 'fax', 'other'];
 const EMAIL_LABELS = ['work', 'personal', 'billing', 'other'];
@@ -77,10 +78,10 @@ const EMAIL_LABELS = ['work', 'personal', 'billing', 'other'];
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
 const fmtDate = (v) => (v ? new Date(v).toLocaleDateString() : '\u2014');
 
-const columns = [
+const baseColumns = [
   { field: 'code', headerName: 'Code', width: 120 },
   { field: 'name', headerName: 'Vendor Name', flex: 1, minWidth: 200 },
-  { field: 'payment_terms', headerName: 'Terms', width: 130 },
+  { field: 'payment_term_id', headerName: 'Terms', width: 160 },
   {
     field: 'is_active',
     headerName: 'Active',
@@ -97,6 +98,15 @@ export default function VendorsPage() {
 
   const { data: res, isLoading } = useVendors();
   const allRows = res?.rows ?? [];
+
+  const { data: ptRes } = useActivePaymentTerms();
+  const paymentTermsList = ptRes?.rows ?? [];
+  const ptMap = useMemo(() => new Map(paymentTermsList.map((pt) => [pt.id, pt.label])), [paymentTermsList]);
+  const columns = useMemo(() => baseColumns.map((col) =>
+    col.field === 'payment_term_id'
+      ? { ...col, valueGetter: (params) => ptMap.get(params.row.payment_term_id) || '\u2014' }
+      : col,
+  ), [ptMap]);
 
   const [viewFilter, setViewFilter] = useState('active');
   const rows = useMemo(() => {
@@ -268,7 +278,7 @@ export default function VendorsPage() {
     const form = {
       name: row.name ?? '',
       code: row.code ?? '',
-      payment_terms: row.payment_terms ?? '',
+      payment_term_id: row.payment_term_id ?? '',
       notes: row.notes ?? '',
     };
     setEditForm(form);
@@ -313,7 +323,7 @@ export default function VendorsPage() {
     if (collectionChanged(editPhones, init.phones, ['country_code', 'phone_type', 'phone_number', 'is_primary'])) return true;
     if (collectionChanged(editAddresses, init.addresses, ['label', 'address_line_1', 'address_line_2', 'city', 'state_province', 'postal_code', 'country_code', 'is_primary'])) return true;
     if (collectionChanged(editTaxIds, init.taxIds, ['country_code', 'tax_type', 'tax_value', 'is_primary'])) return true;
-    if (collectionChanged(editContacts, init.contacts, ['first_name', 'last_name', 'position', 'is_primary'])) return true;
+    if (collectionChanged(editContacts, init.contacts, ['first_name', 'last_name', 'position', 'department', 'is_app_user', 'is_primary'])) return true;
     return false;
   }, [editForm, editEmails, editPhones, editAddresses, editTaxIds, editContacts]);
 
@@ -385,12 +395,16 @@ export default function VendorsPage() {
         } else if (!c.id && !c._deleted) {
           await createContactMut.mutateAsync({
             vendor_id: editRow.id, first_name: c.first_name, last_name: c.last_name,
-            position: c.position, is_primary: c.is_primary,
+            position: c.position, department: c.department, is_app_user: c.is_app_user,
+            roles: c.roles, is_primary: c.is_primary,
           });
         } else if (c.id && !c._deleted) {
           await updateContactMut.mutateAsync({
             filter: { id: c.id },
-            changes: { first_name: c.first_name, last_name: c.last_name, position: c.position, is_primary: c.is_primary },
+            changes: {
+              first_name: c.first_name, last_name: c.last_name, position: c.position,
+              department: c.department, is_app_user: c.is_app_user, roles: c.roles, is_primary: c.is_primary,
+            },
           });
         }
       }
@@ -534,7 +548,7 @@ export default function VendorsPage() {
               <Box sx={detailGridSx}>
                 <FieldRow label="Code" value={viewVendor.code || '\u2014'} />
                 <FieldRow label="Vendor Name" value={viewVendor.name} />
-                <FieldRow label="Payment Terms" value={viewVendor.payment_terms || '\u2014'} />
+                <FieldRow label="Payment Terms" value={ptMap.get(viewVendor.payment_term_id) || '\u2014'} />
                 <FieldRow label="Status">
                   <StatusBadge status={viewVendor.deactivated_at ? 'archived' : 'active'} />
                 </FieldRow>
@@ -623,6 +637,9 @@ export default function VendorsPage() {
                       <FieldRow label="First Name" value={c.first_name} />
                       <FieldRow label="Last Name" value={c.last_name} />
                       <FieldRow label="Position" value={c.position || '\u2014'} />
+                      <FieldRow label="Department" value={c.department || '\u2014'} />
+                      <FieldRow label="App User" value={c.is_app_user ? 'Yes' : 'No'} />
+                      <FieldRow label="Roles" value={c.roles?.length ? c.roles.join(', ') : '\u2014'} />
                       <FieldRow label="Primary" value={c.is_primary ? 'Yes' : 'No'} />
                     </Box>
                   ))}
@@ -637,7 +654,19 @@ export default function VendorsPage() {
       <FormDialog open={createOpen} title="Create Vendor" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={() => setCreateOpen(false)}>
         <TextField label="Vendor Name" required value={createForm.name} onChange={onCreateField('name')} />
         <TextField label="Code" value={createForm.code} onChange={onCreateField('code')} inputProps={{ maxLength: 16 }} />
-        <TextField label="Payment Terms" value={createForm.payment_terms} onChange={onCreateField('payment_terms')} />
+        <TextField
+          label="Payment Terms"
+          select
+          value={createForm.payment_term_id}
+          onChange={onCreateField('payment_term_id')}
+        >
+          <MenuItem value="">
+            <em>None</em>
+          </MenuItem>
+          {paymentTermsList.map((pt) => (
+            <MenuItem key={pt.id} value={pt.id}>{pt.label}</MenuItem>
+          ))}
+        </TextField>
         <TextField label="Notes" multiline minRows={2} value={createForm.notes} onChange={onCreateField('notes')} />
       </FormDialog>
 
@@ -646,7 +675,19 @@ export default function VendorsPage() {
         <Box sx={formGridSx}>
           <TextField label="Vendor Name" required value={editForm.name} onChange={onEditField('name')} />
           <TextField label="Code" value={editForm.code} onChange={onEditField('code')} inputProps={{ maxLength: 16 }} />
-          <TextField label="Payment Terms" value={editForm.payment_terms} onChange={onEditField('payment_terms')} />
+          <TextField
+            label="Payment Terms"
+            select
+            value={editForm.payment_term_id}
+            onChange={onEditField('payment_term_id')}
+          >
+            <MenuItem value="">
+              <em>None</em>
+            </MenuItem>
+            {paymentTermsList.map((pt) => (
+              <MenuItem key={pt.id} value={pt.id}>{pt.label}</MenuItem>
+            ))}
+          </TextField>
           <TextField label="Notes" multiline minRows={2} value={editForm.notes} onChange={onEditField('notes')} />
         </Box>
 
@@ -900,6 +941,18 @@ export default function VendorsPage() {
                   onChange={(e) => updateContact(idx, 'position', e.target.value)}
                   size="small"
                   sx={{ flex: 1, minWidth: 140 }}
+                />
+                <TextField
+                  label="Department"
+                  value={contact.department || ''}
+                  onChange={(e) => updateContact(idx, 'department', e.target.value)}
+                  size="small"
+                  sx={{ flex: 1, minWidth: 140 }}
+                />
+                <FormControlLabel
+                  control={<Checkbox checked={contact.is_app_user || false} onChange={(e) => updateContact(idx, 'is_app_user', e.target.checked)} size="small" />}
+                  label="App User"
+                  sx={{ mr: 0 }}
                 />
                 <FormControlLabel
                   control={<Checkbox checked={contact.is_primary} onChange={(e) => updateContact(idx, 'is_primary', e.target.checked)} size="small" />}
