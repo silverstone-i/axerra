@@ -81,7 +81,7 @@ const EMAIL_LABELS = ['work', 'personal', 'billing', 'other'];
 const BLANK_PHONE = { country_code: 'US', phone_type: 'cell', phone_number: '', is_primary: false };
 const BLANK_EMAIL = { email: '', label: 'work', is_primary: false, is_login: false };
 const BLANK_ADDRESS = {
-  label: '', address_line_1: '', address_line_2: '', city: '',
+  label: '', address_line_1: '', address_line_2: '', address_line_3: '', city: '',
   state_province: '', postal_code: '', country_code: 'US', is_primary: false,
 };
 const BLANK_TAX_ID = { country_code: 'US', tax_type: 'TIN', tax_value: '', is_primary: false };
@@ -363,7 +363,7 @@ export default function EmployeesPage() {
     };
     if (collectionChanged(editPhones, init.phones, ['country_code', 'phone_type', 'phone_number', 'is_primary'])) return true;
     if (collectionChanged(editEmails, init.emails, ['email', 'label', 'is_primary', 'is_login'])) return true;
-    if (collectionChanged(editAddresses, init.addresses, ['label', 'address_line_1', 'address_line_2', 'city', 'state_province', 'postal_code', 'country_code', 'is_primary'])) return true;
+    if (collectionChanged(editAddresses, init.addresses, ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code', 'is_primary'])) return true;
     if (collectionChanged(editTaxIds, init.taxIds, ['country_code', 'tax_type', 'tax_value', 'is_primary'])) return true;
     return false;
   }, [editForm, editPhones, editEmails, editAddresses, editTaxIds]);
@@ -755,7 +755,7 @@ export default function EmployeesPage() {
               />
               {editForm.is_app_user && (
                 <FormControlLabel
-                  control={<Checkbox checked={em.is_login} onChange={(e) => updateEmail(idx, 'is_login', e.target.checked)} size="small" disabled={editRow.is_app_user} />}
+                  control={<Checkbox checked={em.is_login} onChange={(e) => updateEmail(idx, 'is_login', e.target.checked)} size="small" disabled={editRow?.is_app_user} />}
                   label="Login"
                   sx={{ mr: 0 }}
                 />
@@ -802,6 +802,7 @@ export default function EmployeesPage() {
               <Box sx={formGridSx}>
                 <TextField label="Address Line 1" value={addr.address_line_1} onChange={(e) => updateAddress(idx, 'address_line_1', e.target.value)} size="small" sx={formFullSpanSx} />
                 <TextField label="Address Line 2" value={addr.address_line_2} onChange={(e) => updateAddress(idx, 'address_line_2', e.target.value)} size="small" sx={formFullSpanSx} />
+                <TextField label="Address Line 3" value={addr.address_line_3 || ''} onChange={(e) => updateAddress(idx, 'address_line_3', e.target.value)} size="small" sx={formFullSpanSx} />
                 <TextField label="City" value={addr.city} onChange={(e) => updateAddress(idx, 'city', e.target.value)} size="small" />
                 <TextField label="State / Province" value={addr.state_province} onChange={(e) => updateAddress(idx, 'state_province', e.target.value)} size="small" />
                 <TextField label="Postal Code" value={addr.postal_code} onChange={(e) => updateAddress(idx, 'postal_code', e.target.value)} size="small" />
