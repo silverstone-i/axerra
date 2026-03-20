@@ -33,6 +33,10 @@ import FieldRow from '../../components/shared/FieldRow.jsx';
 import FormDialog from '../../components/shared/FormDialog.jsx';
 import ImportDialog from '../../components/shared/ImportDialog.jsx';
 import PatternTextField from '../../components/shared/PatternTextField.jsx';
+import EmailsSection from '../../components/shared/EmailsSection.jsx';
+import PhoneNumbersSection from '../../components/shared/PhoneNumbersSection.jsx';
+import AddressesSection from '../../components/shared/AddressesSection.jsx';
+import TaxIdentifiersSection from '../../components/shared/TaxIdentifiersSection.jsx';
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import {
@@ -478,70 +482,10 @@ export default function ClientsPage() {
                 <FieldRow label="Updated" value={fmtDate(viewClient.updated_at)} />
               </Box>
 
-              {/* ── Emails ──────────────────────────────────────── */}
-              {viewEmails.length > 0 && (
-                <>
-                  <Divider />
-                  <Typography variant="subtitle2" color="text.secondary">Emails</Typography>
-                  {viewEmails.map((em) => (
-                    <Box key={em.id} sx={detailGridSx}>
-                      <FieldRow label="Email" value={em.email} />
-                      <FieldRow label="Label" value={em.label || '\u2014'} />
-                      <FieldRow label="Primary" value={em.is_primary ? 'Yes' : 'No'} />
-                    </Box>
-                  ))}
-                </>
-              )}
-
-              {/* ── Phone Numbers ──────────────────────────────── */}
-              {viewPhones.length > 0 && (
-                <>
-                  <Divider />
-                  <Typography variant="subtitle2" color="text.secondary">Phone Numbers</Typography>
-                  {viewPhones.map((p) => (
-                    <Box key={p.id} sx={detailGridSx}>
-                      <FieldRow label="Type" value={p.phone_type} />
-                      <FieldRow label="Number" value={p.phone_number} />
-                      <FieldRow label="Primary" value={p.is_primary ? 'Yes' : 'No'} />
-                    </Box>
-                  ))}
-                </>
-              )}
-
-              {/* ── Addresses ─────────────────────────────────── */}
-              {viewAddresses.length > 0 && (
-                <>
-                  <Divider />
-                  <Typography variant="subtitle2" color="text.secondary">Addresses</Typography>
-                  {viewAddresses.map((a) => (
-                    <Box key={a.id} sx={detailGridSx}>
-                      <FieldRow label="Label" value={a.label || '\u2014'} />
-                      <FieldRow label="Address" value={[a.address_line_1, a.address_line_2].filter(Boolean).join(', ') || '\u2014'} />
-                      <FieldRow label="City" value={a.city || '\u2014'} />
-                      <FieldRow label="State" value={a.state_province || '\u2014'} />
-                      <FieldRow label="Postal Code" value={a.postal_code || '\u2014'} />
-                      <FieldRow label="Country" value={a.country_code || '\u2014'} />
-                      <FieldRow label="Primary" value={a.is_primary ? 'Yes' : 'No'} />
-                    </Box>
-                  ))}
-                </>
-              )}
-
-              {/* ── Tax Identifiers ───────────────────────────── */}
-              {viewTaxIds.length > 0 && (
-                <>
-                  <Divider />
-                  <Typography variant="subtitle2" color="text.secondary">Tax Identifiers</Typography>
-                  {viewTaxIds.map((t) => (
-                    <Box key={t.id} sx={detailGridSx}>
-                      <FieldRow label="Country" value={t.country_code} />
-                      <FieldRow label="Type" value={t.tax_type} />
-                      <FieldRow label="Value" value={t.tax_value} />
-                      <FieldRow label="Primary" value={t.is_primary ? 'Yes' : 'No'} />
-                    </Box>
-                  ))}
-                </>
-              )}
+              <EmailsSection emails={viewEmails} />
+              <PhoneNumbersSection phones={viewPhones} />
+              <AddressesSection addresses={viewAddresses} />
+              <TaxIdentifiersSection taxIds={viewTaxIds} />
             </Box>
           )}
         </DialogContent>
