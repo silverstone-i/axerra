@@ -2,7 +2,7 @@
  * @file Migration: create core entity tables in tenant schemas
  * @module core/schema/migrations/202502110011_coreEntities
  *
- * Creates: sources, vendors, clients, employees, contacts, addresses, phone_numbers, companies, tax_identifiers, emails, vendor_contacts
+ * Creates: sources, payment_terms, vendors, clients, employees, contacts, addresses, phone_numbers, companies, tax_identifiers, emails, vendor_contacts
  *
  * These tables are FK-ordered via orderModels (sources first, then entities
  * that reference it, then contacts/addresses that reference sources).
@@ -16,6 +16,7 @@ import { dropTables, getModelKey, isTableModel, orderModels } from '../../../../
 /** Entity table names added in Phase 5 (excludes RBAC tables from Phase 3) */
 const ENTITY_TABLES = new Set([
   'sources',
+  'payment_terms',
   'vendors',
   'clients',
   'employees',

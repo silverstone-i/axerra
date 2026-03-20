@@ -24,6 +24,9 @@ const vendorContactsSchema = {
     { name: 'first_name', type: 'varchar(64)', notNull: true },
     { name: 'last_name', type: 'varchar(64)', notNull: true },
     { name: 'position', type: 'varchar(64)' },
+    { name: 'department', type: 'varchar(64)' },
+    { name: 'is_app_user', type: 'boolean', notNull: true, default: false },
+    { name: 'roles', type: 'text[]', notNull: true, default: '{}' },
     { name: 'is_primary', type: 'boolean', notNull: true, default: false },
   ],
   constraints: {

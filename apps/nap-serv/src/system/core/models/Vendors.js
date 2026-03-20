@@ -25,8 +25,8 @@ const CONFIG = {
   idType: 'vendor',
   buildLabel: (row) => row.name,
   returningCols: ['id', 'name'],
-  boolCols: ['is_app_user'],
-  hasRoles: true,
+  boolCols: [],
+  hasRoles: false,
   codeRequired: false,
   extraExportCols: [
     { name: 'status', derive: (origRow) => (origRow.deactivated_at ? 'archived' : 'active') },
