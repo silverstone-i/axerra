@@ -261,7 +261,7 @@ RBAC uses a four-layer model where each layer narrows what the previous layer gr
 - `roles`: Role definitions with `code`, `name`, `description` (optional), `is_system`, `is_immutable`, `scope` (`all_projects`, `assigned_companies`, `assigned_projects`, or `self`), plus `tenant_code`
 - `policies`: Permission grants with `(role_id, module, router, action, level)` dimensions, plus `tenant_code`
 
-> **Role Assignment:** Roles are stored as a `roles` text array directly on each entity table (employees, vendors, clients, contacts) — there is no `role_members` junction table. The permission loader reads the `roles` array from the entity record (resolved via `nap_users.entity_type` + `entity_id`), then queries `policies` for matching role IDs. A SQL view can reconstruct "members by role" across entity tables when needed for admin reporting.
+> **Role Assignment:** Roles are stored as a `roles` text array directly on each entity table (employees, vendor contacts, clients, contacts) — there is no `role_members` junction table. The permission loader reads the `roles` array from the entity record (resolved via `nap_users.entity_type` + `entity_id`), then queries `policies` for matching role IDs. A SQL view can reconstruct "members by role" across entity tables when needed for admin reporting.
 
 **Layer 2 — Data Model:**
 - `project_members`: Maps `(project_id, user_id)` with a `role` label (e.g., `member`, `lead`). When `roles.scope = 'assigned_projects'`, only data from the user's assigned projects is visible.
@@ -348,7 +348,7 @@ All roles — including system roles — go through the full RBAC policy resolut
 | Standard CRUD | `/api/core/v1/project-members` | Manage Layer 2 user↔project assignments |
 | Standard CRUD | `/api/core/v1/company-members` | Manage Layer 2 user↔company assignments |
 
-> **Role Assignment:** Roles are managed via entity CRUD endpoints (update the `roles` array on the employee/vendor/client/contact record). There is no separate `/role-members` endpoint.
+> **Role Assignment:** Roles are managed via entity CRUD endpoints (update the `roles` array on the employee/vendor-contact/client/contact record). There is no separate `/role-members` endpoint.
 
 > All RBAC management routes use `createRouter` with `withMeta({ module: 'core', router: '<resource>' })`. `rbac()` is not currently applied on these routes — access control relies on `moduleEntitlement`. **Note:** `policyCatalogRouter` currently uses `withMeta({ module: 'core', router: 'roles' })` instead of `router: 'policy-catalog'` — entitlement resolves against the `roles` resource rather than `policy-catalog`.
 
@@ -426,13 +426,13 @@ Roles with `is_immutable = true` OR `is_system = true` are read-only across all 
 
 **Data Model (`admin.nap_users`):**
 
-`nap_users` is a pure identity/authentication table. All personal information (name, phone, address) lives on the linked entity record (employee, vendor, client, or contact) in the tenant schema. The link is polymorphic via `entity_type` + `entity_id`. Roles are stored as a `roles` text array on the entity record — there is no `role` column on `nap_users` and no `role_members` junction table.
+`nap_users` is a pure identity/authentication table. All personal information (name, phone, address) lives on the linked entity record (employee, vendor, vendor contact, client, or contact) in the tenant schema. The link is polymorphic via `entity_type` + `entity_id`. Roles are stored as a `roles` text array on the entity record — there is no `role` column on `nap_users` and no `role_members` junction table.
 
 | Field | Type | Description |
 |---|---|---|
 | `id` | uuid | Primary key |
 | `tenant_id` | uuid | FK to tenants |
-| `entity_type` | varchar(16) | Entity kind: `'employee'`, `'vendor'`, `'client'`, `'contact'` |
+| `entity_type` | varchar(16) | Entity kind: `'employee'`, `'vendor'`, `'vendor_contact'`, `'client'`, `'contact'` |
 | `entity_id` | uuid | Cross-schema reference to the tenant-schema entity record (not a database FK — enforced by business logic) |
 | `email` | varchar(128) | Login identifier, globally unique (partial index WHERE deactivated_at IS NULL) |
 | `password_hash` | text | bcrypt hash (never returned in API responses) |
@@ -500,13 +500,44 @@ Partial unique index: `(entity_type, entity_id) WHERE deactivated_at IS NULL` �
 | `source_id` | uuid | FK to sources (CASCADE) |
 | `name` | varchar(128) | Not null |
 | `code` | varchar(16) | Unique per tenant |
-| `payment_terms` | varchar(32) | Net terms |
-| `roles` | text[] | RBAC role codes assigned to this vendor (default `'{}'`). References `roles.code`. |
-| `is_app_user` | boolean | Default false. Must be true before a `nap_users` login can be created. Requires `roles` to be non-empty. |
+| `payment_term_id` | uuid | FK to payment_terms (SET NULL) |
 | `is_active` | boolean | Default true |
 | `notes` | text | Internal notes |
 
 **Endpoint:** `/api/core/v1/vendors`
+
+#### 3.3.1a Vendor Contacts
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | uuid | PK |
+| `tenant_id` | uuid | Not null |
+| `vendor_id` | uuid | FK to vendors (CASCADE) |
+| `source_id` | uuid | FK to sources (CASCADE) |
+| `first_name` | varchar(64) | Not null |
+| `last_name` | varchar(64) | Not null |
+| `position` | varchar(64) | Job title |
+| `department` | varchar(64) | Department |
+| `is_app_user` | boolean | Default false. Must be true before a `nap_users` login can be created. Requires `roles` to be non-empty. |
+| `roles` | text[] | RBAC role codes assigned to this vendor contact (default `'{}'`). References `roles.code`. |
+| `is_primary` | boolean | Default false. Marks primary contact for the vendor. |
+
+Each vendor contact gets its own `sources` record (with `source_type = 'vendor_contact'`) for linked emails and phone numbers via the polymorphic sources pattern.
+
+**Endpoint:** `/api/core/v1/vendor-contacts`
+
+#### 3.3.1b Payment Terms
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | uuid | PK |
+| `tenant_id` | uuid | Not null |
+| `label` | varchar(64) | Not null. Human-readable label (e.g. "Net 30", "2/10 Net 30") |
+| `term` | integer | Not null, default 30. The numeric value of the payment term |
+| `units` | varchar(16) | Not null, default `'days'`. CHECK: `days` or `months` |
+| `is_active` | boolean | Default true |
+
+**Endpoint:** `/api/core/v1/payment-terms`
 
 #### 3.3.2 Clients
 
@@ -565,7 +596,7 @@ The `sources` table implements a **discriminated union** pattern linking vendors
 | `id` | uuid | PK |
 | `tenant_id` | uuid | Not null |
 | `table_id` | uuid | References the parent entity |
-| `source_type` | varchar(32) | `vendor`, `client`, `employee`, `contact`, `company` |
+| `source_type` | varchar(32) | `vendor`, `vendor_contact`, `client`, `employee`, `contact`, `company` |
 | `label` | varchar(64) | Human-friendly label |
 
 **Contacts (First-Class Entity — Miscellaneous Payees):**
@@ -1684,6 +1715,7 @@ All resources using `createRouter` have import/export endpoints. The following p
 | EmployeesPage | core | employees | `employeeApi` | `employees` |
 | ContactsPage | core | contacts | `contactApi` | `contacts` |
 | CompaniesPage | core | companies | `companyApi` | `companies` |
+| PaymentTermsPage | core | payment-terms | `paymentTermApi` | `paymentTerms` |
 | ChartOfAccountsPage | accounting | chart-of-accounts | `chartOfAccountsApi` | `chartOfAccounts` |
 | JournalEntriesPage | accounting | journal-entries | `journalEntryApi` | `journalEntries` |
 | ProjectsPage | projects | projects | `projectApi` | `projects` |
@@ -1976,7 +2008,7 @@ Based on the sidebar navigation config (`navigationConfig.js`) and client-side r
 | **Accounting & GL** | Chart of Accounts, Journal Entries, Ledger | `/accounting` | `accounting::` |
 | **Reports** | Budget vs Actual, Profitability, Cashflow, Margin Analysis, P&L *(nav-only)*, Balance Sheet *(nav-only)* | `/reports` | `reports::` |
 | **BOM** | Catalog SKUs (`bom::catalog-skus`), Vendor SKU Matching (`bom::vendor-skus`) | `/bom` | `bom::` |
-| **Settings** | Numbering (`core::numbering-config`) | `/settings` | `core::` |
+| **Settings** | Numbering (`core::numbering-config`), Payment Terms (`core::payment-terms`) | `/settings` | `core::` |
 | **Admin** | Vendors (`core::vendors`), Clients (`core::clients`), Employees (`core::employees`), Contacts (`core::contacts`), Companies (`core::companies`), Roles (`core::roles`) | `/core`, `/tenant` | `core::` |
 | **Tenants** *(NapSoft only)* | Manage Tenants (`tenants::`), Manage Users (`tenants::`) | `/tenant` | `tenants::` |
 

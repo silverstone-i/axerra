@@ -10,12 +10,16 @@
 | Contact | `contacts` | Yes | Auto-creates source; codes auto-numbered |
 | Address | `addresses` | Via source_id | Linked to vendor/client/employee through sources |
 | Company | `companies` | Yes | Auto-creates source; `code` is required (not auto-numbered) |
+| Vendor Contact | `vendor_contacts` | Yes | Auto-creates source on create |
+| Payment Terms | `payment_terms` | No | Settings/lookup table for payment term definitions |
 
 > **Note:** Vendors, clients, and contacts have `is_app_user` and `roles` schema columns reserved for future portal-user provisioning. Lifecycle management is not yet implemented — only employees support app-user toggling today.
 
+> **Note:** For vendor contacts, `roles` and `is_app_user` live on `vendor_contacts`, not on `vendors`. This separates individual-level portal access from the vendor entity itself.
+
 ## Auto-Source Creation
 
-When a vendor, client, employee, contact, or company is created, a `sources` record is automatically inserted in the same transaction:
+When a vendor, client, employee, contact, vendor_contact, or company is created, a `sources` record is automatically inserted in the same transaction:
 
 1. Insert the entity record
 2. Insert a `sources` record with `table_id = entity.id` and appropriate `source_type`
