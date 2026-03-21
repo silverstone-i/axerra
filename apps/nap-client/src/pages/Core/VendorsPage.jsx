@@ -23,6 +23,7 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
+import Autocomplete from '@mui/material/Autocomplete';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AddIcon from '@mui/icons-material/Add';
 
@@ -59,18 +60,19 @@ import {
 } from '../../hooks/useVendorContacts.js';
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import { useActivePaymentTerms } from '../../hooks/usePaymentTerms.js';
+import { useRoles } from '../../hooks/useRoles.js';
 import { TAX_TYPES, COUNTRIES, resolveLevel } from '@nap/shared';
 import { vendorApi } from '../../services/vendorApi.js';
 import { pageContainerSx, formGridSx, formGroupCardSx, formFullSpanSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
 
-const BLANK_CREATE = { name: '', code: '', payment_term_id: '', notes: '' };
-const BLANK_EDIT = { name: '', code: '', payment_term_id: '', notes: '' };
+const BLANK_CREATE = { name: '', code: '', payment_term_id: '', notes: '', is_active: true };
+const BLANK_EDIT = { name: '', code: '', payment_term_id: '', notes: '', is_active: true };
 const BLANK_EMAIL = { email: '', label: 'work', is_primary: false };
 const BLANK_PHONE = { country_code: 'US', phone_type: 'cell', phone_number: '', is_primary: false };
 const BLANK_ADDRESS = {
-  label: '', address_line_1: '', address_line_2: '', city: '',
+  label: '', address_line_1: '', address_line_2: '', address_line_3: '', city: '',
   state_province: '', postal_code: '', country_code: 'US', is_primary: false,
 };
 const BLANK_TAX_ID = { country_code: 'US', tax_type: 'TIN', tax_value: '', is_primary: false };
@@ -102,6 +104,9 @@ export default function VendorsPage() {
 
   const { data: res, isLoading } = useVendors();
   const allRows = res?.rows ?? [];
+
+  const { data: rolesRes } = useRoles();
+  const roleOptions = rolesRes?.rows ?? [];
 
   const { data: ptRes } = useActivePaymentTerms();
   const paymentTermsList = ptRes?.rows ?? [];
@@ -284,6 +289,7 @@ export default function VendorsPage() {
       code: row.code ?? '',
       payment_term_id: row.payment_term_id ?? '',
       notes: row.notes ?? '',
+      is_active: row.is_active ?? true,
     };
     setEditForm(form);
     editInitial.current.form = form;
@@ -325,9 +331,9 @@ export default function VendorsPage() {
     };
     if (collectionChanged(editEmails, init.emails, ['email', 'label', 'is_primary'])) return true;
     if (collectionChanged(editPhones, init.phones, ['country_code', 'phone_type', 'phone_number', 'is_primary'])) return true;
-    if (collectionChanged(editAddresses, init.addresses, ['label', 'address_line_1', 'address_line_2', 'city', 'state_province', 'postal_code', 'country_code', 'is_primary'])) return true;
+    if (collectionChanged(editAddresses, init.addresses, ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code', 'is_primary'])) return true;
     if (collectionChanged(editTaxIds, init.taxIds, ['country_code', 'tax_type', 'tax_value', 'is_primary'])) return true;
-    if (collectionChanged(editContacts, init.contacts, ['first_name', 'last_name', 'position', 'department', 'is_app_user', 'is_primary'])) return true;
+    if (collectionChanged(editContacts, init.contacts, ['first_name', 'last_name', 'position', 'department', 'is_app_user', 'roles', 'is_primary'])) return true;
     return false;
   }, [editForm, editEmails, editPhones, editAddresses, editTaxIds, editContacts]);
 
@@ -553,6 +559,7 @@ export default function VendorsPage() {
                 <FieldRow label="Code" value={viewVendor.code || '\u2014'} />
                 <FieldRow label="Vendor Name" value={viewVendor.name} />
                 <FieldRow label="Payment Terms" value={ptMap.get(viewVendor.payment_term_id) || '\u2014'} />
+                <FieldRow label="Active" value={viewVendor.is_active ? 'Yes' : 'No'} />
                 <FieldRow label="Status">
                   <StatusBadge status={viewVendor.deactivated_at ? 'archived' : 'active'} />
                 </FieldRow>
@@ -612,6 +619,16 @@ export default function VendorsPage() {
           ))}
         </TextField>
         <TextField label="Notes" multiline minRows={2} value={createForm.notes} onChange={onCreateField('notes')} />
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={createForm.is_active}
+              onChange={(e) => setCreateForm((p) => ({ ...p, is_active: e.target.checked }))}
+              size="small"
+            />
+          }
+          label="Active"
+        />
       </FormDialog>
 
       {/* ── Edit Vendor Dialog ──────────────────────────────────── */}
@@ -633,6 +650,16 @@ export default function VendorsPage() {
             ))}
           </TextField>
           <TextField label="Notes" multiline minRows={2} value={editForm.notes} onChange={onEditField('notes')} />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={editForm.is_active}
+                onChange={(e) => setEditForm((p) => ({ ...p, is_active: e.target.checked }))}
+                size="small"
+              />
+            }
+            label="Active"
+          />
         </Box>
 
         {/* ── Emails ──────────────────────────────────────────── */}
@@ -775,6 +802,7 @@ export default function VendorsPage() {
               <Box sx={formGridSx}>
                 <TextField label="Address Line 1" value={addr.address_line_1} onChange={(e) => updateAddress(idx, 'address_line_1', e.target.value)} size="small" sx={formFullSpanSx} />
                 <TextField label="Address Line 2" value={addr.address_line_2} onChange={(e) => updateAddress(idx, 'address_line_2', e.target.value)} size="small" sx={formFullSpanSx} />
+                <TextField label="Address Line 3" value={addr.address_line_3 || ''} onChange={(e) => updateAddress(idx, 'address_line_3', e.target.value)} size="small" sx={formFullSpanSx} />
                 <TextField label="City" value={addr.city} onChange={(e) => updateAddress(idx, 'city', e.target.value)} size="small" />
                 <TextField label="State / Province" value={addr.state_province} onChange={(e) => updateAddress(idx, 'state_province', e.target.value)} size="small" />
                 <TextField label="Postal Code" value={addr.postal_code} onChange={(e) => updateAddress(idx, 'postal_code', e.target.value)} size="small" />
@@ -897,6 +925,17 @@ export default function VendorsPage() {
                   control={<Checkbox checked={contact.is_app_user || false} onChange={(e) => updateContact(idx, 'is_app_user', e.target.checked)} size="small" />}
                   label="App User"
                   sx={{ mr: 0 }}
+                />
+                <Autocomplete
+                  multiple
+                  options={roleOptions}
+                  getOptionLabel={(opt) => opt.name}
+                  isOptionEqualToValue={(opt, val) => opt.code === val.code}
+                  value={roleOptions.filter((r) => contact.roles?.includes(r.code))}
+                  onChange={(_, v) => updateContact(idx, 'roles', v.map((r) => r.code))}
+                  renderInput={(params) => <TextField {...params} label="Roles" size="small" />}
+                  size="small"
+                  sx={{ flex: 1, minWidth: 200 }}
                 />
                 <FormControlLabel
                   control={<Checkbox checked={contact.is_primary} onChange={(e) => updateContact(idx, 'is_primary', e.target.checked)} size="small" />}
