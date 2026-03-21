@@ -317,14 +317,11 @@ export default defineMigration({
         s.label        AS entity_label,
         c.name,
         c.code,
-        em.email,
-        c.is_app_user,
         c.is_active,
         c.created_at,
         c.updated_at
       FROM ${s}.contacts c
-      LEFT JOIN ${s}.sources s  ON s.id  = c.source_id AND s.deactivated_at IS NULL
-      LEFT JOIN ${s}.emails  em ON em.source_id = c.source_id AND em.is_primary = true AND em.deactivated_at IS NULL
+      LEFT JOIN ${s}.sources s ON s.id = c.source_id AND s.deactivated_at IS NULL
       WHERE c.deactivated_at IS NULL
     `);
 

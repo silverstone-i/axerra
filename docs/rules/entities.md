@@ -7,13 +7,13 @@
 | Vendor | `vendors` | Yes | Auto-creates sources record on create |
 | Client | `clients` | Yes | Auto-creates sources record on create |
 | Employee | `employees` | Yes | Auto-creates sources record; manages nap_users lifecycle |
-| Contact | `contacts` | Yes | Auto-creates source; codes auto-numbered |
+| Contact | `contacts` | Yes | Auto-creates source; codes auto-numbered; no RBAC / no login |
 | Address | `addresses` | Via source_id | Linked to vendor/client/employee through sources |
 | Company | `companies` | Yes | Auto-creates source; `code` is required (not auto-numbered) |
 | Vendor Contact | `vendor_contacts` | Yes | Auto-creates source on create |
 | Payment Terms | `payment_terms` | No | Settings/lookup table for payment term definitions |
 
-> **Note:** Vendors, clients, and contacts have `is_app_user` and `roles` schema columns reserved for future portal-user provisioning. Lifecycle management is not yet implemented — only employees support app-user toggling today.
+> **Note:** Vendors and clients have `is_app_user` and `roles` schema columns reserved for future portal-user provisioning. Lifecycle management is not yet implemented — only employees support app-user toggling today. Contacts are standalone payees with no RBAC or login capability.
 
 > **Note:** For vendor contacts, `roles` and `is_app_user` live on `vendor_contacts`, not on `vendors`. This separates individual-level portal access from the vendor entity itself.
 

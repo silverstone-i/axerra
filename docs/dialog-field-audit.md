@@ -264,46 +264,34 @@
 **File:** `apps/nap-client/src/pages/Core/ContactsPage.jsx`
 **Branch:** `fix/dialog-contact-fields`
 
+Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC, no login.
+
 ### Fields Present
 
-- `source_id` (TextField, Create only, helperText: "UUID of the vendor, client, or employee source")
 - `name` (TextField, required) — Create + Edit
-- `position` (TextField) — Create + Edit
-- `is_primary` (Checkbox) — Create + Edit
+- `code` (TextField, maxLength 16) — Create + Edit
+- `is_active` (Checkbox) — Create + Edit
 - **Emails section** (inline edit, Edit only): `email`, `label`, `is_primary`
 - **Phone Numbers section** (inline edit, Edit only): `phone_type`, `country_code`, `phone_number`, `is_primary`
-- **Addresses section** (card-based, Edit only): all address fields
+- **Addresses section** (card-based, Edit only): `label`, `address_line_1`, `address_line_2`, `address_line_3`, `city`, `state_province`, `postal_code`, `country_code`, `is_primary`
 - **Tax Identifiers section** (inline edit, Edit only): `country_code`, `tax_type`, `tax_value`, `is_primary`
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field              | Type         | Expected Control         | Notes                               |
-| ------------------ | ------------ | ------------------------ | ----------------------------------- |
-| `code`           | varchar(16)  | TextField (maxLength 16) | Unique per tenant — PRD §3.3.4    |
-| `email`          | varchar(128) | TextField (type=email)   | PRD defines email on contacts table |
-| `roles`          | text[]       | Autocomplete (multiple)  | Required for RBAC                   |
-| `is_app_user`    | boolean      | Checkbox                 | Required before nap_users login     |
-| `is_active`      | boolean      | Checkbox or Select       | User-facing toggle                  |
-| `address_line_3` | varchar(255) | TextField                | Missing from address cards          |
+(none)
 
 ### Extra Fields (dialog has, PRD does not define)
 
-| Field                  | Notes                                                                                                                       |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `source_id` (Create) | PRD defines `source_id` as system FK — exposing raw UUID to users is unusual. Should be an Autocomplete lookup or hidden |
-| `position`           | Not in PRD contacts table — may be from vendor contacts pattern                                                            |
-| `is_primary`         | Not in PRD contacts table directly — may be from vendor contacts pattern                                                   |
+(none)
 
 ### Fix Checklist
 
-- [ ] Add `code` as TextField (maxLength 16) in Create + Edit
-- [ ] Add `email` as TextField (type=email)
-- [ ] Add `roles` as Autocomplete (multiple)
-- [ ] Add `is_app_user` as Checkbox
-- [ ] Add `is_active` as Checkbox or Select
-- [ ] Add `address_line_3` to address cards
-- [ ] Replace `source_id` raw UUID input with Autocomplete FK lookup or remove
-- [ ] Verify `position` and `is_primary` against PRD intent — these are not in the contacts table definition
+- [x] Add `code` as TextField (maxLength 16) in Create + Edit
+- [x] Add `is_active` as Checkbox
+- [x] Add `address_line_3` to address cards
+- [x] Remove `source_id` raw UUID input (auto-created server-side)
+- [x] Remove `position` and `is_primary` (not in contacts schema)
+- [x] Remove `roles` and `is_app_user` (contacts have no RBAC)
 
 ---
 
@@ -314,9 +302,9 @@
 
 ### Fields Present
 
+- `code` (FieldRow)
 - `name` (FieldRow)
-- `position` (FieldRow)
-- `is_primary` (FieldRow)
+- `is_active` (FieldRow)
 - `status` (StatusBadge)
 - `created_at` (FieldRow)
 - `updated_at` (FieldRow)
@@ -324,21 +312,13 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field           | Type         | Expected Control        | Notes               |
-| --------------- | ------------ | ----------------------- | ------------------- |
-| `code`        | varchar(16)  | FieldRow                | Unique contact code |
-| `email`       | varchar(128) | FieldRow                | Contact email       |
-| `roles`       | text[]       | FieldRow (comma-joined) | Assigned roles      |
-| `is_app_user` | boolean      | FieldRow                | App login status    |
-| `is_active`   | boolean      | FieldRow                | Active/inactive     |
+(none)
 
 ### Fix Checklist
 
-- [ ] Add `code` as FieldRow display
-- [ ] Add `email` as FieldRow display
-- [ ] Add `roles` as FieldRow display
-- [ ] Add `is_app_user` as FieldRow display
-- [ ] Add `is_active` as FieldRow display
+- [x] Add `code` as FieldRow display
+- [x] Add `is_active` as FieldRow display
+- [x] Remove `position` and `is_primary` FieldRows (not in contacts schema)
 
 ---
 
