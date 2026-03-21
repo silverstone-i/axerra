@@ -344,9 +344,7 @@ export default function ManageTenantsPage() {
                     </Typography>
                     {companyData.addresses?.length ? (
                       <Box sx={detailGridSx}>
-                        {companyData.addresses
-                          .filter((a) => a.is_primary || a.label === 'billing')
-                          .map((a) => (
+                        {companyData.addresses.map((a) => (
                             <Box key={a.id} sx={{ gridColumn: '1 / -1' }}>
                               <Typography variant="body2">
                                 {[a.address_line_1, a.address_line_2, a.address_line_3].filter(Boolean).join(', ')}
