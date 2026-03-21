@@ -37,7 +37,7 @@ const CATALOG_ENTRIES = [
   { module: 'core', router: 'employees', action: null, label: 'Employees', description: 'Employee records', sort_order: 130, available_fields: ['first_name', 'last_name', 'code', 'position', 'department', 'is_app_user', 'roles', 'is_primary_contact', 'is_billing_contact'] },
   { module: 'core', router: 'employees', action: 'import', label: 'Import Employees', description: 'Import employee records from spreadsheet', sort_order: 131, policy_required: false },
   { module: 'core', router: 'employees', action: 'export', label: 'Export Employees', description: 'Export employee records to spreadsheet', sort_order: 132, policy_required: false },
-  { module: 'core', router: 'contacts', action: null, label: 'Contacts', description: 'Miscellaneous contacts / payees', sort_order: 140, available_fields: ['name', 'code', 'roles', 'is_app_user', 'is_active'] },
+  { module: 'core', router: 'contacts', action: null, label: 'Contacts', description: 'Miscellaneous contacts / payees', sort_order: 140, available_fields: ['name', 'code', 'is_active'] },
   { module: 'core', router: 'contacts', action: 'import', label: 'Import Contacts', description: 'Import contact records from spreadsheet', sort_order: 141, policy_required: false },
   { module: 'core', router: 'contacts', action: 'export', label: 'Export Contacts', description: 'Export contact records to spreadsheet', sort_order: 142, policy_required: false },
   { module: 'core', router: 'sources', action: null, label: 'Sources', description: 'Polymorphic source registry', sort_order: 150, policy_required: false, available_fields: ['table_id', 'source_type', 'label'] },

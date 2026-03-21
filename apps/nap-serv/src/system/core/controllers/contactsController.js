@@ -27,10 +27,6 @@ class ContactsController extends BaseController {
         req.body.tenant_id = req.user.tenant_id;
       }
 
-      // Extract email before insert — it goes in the emails table, not the contacts table
-      const suppliedEmail = req.body.email;
-      delete req.body.email;
-
       const record = await db.tx(async (t) => {
         const contactsModel = this.model(schema);
         contactsModel.tx = t;
@@ -61,21 +57,6 @@ class ContactsController extends BaseController {
             await t.none(`UPDATE ${s}.contacts SET code = $1 WHERE id = $2`, [numbering.displayId, contact.id]);
             contact.code = numbering.displayId;
           }
-        }
-
-        // Create email record if provided
-        if (suppliedEmail) {
-          const emailsModel = db('emails', schema);
-          emailsModel.tx = t;
-          await emailsModel.insert({
-            tenant_id: contact.tenant_id,
-            source_id: source.id,
-            email: suppliedEmail,
-            label: 'work',
-            is_primary: true,
-            is_login: false,
-            created_by: req.body.created_by || null,
-          });
         }
 
         return contact;

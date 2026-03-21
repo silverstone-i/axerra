@@ -601,7 +601,7 @@ The `sources` table implements a **discriminated union** pattern linking vendors
 
 **Contacts (First-Class Entity — Miscellaneous Payees):**
 
-Contacts are first-class entities representing miscellaneous payees that don't fall into vendor, client, or employee categories — e.g., one-off commission payments or charitable donations. The contacts table mirrors the clients table structure:
+Contacts are standalone first-class entities representing miscellaneous payees and receivable counterparties that don't fall into vendor, client, or employee categories — e.g., one-off commission payments, charitable donations, or ad-hoc income sources. Contacts are dual-purpose (usable in both AP and AR modules) and cannot log in (no RBAC):
 
 | Field | Type | Description |
 |---|---|---|
@@ -610,12 +610,9 @@ Contacts are first-class entities representing miscellaneous payees that don't f
 | `source_id` | uuid | FK to sources (CASCADE) |
 | `name` | varchar(128) | Not null |
 | `code` | varchar(16) | Unique per tenant |
-| `email` | varchar(128) | Contact email |
-| `roles` | text[] | RBAC role codes assigned to this contact (default `'{}'`). References `roles.code`. |
-| `is_app_user` | boolean | Default false. Must be true before a `nap_users` login can be created. Requires `roles` to be non-empty. |
 | `is_active` | boolean | Default true |
 
-> **Note:** Contacts use the polymorphic `sources` pattern (with `source_type = 'contact'`) for linked addresses and phone numbers, just like vendors, clients, and employees.
+> **Note:** Contacts use the polymorphic `sources` pattern (with `source_type = 'contact'`) for linked emails, addresses, phone numbers, and tax identifiers, just like vendors, clients, and employees. Contacts cannot be app users and have no RBAC roles.
 
 **Addresses:**
 | Field | Type | Description |
