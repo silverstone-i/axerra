@@ -339,7 +339,8 @@ export default function VendorsPage() {
 
   const handleCreate = async () => {
     try {
-      await createMut.mutateAsync(createForm);
+      const payload = { ...createForm, payment_term_id: createForm.payment_term_id || null };
+      await createMut.mutateAsync(payload);
       toast('Vendor created');
       setCreateOpen(false);
       setCreateForm(BLANK_CREATE);
@@ -350,7 +351,8 @@ export default function VendorsPage() {
 
   const handleUpdate = async () => {
     try {
-      await updateMut.mutateAsync({ filter: { id: editRow.id }, changes: editForm });
+      const changes = { ...editForm, payment_term_id: editForm.payment_term_id || null };
+      await updateMut.mutateAsync({ filter: { id: editRow.id }, changes });
 
       if (editRow.source_id) {
         for (const em of editEmails) {
