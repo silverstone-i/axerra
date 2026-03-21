@@ -100,9 +100,9 @@ export default function PaymentTermsPage() {
       setCreateForm({ ...BLANK_CREATE });
       flash('success', 'Payment term created');
     } catch (err) {
-      flash('error', err?.message || 'Create failed');
+      flash('error', errMsg(err) || 'Create failed');
     }
-  }, [createForm, createMut, flash]);
+  }, [createForm, createMut, flash, errMsg]);
 
   /* ── View dialog ───────────────────────────────────────── */
   const [viewOpen, setViewOpen] = useState(false);
@@ -125,9 +125,9 @@ export default function PaymentTermsPage() {
       setEditOpen(false);
       flash('success', 'Payment term updated');
     } catch (err) {
-      flash('error', err?.message || 'Update failed');
+      flash('error', errMsg(err) || 'Update failed');
     }
-  }, [editRow, editForm, updateMut, flash]);
+  }, [editRow, editForm, updateMut, flash, errMsg]);
 
   /* ── Row action callbacks ───────────────────────────────── */
   const handleView = useCallback((row) => {

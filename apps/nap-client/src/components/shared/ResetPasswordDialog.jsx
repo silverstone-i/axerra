@@ -1,13 +1,14 @@
 /**
- * @file Admin password reset dialog for employee app users
+ * @file Admin password reset dialog — generic for any entity type with app user access
  * @module nap-client/components/shared/ResetPasswordDialog
  *
  * Props:
  *   open          – controls dialog visibility
  *   onClose       – called on cancel / backdrop click
  *   onSuccess     – called after successful reset
- *   employeeId    – UUID of the employee whose app-user password is being reset
- *   employeeName  – display name for the dialog title
+ *   onReset       – async (id, password) => void — mutation function for resetting password
+ *   entityId      – UUID of the entity whose app-user password is being reset
+ *   entityName    – display name for the dialog subtitle (e.g., "John Smith")
  *
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
@@ -24,7 +25,6 @@ import Typography from '@mui/material/Typography';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import PasswordField from './PasswordField.jsx';
-import { useResetEmployeePassword } from '../../hooks/useEmployees.js';
 
 /* ── Password strength rules (mirrored from server) ─────────── */
 
@@ -36,12 +36,11 @@ const RULES = [
   { label: 'A special character', test: (p) => /[^A-Za-z0-9]/.test(p) },
 ];
 
-export default function ResetPasswordDialog({ open, onClose, onSuccess, employeeId, employeeName }) {
+export default function ResetPasswordDialog({ open, onClose, onSuccess, onReset, entityId, entityName }) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
-
-  const resetMut = useResetEmployeePassword();
+  const [pending, setPending] = useState(false);
 
   const ruleResults = useMemo(() => RULES.map((r) => ({ ...r, pass: r.test(password) })), [password]);
   const allRulesPass = ruleResults.every((r) => r.pass);
@@ -52,17 +51,20 @@ export default function ResetPasswordDialog({ open, onClose, onSuccess, employee
     setPassword('');
     setConfirmPassword('');
     setError('');
+    setPending(false);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setPending(true);
     try {
-      await resetMut.mutateAsync({ id: employeeId, password });
+      await onReset(entityId, password);
       reset();
       onSuccess?.();
     } catch (err) {
       setError(err.payload?.message || err.message || 'Failed to reset password');
+      setPending(false);
     }
   };
 
@@ -76,7 +78,7 @@ export default function ResetPasswordDialog({ open, onClose, onSuccess, employee
       <DialogTitle sx={{ display: 'flex', alignItems: 'center' }}>
         <span>Reset Password</span>
         <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
-          <Button size="small" onClick={handleClose} disabled={resetMut.isPending}>
+          <Button size="small" onClick={handleClose} disabled={pending}>
             Cancel
           </Button>
           <Button
@@ -84,16 +86,16 @@ export default function ResetPasswordDialog({ open, onClose, onSuccess, employee
             type="submit"
             form="reset-password-form"
             variant="contained"
-            disabled={!canSubmit || resetMut.isPending}
+            disabled={!canSubmit || pending}
           >
-            {resetMut.isPending ? <CircularProgress size={16} color="inherit" /> : 'Reset Password'}
+            {pending ? <CircularProgress size={16} color="inherit" /> : 'Reset Password'}
           </Button>
         </Box>
       </DialogTitle>
       <DialogContent>
-        {employeeName && (
+        {entityName && (
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Set a new password for {employeeName}.
+            Set a new password for {entityName}.
           </Typography>
         )}
 

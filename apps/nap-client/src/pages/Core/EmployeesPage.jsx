@@ -43,7 +43,7 @@ import AddressesSection from '../../components/shared/AddressesSection.jsx';
 import TaxIdentifiersSection from '../../components/shared/TaxIdentifiersSection.jsx';
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
 import {
-  useEmployees, useCreateEmployee, useUpdateEmployee, useArchiveEmployee, useRestoreEmployee,
+  useEmployees, useCreateEmployee, useUpdateEmployee, useArchiveEmployee, useRestoreEmployee, useResetEmployeePassword,
 } from '../../hooks/useEmployees.js';
 import { useRoles } from '../../hooks/useRoles.js';
 import {
@@ -133,6 +133,7 @@ export default function EmployeesPage() {
   const updateMut = useUpdateEmployee();
   const archiveMut = useArchiveEmployee();
   const restoreMut = useRestoreEmployee();
+  const resetPwMut = useResetEmployeePassword();
 
   const importMut = useImportXls(employeeApi.importXls, ['employees']);
   const exportMut = useExportXls(employeeApi.exportXls, 'employees');
@@ -895,8 +896,9 @@ export default function EmployeesPage() {
         open={resetPwOpen}
         onClose={() => { setResetPwOpen(false); setResetPwTarget(null); }}
         onSuccess={() => { setResetPwOpen(false); setResetPwTarget(null); toast('Password reset successfully'); }}
-        employeeId={resetPwTarget?.id}
-        employeeName={resetPwTarget ? `${resetPwTarget.first_name} ${resetPwTarget.last_name}` : ''}
+        onReset={(id, password) => resetPwMut.mutateAsync({ id, password })}
+        entityId={resetPwTarget?.id}
+        entityName={resetPwTarget ? `${resetPwTarget.first_name} ${resetPwTarget.last_name}` : ''}
       />
 
       <SetPasswordPopover anchorEl={pwAnchor} onConfirm={handlePwConfirm} onCancel={handlePwCancel} />

@@ -26,9 +26,12 @@ import Checkbox from '@mui/material/Checkbox';
 import Autocomplete from '@mui/material/Autocomplete';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AddIcon from '@mui/icons-material/Add';
+import LockResetIcon from '@mui/icons-material/LockReset';
 
 import StatusBadge from '../../components/shared/StatusBadge.jsx';
 import ConfirmDialog from '../../components/shared/ConfirmDialog.jsx';
+import ResetPasswordDialog from '../../components/shared/ResetPasswordDialog.jsx';
+import SetPasswordPopover from '../../components/shared/SetPasswordPopover.jsx';
 import DataTable from '../../components/shared/DataTable.jsx';
 import FieldRow from '../../components/shared/FieldRow.jsx';
 import FormDialog from '../../components/shared/FormDialog.jsx';
@@ -41,7 +44,7 @@ import TaxIdentifiersSection from '../../components/shared/TaxIdentifiersSection
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import {
-  useClients, useCreateClient, useUpdateClient, useArchiveClient, useRestoreClient,
+  useClients, useCreateClient, useUpdateClient, useArchiveClient, useRestoreClient, useResetClientPassword,
 } from '../../hooks/useClients.js';
 import {
   useEmails, useCreateEmail, useUpdateEmail, useArchiveEmail,
@@ -113,6 +116,7 @@ export default function ClientsPage() {
   const updateMut = useUpdateClient();
   const archiveMut = useArchiveClient();
   const restoreMut = useRestoreClient();
+  const resetPwMut = useResetClientPassword();
 
   const importMut = useImportXls(clientApi.importXls, ['clients']);
   const exportMut = useExportXls(clientApi.exportXls, 'clients');
@@ -142,6 +146,8 @@ export default function ClientsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editRow, setEditRow] = useState(null);
+  const [resetPwOpen, setResetPwOpen] = useState(false);
+  const [resetPwTarget, setResetPwTarget] = useState(null);
 
   const [editSourceId, setEditSourceId] = useState(null);
   const { data: emailsRes } = useEmails({ source_id: editSourceId, includeDeactivated: 'false' }, { enabled: !!editSourceId });
@@ -173,6 +179,31 @@ export default function ClientsPage() {
 
   const onCreateField = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.value }));
   const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));
+
+  /* ── App-user password popover state ────────────────────────── */
+  const [pwAnchor, setPwAnchor] = useState(null);
+  const [pwTarget, setPwTarget] = useState(null); // 'create' | 'edit'
+
+  const handleAppUserToggle = (target, setForm) => (e) => {
+    if (e.target.checked) {
+      setPwTarget(target);
+      setPwAnchor(e.currentTarget);
+    } else {
+      setForm((p) => ({ ...p, is_app_user: false, password: '' }));
+    }
+  };
+
+  const handlePwConfirm = (password) => {
+    const setForm = pwTarget === 'create' ? setCreateForm : setEditForm;
+    setForm((p) => ({ ...p, is_app_user: true, password }));
+    setPwAnchor(null);
+    setPwTarget(null);
+  };
+
+  const handlePwCancel = () => {
+    setPwAnchor(null);
+    setPwTarget(null);
+  };
 
   /* ── Email edit helpers ──────────────────────────────────────── */
   const updateEmail = (idx, field, value) =>
@@ -513,15 +544,12 @@ export default function ClientsPage() {
           label="Active"
         />
         <FormControlLabel
-          control={
-            <Checkbox
-              checked={createForm.is_app_user}
-              onChange={(e) => setCreateForm((p) => ({ ...p, is_app_user: e.target.checked }))}
-              size="small"
-            />
-          }
+          control={<Checkbox checked={createForm.is_app_user} onChange={handleAppUserToggle('create', setCreateForm)} size="small" />}
           label="App User (creates login account)"
         />
+        {createForm.is_app_user && (
+          <TextField label="Email" required value={createForm.email || ''} onChange={onCreateField('email')} />
+        )}
         <Autocomplete
           multiple
           options={roleOptions}
@@ -549,15 +577,14 @@ export default function ClientsPage() {
             label="Active"
           />
           <FormControlLabel
-            control={
-              <Checkbox
-                checked={editForm.is_app_user}
-                onChange={(e) => setEditForm((p) => ({ ...p, is_app_user: e.target.checked }))}
-                size="small"
-              />
-            }
+            control={<Checkbox checked={editForm.is_app_user} onChange={handleAppUserToggle('edit', setEditForm)} size="small" />}
             label="App User (creates login account)"
           />
+          {editForm.is_app_user && editRow?.is_app_user && (
+            <Button size="small" startIcon={<LockResetIcon />} onClick={() => { setResetPwTarget(editRow); setResetPwOpen(true); }}>
+              Reset Password
+            </Button>
+          )}
           <Autocomplete
             multiple
             options={roleOptions}
@@ -798,6 +825,17 @@ export default function ClientsPage() {
 
       <ConfirmDialog {...archiveConfirmProps} />
       <ConfirmDialog {...restoreConfirmProps} />
+
+      <ResetPasswordDialog
+        open={resetPwOpen}
+        onClose={() => { setResetPwOpen(false); setResetPwTarget(null); }}
+        onSuccess={() => { setResetPwOpen(false); setResetPwTarget(null); toast('Password reset successfully'); }}
+        onReset={(id, password) => resetPwMut.mutateAsync({ id, password })}
+        entityId={resetPwTarget?.id}
+        entityName={resetPwTarget?.name || ''}
+      />
+
+      <SetPasswordPopover anchorEl={pwAnchor} onConfirm={handlePwConfirm} onCancel={handlePwCancel} />
 
       <Snackbar open={snack.open} autoHideDuration={4000} onClose={() => setSnack((s) => ({ ...s, open: false }))} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
         <Alert severity={snack.sev} variant="filled" onClose={() => setSnack((s) => ({ ...s, open: false }))}>{snack.msg}</Alert>

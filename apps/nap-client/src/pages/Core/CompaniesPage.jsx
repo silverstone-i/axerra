@@ -449,9 +449,12 @@ export default function CompaniesPage() {
         <Divider />
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Typography variant="subtitle2">Addresses</Typography>
-          <Button size="small" startIcon={<AddIcon />} onClick={addAddress}>Add Address</Button>
+          <Button size="small" startIcon={<AddIcon />} onClick={addAddress} disabled={!editRow?.source_id}>Add Address</Button>
         </Box>
-        {visibleAddresses.length === 0 && (
+        {!editRow?.source_id && (
+          <Typography variant="body2" color="text.secondary">Save company first to manage addresses</Typography>
+        )}
+        {visibleAddresses.length === 0 && editRow?.source_id && (
           <Typography variant="body2" color="text.secondary">No addresses</Typography>
         )}
         {visibleAddresses.map((addr) => {
@@ -494,9 +497,12 @@ export default function CompaniesPage() {
         <Divider />
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Typography variant="subtitle2">Tax Identifiers</Typography>
-          <Button size="small" startIcon={<AddIcon />} onClick={addTaxId}>Add Tax ID</Button>
+          <Button size="small" startIcon={<AddIcon />} onClick={addTaxId} disabled={!editRow?.source_id}>Add Tax ID</Button>
         </Box>
-        {visibleTaxIds.length === 0 && (
+        {!editRow?.source_id && (
+          <Typography variant="body2" color="text.secondary">Save company first to manage tax identifiers</Typography>
+        )}
+        {visibleTaxIds.length === 0 && editRow?.source_id && (
           <Typography variant="body2" color="text.secondary">No tax identifiers</Typography>
         )}
         {visibleTaxIds.map((taxId) => {

@@ -26,9 +26,12 @@ import Checkbox from '@mui/material/Checkbox';
 import Autocomplete from '@mui/material/Autocomplete';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AddIcon from '@mui/icons-material/Add';
+import LockResetIcon from '@mui/icons-material/LockReset';
 
 import StatusBadge from '../../components/shared/StatusBadge.jsx';
 import ConfirmDialog from '../../components/shared/ConfirmDialog.jsx';
+import ResetPasswordDialog from '../../components/shared/ResetPasswordDialog.jsx';
+import SetPasswordPopover from '../../components/shared/SetPasswordPopover.jsx';
 import DataTable from '../../components/shared/DataTable.jsx';
 import FieldRow from '../../components/shared/FieldRow.jsx';
 import FormDialog from '../../components/shared/FormDialog.jsx';
@@ -56,7 +59,7 @@ import {
   useTaxIdentifiers, useCreateTaxIdentifier, useUpdateTaxIdentifier, useArchiveTaxIdentifier,
 } from '../../hooks/useTaxIdentifiers.js';
 import {
-  useVendorContacts, useCreateVendorContact, useUpdateVendorContact, useArchiveVendorContact,
+  useVendorContacts, useCreateVendorContact, useUpdateVendorContact, useArchiveVendorContact, useResetVendorContactPassword,
 } from '../../hooks/useVendorContacts.js';
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import { useActivePaymentTerms } from '../../hooks/usePaymentTerms.js';
@@ -147,6 +150,7 @@ export default function VendorsPage() {
   const createContactMut = useCreateVendorContact();
   const updateContactMut = useUpdateVendorContact();
   const archiveContactMut = useArchiveVendorContact();
+  const resetContactPwMut = useResetVendorContactPassword();
 
   /* ── Selection (new system) ─────────────────────────────────── */
   const selection = useListSelection(rows);
@@ -160,6 +164,10 @@ export default function VendorsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editRow, setEditRow] = useState(null);
+  const [resetPwOpen, setResetPwOpen] = useState(false);
+  const [resetPwTarget, setResetPwTarget] = useState(null);
+  const [vcPwAnchor, setVcPwAnchor] = useState(null);
+  const [vcPwIdx, setVcPwIdx] = useState(null);
 
   const [editSourceId, setEditSourceId] = useState(null);
   const { data: emailsRes } = useEmails({ source_id: editSourceId, includeDeactivated: 'false' }, { enabled: !!editSourceId });
@@ -238,6 +246,28 @@ export default function VendorsPage() {
   const addContact = () => setEditContacts((prev) => [...prev, { ...BLANK_CONTACT }]);
   const removeContact = (idx) =>
     setEditContacts((prev) => prev.map((c, i) => (i === idx ? { ...c, _deleted: true } : c)));
+
+  /* ── Vendor contact app-user password popover ───────────────── */
+  const handleVcAppUserToggle = (idx) => (e) => {
+    if (e.target.checked) {
+      setVcPwIdx(idx);
+      setVcPwAnchor(e.currentTarget);
+    } else {
+      updateContact(idx, 'is_app_user', false);
+      setEditContacts((prev) => prev.map((c, i) => (i === idx ? { ...c, is_app_user: false, password: '' } : c)));
+    }
+  };
+
+  const handleVcPwConfirm = (password) => {
+    setEditContacts((prev) => prev.map((c, i) => (i === vcPwIdx ? { ...c, is_app_user: true, password } : c)));
+    setVcPwAnchor(null);
+    setVcPwIdx(null);
+  };
+
+  const handleVcPwCancel = () => {
+    setVcPwAnchor(null);
+    setVcPwIdx(null);
+  };
 
   /* ── Sync query-fetched sub-collections into edit state ────── */
   useEffect(() => {
@@ -924,10 +954,15 @@ export default function VendorsPage() {
                   sx={{ flex: 1, minWidth: 140 }}
                 />
                 <FormControlLabel
-                  control={<Checkbox checked={contact.is_app_user || false} onChange={(e) => updateContact(idx, 'is_app_user', e.target.checked)} size="small" />}
+                  control={<Checkbox checked={contact.is_app_user || false} onChange={handleVcAppUserToggle(idx)} size="small" />}
                   label="App User"
                   sx={{ mr: 0 }}
                 />
+                {contact.is_app_user && contact.id && (
+                  <IconButton size="small" title="Reset Password" onClick={() => { setResetPwTarget(contact); setResetPwOpen(true); }}>
+                    <LockResetIcon fontSize="small" />
+                  </IconButton>
+                )}
                 <Autocomplete
                   multiple
                   options={roleOptions}
@@ -963,6 +998,17 @@ export default function VendorsPage() {
 
       <ConfirmDialog {...archiveConfirmProps} />
       <ConfirmDialog {...restoreConfirmProps} />
+
+      <ResetPasswordDialog
+        open={resetPwOpen}
+        onClose={() => { setResetPwOpen(false); setResetPwTarget(null); }}
+        onSuccess={() => { setResetPwOpen(false); setResetPwTarget(null); toast('Password reset successfully'); }}
+        onReset={(id, password) => resetContactPwMut.mutateAsync({ id, password })}
+        entityId={resetPwTarget?.id}
+        entityName={resetPwTarget ? `${resetPwTarget.first_name} ${resetPwTarget.last_name}` : ''}
+      />
+
+      <SetPasswordPopover anchorEl={vcPwAnchor} onConfirm={handleVcPwConfirm} onCancel={handleVcPwCancel} />
 
       <Snackbar open={snack.open} autoHideDuration={4000} onClose={() => setSnack((s) => ({ ...s, open: false }))} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
         <Alert severity={snack.sev} variant="filled" onClose={() => setSnack((s) => ({ ...s, open: false }))}>{snack.msg}</Alert>
