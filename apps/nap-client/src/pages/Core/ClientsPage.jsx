@@ -23,6 +23,7 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
+import Autocomplete from '@mui/material/Autocomplete';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AddIcon from '@mui/icons-material/Add';
 
@@ -55,21 +56,22 @@ import {
   useTaxIdentifiers, useCreateTaxIdentifier, useUpdateTaxIdentifier, useArchiveTaxIdentifier,
 } from '../../hooks/useTaxIdentifiers.js';
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
+import { useRoles } from '../../hooks/useRoles.js';
 import { TAX_TYPES, COUNTRIES, resolveLevel } from '@nap/shared';
 import { clientApi } from '../../services/clientApi.js';
 import { pageContainerSx, formGridSx, formGroupCardSx, formFullSpanSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
 
-const BLANK_CREATE = { name: '', code: '' };
-const BLANK_EDIT = { name: '', code: '' };
+const BLANK_CREATE = { name: '', code: '', is_active: true, is_app_user: false, roles: [] };
+const BLANK_EDIT = { name: '', code: '', is_active: true, is_app_user: false, roles: [] };
 
 const PHONE_TYPES = ['cell', 'work', 'home', 'fax', 'other'];
 const EMAIL_LABELS = ['work', 'personal', 'billing', 'other'];
 const BLANK_PHONE = { country_code: 'US', phone_type: 'cell', phone_number: '', is_primary: false };
 const BLANK_EMAIL = { email: '', label: 'work', is_primary: false };
 const BLANK_ADDRESS = {
-  label: '', address_line_1: '', address_line_2: '', city: '',
+  label: '', address_line_1: '', address_line_2: '', address_line_3: '', city: '',
   state_province: '', postal_code: '', country_code: 'US', is_primary: false,
 };
 const BLANK_TAX_ID = { country_code: 'US', tax_type: 'TIN', tax_value: '', is_primary: false };
@@ -93,6 +95,9 @@ export default function ClientsPage() {
   const caps = user?.perms?.caps || {};
   const canImport = resolveLevel(caps, 'core', 'clients', 'import') === 'full';
   const canExport = resolveLevel(caps, 'core', 'clients', 'export') !== 'none';
+
+  const { data: rolesRes } = useRoles();
+  const roleOptions = rolesRes?.rows ?? [];
 
   const { data: res, isLoading } = useClients();
   const allRows = res?.rows ?? [];
@@ -235,7 +240,7 @@ export default function ClientsPage() {
 
   const handleEdit = useCallback((row) => {
     setEditRow(row);
-    const form = { name: row.name ?? '', code: row.code ?? '' };
+    const form = { name: row.name ?? '', code: row.code ?? '', is_active: row.is_active ?? true, is_app_user: row.is_app_user ?? false, roles: row.roles ?? [] };
     setEditForm(form);
     editInitial.current.form = form;
 
@@ -271,7 +276,7 @@ export default function ClientsPage() {
     };
     if (collectionChanged(editEmails, init.emails, ['email', 'label', 'is_primary'])) return true;
     if (collectionChanged(editPhones, init.phones, ['country_code', 'phone_type', 'phone_number', 'is_primary'])) return true;
-    if (collectionChanged(editAddresses, init.addresses, ['label', 'address_line_1', 'address_line_2', 'city', 'state_province', 'postal_code', 'country_code', 'is_primary'])) return true;
+    if (collectionChanged(editAddresses, init.addresses, ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code', 'is_primary'])) return true;
     if (collectionChanged(editTaxIds, init.taxIds, ['country_code', 'tax_type', 'tax_value', 'is_primary'])) return true;
     return false;
   }, [editForm, editEmails, editPhones, editAddresses, editTaxIds]);
@@ -475,6 +480,9 @@ export default function ClientsPage() {
               <Box sx={detailGridSx}>
                 <FieldRow label="Code" value={viewClient.code || '\u2014'} />
                 <FieldRow label="Name" value={viewClient.name} />
+                <FieldRow label="Active" value={viewClient.is_active ? 'Yes' : 'No'} />
+                <FieldRow label="App User" value={viewClient.is_app_user ? 'Yes' : 'No'} />
+                <FieldRow label="Roles" value={viewClient.roles?.length ? viewClient.roles.join(', ') : '\u2014'} />
                 <FieldRow label="Status">
                   <StatusBadge status={viewClient.deactivated_at ? 'archived' : 'active'} />
                 </FieldRow>
@@ -494,6 +502,35 @@ export default function ClientsPage() {
       <FormDialog open={createOpen} title="Create Client" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={() => setCreateOpen(false)}>
         <TextField label="Client Name" required value={createForm.name} onChange={onCreateField('name')} />
         <TextField label="Code" value={createForm.code} onChange={onCreateField('code')} inputProps={{ maxLength: 16 }} />
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={createForm.is_active}
+              onChange={(e) => setCreateForm((p) => ({ ...p, is_active: e.target.checked }))}
+              size="small"
+            />
+          }
+          label="Active"
+        />
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={createForm.is_app_user}
+              onChange={(e) => setCreateForm((p) => ({ ...p, is_app_user: e.target.checked }))}
+              size="small"
+            />
+          }
+          label="App User (creates login account)"
+        />
+        <Autocomplete
+          multiple
+          options={roleOptions}
+          getOptionLabel={(opt) => opt.name}
+          isOptionEqualToValue={(opt, val) => opt.code === val.code}
+          value={roleOptions.filter((r) => createForm.roles.includes(r.code))}
+          onChange={(_, v) => setCreateForm((p) => ({ ...p, roles: v.map((r) => r.code) }))}
+          renderInput={(params) => <TextField {...params} label="Roles" />}
+        />
       </FormDialog>
 
       {/* ── Edit Client Dialog ─────────────────────────────────── */}
@@ -501,6 +538,36 @@ export default function ClientsPage() {
         <Box sx={formGridSx}>
           <TextField label="Client Name" required value={editForm.name} onChange={onEditField('name')} />
           <TextField label="Code" value={editForm.code} onChange={onEditField('code')} inputProps={{ maxLength: 16 }} />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={editForm.is_active}
+                onChange={(e) => setEditForm((p) => ({ ...p, is_active: e.target.checked }))}
+                size="small"
+              />
+            }
+            label="Active"
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={editForm.is_app_user}
+                onChange={(e) => setEditForm((p) => ({ ...p, is_app_user: e.target.checked }))}
+                size="small"
+              />
+            }
+            label="App User (creates login account)"
+          />
+          <Autocomplete
+            multiple
+            options={roleOptions}
+            getOptionLabel={(opt) => opt.name}
+            isOptionEqualToValue={(opt, val) => opt.code === val.code}
+            value={roleOptions.filter((r) => editForm.roles.includes(r.code))}
+            onChange={(_, v) => setEditForm((p) => ({ ...p, roles: v.map((r) => r.code) }))}
+            renderInput={(params) => <TextField {...params} label="Roles" />}
+            sx={formFullSpanSx}
+          />
         </Box>
 
         {/* ── Emails ────────────────────────────────────────────── */}
@@ -643,6 +710,7 @@ export default function ClientsPage() {
               <Box sx={formGridSx}>
                 <TextField label="Address Line 1" value={addr.address_line_1} onChange={(e) => updateAddress(idx, 'address_line_1', e.target.value)} size="small" sx={formFullSpanSx} />
                 <TextField label="Address Line 2" value={addr.address_line_2} onChange={(e) => updateAddress(idx, 'address_line_2', e.target.value)} size="small" sx={formFullSpanSx} />
+                <TextField label="Address Line 3" value={addr.address_line_3 || ''} onChange={(e) => updateAddress(idx, 'address_line_3', e.target.value)} size="small" sx={formFullSpanSx} />
                 <TextField label="City" value={addr.city} onChange={(e) => updateAddress(idx, 'city', e.target.value)} size="small" />
                 <TextField label="State / Province" value={addr.state_province} onChange={(e) => updateAddress(idx, 'state_province', e.target.value)} size="small" />
                 <TextField label="Postal Code" value={addr.postal_code} onChange={(e) => updateAddress(idx, 'postal_code', e.target.value)} size="small" />
