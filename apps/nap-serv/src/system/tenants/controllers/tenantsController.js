@@ -329,15 +329,26 @@ class TenantsController extends BaseController {
                 em.email,
                 e.is_primary_contact, e.is_billing_contact,
                 pn.phone_number AS primary_phone, pn.phone_type AS primary_phone_type,
+                pn.country_code AS phone_country_code,
                 a.address_line_1, a.address_line_2, a.city,
                 a.state_province, a.postal_code, a.country_code
          FROM ${sch}.employees e
          LEFT JOIN ${sch}.sources s
            ON s.table_id = e.id AND s.source_type = 'employee' AND s.deactivated_at IS NULL
-         LEFT JOIN ${sch}.emails em
-           ON em.source_id = s.id AND em.is_primary = true AND em.deactivated_at IS NULL
-         LEFT JOIN ${sch}.phone_numbers pn
-           ON pn.source_id = s.id AND pn.is_primary = true AND pn.deactivated_at IS NULL
+         LEFT JOIN LATERAL (
+           SELECT em.email
+           FROM ${sch}.emails em
+           WHERE em.source_id = s.id AND em.deactivated_at IS NULL
+           ORDER BY em.is_primary DESC, em.created_at
+           LIMIT 1
+         ) em ON true
+         LEFT JOIN LATERAL (
+           SELECT pn.phone_number, pn.phone_type, pn.country_code
+           FROM ${sch}.phone_numbers pn
+           WHERE pn.source_id = s.id AND pn.deactivated_at IS NULL
+           ORDER BY pn.is_primary DESC, pn.created_at
+           LIMIT 1
+         ) pn ON true
          LEFT JOIN ${sch}.addresses a
            ON a.source_id = s.id AND a.is_primary = true AND a.deactivated_at IS NULL
          WHERE (e.is_primary_contact = true OR e.is_billing_contact = true)
