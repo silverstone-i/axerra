@@ -14,6 +14,7 @@
  */
 
 import { useState, useMemo, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -29,10 +30,13 @@ import Typography from '@mui/material/Typography';
 import { DataGrid } from '@mui/x-data-grid';
 import StatusBadge from '../../components/shared/StatusBadge.jsx';
 import FieldRow from '../../components/shared/FieldRow.jsx';
+import TaxIdentifiersSection from '../../components/shared/TaxIdentifiersSection.jsx';
 import ConfirmDialog from '../../components/shared/ConfirmDialog.jsx';
 import DataTable from '../../components/shared/DataTable.jsx';
 import FormDialog from '../../components/shared/FormDialog.jsx';
 import CreateTenantWizard from './CreateTenantWizard.jsx';
+import { formatByPattern } from '../../utils/formatByPattern.js';
+import { COUNTRIES } from '@nap/shared';
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
 import {
   useTenants,
@@ -41,6 +45,7 @@ import {
   useUpdateTenant,
   useArchiveTenant,
   useRestoreTenant,
+  TENANTS_KEY,
 } from '../../hooks/useTenants.js';
 import { pageContainerSx, dialogHeaderSx, dialogActionBoxSx, formFullSpanSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
@@ -119,8 +124,13 @@ const contactColumns = [
   {
     field: 'primary_phone',
     headerName: 'Phone',
-    width: 150,
-    valueGetter: (params) => params.row.primary_phone || '\u2014',
+    width: 170,
+    valueGetter: (params) => {
+      const phone = params.row.primary_phone;
+      if (!phone) return '\u2014';
+      const country = COUNTRIES.find((c) => c.code === params.row.phone_country_code);
+      return formatByPattern(phone, country?.placeholder) || phone;
+    },
   },
 ];
 
@@ -128,13 +138,15 @@ const contactColumns = [
 
 export default function ManageTenantsPage() {
   /* ── queries ─────────────────────────────────────────────── */
+  const qc = useQueryClient();
   const { data: tenantRes, isLoading } = useTenants();
   const allRows = tenantRes?.rows ?? [];
 
   const [detailOpen, setDetailOpen] = useState(false);
-  const [detailTenant, setDetailTenant] = useState(null);
-  const { data: contactsData } = useTenantContacts(detailTenant?.id);
-  const { data: companyData } = useTenantCompany(detailTenant?.id);
+  const [detailTenantId, setDetailTenantId] = useState(null);
+  const detailTenant = allRows.find((r) => r.id === detailTenantId) ?? null;
+  const { data: contactsData } = useTenantContacts(detailTenantId);
+  const { data: companyData } = useTenantCompany(detailTenantId);
 
   /* ── view filter (Active / All / Archived) ───────────────── */
   const [viewFilter, setViewFilter] = useState('active');
@@ -173,9 +185,11 @@ export default function ManageTenantsPage() {
 
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {
-    setDetailTenant(row);
+    qc.invalidateQueries({ queryKey: [...TENANTS_KEY, row.id, 'contacts'] });
+    qc.invalidateQueries({ queryKey: [...TENANTS_KEY, row.id, 'company'] });
+    setDetailTenantId(row.id);
     setDetailOpen(true);
-  }, []);
+  }, [qc]);
 
   const handleEdit = useCallback((row) => {
     setEditRow(row);
@@ -361,18 +375,7 @@ export default function ManageTenantsPage() {
                       </Typography>
                     )}
                   </Box>
-                  {companyData.tax_identifiers?.length > 0 && (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      <Typography variant="overline" color="text.secondary">
-                        Tax Identifiers
-                      </Typography>
-                      {companyData.tax_identifiers.map((ti) => (
-                        <Typography key={ti.id} variant="body2">
-                          {ti.tax_type} ({ti.country_code}): {ti.tax_value}
-                        </Typography>
-                      ))}
-                    </Box>
-                  )}
+                  <TaxIdentifiersSection taxIds={companyData.tax_identifiers} />
                 </>
               )}
 

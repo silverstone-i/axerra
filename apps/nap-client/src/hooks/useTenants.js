@@ -12,7 +12,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { client } from '../services/client.js';
 import { tenantApi } from '../services/tenantApi.js';
 
-const TENANTS_KEY = ['tenants'];
+export const TENANTS_KEY = ['tenants'];
 export const TENANT_SCHEMAS_KEY = ['tenant-schemas'];
 
 /** Fetch tenant schemas list (for TenantPicker dropdown). */
