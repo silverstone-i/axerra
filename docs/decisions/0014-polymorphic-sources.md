@@ -14,7 +14,7 @@ Introduce a **sources** table as a polymorphic discriminated union. Each vendor,
 ### Table Structure
 
 ```
-sources: id, tenant_id, table_id, source_type CHECK('vendor'|'client'|'employee'|'contact'|'vendor_contact'), label
+sources: id, tenant_id, table_id, source_type CHECK('vendor'|'client'|'employee'|'contact'|'vendor_contact'|'company'), label
   unique(table_id, source_type)
 
 vendors.source_id  FK-> sources.id CASCADE

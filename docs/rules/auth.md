@@ -127,7 +127,7 @@ The `admin.nap_users` table is a pure identity/login table:
 |---|---|---|
 | `id` | uuid | Primary key |
 | `tenant_id` | uuid | FK to `admin.tenants` |
-| `entity_type` | varchar(16) | Polymorphic link type (employee, vendor, client) |
+| `entity_type` | varchar(16) | Polymorphic link type (employee, vendor_contact, client) |
 | `entity_id` | uuid | Polymorphic link to entity record in tenant schema |
 | `email` | varchar(128) | Login identifier (unique) |
 | `password_hash` | text | bcrypt hash |

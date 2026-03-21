@@ -261,7 +261,7 @@ RBAC uses a four-layer model where each layer narrows what the previous layer gr
 - `roles`: Role definitions with `code`, `name`, `description` (optional), `is_system`, `is_immutable`, `scope` (`all_projects`, `assigned_companies`, `assigned_projects`, or `self`), plus `tenant_code`
 - `policies`: Permission grants with `(role_id, module, router, action, level)` dimensions, plus `tenant_code`
 
-> **Role Assignment:** Roles are stored as a `roles` text array directly on each entity table (employees, vendor contacts, clients, contacts) — there is no `role_members` junction table. The permission loader reads the `roles` array from the entity record (resolved via `nap_users.entity_type` + `entity_id`), then queries `policies` for matching role IDs. A SQL view can reconstruct "members by role" across entity tables when needed for admin reporting.
+> **Role Assignment:** Roles are stored as a `roles` text array directly on each entity table (employees, clients, vendor_contacts) — there is no `role_members` junction table. The permission loader reads the `roles` array from the entity record (resolved via `nap_users.entity_type` + `entity_id`), then queries `policies` for matching role IDs. A SQL view can reconstruct "members by role" across entity tables when needed for admin reporting.
 
 **Layer 2 — Data Model:**
 - `project_members`: Maps `(project_id, user_id)` with a `role` label (e.g., `member`, `lead`). When `roles.scope = 'assigned_projects'`, only data from the user's assigned projects is visible.
@@ -432,7 +432,7 @@ Roles with `is_immutable = true` OR `is_system = true` are read-only across all 
 |---|---|---|
 | `id` | uuid | Primary key |
 | `tenant_id` | uuid | FK to tenants |
-| `entity_type` | varchar(16) | Entity kind: `'employee'`, `'vendor'`, `'vendor_contact'`, `'client'`, `'contact'` |
+| `entity_type` | varchar(16) | Entity kind: `'employee'`, `'vendor_contact'`, `'client'` |
 | `entity_id` | uuid | Cross-schema reference to the tenant-schema entity record (not a database FK — enforced by business logic) |
 | `email` | varchar(128) | Login identifier, globally unique (partial index WHERE deactivated_at IS NULL) |
 | `password_hash` | text | bcrypt hash (never returned in API responses) |
