@@ -217,21 +217,23 @@ class VendorContactsController extends BaseController {
    * DELETE /archive — soft-delete vendor contact, cascade to nap_users if is_app_user.
    */
   async archive(req, res) {
+    const schema = this.getSchema(req);
     const contactId = req.query.id;
-    if (!contactId) return res.status(400).json({ error: 'id query parameter is required' });
 
+    req.body.deactivated_at = new Date();
     try {
-      const schema = this.getSchema(req);
-      const contact = await this.model(schema).findById(contactId);
-      if (!contact) return res.status(404).json({ error: `${this.errorLabel} not found` });
-
-      await this.model(schema).archive(contactId);
-
-      if (contact.is_app_user) {
-        await this.#archiveAppUser(contact.id, req);
+      // Cascade to nap_user before archiving vendor contact
+      if (contactId) {
+        const contact = await this.model(schema).findById(contactId);
+        if (contact?.is_app_user) {
+          await this.#archiveAppUser(contact.id, req);
+        }
       }
 
-      res.status(200).json({ message: `${this.errorLabel} archived` });
+      const filters = Array.isArray(req.query) ? req.query : [{ ...req.query }];
+      const count = await this.model(schema).updateWhere(filters, req.body);
+      if (!count) return res.status(404).json({ error: `${this.errorLabel} not found or already inactive` });
+      res.status(200).json({ message: `${this.errorLabel} marked as inactive` });
     } catch (err) {
       this.handleError(err, res, 'archiving', this.errorLabel);
     }
@@ -241,23 +243,22 @@ class VendorContactsController extends BaseController {
    * PATCH /restore — restore vendor contact, cascade to nap_users if is_app_user.
    */
   async restore(req, res) {
+    const schema = this.getSchema(req);
     const contactId = req.query.id;
-    if (!contactId) return res.status(400).json({ error: 'id query parameter is required' });
+
+    req.body.deactivated_at = null;
+    const filters = [{ deactivated_at: { $not: null } }, { ...req.query }];
 
     try {
-      const schema = this.getSchema(req);
+      const count = await this.model(schema).updateWhere(filters, req.body, { includeDeactivated: true });
+      if (!count) return res.status(404).json({ error: `${this.errorLabel} not found or already active` });
 
-      // Restore requires finding the archived record
-      const contact = await db.oneOrNone(
-        `SELECT * FROM ${pgp.as.name(schema)}.vendor_contacts WHERE id = $1`,
-        [contactId],
-      );
-      if (!contact) return res.status(404).json({ error: `${this.errorLabel} not found` });
-
-      await this.model(schema).restore(contactId);
-
-      if (contact.is_app_user) {
-        await this.#restoreAppUser(contact.id, req);
+      // Cascade restore to nap_user if vendor contact is an app user
+      if (contactId) {
+        const contact = await this.model(schema).findById(contactId);
+        if (contact?.is_app_user) {
+          await this.#restoreAppUser(contact.id, req);
+        }
       }
 
       res.status(200).json({ message: `${this.errorLabel} marked as active` });

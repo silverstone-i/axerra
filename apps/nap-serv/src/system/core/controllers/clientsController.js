@@ -231,21 +231,23 @@ class ClientsController extends BaseController {
    * DELETE /archive — soft-delete client, cascade to nap_users if is_app_user.
    */
   async archive(req, res) {
+    const schema = this.getSchema(req);
     const clientId = req.query.id;
-    if (!clientId) return res.status(400).json({ error: 'id query parameter is required' });
 
+    req.body.deactivated_at = new Date();
     try {
-      const schema = this.getSchema(req);
-      const client = await this.model(schema).findById(clientId);
-      if (!client) return res.status(404).json({ error: `${this.errorLabel} not found` });
-
-      await this.model(schema).archive(clientId);
-
-      if (client.is_app_user) {
-        await this.#archiveAppUser(client.id, req);
+      // Cascade to nap_user before archiving client
+      if (clientId) {
+        const client = await this.model(schema).findById(clientId);
+        if (client?.is_app_user) {
+          await this.#archiveAppUser(client.id, req);
+        }
       }
 
-      res.status(200).json({ message: `${this.errorLabel} archived` });
+      const filters = Array.isArray(req.query) ? req.query : [{ ...req.query }];
+      const count = await this.model(schema).updateWhere(filters, req.body);
+      if (!count) return res.status(404).json({ error: `${this.errorLabel} not found or already inactive` });
+      res.status(200).json({ message: `${this.errorLabel} marked as inactive` });
     } catch (err) {
       this.handleError(err, res, 'archiving', this.errorLabel);
     }
@@ -255,22 +257,22 @@ class ClientsController extends BaseController {
    * PATCH /restore — restore client, cascade to nap_users if is_app_user.
    */
   async restore(req, res) {
+    const schema = this.getSchema(req);
     const clientId = req.query.id;
-    if (!clientId) return res.status(400).json({ error: 'id query parameter is required' });
+
+    req.body.deactivated_at = null;
+    const filters = [{ deactivated_at: { $not: null } }, { ...req.query }];
 
     try {
-      const schema = this.getSchema(req);
+      const count = await this.model(schema).updateWhere(filters, req.body, { includeDeactivated: true });
+      if (!count) return res.status(404).json({ error: `${this.errorLabel} not found or already active` });
 
-      const client = await db.oneOrNone(
-        `SELECT * FROM ${pgp.as.name(schema)}.clients WHERE id = $1`,
-        [clientId],
-      );
-      if (!client) return res.status(404).json({ error: `${this.errorLabel} not found` });
-
-      await this.model(schema).restore(clientId);
-
-      if (client.is_app_user) {
-        await this.#restoreAppUser(client.id, req);
+      // Cascade restore to nap_user if client is an app user
+      if (clientId) {
+        const client = await this.model(schema).findById(clientId);
+        if (client?.is_app_user) {
+          await this.#restoreAppUser(client.id, req);
+        }
       }
 
       res.status(200).json({ message: `${this.errorLabel} marked as active` });
