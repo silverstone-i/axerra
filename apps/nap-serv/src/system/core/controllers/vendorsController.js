@@ -5,9 +5,11 @@
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
 
+import fs from 'node:fs';
 import BaseController from '../../../lib/BaseController.js';
 import db, { pgp } from '../../../db/db.js';
 import { allocateNumber } from '../services/numberingService.js';
+import logger from '../../../lib/logger.js';
 
 class VendorsController extends BaseController {
   constructor() {
@@ -69,6 +71,52 @@ class VendorsController extends BaseController {
     } catch (err) {
       if (err.name === 'SchemaDefinitionError') err.message = 'Invalid input data';
       this.handleError(err, res, 'creating', this.errorLabel);
+    }
+  }
+
+  /**
+   * POST /export-combined-xls — export vendors + vendor contacts into a single workbook.
+   */
+  async exportCombinedXls(req, res) {
+    const timestamp = Date.now();
+    const path = `/tmp/vendors_combined_${timestamp}.xlsx`;
+    const where = Array.isArray(req.body?.where) ? req.body.where : [];
+    const joinType = req.body?.joinType || 'AND';
+    const options = req.body?.options || {};
+
+    try {
+      const result = await this.model(this.getSchema(req)).exportCombinedSpreadsheet(path, where, joinType, options);
+      res.download(result.filePath, `vendors_combined_${timestamp}.xlsx`, (err) => {
+        if (err) logger.error(`Error sending file: ${err.message}`);
+        fs.unlink(result.filePath, (unlinkErr) => {
+          if (unlinkErr) logger.error(`Failed to delete exported file: ${unlinkErr.message}`);
+        });
+      });
+    } catch (err) {
+      this.handleError(err, res, 'exporting', this.errorLabel);
+    }
+  }
+
+  /**
+   * POST /import-combined-xls — import vendors + vendor contacts from a combined workbook.
+   * Auto-detects format: 10-sheet combined or legacy 5-sheet vendor-only.
+   */
+  async importCombinedXls(req, res) {
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const tenantCode = req.user?.tenant_code;
+    const index = Number(req.body?.sheetIndex ?? 0);
+
+    try {
+      const result = await this.model(this.getSchema(req)).importCombinedSpreadsheet(file.path, index, (row) => ({
+        ...row,
+        tenant_code: tenantCode,
+        created_by: req.user?.id || null,
+      }));
+      res.json(result);
+    } catch (err) {
+      this.handleError(err, res, 'importing', this.errorLabel);
     }
   }
 }
