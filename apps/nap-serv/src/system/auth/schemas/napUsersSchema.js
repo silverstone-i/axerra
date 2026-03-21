@@ -36,7 +36,7 @@ const napUsersSchema = {
       { type: 'Check', expression: "status IN ('active','invited','locked')" },
       {
         type: 'Check',
-        expression: "entity_type IS NULL OR entity_type IN ('employee','vendor','client','contact')",
+        expression: "entity_type IS NULL OR entity_type IN ('employee','vendor_contact','client')",
       },
     ],
     indexes: [

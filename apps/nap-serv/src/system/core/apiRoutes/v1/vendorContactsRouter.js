@@ -7,14 +7,30 @@
 
 import createRouter from '../../../../lib/createRouter.js';
 import vendorContactsController from '../../controllers/vendorContactsController.js';
+import { addAuditFields } from '../../../../middleware/addAuditFields.js';
+import { moduleEntitlement } from '../../../../middleware/moduleEntitlement.js';
+import { rbac } from '../../../../middleware/rbac.js';
 import { withMeta } from '../../../../middleware/withMeta.js';
 
 const meta = withMeta({ module: 'core', router: 'vendor-contacts' });
 
-export default createRouter(vendorContactsController, null, {
-  getMiddlewares: [meta],
-  postMiddlewares: [meta],
-  putMiddlewares: [meta],
-  deleteMiddlewares: [meta],
-  patchMiddlewares: [meta],
-});
+export default createRouter(
+  vendorContactsController,
+  (router) => {
+    router.post(
+      '/:id/reset-password',
+      withMeta({ module: 'core', router: 'vendor-contacts', action: 'reset-password' }),
+      moduleEntitlement,
+      addAuditFields,
+      rbac('full'),
+      (req, res) => vendorContactsController.resetPassword(req, res),
+    );
+  },
+  {
+    getMiddlewares: [meta],
+    postMiddlewares: [meta],
+    putMiddlewares: [meta],
+    deleteMiddlewares: [meta],
+    patchMiddlewares: [meta],
+  },
+);

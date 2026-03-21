@@ -7,14 +7,30 @@
 
 import createRouter from '../../../../lib/createRouter.js';
 import clientsController from '../../controllers/clientsController.js';
+import { addAuditFields } from '../../../../middleware/addAuditFields.js';
+import { moduleEntitlement } from '../../../../middleware/moduleEntitlement.js';
+import { rbac } from '../../../../middleware/rbac.js';
 import { withMeta } from '../../../../middleware/withMeta.js';
 
 const meta = withMeta({ module: 'core', router: 'clients' });
 
-export default createRouter(clientsController, null, {
-  getMiddlewares: [meta],
-  postMiddlewares: [meta],
-  putMiddlewares: [meta],
-  deleteMiddlewares: [meta],
-  patchMiddlewares: [meta],
-});
+export default createRouter(
+  clientsController,
+  (router) => {
+    router.post(
+      '/:id/reset-password',
+      withMeta({ module: 'core', router: 'clients', action: 'reset-password' }),
+      moduleEntitlement,
+      addAuditFields,
+      rbac('full'),
+      (req, res) => clientsController.resetPassword(req, res),
+    );
+  },
+  {
+    getMiddlewares: [meta],
+    postMiddlewares: [meta],
+    putMiddlewares: [meta],
+    deleteMiddlewares: [meta],
+    patchMiddlewares: [meta],
+  },
+);
