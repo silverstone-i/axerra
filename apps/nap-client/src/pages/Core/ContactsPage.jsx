@@ -2,7 +2,7 @@
  * @file Contacts CRUD page — DataTable + create/edit/view/archive/restore
  * @module nap-client/pages/Core/ContactsPage
  *
- * Contacts are linked to vendors/clients/employees via source_id.
+ * Contacts are standalone miscellaneous payees (dual-purpose: AP and AR).
  * Child data (emails, phones, addresses, tax IDs) linked via polymorphic sources pattern.
  *
  * Migrated to standardised list-view selection system:
@@ -58,22 +58,21 @@ import {
   useTaxIdentifiers, useCreateTaxIdentifier, useUpdateTaxIdentifier, useArchiveTaxIdentifier,
 } from '../../hooks/useTaxIdentifiers.js';
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
-import { TAX_TYPES, COUNTRIES } from '@nap/shared';
-import { resolveLevel } from '@nap/shared';
+import { TAX_TYPES, COUNTRIES, resolveLevel } from '@nap/shared';
 import { contactApi } from '../../services/contactApi.js';
 import { pageContainerSx, formGridSx, formGroupCardSx, formFullSpanSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
 
-const BLANK_CREATE = { source_id: '', name: '', position: '', is_primary: false };
-const BLANK_EDIT = { name: '', position: '', is_primary: false };
+const BLANK_CREATE = { name: '', code: '', is_active: true };
+const BLANK_EDIT = { name: '', code: '', is_active: true };
 
 const PHONE_TYPES = ['cell', 'work', 'home', 'fax', 'other'];
 const EMAIL_LABELS = ['work', 'personal', 'billing', 'other'];
 const BLANK_PHONE = { country_code: 'US', phone_type: 'cell', phone_number: '', is_primary: false };
 const BLANK_EMAIL = { email: '', label: 'work', is_primary: false };
 const BLANK_ADDRESS = {
-  label: '', address_line_1: '', address_line_2: '', city: '',
+  label: '', address_line_1: '', address_line_2: '', address_line_3: '', city: '',
   state_province: '', postal_code: '', country_code: 'US', is_primary: false,
 };
 const BLANK_TAX_ID = { country_code: 'US', tax_type: 'TIN', tax_value: '', is_primary: false };
@@ -82,13 +81,13 @@ const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
 const fmtDate = (v) => (v ? new Date(v).toLocaleDateString() : '\u2014');
 
 const columns = [
-  { field: 'name', headerName: 'Contact Name', flex: 1, minWidth: 180 },
-  { field: 'position', headerName: 'Position', width: 140 },
+  { field: 'code', headerName: 'Code', width: 120 },
+  { field: 'name', headerName: 'Contact Name', flex: 1, minWidth: 200 },
   {
-    field: 'is_primary',
-    headerName: 'Primary',
-    width: 90,
-    valueGetter: (params) => (params.row.is_primary ? 'Yes' : 'No'),
+    field: 'is_active',
+    headerName: 'Active',
+    width: 100,
+    renderCell: ({ value }) => <StatusBadge status={value ? 'active' : 'suspended'} />,
   },
 ];
 
@@ -172,8 +171,6 @@ export default function ContactsPage() {
 
   const onCreateField = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.value }));
   const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));
-  const onCreateCheck = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.checked }));
-  const onEditCheck = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.checked }));
 
   /* ── Email edit helpers ──────────────────────────────────────── */
   const updateEmail = (idx, field, value) =>
@@ -243,8 +240,8 @@ export default function ContactsPage() {
     setEditRow(row);
     const form = {
       name: row.name ?? '',
-      position: row.position ?? '',
-      is_primary: !!row.is_primary,
+      code: row.code ?? '',
+      is_active: row.is_active ?? true,
     };
     setEditForm(form);
     editInitial.current.form = form;
@@ -281,7 +278,7 @@ export default function ContactsPage() {
     };
     if (collectionChanged(editEmails, init.emails, ['email', 'label', 'is_primary'])) return true;
     if (collectionChanged(editPhones, init.phones, ['country_code', 'phone_type', 'phone_number', 'is_primary'])) return true;
-    if (collectionChanged(editAddresses, init.addresses, ['label', 'address_line_1', 'address_line_2', 'city', 'state_province', 'postal_code', 'country_code', 'is_primary'])) return true;
+    if (collectionChanged(editAddresses, init.addresses, ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code', 'is_primary'])) return true;
     if (collectionChanged(editTaxIds, init.taxIds, ['country_code', 'tax_type', 'tax_value', 'is_primary'])) return true;
     return false;
   }, [editForm, editEmails, editPhones, editAddresses, editTaxIds]);
@@ -482,9 +479,9 @@ export default function ContactsPage() {
           {viewContact && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box sx={detailGridSx}>
+                <FieldRow label="Code" value={viewContact.code || '\u2014'} />
                 <FieldRow label="Name" value={viewContact.name} />
-                <FieldRow label="Position" value={viewContact.position || '\u2014'} />
-                <FieldRow label="Primary Contact" value={viewContact.is_primary ? 'Yes' : 'No'} />
+                <FieldRow label="Active" value={viewContact.is_active ? 'Yes' : 'No'} />
                 <FieldRow label="Status">
                   <StatusBadge status={viewContact.deactivated_at ? 'archived' : 'active'} />
                 </FieldRow>
@@ -502,18 +499,35 @@ export default function ContactsPage() {
       </Dialog>
 
       <FormDialog open={createOpen} title="Create Contact" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={() => setCreateOpen(false)}>
-        <TextField label="Source ID" required value={createForm.source_id} onChange={onCreateField('source_id')} helperText="UUID of the vendor, client, or employee source" />
         <TextField label="Contact Name" required value={createForm.name} onChange={onCreateField('name')} />
-        <TextField label="Position" value={createForm.position} onChange={onCreateField('position')} />
-        <FormControlLabel control={<Checkbox checked={createForm.is_primary} onChange={onCreateCheck('is_primary')} />} label="Primary Contact" />
+        <TextField label="Code" value={createForm.code} onChange={onCreateField('code')} inputProps={{ maxLength: 16 }} />
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={createForm.is_active}
+              onChange={(e) => setCreateForm((p) => ({ ...p, is_active: e.target.checked }))}
+              size="small"
+            />
+          }
+          label="Active"
+        />
       </FormDialog>
 
       {/* ── Edit Contact Dialog ──────────────────────────────────── */}
       <FormDialog open={editOpen} title="Edit Contact" submitLabel="Save Changes" maxWidth="md" loading={updateMut.isPending} submitDisabled={!hasEditChanges} onSubmit={handleUpdate} onCancel={() => { setEditOpen(false); setEditRow(null); setEditSourceId(null); }}>
         <Box sx={formGridSx}>
           <TextField label="Contact Name" required value={editForm.name} onChange={onEditField('name')} />
-          <TextField label="Position" value={editForm.position} onChange={onEditField('position')} />
-          <FormControlLabel control={<Checkbox checked={editForm.is_primary} onChange={onEditCheck('is_primary')} />} label="Primary Contact" />
+          <TextField label="Code" value={editForm.code} onChange={onEditField('code')} inputProps={{ maxLength: 16 }} />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={editForm.is_active}
+                onChange={(e) => setEditForm((p) => ({ ...p, is_active: e.target.checked }))}
+                size="small"
+              />
+            }
+            label="Active"
+          />
         </Box>
 
         {/* ── Emails ─────────────────────────────────────────────── */}
@@ -656,6 +670,7 @@ export default function ContactsPage() {
               <Box sx={formGridSx}>
                 <TextField label="Address Line 1" value={addr.address_line_1} onChange={(e) => updateAddress(idx, 'address_line_1', e.target.value)} size="small" sx={formFullSpanSx} />
                 <TextField label="Address Line 2" value={addr.address_line_2} onChange={(e) => updateAddress(idx, 'address_line_2', e.target.value)} size="small" sx={formFullSpanSx} />
+                <TextField label="Address Line 3" value={addr.address_line_3 || ''} onChange={(e) => updateAddress(idx, 'address_line_3', e.target.value)} size="small" sx={formFullSpanSx} />
                 <TextField label="City" value={addr.city} onChange={(e) => updateAddress(idx, 'city', e.target.value)} size="small" />
                 <TextField label="State / Province" value={addr.state_province} onChange={(e) => updateAddress(idx, 'state_province', e.target.value)} size="small" />
                 <TextField label="Postal Code" value={addr.postal_code} onChange={(e) => updateAddress(idx, 'postal_code', e.target.value)} size="small" />
