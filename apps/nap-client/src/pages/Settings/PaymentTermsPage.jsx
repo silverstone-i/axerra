@@ -64,7 +64,7 @@ export default function PaymentTermsPage() {
   }, [allRows, viewFilter]);
 
   const selection = useListSelection(rows);
-  const { selectedRows } = selection;
+  const { selectedRows, allActive, allArchived } = selection;
 
   /* ── Mutations ─────────────────────────────────────────── */
   const createMut = useCreatePaymentTerm();
@@ -78,7 +78,7 @@ export default function PaymentTermsPage() {
   const errMsg = (err) => err.payload?.error || err.payload?.message || err.message;
 
   /* ── Archive / Restore ─────────────────────────────────── */
-  const { setArchiveOpen: _setArchiveOpen, setRestoreOpen: _setRestoreOpen, archiveConfirmProps, restoreConfirmProps } = useArchiveRestore({
+  const { setArchiveOpen, setRestoreOpen, archiveConfirmProps, restoreConfirmProps } = useArchiveRestore({
     selectedRows,
     archiveMut,
     restoreMut,
@@ -140,6 +140,25 @@ export default function PaymentTermsPage() {
   const toolbar = useMemo(() => {
     const primary = [];
 
+    if (viewFilter === 'active' || viewFilter === 'all') {
+      primary.push({
+        label: selectedRows.length > 1 ? `Archive (${selectedRows.length})` : 'Archive',
+        variant: 'outlined',
+        color: 'error',
+        disabled: selectedRows.length === 0 || !allActive,
+        onClick: () => setArchiveOpen(true),
+      });
+    }
+    if (viewFilter === 'archived' || viewFilter === 'all') {
+      primary.push({
+        label: selectedRows.length > 1 ? `Restore (${selectedRows.length})` : 'Restore',
+        variant: 'outlined',
+        color: 'success',
+        disabled: selectedRows.length === 0 || !allArchived,
+        onClick: () => setRestoreOpen(true),
+      });
+    }
+
     primary.push({
       label: 'Create Payment Term',
       variant: 'contained',
@@ -156,7 +175,7 @@ export default function PaymentTermsPage() {
       filters: [],
       primaryActions: primary,
     };
-  }, [viewFilter, selection.clearSelection]);
+  }, [viewFilter, selectedRows.length, allActive, allArchived, selection.clearSelection, setArchiveOpen, setRestoreOpen]);
   useModuleToolbarRegistration(toolbar);
 
   /* ── Render ────────────────────────────────────────────── */
