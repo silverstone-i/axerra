@@ -56,6 +56,7 @@ export default function ResetPasswordDialog({ open, onClose, onSuccess, onReset,
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!canSubmit) return;
     setError('');
     setPending(true);
     try {
@@ -64,6 +65,7 @@ export default function ResetPasswordDialog({ open, onClose, onSuccess, onReset,
       onSuccess?.();
     } catch (err) {
       setError(err.payload?.message || err.message || 'Failed to reset password');
+    } finally {
       setPending(false);
     }
   };
