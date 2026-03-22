@@ -326,9 +326,13 @@ export default class Vendors extends TableModel {
       // Phase 4: Provision nap_users for app-user contacts AFTER emails are imported.
       // The login email comes from the Contact Emails child sheet, not the contacts sheet.
       if (CONTACT_CONFIG.appUserProvisioning && insertResults.length) {
+        const crypto = await import('node:crypto');
+        const bcrypt = await import('bcrypt');
+        const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
+
         for (let i = 0; i < insertResults.length; i++) {
           const row = toInsert[i];
-          if (!row.is_app_user || !row._password) continue;
+          if (!row.is_app_user) continue;
 
           const rec = insertResults[i];
           const sourceId = sourceByParentId.get(rec.id);
@@ -347,9 +351,9 @@ export default class Vendors extends TableModel {
             continue;
           }
 
-          const bcrypt = await import('bcrypt');
-          const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
-          const passwordHash = await bcrypt.default.hash(row._password, rounds);
+          // Use supplied password or generate a temporary one (admin can reset later)
+          const clearPassword = row._password || crypto.randomBytes(12).toString('base64url');
+          const passwordHash = await bcrypt.default.hash(clearPassword, rounds);
           const napUsersModel = db('napUsers', 'admin');
           napUsersModel.tx = t;
           await napUsersModel.insert({
