@@ -3,8 +3,7 @@
  * @module projects/schemas/projectClientsSchema
  *
  * Associates multiple clients with a project contract, replacing the former
- * single client_id FK on projects. Supports roles (buyer, co-buyer, guarantor)
- * and a primary client designation.
+ * single client_id FK on projects. Supports roles (buyer, co-buyer, guarantor).
  *
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
@@ -21,7 +20,6 @@ const projectClientsSchema = {
     { name: 'project_id', type: 'uuid', notNull: true },
     { name: 'client_id', type: 'uuid', notNull: true },
     { name: 'role', type: 'varchar(32)' },
-    { name: 'is_primary', type: 'boolean', notNull: true, default: false },
   ],
   constraints: {
     primaryKey: ['id'],

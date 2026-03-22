@@ -10,6 +10,7 @@
  */
 
 import BaseController from '../../../lib/BaseController.js';
+import { clearOtherPrimary } from '../../../lib/clearOtherPrimary.js';
 import db, { pgp } from '../../../db/db.js';
 import logger from '../../../lib/logger.js';
 
@@ -36,6 +37,11 @@ class EmailsController extends BaseController {
         if (existing) {
           return res.status(400).json({ error: 'Only one login email is allowed per entity. Remove the existing login email first.' });
         }
+      }
+
+      // Clear sibling is_primary before insert
+      if (req.body.is_primary && req.body.source_id) {
+        await clearOtherPrimary(db, schema, 'emails', 'source_id', req.body.source_id, null, req.user?.id);
       }
 
       const record = await this.model(schema).insert(req.body);
@@ -80,6 +86,11 @@ class EmailsController extends BaseController {
         if (!canUnset) {
           return res.status(400).json({ error: 'Cannot remove login flag while entity is an active app user' });
         }
+      }
+
+      // Clear sibling is_primary before update
+      if (req.body.is_primary && !before.is_primary) {
+        await clearOtherPrimary(db, schema, 'emails', 'source_id', before.source_id, before.id, req.user?.id);
       }
 
       const count = await this.model(schema).updateWhere([{ id: emailId }], req.body);

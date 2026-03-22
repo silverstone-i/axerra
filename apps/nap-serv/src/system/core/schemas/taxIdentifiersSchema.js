@@ -18,7 +18,6 @@ const taxIdentifiersSchema = {
     { name: 'country_code', type: 'char(2)', notNull: true },
     { name: 'tax_type', type: 'varchar(16)', notNull: true },
     { name: 'tax_value', type: 'varchar(64)', notNull: true },
-    { name: 'is_primary', type: 'boolean', notNull: true, default: false },
   ],
   constraints: {
     primaryKey: ['id'],

@@ -25,7 +25,7 @@ const CONFIG = {
   idType: 'vendor_contact',
   buildLabel: (row) => `${row.first_name} ${row.last_name}`,
   returningCols: ['id', 'first_name', 'last_name'],
-  boolCols: ['is_app_user', 'is_primary'],
+  boolCols: ['is_app_user'],
   hasRoles: true,
   codeRequired: false,
   extraExportCols: [

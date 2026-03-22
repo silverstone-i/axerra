@@ -147,8 +147,8 @@ class TenantsController extends BaseController {
         await t.one(
           `INSERT INTO ${sch}.addresses
              (tenant_id, source_id, label, address_line_1, address_line_2, address_line_3,
-              city, state_province, postal_code, country_code, is_primary, created_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+              city, state_province, postal_code, country_code, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
            RETURNING id`,
           [
             tenant.id, source.id, 'billing',
@@ -159,7 +159,7 @@ class TenantsController extends BaseController {
             billing_address.state_province || null,
             billing_address.postal_code || null,
             billing_address.country_code,
-            true, actorId,
+            actorId,
           ],
         );
 
@@ -168,10 +168,10 @@ class TenantsController extends BaseController {
           const ti = taxIds[i];
           await t.one(
             `INSERT INTO ${sch}.tax_identifiers
-               (tenant_id, source_id, country_code, tax_type, tax_value, is_primary, created_by)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
+               (tenant_id, source_id, country_code, tax_type, tax_value, created_by)
+             VALUES ($1, $2, $3, $4, $5, $6)
              RETURNING id`,
-            [tenant.id, source.id, ti.country_code, ti.tax_type, ti.tax_value, i === 0, actorId],
+            [tenant.id, source.id, ti.country_code, ti.tax_type, ti.tax_value, actorId],
           );
         }
 
@@ -349,8 +349,13 @@ class TenantsController extends BaseController {
            ORDER BY pn.is_primary DESC, pn.created_at
            LIMIT 1
          ) pn ON true
-         LEFT JOIN ${sch}.addresses a
-           ON a.source_id = s.id AND a.is_primary = true AND a.deactivated_at IS NULL
+         LEFT JOIN LATERAL (
+           SELECT a.address_line_1, a.city, a.state_province, a.postal_code, a.country_code
+           FROM ${sch}.addresses a
+           WHERE a.source_id = s.id AND a.deactivated_at IS NULL
+           ORDER BY a.created_at
+           LIMIT 1
+         ) a ON true
          WHERE (e.is_primary_contact = true OR e.is_billing_contact = true)
            AND e.deactivated_at IS NULL`,
       );
@@ -389,18 +394,18 @@ class TenantsController extends BaseController {
 
       const addresses = await db.any(
         `SELECT a.id, a.label, a.address_line_1, a.address_line_2, a.address_line_3,
-                a.city, a.state_province, a.postal_code, a.country_code, a.is_primary
+                a.city, a.state_province, a.postal_code, a.country_code
          FROM ${sch}.addresses a
          WHERE a.source_id = $1 AND a.deactivated_at IS NULL
-         ORDER BY a.is_primary DESC, a.created_at`,
+         ORDER BY a.created_at`,
         [company.source_id],
       );
 
       const taxIdentifiers = await db.any(
-        `SELECT ti.id, ti.country_code, ti.tax_type, ti.tax_value, ti.is_primary
+        `SELECT ti.id, ti.country_code, ti.tax_type, ti.tax_value
          FROM ${sch}.tax_identifiers ti
          WHERE ti.source_id = $1 AND ti.deactivated_at IS NULL
-         ORDER BY ti.is_primary DESC, ti.created_at`,
+         ORDER BY ti.created_at`,
         [company.source_id],
       );
 

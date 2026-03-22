@@ -40,6 +40,7 @@ const phoneNumbersSchema = {
     indexes: [
       { type: 'Index', columns: ['tenant_id'] },
       { type: 'Index', columns: ['source_id'] },
+      { type: 'Index', columns: ['source_id'], unique: true, where: 'is_primary = true AND deactivated_at IS NULL' },
     ],
   },
 };
