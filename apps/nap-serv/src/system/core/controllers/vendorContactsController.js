@@ -291,10 +291,11 @@ class VendorContactsController extends BaseController {
     }
 
     try {
+      const tenantId = req.user?.tenant_id;
       const napUser = await db.oneOrNone(
         `SELECT id FROM admin.nap_users
-         WHERE entity_type = 'vendor_contact' AND entity_id = $1 AND deactivated_at IS NULL`,
-        [contactId],
+         WHERE entity_type = 'vendor_contact' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
+        [contactId, tenantId],
       );
 
       if (!napUser) {
@@ -344,8 +345,8 @@ class VendorContactsController extends BaseController {
     // Check if an archived nap_user already exists for this vendor contact
     const existing = await db.oneOrNone(
       `SELECT id, deactivated_at FROM admin.nap_users
-       WHERE entity_type = 'vendor_contact' AND entity_id = $1`,
-      [vendorContact.id],
+       WHERE entity_type = 'vendor_contact' AND entity_id = $1 AND tenant_id = $2`,
+      [vendorContact.id, tenantId],
     );
 
     const clearPassword = suppliedPassword || crypto.randomBytes(12).toString('base64url');
@@ -386,8 +387,8 @@ class VendorContactsController extends BaseController {
   async #archiveAppUser(vendorContactId, req) {
     const napUser = await db.oneOrNone(
       `SELECT id FROM admin.nap_users
-       WHERE entity_type = 'vendor_contact' AND entity_id = $1 AND deactivated_at IS NULL`,
-      [vendorContactId],
+       WHERE entity_type = 'vendor_contact' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
+      [vendorContactId, req.user?.tenant_id],
     );
     if (napUser) {
       await db.none(
@@ -406,8 +407,8 @@ class VendorContactsController extends BaseController {
   async #restoreAppUser(vendorContactId, req) {
     const napUser = await db.oneOrNone(
       `SELECT id FROM admin.nap_users
-       WHERE entity_type = 'vendor_contact' AND entity_id = $1 AND deactivated_at IS NOT NULL`,
-      [vendorContactId],
+       WHERE entity_type = 'vendor_contact' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NOT NULL`,
+      [vendorContactId, req.user?.tenant_id],
     );
     if (napUser) {
       await db.none(

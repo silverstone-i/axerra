@@ -312,10 +312,11 @@ class EmployeesController extends BaseController {
     }
 
     try {
+      const tenantId = req.user?.tenant_id;
       const napUser = await db.oneOrNone(
         `SELECT id FROM admin.nap_users
-         WHERE entity_type = 'employee' AND entity_id = $1 AND deactivated_at IS NULL`,
-        [employeeId],
+         WHERE entity_type = 'employee' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
+        [employeeId, tenantId],
       );
 
       if (!napUser) {
@@ -388,8 +389,8 @@ class EmployeesController extends BaseController {
     // Check if an archived nap_user already exists for this employee
     const existing = await db.oneOrNone(
       `SELECT id, deactivated_at FROM admin.nap_users
-       WHERE entity_type = 'employee' AND entity_id = $1`,
-      [employee.id],
+       WHERE entity_type = 'employee' AND entity_id = $1 AND tenant_id = $2`,
+      [employee.id, tenantId],
     );
 
     const clearPassword = suppliedPassword || crypto.randomBytes(12).toString('base64url');
@@ -430,8 +431,8 @@ class EmployeesController extends BaseController {
   async #archiveAppUser(employeeId, req) {
     const napUser = await db.oneOrNone(
       `SELECT id FROM admin.nap_users
-       WHERE entity_type = 'employee' AND entity_id = $1 AND deactivated_at IS NULL`,
-      [employeeId],
+       WHERE entity_type = 'employee' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
+      [employeeId, req.user?.tenant_id],
     );
     if (napUser) {
       await db.none(
@@ -450,8 +451,8 @@ class EmployeesController extends BaseController {
   async #restoreAppUser(employeeId, req) {
     const napUser = await db.oneOrNone(
       `SELECT id FROM admin.nap_users
-       WHERE entity_type = 'employee' AND entity_id = $1 AND deactivated_at IS NOT NULL`,
-      [employeeId],
+       WHERE entity_type = 'employee' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NOT NULL`,
+      [employeeId, req.user?.tenant_id],
     );
     if (napUser) {
       await db.none(

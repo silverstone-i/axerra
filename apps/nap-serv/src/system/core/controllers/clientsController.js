@@ -305,10 +305,11 @@ class ClientsController extends BaseController {
     }
 
     try {
+      const tenantId = req.user?.tenant_id;
       const napUser = await db.oneOrNone(
         `SELECT id FROM admin.nap_users
-         WHERE entity_type = 'client' AND entity_id = $1 AND deactivated_at IS NULL`,
-        [clientId],
+         WHERE entity_type = 'client' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
+        [clientId, tenantId],
       );
 
       if (!napUser) {
@@ -358,8 +359,8 @@ class ClientsController extends BaseController {
     // Check if an archived nap_user already exists for this client
     const existing = await db.oneOrNone(
       `SELECT id, deactivated_at FROM admin.nap_users
-       WHERE entity_type = 'client' AND entity_id = $1`,
-      [client.id],
+       WHERE entity_type = 'client' AND entity_id = $1 AND tenant_id = $2`,
+      [client.id, tenantId],
     );
 
     const clearPassword = suppliedPassword || crypto.randomBytes(12).toString('base64url');
@@ -400,8 +401,8 @@ class ClientsController extends BaseController {
   async #archiveAppUser(clientId, req) {
     const napUser = await db.oneOrNone(
       `SELECT id FROM admin.nap_users
-       WHERE entity_type = 'client' AND entity_id = $1 AND deactivated_at IS NULL`,
-      [clientId],
+       WHERE entity_type = 'client' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
+      [clientId, req.user?.tenant_id],
     );
     if (napUser) {
       await db.none(
@@ -420,8 +421,8 @@ class ClientsController extends BaseController {
   async #restoreAppUser(clientId, req) {
     const napUser = await db.oneOrNone(
       `SELECT id FROM admin.nap_users
-       WHERE entity_type = 'client' AND entity_id = $1 AND deactivated_at IS NOT NULL`,
-      [clientId],
+       WHERE entity_type = 'client' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NOT NULL`,
+      [clientId, req.user?.tenant_id],
     );
     if (napUser) {
       await db.none(
