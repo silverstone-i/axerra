@@ -9,6 +9,7 @@
  */
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -110,6 +111,7 @@ const columns = [
 ];
 
 export default function EmployeesPage() {
+  const qc = useQueryClient();
   const { user } = useAuth();
   const caps = user?.perms?.caps || {};
   const canResetPassword = resolveLevel(caps, 'core', '', 'reset-password') === 'full';
@@ -444,6 +446,9 @@ export default function EmployeesPage() {
         }
       }
 
+      if (editForm.is_app_user !== editRow.is_app_user) {
+        qc.invalidateQueries({ queryKey: ['nap-users'] });
+      }
       toast('Employee updated');
       setEditOpen(false);
       setEditRow(null);

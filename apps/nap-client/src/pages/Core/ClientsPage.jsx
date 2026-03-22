@@ -9,6 +9,7 @@
  */
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -94,6 +95,7 @@ const columns = [
 ];
 
 export default function ClientsPage() {
+  const qc = useQueryClient();
   const { user } = useAuth();
   const caps = user?.perms?.caps || {};
   const canImport = resolveLevel(caps, 'core', 'clients', 'import') === 'full';
@@ -325,7 +327,16 @@ export default function ClientsPage() {
 
   const handleUpdate = async () => {
     try {
-      await updateMut.mutateAsync({ filter: { id: editRow.id }, changes: editForm });
+      // When toggling is_app_user on, include the selected login email in the
+      // client update payload so the backend can provision before email mutations run
+      const changes = { ...editForm };
+      if (changes.is_app_user && !editRow.is_app_user) {
+        const loginEm = editEmails.find((em) => em.is_login && !em._deleted)
+          || editEmails.find((em) => em.is_primary && !em._deleted)
+          || editEmails.find((em) => !em._deleted);
+        if (loginEm) changes.email = loginEm.email;
+      }
+      await updateMut.mutateAsync({ filter: { id: editRow.id }, changes });
 
       if (editRow.source_id) {
         for (const em of editEmails) {
@@ -374,6 +385,10 @@ export default function ClientsPage() {
         }
       }
 
+      await qc.invalidateQueries({ queryKey: ['clients'] });
+      if (editForm.is_app_user !== editRow.is_app_user) {
+        qc.invalidateQueries({ queryKey: ['nap-users'] });
+      }
       toast('Client updated');
       setEditOpen(false);
       setEditRow(null);

@@ -9,6 +9,7 @@
  */
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -114,6 +115,7 @@ const baseColumns = [
 ];
 
 export default function VendorsPage() {
+  const qc = useQueryClient();
   const { user } = useAuth();
   const caps = user?.perms?.caps || {};
   const canImport = resolveLevel(caps, 'core', 'vendors', 'import') === 'full';
@@ -668,15 +670,22 @@ export default function VendorsPage() {
   /* ── Contact Edit handler ───────────────────────────────────── */
   const handleContactEdit = useCallback(async () => {
     try {
-      await updateContactMut.mutateAsync({
-        filter: { id: contactEditRow.id },
-        changes: {
-          first_name: contactEditForm.first_name, last_name: contactEditForm.last_name,
-          position: contactEditForm.position, department: contactEditForm.department,
-          is_app_user: contactEditForm.is_app_user, roles: contactEditForm.roles,
-          is_primary: contactEditForm.is_primary,
-        },
-      });
+      // When toggling is_app_user on, include the selected login email in the
+      // contact update payload so the backend can provision before email mutations run
+      const changes = {
+        first_name: contactEditForm.first_name, last_name: contactEditForm.last_name,
+        position: contactEditForm.position, department: contactEditForm.department,
+        is_app_user: contactEditForm.is_app_user, roles: contactEditForm.roles,
+        is_primary: contactEditForm.is_primary,
+        ...(contactEditForm.password && { password: contactEditForm.password }),
+      };
+      if (changes.is_app_user && !contactEditRow?.is_app_user) {
+        const loginEm = contactEditEmails.find((em) => em.is_login && !em._deleted)
+          || contactEditEmails.find((em) => em.is_primary && !em._deleted)
+          || contactEditEmails.find((em) => !em._deleted);
+        if (loginEm) changes.email = loginEm.email;
+      }
+      await updateContactMut.mutateAsync({ filter: { id: contactEditRow.id }, changes });
 
       // CRUD emails
       for (const em of contactEditEmails) {
@@ -712,13 +721,16 @@ export default function VendorsPage() {
       }
 
       await refreshContactChildren();
+      if (contactEditForm.is_app_user !== contactEditRow?.is_app_user) {
+        qc.invalidateQueries({ queryKey: ['nap-users'] });
+      }
       setContactEditOpen(false);
       setContactEditRow(null);
       toast('Contact updated');
     } catch (err) {
       toast(errMsg(err), 'error');
     }
-  }, [contactEditRow, contactEditForm, contactEditEmails, contactEditPhones, updateContactMut, createEmailMut, updateEmailMut, archiveEmailMut, createPhoneMut, updatePhoneMut, archivePhoneMut, toast, errMsg, refreshContactChildren]);
+  }, [contactEditRow, contactEditForm, contactEditEmails, contactEditPhones, updateContactMut, createEmailMut, updateEmailMut, archiveEmailMut, createPhoneMut, updatePhoneMut, archivePhoneMut, qc, toast, errMsg, refreshContactChildren]);
 
   const handleImport = useCallback(async (formData) => {
     try {
