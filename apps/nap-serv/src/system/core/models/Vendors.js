@@ -269,22 +269,24 @@ export default class Vendors extends TableModel {
       }
 
       // Run inserts + create sources
-      if (toInsert.length) {
-        const cleanInserts = toInsert.map(({ _ref, _archive, _password, tenant_code: _tc, ...rest }) => {
-          if (CONTACT_CONFIG.appUserProvisioning && rest.is_app_user && (!_password || !rest.email)) {
-            return { ...rest, is_app_user: false };
-          }
-          return rest;
-        });
+      // Note: do NOT downgrade is_app_user here — email lives in the Contact Emails
+      // child sheet (imported in Phase 3). Provisioning is deferred to Phase 4.
+      let insertResults = [];
+      let sourceByParentId = new Map();
+      let tid;
+      let createdBy;
 
-        const insertResults = await contactModel.bulkInsert(cleanInserts, CONTACT_CONFIG.returningCols);
+      if (toInsert.length) {
+        const cleanInserts = toInsert.map(({ _ref, _archive, _password, tenant_code: _tc, ...rest }) => rest);
+
+        insertResults = await contactModel.bulkInsert(cleanInserts, CONTACT_CONFIG.returningCols);
         contactsInserted = insertResults.length;
 
         const sourcesModel = db('sources', schema);
         sourcesModel.tx = t;
 
-        const tid = cleanInserts[0]?.tenant_id;
-        const createdBy = cleanInserts[0]?.created_by || null;
+        tid = cleanInserts[0]?.tenant_id;
+        createdBy = cleanInserts[0]?.created_by || null;
 
         const sourceRecords = insertResults.map((rec) => ({
           tenant_id: tid,
@@ -295,7 +297,7 @@ export default class Vendors extends TableModel {
         }));
 
         const sourceResults = await sourcesModel.bulkInsert(sourceRecords, ['id', 'table_id']);
-        const sourceByParentId = new Map(sourceResults.map((sr) => [sr.table_id, sr.id]));
+        sourceByParentId = new Map(sourceResults.map((sr) => [sr.table_id, sr.id]));
 
         for (let i = 0; i < insertResults.length; i++) {
           const rec = insertResults[i];
@@ -310,31 +312,55 @@ export default class Vendors extends TableModel {
           if (toInsert[i]._archive) {
             await t.none(`UPDATE ${s}.vendor_contacts SET deactivated_at = NOW() WHERE id = $1`, [rec.id]);
           }
-          // Provision nap_users for app users with password
-          if (CONTACT_CONFIG.appUserProvisioning && cleanInserts[i].is_app_user && cleanInserts[i].email && toInsert[i]._password) {
-            const bcrypt = await import('bcrypt');
-            const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
-            const passwordHash = await bcrypt.default.hash(toInsert[i]._password, rounds);
-            const napUsersModel = db('napUsers', 'admin');
-            napUsersModel.tx = t;
-            await napUsersModel.insert({
-              tenant_id: tid,
-              entity_type: CONTACT_CONFIG.appUserProvisioning.entityType,
-              entity_id: rec.id,
-              email: cleanInserts[i].email,
-              password_hash: passwordHash,
-              status: 'invited',
-              created_by: createdBy,
-            });
-          }
         }
       }
 
-      // Phase 3: Import contact child sheets (6-9)
+      // Phase 3: Import contact child sheets (6-9: emails, phones, addresses, tax IDs)
       for (let ci = 0; ci < CONTACT_CONFIG.childSheets.length; ci++) {
         const sheetIdx = 6 + ci;
         if (reader.sheetCount > sheetIdx) {
           await importChildSheet(reader, sheetIdx, contactRefToSourceId, CONTACT_CONFIG.childSheets[ci].modelName, schema, CONTACT_CONFIG.linkColName, callbackFn, tenantId, t);
+        }
+      }
+
+      // Phase 4: Provision nap_users for app-user contacts AFTER emails are imported.
+      // The login email comes from the Contact Emails child sheet, not the contacts sheet.
+      if (CONTACT_CONFIG.appUserProvisioning && insertResults.length) {
+        for (let i = 0; i < insertResults.length; i++) {
+          const row = toInsert[i];
+          if (!row.is_app_user || !row._password) continue;
+
+          const rec = insertResults[i];
+          const sourceId = sourceByParentId.get(rec.id);
+          if (!sourceId) continue;
+
+          // Resolve login email from the just-imported Contact Emails
+          const loginEmail = await t.oneOrNone(
+            `SELECT email FROM ${s}.emails
+             WHERE source_id = $1 AND deactivated_at IS NULL
+             ORDER BY is_login DESC, is_primary DESC, created_at LIMIT 1`,
+            [sourceId],
+          );
+          if (!loginEmail) {
+            // No email available — downgrade is_app_user
+            await t.none(`UPDATE ${s}.vendor_contacts SET is_app_user = false WHERE id = $1`, [rec.id]);
+            continue;
+          }
+
+          const bcrypt = await import('bcrypt');
+          const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
+          const passwordHash = await bcrypt.default.hash(row._password, rounds);
+          const napUsersModel = db('napUsers', 'admin');
+          napUsersModel.tx = t;
+          await napUsersModel.insert({
+            tenant_id: tid,
+            entity_type: CONTACT_CONFIG.appUserProvisioning.entityType,
+            entity_id: rec.id,
+            email: loginEmail.email,
+            password_hash: passwordHash,
+            status: 'invited',
+            created_by: createdBy,
+          });
         }
       }
     });

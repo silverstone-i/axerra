@@ -117,6 +117,10 @@ class VendorsController extends BaseController {
       res.json(result);
     } catch (err) {
       this.handleError(err, res, 'importing', this.errorLabel);
+    } finally {
+      fs.unlink(file.path, (unlinkErr) => {
+        if (unlinkErr) logger.error(`Failed to delete uploaded file: ${unlinkErr.message}`);
+      });
     }
   }
 }
