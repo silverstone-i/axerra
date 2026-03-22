@@ -2,9 +2,11 @@
  * @file System role seeder — seeds RBAC roles and policies for a tenant schema
  * @module core/services/systemRoleSeeder
  *
- * Three system roles:
- * - super_user (NapSoft only): full access all modules, cross-tenant, impersonation
+ * Five system roles:
  * - admin (all tenants): full access all modules
+ * - vendor_contact (all tenants): self-scoped portal access for vendor contacts
+ * - client (all tenants): self-scoped portal access for clients
+ * - super_user (NapSoft only): full access all modules, cross-tenant, impersonation
  * - support (NapSoft only): full non-financial, cross-tenant, impersonation
  *
  * All system roles go through full RBAC resolution — no bypass.
@@ -35,6 +37,38 @@ function getSystemRoleDefinitions(isNapsoft) {
     is_immutable: true,
     scope: 'all_projects',
     policies: [{ module: '', router: null, action: null, level: 'full' }],
+  });
+
+  // vendor_contact — seeded in all tenants; portal access for vendor contact people
+  roles.push({
+    code: 'vendor_contact',
+    name: 'Vendor Contact',
+    description: 'Portal access for vendor contacts — own contact info, billing, budgets, allocated work, project schedules',
+    is_system: true,
+    is_immutable: true,
+    scope: 'self',
+    policies: [
+      // Broad view access narrowed by scope='self'
+      { module: '', router: null, action: null, level: 'view' },
+      // No access to financials
+      ...FINANCIAL_MODULES.map((mod) => ({ module: mod, router: null, action: null, level: 'none' })),
+    ],
+  });
+
+  // client — seeded in all tenants; portal access for clients
+  roles.push({
+    code: 'client',
+    name: 'Client',
+    description: 'Portal access for clients — own contact info, sales contracts, invoices, unit status. No cost/profitability visibility.',
+    is_system: true,
+    is_immutable: true,
+    scope: 'self',
+    policies: [
+      // Broad view access narrowed by scope='self'
+      { module: '', router: null, action: null, level: 'view' },
+      // No access to financials
+      ...FINANCIAL_MODULES.map((mod) => ({ module: mod, router: null, action: null, level: 'none' })),
+    ],
   });
 
   if (isNapsoft) {

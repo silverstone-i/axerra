@@ -14,13 +14,14 @@ Introduce a **sources** table as a polymorphic discriminated union. Each vendor,
 ### Table Structure
 
 ```
-sources: id, tenant_id, table_id, source_type CHECK('vendor'|'client'|'employee'|'contact'), label
+sources: id, tenant_id, table_id, source_type CHECK('vendor'|'client'|'employee'|'contact'|'vendor_contact'|'company'), label
   unique(table_id, source_type)
 
 vendors.source_id  FK-> sources.id CASCADE
 clients.source_id  FK-> sources.id CASCADE
 employees.source_id FK-> sources.id CASCADE
 contacts.source_id FK-> sources.id CASCADE
+vendor_contacts.source_id FK-> sources.id CASCADE
 
 addresses.source_id FK-> sources.id CASCADE
 phone_numbers.source_id FK-> sources.id CASCADE
@@ -28,10 +29,10 @@ phone_numbers.source_id FK-> sources.id CASCADE
 
 ### Auto-Source Creation
 
-Entity controllers (vendors, clients, employees) auto-create the source record inside a transaction:
+Entity controllers (vendors, clients, employees, vendor_contacts) auto-create the source record inside a transaction:
 
 1. Insert entity (vendor/client/employee)
-2. Insert source with `table_id = entity.id`, `source_type = 'vendor'|'client'|'employee'`
+2. Insert source with `table_id = entity.id`, `source_type = 'vendor'|'client'|'employee'|'vendor_contact'`
 3. UPDATE entity SET source_id = source.id
 
 This ensures every entity has a source before addresses or phone numbers can be attached.
@@ -44,4 +45,4 @@ This ensures every entity has a source before addresses or phone numbers can be 
 - **No table duplication** for shared child records
 - **Cascade deletes** automatically clean up addresses/phone numbers when a source (or parent entity) is removed
 - **Extra join** required when querying from address/phone back to the parent entity
-- **source_type CHECK constraint** must be updated when new entity types are added
+- **source_type CHECK constraint** must be updated when new entity types are added (currently: vendor, client, employee, contact, vendor_contact, company)

@@ -153,7 +153,7 @@ class EmployeesController extends BaseController {
       const suppliedEmail = req.body.email;
       delete req.body.email;
 
-      if (suppliedEmail && !(!wasAppUser && isNowAppUser)) {
+      if (suppliedEmail && !isNowAppUser) {
         return res.status(400).json({
           error: 'Email is managed via /api/core/v1/emails. Use that endpoint to update email addresses.',
         });
@@ -175,7 +175,16 @@ class EmployeesController extends BaseController {
       const hasLoginEmail = loginEmail?.is_login;
       const resolvedEmail = suppliedEmail || loginEmail?.email;
 
-      if (!wasAppUser && isNowAppUser) {
+      // Determine if provisioning is needed (fresh toggle or retry after partial failure)
+      const needsProvisioning = isNowAppUser && (
+        !wasAppUser || !await db.oneOrNone(
+          `SELECT id FROM admin.nap_users
+           WHERE entity_type = 'employee' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
+          [before.id, req.user?.tenant_id],
+        )
+      );
+
+      if (needsProvisioning) {
         const roles = req.body.roles || before.roles || [];
         if (!roles.length) {
           return res.status(400).json({ error: 'Roles must be assigned before enabling app user access' });
@@ -189,20 +198,32 @@ class EmployeesController extends BaseController {
       const count = await this.model(schema).updateWhere([{ id: employeeId }], req.body);
       if (!count) return res.status(404).json({ error: `${this.errorLabel} not found` });
 
-      if (!wasAppUser && isNowAppUser) {
+      if (needsProvisioning) {
         // Toggled ON: provision or restore nap_user
         // If no email exists at all, create one from the supplied email
         if (suppliedEmail && !loginEmail) {
-          const emailsModel = db('emails', schema);
-          await emailsModel.insert({
-            tenant_id: before.tenant_id,
-            source_id: before.source_id,
-            email: suppliedEmail,
-            label: 'work',
-            is_primary: true,
-            is_login: true,
-            created_by: req.user?.id || null,
-          });
+          // Check if the email already exists (without is_login/is_primary flags)
+          const existingEmail = await db.oneOrNone(
+            `SELECT id FROM ${s}.emails WHERE source_id = $1 AND email = $2 AND deactivated_at IS NULL`,
+            [before.source_id, suppliedEmail],
+          );
+          if (existingEmail) {
+            await db.none(
+              `UPDATE ${s}.emails SET is_login = true, is_primary = true, updated_by = $1 WHERE id = $2`,
+              [req.user?.id || null, existingEmail.id],
+            );
+          } else {
+            const emailsModel = db('emails', schema);
+            await emailsModel.insert({
+              tenant_id: before.tenant_id,
+              source_id: before.source_id,
+              email: suppliedEmail,
+              label: 'work',
+              is_primary: true,
+              is_login: true,
+              created_by: req.user?.id || null,
+            });
+          }
         } else if (loginEmail && !hasLoginEmail) {
           // Existing primary email but not flagged as login — promote it.
           // If a different email was supplied, update the value to keep nap_users in sync.
@@ -312,10 +333,11 @@ class EmployeesController extends BaseController {
     }
 
     try {
+      const tenantId = req.user?.tenant_id;
       const napUser = await db.oneOrNone(
         `SELECT id FROM admin.nap_users
-         WHERE entity_type = 'employee' AND entity_id = $1 AND deactivated_at IS NULL`,
-        [employeeId],
+         WHERE entity_type = 'employee' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
+        [employeeId, tenantId],
       );
 
       if (!napUser) {
@@ -388,8 +410,8 @@ class EmployeesController extends BaseController {
     // Check if an archived nap_user already exists for this employee
     const existing = await db.oneOrNone(
       `SELECT id, deactivated_at FROM admin.nap_users
-       WHERE entity_type = 'employee' AND entity_id = $1`,
-      [employee.id],
+       WHERE entity_type = 'employee' AND entity_id = $1 AND tenant_id = $2`,
+      [employee.id, tenantId],
     );
 
     const clearPassword = suppliedPassword || crypto.randomBytes(12).toString('base64url');
@@ -430,8 +452,8 @@ class EmployeesController extends BaseController {
   async #archiveAppUser(employeeId, req) {
     const napUser = await db.oneOrNone(
       `SELECT id FROM admin.nap_users
-       WHERE entity_type = 'employee' AND entity_id = $1 AND deactivated_at IS NULL`,
-      [employeeId],
+       WHERE entity_type = 'employee' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
+      [employeeId, req.user?.tenant_id],
     );
     if (napUser) {
       await db.none(
@@ -450,8 +472,8 @@ class EmployeesController extends BaseController {
   async #restoreAppUser(employeeId, req) {
     const napUser = await db.oneOrNone(
       `SELECT id FROM admin.nap_users
-       WHERE entity_type = 'employee' AND entity_id = $1 AND deactivated_at IS NOT NULL`,
-      [employeeId],
+       WHERE entity_type = 'employee' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NOT NULL`,
+      [employeeId, req.user?.tenant_id],
     );
     if (napUser) {
       await db.none(

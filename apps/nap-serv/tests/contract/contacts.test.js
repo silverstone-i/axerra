@@ -68,7 +68,6 @@ describe('Contact CRUD — /api/core/v1/contacts', () => {
       .set('Cookie', cookies)
       .send({
         name: 'John Doe',
-        email: 'john@example.com',
       });
 
     expect(res.status).toBe(201);

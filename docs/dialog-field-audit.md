@@ -17,37 +17,31 @@
 
 - `name` (TextField, required) — Create + Edit
 - `code` (TextField, maxLength 16) — Create + Edit
-- `payment_terms` (TextField) — Create + Edit
+- `payment_term_id` (Select dropdown populated from payment_terms settings table) — Create + Edit
 - `notes` (TextField, multiline) — Create + Edit
 - **Emails section** (inline edit, Edit only): `email`, `label`, `is_primary`
 - **Phone Numbers section** (inline edit, Edit only): `phone_type`, `country_code`, `phone_number`, `is_primary`
 - **Addresses section** (card-based, Edit only): `label`, `address_line_1`, `address_line_2`, `city`, `state_province`, `postal_code`, `country_code`, `is_primary`
 - **Tax Identifiers section** (inline edit, Edit only): `country_code`, `tax_type`, `tax_value`, `is_primary`
-- **Vendor Contacts section** (inline edit, Edit only): `first_name`, `last_name`, `position`, `is_primary`
+- **Vendor Contacts section** (inline edit, Edit only): `first_name`, `last_name`, `position`, `department`, `is_app_user`, `roles`, `is_primary`
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
-| `roles` | text[] | Autocomplete (multiple, from useRoles) | Required for RBAC — PRD §3.3.1 |
-| `is_app_user` | boolean | Checkbox | Required before nap_users login can be created |
-| `is_active` | boolean | Checkbox or Select | User-facing toggle (separate from soft delete) |
-| `address_line_3` | varchar(255) | TextField | Missing from address section — PRD §3.3.4 |
+| Field              | Type         | Expected Control   | Notes                                          |
+| ------------------ | ------------ | ------------------ | ---------------------------------------------- |
+| `is_active`      | boolean      | Checkbox or Select | User-facing toggle (separate from soft delete) |
+| `address_line_3` | varchar(255) | TextField          | Missing from address section — PRD §3.3.4    |
 
 ### Extra Fields (dialog has, PRD does not define)
 
-| Field | Notes |
-|-------|-------|
-| Vendor Contacts section (`first_name`, `last_name`, `position`, `is_primary`) | Not a PRD-defined sub-entity for vendors — contacts are a separate first-class entity. Verify if this is intentional vendor-specific UX |
+| Field                 | Notes                                                                                          |
+| --------------------- | ---------------------------------------------------------------------------------------------- |
 | Email `label` field | Emails table in PRD does not define a `label` column — this may be an extension beyond PRD |
 
 ### Fix Checklist
 
-- [ ] Add `roles` as Autocomplete (multiple) with options from `useRoles` hook
-- [ ] Add `is_app_user` as Checkbox (with conditional password flow like Employees)
 - [ ] Add `is_active` as Checkbox or Select (Yes/No)
 - [ ] Add `address_line_3` as TextField in address cards
-- [ ] Verify Vendor Contacts section against PRD intent — keep or remove
 
 ---
 
@@ -60,7 +54,7 @@
 
 - `code` (FieldRow)
 - `name` (FieldRow)
-- `payment_terms` (FieldRow)
+- `payment_term_id` (FieldRow)
 - `status` (StatusBadge)
 - `created_at` (FieldRow)
 - `updated_at` (FieldRow)
@@ -69,22 +63,18 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
-| `roles` | text[] | FieldRow (comma-joined) | Display assigned roles |
-| `is_app_user` | boolean | FieldRow | Show whether vendor has app login |
-| `is_active` | boolean | FieldRow | Show active/inactive status |
+| Field       | Type    | Expected Control | Notes                       |
+| ----------- | ------- | ---------------- | --------------------------- |
+| `is_active` | boolean | FieldRow         | Show active/inactive status |
 
 ### Extra Fields (dialog has, PRD does not define)
 
-| Field | Notes |
-|-------|-------|
-| (none beyond Vendor Contacts section noted in Create/Edit) | |
+| Field                                                      | Notes |
+| ---------------------------------------------------------- | ----- |
+| (none beyond Vendor Contacts section noted in Create/Edit) |       |
 
 ### Fix Checklist
 
-- [ ] Add `roles` as FieldRow display (comma-joined list)
-- [ ] Add `is_app_user` as FieldRow display (Yes/No)
 - [ ] Add `is_active` as FieldRow display (Yes/No)
 
 ---
@@ -105,19 +95,19 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
-| `email` | varchar(128) | TextField (type=email) | PRD §3.3.2 defines email on clients table |
-| `roles` | text[] | Autocomplete (multiple, from useRoles) | Required for RBAC |
-| `is_app_user` | boolean | Checkbox | Required before nap_users login can be created |
-| `is_active` | boolean | Checkbox or Select | User-facing toggle |
-| `address_line_3` | varchar(255) | TextField | Missing from address section |
+| Field              | Type         | Expected Control                       | Notes                                          |
+| ------------------ | ------------ | -------------------------------------- | ---------------------------------------------- |
+| `email`          | varchar(128) | TextField (type=email)                 | PRD §3.3.2 defines email on clients table     |
+| `roles`          | text[]       | Autocomplete (multiple, from useRoles) | Required for RBAC                              |
+| `is_app_user`    | boolean      | Checkbox                               | Required before nap_users login can be created |
+| `is_active`      | boolean      | Checkbox or Select                     | User-facing toggle                             |
+| `address_line_3` | varchar(255) | TextField                              | Missing from address section                   |
 
 ### Extra Fields (dialog has, PRD does not define)
 
-| Field | Notes |
-|-------|-------|
-| (none) | |
+| Field  | Notes |
+| ------ | ----- |
+| (none) |       |
 
 ### Fix Checklist
 
@@ -147,13 +137,13 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
-| `email` | varchar(128) | FieldRow | Primary client email |
-| `roles` | text[] | FieldRow (comma-joined) | Display assigned roles |
-| `is_app_user` | boolean | FieldRow | Show whether client has app login |
-| `is_active` | boolean | FieldRow | Show active/inactive |
-| `address_line_3` in View display | varchar(255) | Include in address concatenation | Currently only shows line 1 + 2 |
+| Field                              | Type         | Expected Control                 | Notes                             |
+| ---------------------------------- | ------------ | -------------------------------- | --------------------------------- |
+| `email`                          | varchar(128) | FieldRow                         | Primary client email              |
+| `roles`                          | text[]       | FieldRow (comma-joined)          | Display assigned roles            |
+| `is_app_user`                    | boolean      | FieldRow                         | Show whether client has app login |
+| `is_active`                      | boolean      | FieldRow                         | Show active/inactive              |
+| `address_line_3` in View display | varchar(255) | Include in address concatenation | Currently only shows line 1 + 2   |
 
 ### Fix Checklist
 
@@ -185,9 +175,9 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
-| (none) | | | All PRD fields present |
+| Field  | Type | Expected Control | Notes                  |
+| ------ | ---- | ---------------- | ---------------------- |
+| (none) |      |                  | All PRD fields present |
 
 > Note: Employees have NO `is_active` field per PRD — soft delete only via `deactivated_at`.
 
@@ -219,16 +209,16 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
-| `email` | varchar(128) | TextField | PRD §3.3.3 defines `email` directly on employees table. Currently only available via Emails sub-section — confirm if inline emails section satisfies this |
-| `address_line_3` | varchar(255) | TextField | Missing from address cards |
+| Field              | Type         | Expected Control | Notes                                                                                                                                                         |
+| ------------------ | ------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `email`          | varchar(128) | TextField        | PRD §3.3.3 defines `email` directly on employees table. Currently only available via Emails sub-section — confirm if inline emails section satisfies this |
+| `address_line_3` | varchar(255) | TextField        | Missing from address cards                                                                                                                                    |
 
 ### Extra Fields (dialog has, PRD does not define)
 
-| Field | Notes |
-|-------|-------|
-| Email `label` | Not in PRD phone/address schema — may be an extension |
+| Field              | Notes                                                        |
+| ------------------ | ------------------------------------------------------------ |
+| Email `label`    | Not in PRD phone/address schema — may be an extension       |
 | Email `is_login` | Not in PRD — custom UX for linking email to nap_users login |
 
 ### Fix Checklist
@@ -261,9 +251,9 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
-| `email` | varchar(128) | FieldRow | Shown via emails sub-section — verify if sufficient |
+| Field     | Type         | Expected Control | Notes                                                |
+| --------- | ------------ | ---------------- | ---------------------------------------------------- |
+| `email` | varchar(128) | FieldRow         | Shown via emails sub-section — verify if sufficient |
 
 ✅ Substantially complete — `email` is covered by the Emails collection display.
 
@@ -274,46 +264,34 @@
 **File:** `apps/nap-client/src/pages/Core/ContactsPage.jsx`
 **Branch:** `fix/dialog-contact-fields`
 
+Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC, no login.
+
 ### Fields Present
 
-- `source_id` (TextField, Create only, helperText: "UUID of the vendor, client, or employee source")
 - `name` (TextField, required) — Create + Edit
-- `position` (TextField) — Create + Edit
-- `is_primary` (Checkbox) — Create + Edit
+- `code` (TextField, maxLength 16) — Create + Edit
+- `is_active` (Checkbox) — Create + Edit
 - **Emails section** (inline edit, Edit only): `email`, `label`, `is_primary`
 - **Phone Numbers section** (inline edit, Edit only): `phone_type`, `country_code`, `phone_number`, `is_primary`
-- **Addresses section** (card-based, Edit only): all address fields
+- **Addresses section** (card-based, Edit only): `label`, `address_line_1`, `address_line_2`, `address_line_3`, `city`, `state_province`, `postal_code`, `country_code`, `is_primary`
 - **Tax Identifiers section** (inline edit, Edit only): `country_code`, `tax_type`, `tax_value`, `is_primary`
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
-| `code` | varchar(16) | TextField (maxLength 16) | Unique per tenant — PRD §3.3.4 |
-| `email` | varchar(128) | TextField (type=email) | PRD defines email on contacts table |
-| `roles` | text[] | Autocomplete (multiple) | Required for RBAC |
-| `is_app_user` | boolean | Checkbox | Required before nap_users login |
-| `is_active` | boolean | Checkbox or Select | User-facing toggle |
-| `address_line_3` | varchar(255) | TextField | Missing from address cards |
+(none)
 
 ### Extra Fields (dialog has, PRD does not define)
 
-| Field | Notes |
-|-------|-------|
-| `source_id` (Create) | PRD defines `source_id` as system FK — exposing raw UUID to users is unusual. Should be an Autocomplete lookup or hidden |
-| `position` | Not in PRD contacts table — may be from vendor contacts pattern |
-| `is_primary` | Not in PRD contacts table directly — may be from vendor contacts pattern |
+(none)
 
 ### Fix Checklist
 
-- [ ] Add `code` as TextField (maxLength 16) in Create + Edit
-- [ ] Add `email` as TextField (type=email)
-- [ ] Add `roles` as Autocomplete (multiple)
-- [ ] Add `is_app_user` as Checkbox
-- [ ] Add `is_active` as Checkbox or Select
-- [ ] Add `address_line_3` to address cards
-- [ ] Replace `source_id` raw UUID input with Autocomplete FK lookup or remove
-- [ ] Verify `position` and `is_primary` against PRD intent — these are not in the contacts table definition
+- [x] Add `code` as TextField (maxLength 16) in Create + Edit
+- [x] Add `is_active` as Checkbox
+- [x] Add `address_line_3` to address cards
+- [x] Remove `source_id` raw UUID input (auto-created server-side)
+- [x] Remove `position` and `is_primary` (not in contacts schema)
+- [x] Remove `roles` and `is_app_user` (contacts have no RBAC)
 
 ---
 
@@ -324,9 +302,9 @@
 
 ### Fields Present
 
+- `code` (FieldRow)
 - `name` (FieldRow)
-- `position` (FieldRow)
-- `is_primary` (FieldRow)
+- `is_active` (FieldRow)
 - `status` (StatusBadge)
 - `created_at` (FieldRow)
 - `updated_at` (FieldRow)
@@ -334,21 +312,13 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
-| `code` | varchar(16) | FieldRow | Unique contact code |
-| `email` | varchar(128) | FieldRow | Contact email |
-| `roles` | text[] | FieldRow (comma-joined) | Assigned roles |
-| `is_app_user` | boolean | FieldRow | App login status |
-| `is_active` | boolean | FieldRow | Active/inactive |
+(none)
 
 ### Fix Checklist
 
-- [ ] Add `code` as FieldRow display
-- [ ] Add `email` as FieldRow display
-- [ ] Add `roles` as FieldRow display
-- [ ] Add `is_app_user` as FieldRow display
-- [ ] Add `is_active` as FieldRow display
+- [x] Add `code` as FieldRow display
+- [x] Add `is_active` as FieldRow display
+- [x] Remove `position` and `is_primary` FieldRows (not in contacts schema)
 
 ---
 
@@ -366,17 +336,17 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
-| `is_active` | boolean | Checkbox or Select | PRD §3.3.5 — default true |
-| **Addresses section** | sub-form | Card-based address editor | Companies need addresses for billing/mailing/physical |
-| **Tax Identifiers section** | sub-form | Inline repeatable rows | Companies need tax IDs (EIN, VAT, etc.) |
+| Field                             | Type     | Expected Control          | Notes                                                 |
+| --------------------------------- | -------- | ------------------------- | ----------------------------------------------------- |
+| `is_active`                     | boolean  | Checkbox or Select        | PRD §3.3.5 — default true                           |
+| **Addresses section**       | sub-form | Card-based address editor | Companies need addresses for billing/mailing/physical |
+| **Tax Identifiers section** | sub-form | Inline repeatable rows    | Companies need tax IDs (EIN, VAT, etc.)               |
 
 ### Extra Fields (dialog has, PRD does not define)
 
-| Field | Notes |
-|-------|-------|
-| (none) | |
+| Field  | Notes |
+| ------ | ----- |
+| (none) |       |
 
 ### Fix Checklist
 
@@ -404,11 +374,11 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
-| `is_active` | boolean | FieldRow | Show active/inactive |
-| **Addresses display** | collection | DataGrid or card list | Show company addresses |
-| **Tax Identifiers display** | collection | DataGrid or inline list | Show company tax IDs |
+| Field                             | Type       | Expected Control        | Notes                  |
+| --------------------------------- | ---------- | ----------------------- | ---------------------- |
+| `is_active`                     | boolean    | FieldRow                | Show active/inactive   |
+| **Addresses display**       | collection | DataGrid or card list   | Show company addresses |
+| **Tax Identifiers display** | collection | DataGrid or inline list | Show company tax IDs   |
 
 ### Fix Checklist
 
@@ -426,6 +396,7 @@
 ### Fields Present
 
 **Step 1 — Tenant Details:**
+
 - `tenant_code` (TextField, required, maxLength 6, auto-uppercased)
 - `company` (TextField, required)
 - `status` (TextField, select: active/trial/suspended/pending)
@@ -435,10 +406,12 @@
 - `notes` (TextField, multiline)
 
 **Step 2 — Address & Tax:**
+
 - Billing address: `address_line_1`, `address_line_2`, `address_line_3`, `city`, `state_province`, `postal_code`, `country_code`
 - Tax identifiers: `country_code`, `tax_type`, `tax_value` (repeatable rows)
 
 **Step 3 — Admin User:**
+
 - `admin_first_name` (TextField, required)
 - `admin_last_name` (TextField, required)
 - `admin_email` (TextField, type=email, required)
@@ -446,8 +419,8 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
+| Field               | Type  | Expected Control               | Notes                                  |
+| ------------------- | ----- | ------------------------------ | -------------------------------------- |
 | `allowed_modules` | jsonb | Multi-select or Checkbox group | PRD §3.2.1 — module access whitelist |
 
 ### Fix Checklist
@@ -474,8 +447,8 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
+| Field               | Type  | Expected Control               | Notes       |
+| ------------------- | ----- | ------------------------------ | ----------- |
 | `allowed_modules` | jsonb | Multi-select or Checkbox group | PRD §3.2.1 |
 
 ### Fix Checklist
@@ -507,8 +480,8 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
+| Field               | Type  | Expected Control      | Notes                   |
+| ------------------- | ----- | --------------------- | ----------------------- |
 | `allowed_modules` | jsonb | FieldRow or chip list | Display enabled modules |
 
 ### Fix Checklist
@@ -530,16 +503,16 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
+| Field           | Type        | Expected Control                                              | Notes                                  |
+| --------------- | ----------- | ------------------------------------------------------------- | -------------------------------------- |
 | `entity_type` | varchar(16) | TextField (select: employee/vendor/client/contact) or display | PRD §3.2.2 — polymorphic entity link |
-| `entity_id` | uuid | Autocomplete FK lookup | PRD §3.2.2 — cross-schema reference |
-| `tenant_id` | uuid | Autocomplete or display | PRD §3.2.2 — FK to tenants |
+| `entity_id`   | uuid        | Autocomplete FK lookup                                        | PRD §3.2.2 — cross-schema reference  |
+| `tenant_id`   | uuid        | Autocomplete or display                                       | PRD §3.2.2 — FK to tenants           |
 
 ### Extra Fields (dialog has, PRD does not define)
 
-| Field | Notes |
-|-------|-------|
+| Field        | Notes                                                                                              |
+| ------------ | -------------------------------------------------------------------------------------------------- |
 | `password` | Not in PRD nap_users Edit — PRD uses separate reset-password endpoint. May be acceptable admin UX |
 
 ### Fix Checklist
@@ -565,10 +538,10 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
-| `entity_id` | uuid | FieldRow | Show linked entity reference |
-| `tenant_id` | uuid | FieldRow | Show tenant (or display tenant name) |
+| Field         | Type | Expected Control | Notes                                |
+| ------------- | ---- | ---------------- | ------------------------------------ |
+| `entity_id` | uuid | FieldRow         | Show linked entity reference         |
+| `tenant_id` | uuid | FieldRow         | Show tenant (or display tenant name) |
 
 ### Fix Checklist
 
@@ -592,11 +565,11 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
-| `company_id` | uuid | Autocomplete FK lookup to companies | PRD §3.4.1 — FK to companies (RESTRICT) |
-| `address_id` | uuid | Autocomplete FK lookup to addresses | PRD §3.4.1 — FK to addresses (SET NULL) |
-| `status` | varchar(20) | Select (planning/budgeting/released/complete/on_hold) | PRD §3.4.1 |
+| Field          | Type        | Expected Control                                      | Notes                                     |
+| -------------- | ----------- | ----------------------------------------------------- | ----------------------------------------- |
+| `company_id` | uuid        | Autocomplete FK lookup to companies                   | PRD §3.4.1 — FK to companies (RESTRICT) |
+| `address_id` | uuid        | Autocomplete FK lookup to addresses                   | PRD §3.4.1 — FK to addresses (SET NULL) |
+| `status`     | varchar(20) | Select (planning/budgeting/released/complete/on_hold) | PRD §3.4.1                               |
 
 ### Fix Checklist
 
@@ -622,12 +595,12 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
-| `company_id` | uuid | FieldRow (resolved to company name) | Show owning company |
-| `address_id` | uuid | FieldRow (resolved to address) | Show project address |
-| `description` | text | FieldRow | Project description |
-| `notes` | text | FieldRow | Internal notes |
+| Field           | Type | Expected Control                    | Notes                |
+| --------------- | ---- | ----------------------------------- | -------------------- |
+| `company_id`  | uuid | FieldRow (resolved to company name) | Show owning company  |
+| `address_id`  | uuid | FieldRow (resolved to address)      | Show project address |
+| `description` | text | FieldRow                            | Project description  |
+| `notes`       | text | FieldRow                            | Internal notes       |
 
 ### Fix Checklist
 
@@ -656,11 +629,11 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
-| `template_unit_id` | uuid | Autocomplete FK lookup | PRD §3.4.2 — FK to template_units |
-| `version_used` | integer | TextField (type=number) or display | PRD §3.4.2 — template version used |
-| `status` | varchar(20) | Select (draft/released/complete) | PRD §3.4.2 |
+| Field                | Type        | Expected Control                   | Notes                                |
+| -------------------- | ----------- | ---------------------------------- | ------------------------------------ |
+| `template_unit_id` | uuid        | Autocomplete FK lookup             | PRD §3.4.2 — FK to template_units  |
+| `version_used`     | integer     | TextField (type=number) or display | PRD §3.4.2 — template version used |
+| `status`           | varchar(20) | Select (draft/released/complete)   | PRD §3.4.2                          |
 
 > Note: `project_id` should be auto-populated from parent project context.
 
@@ -685,10 +658,10 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
-| `status` | varchar(20) | Select (pending/in_progress/complete/on_hold) | PRD §3.4.3 |
-| `parent_task_id` | uuid | Autocomplete FK lookup to tasks | PRD §3.4.3 — self-referential hierarchy |
+| Field              | Type        | Expected Control                              | Notes                                     |
+| ------------------ | ----------- | --------------------------------------------- | ----------------------------------------- |
+| `status`         | varchar(20) | Select (pending/in_progress/complete/on_hold) | PRD §3.4.3                               |
+| `parent_task_id` | uuid        | Autocomplete FK lookup to tasks               | PRD §3.4.3 — self-referential hierarchy |
 
 > Note: `unit_id` should be auto-populated from parent unit context.
 
@@ -714,8 +687,8 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
+| Field           | Type        | Expected Control             | Notes       |
+| --------------- | ----------- | ---------------------------- | ----------- |
 | `cost_source` | varchar(16) | Select (budget/change_order) | PRD §3.4.4 |
 
 > Note: `task_id` should be auto-populated from parent task context. `amount` is GENERATED (quantity × unit_cost) — display-only.
@@ -742,8 +715,8 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
+| Field      | Type        | Expected Control                           | Notes       |
+| ---------- | ----------- | ------------------------------------------ | ----------- |
 | `status` | varchar(20) | Select (draft/submitted/approved/rejected) | PRD §3.4.5 |
 
 ### Fix Checklist
@@ -769,10 +742,10 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
-| `unit_id` | uuid | FieldRow (resolved to unit name) | Show parent unit |
-| `reason` | text | FieldRow | Change order justification |
+| Field       | Type | Expected Control                 | Notes                      |
+| ----------- | ---- | -------------------------------- | -------------------------- |
+| `unit_id` | uuid | FieldRow (resolved to unit name) | Show parent unit           |
+| `reason`  | text | FieldRow                         | Change order justification |
 
 ### Fix Checklist
 
@@ -822,20 +795,22 @@
 ### Fields Present
 
 **Create:**
+
 - `deliverable_id` (TextField, select, required)
 - `activity_id` (TextField, select, required)
 - `budgeted_amount` (TextField, type=number, required)
 
 **Edit:**
+
 - `budgeted_amount` (TextField, type=number)
 - `status` (TextField, select: draft/submitted/approved/locked/rejected)
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
-| `version` | integer | TextField (type=number) or display | PRD §3.5.3 — version number |
-| `is_current` | boolean | Checkbox or display | PRD §3.5.3 — default true |
+| Field          | Type    | Expected Control                   | Notes                         |
+| -------------- | ------- | ---------------------------------- | ----------------------------- |
+| `version`    | integer | TextField (type=number) or display | PRD §3.5.3 — version number |
+| `is_current` | boolean | Checkbox or display                | PRD §3.5.3 — default true   |
 
 ### Fix Checklist
 
@@ -863,11 +838,11 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
-| `submitted_by` | uuid | FieldRow (resolved to user name) | PRD §3.5.3 |
-| `submitted_at` | timestamptz | FieldRow | PRD §3.5.3 |
-| `approved_by` | uuid | FieldRow (resolved to user name) | PRD §3.5.3 |
+| Field            | Type        | Expected Control                 | Notes       |
+| ---------------- | ----------- | -------------------------------- | ----------- |
+| `submitted_by` | uuid        | FieldRow (resolved to user name) | PRD §3.5.3 |
+| `submitted_at` | timestamptz | FieldRow                         | PRD §3.5.3 |
+| `approved_by`  | uuid        | FieldRow (resolved to user name) | PRD §3.5.3 |
 
 ### Fix Checklist
 
@@ -891,6 +866,7 @@
 ### Fields Present
 
 **Create:**
+
 - `activity_id` (TextField, select, required)
 - `amount` (TextField, type=number, required)
 - `currency` (TextField, maxLength 3)
@@ -898,6 +874,7 @@
 - `reference` (TextField)
 
 **Edit:**
+
 - `amount` (TextField, type=number)
 - `currency` (TextField, maxLength 3)
 - `approval_status` (TextField, select: pending/approved/rejected)
@@ -906,8 +883,8 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
+| Field          | Type | Expected Control                   | Notes                                                  |
+| -------------- | ---- | ---------------------------------- | ------------------------------------------------------ |
 | `project_id` | uuid | Autocomplete FK lookup to projects | PRD §3.5.5 — links cost to project for profitability |
 
 ### Fix Checklist
@@ -934,8 +911,8 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
+| Field          | Type | Expected Control                    | Notes               |
+| -------------- | ---- | ----------------------------------- | ------------------- |
 | `project_id` | uuid | FieldRow (resolved to project name) | Show linked project |
 
 ### Fix Checklist
@@ -979,6 +956,7 @@
 ### Fields Present
 
 **Create:**
+
 - `vendor_id` (TextField, select, required)
 - `invoice_number` (TextField, required)
 - `invoice_date` (TextField, type=date, required)
@@ -988,6 +966,7 @@
 - `notes` (TextField, multiline)
 
 **Edit:**
+
 - `invoice_number` (TextField, required)
 - `invoice_date` (TextField, type=date)
 - `due_date` (TextField, type=date)
@@ -997,11 +976,11 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
-| `company_id` | uuid | Autocomplete FK lookup to companies | PRD §3.7.1 — FK to companies (RESTRICT) |
-| `project_id` | uuid | Autocomplete FK lookup to projects | PRD §3.7.1 — FK to projects, required for cashflow |
-| `currency` | varchar(3) | TextField (default USD) | PRD §3.7.1 |
+| Field          | Type       | Expected Control                    | Notes                                                |
+| -------------- | ---------- | ----------------------------------- | ---------------------------------------------------- |
+| `company_id` | uuid       | Autocomplete FK lookup to companies | PRD §3.7.1 — FK to companies (RESTRICT)            |
+| `project_id` | uuid       | Autocomplete FK lookup to projects  | PRD §3.7.1 — FK to projects, required for cashflow |
+| `currency`   | varchar(3) | TextField (default USD)             | PRD §3.7.1                                          |
 
 ### Fix Checklist
 
@@ -1029,12 +1008,12 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
-| `company_id` | uuid | FieldRow (resolved to company name) | Show owning company |
-| `project_id` | uuid | FieldRow (resolved to project name) | Show linked project |
-| `currency` | varchar(3) | FieldRow | Currency code |
-| `notes` | text | FieldRow | Internal notes |
+| Field          | Type       | Expected Control                    | Notes               |
+| -------------- | ---------- | ----------------------------------- | ------------------- |
+| `company_id` | uuid       | FieldRow (resolved to company name) | Show owning company |
+| `project_id` | uuid       | FieldRow (resolved to project name) | Show linked project |
+| `currency`   | varchar(3) | FieldRow                            | Currency code       |
+| `notes`      | text       | FieldRow                            | Internal notes      |
 
 ### Fix Checklist
 
@@ -1060,6 +1039,7 @@
 ### Fields Present
 
 **Create:**
+
 - `vendor_id` (TextField, select, required)
 - `ap_invoice_id` (TextField, helperText "UUID (optional)")
 - `payment_date` (TextField, type=date, required)
@@ -1069,6 +1049,7 @@
 - `notes` (TextField, multiline)
 
 **Edit:**
+
 - `payment_date` (TextField, type=date)
 - `amount` (TextField, type=number)
 - `method` (TextField, select)
@@ -1100,10 +1081,10 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
+| Field             | Type | Expected Control                      | Notes               |
+| ----------------- | ---- | ------------------------------------- | ------------------- |
 | `ap_invoice_id` | uuid | FieldRow (resolved to invoice number) | Show linked invoice |
-| `notes` | text | FieldRow | Internal notes |
+| `notes`         | text | FieldRow                              | Internal notes      |
 
 ### Fix Checklist
 
@@ -1121,6 +1102,7 @@
 ### Fields Present
 
 **Create:**
+
 - `vendor_id` (TextField, select, required)
 - `ap_invoice_id` (TextField, helperText "UUID (optional)")
 - `credit_number` (TextField, required)
@@ -1130,6 +1112,7 @@
 - `reason` (TextField, multiline)
 
 **Edit:**
+
 - `credit_number` (TextField)
 - `credit_date` (TextField, type=date)
 - `amount` (TextField, type=number)
@@ -1162,8 +1145,8 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
+| Field             | Type | Expected Control                      | Notes               |
+| ----------------- | ---- | ------------------------------------- | ------------------- |
 | `ap_invoice_id` | uuid | FieldRow (resolved to invoice number) | Show linked invoice |
 
 ### Fix Checklist
@@ -1181,6 +1164,7 @@
 ### Fields Present
 
 **Create:**
+
 - `client_id` (TextField, select, required)
 - `invoice_number` (TextField, required)
 - `invoice_date` (TextField, type=date, required)
@@ -1190,6 +1174,7 @@
 - `notes` (TextField, multiline)
 
 **Edit:**
+
 - `invoice_number` (TextField)
 - `invoice_date` (TextField, type=date)
 - `due_date` (TextField, type=date)
@@ -1199,12 +1184,12 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
-| `company_id` | uuid | Autocomplete FK lookup to companies | PRD §3.8.1 — FK to companies (RESTRICT) |
-| `project_id` | uuid | Autocomplete FK lookup to projects | PRD §3.8.1 — FK to projects, required for revenue tracking |
-| `deliverable_id` | uuid | Autocomplete FK lookup to deliverables | PRD §3.8.1 — FK to deliverables (SET NULL) |
-| `currency` | varchar(3) | TextField (default USD) | PRD §3.8.1 |
+| Field              | Type       | Expected Control                       | Notes                                                        |
+| ------------------ | ---------- | -------------------------------------- | ------------------------------------------------------------ |
+| `company_id`     | uuid       | Autocomplete FK lookup to companies    | PRD §3.8.1 — FK to companies (RESTRICT)                    |
+| `project_id`     | uuid       | Autocomplete FK lookup to projects     | PRD §3.8.1 — FK to projects, required for revenue tracking |
+| `deliverable_id` | uuid       | Autocomplete FK lookup to deliverables | PRD §3.8.1 — FK to deliverables (SET NULL)                 |
+| `currency`       | varchar(3) | TextField (default USD)                | PRD §3.8.1                                                  |
 
 ### Fix Checklist
 
@@ -1233,13 +1218,13 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
-| `company_id` | uuid | FieldRow (resolved to company name) | Show owning company |
-| `project_id` | uuid | FieldRow (resolved to project name) | Show linked project |
-| `deliverable_id` | uuid | FieldRow (resolved to deliverable name) | Show linked deliverable |
-| `currency` | varchar(3) | FieldRow | Currency code |
-| `notes` | text | FieldRow | Internal notes |
+| Field              | Type       | Expected Control                        | Notes                   |
+| ------------------ | ---------- | --------------------------------------- | ----------------------- |
+| `company_id`     | uuid       | FieldRow (resolved to company name)     | Show owning company     |
+| `project_id`     | uuid       | FieldRow (resolved to project name)     | Show linked project     |
+| `deliverable_id` | uuid       | FieldRow (resolved to deliverable name) | Show linked deliverable |
+| `currency`       | varchar(3) | FieldRow                                | Currency code           |
+| `notes`          | text       | FieldRow                                | Internal notes          |
 
 ### Fix Checklist
 
@@ -1266,6 +1251,7 @@
 ### Fields Present
 
 **Create:**
+
 - `client_id` (TextField, select, required)
 - `ar_invoice_id` (TextField, helperText "UUID of the AR invoice")
 - `receipt_date` (TextField, type=date, required)
@@ -1275,6 +1261,7 @@
 - `notes` (TextField, multiline)
 
 **Edit:**
+
 - `receipt_date` (TextField, type=date)
 - `amount` (TextField, type=number)
 - `method` (TextField, select)
@@ -1306,10 +1293,10 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
+| Field             | Type | Expected Control                      | Notes               |
+| ----------------- | ---- | ------------------------------------- | ------------------- |
 | `ar_invoice_id` | uuid | FieldRow (resolved to invoice number) | Show linked invoice |
-| `notes` | text | FieldRow | Internal notes |
+| `notes`         | text | FieldRow                              | Internal notes      |
 
 ### Fix Checklist
 
@@ -1327,24 +1314,26 @@
 ### Fields Present
 
 **Create:**
+
 - `code` (TextField, required, maxLength 16)
 - `name` (TextField, required)
 - `type` (TextField, select: asset/liability/equity/income/expense/cash/bank)
 
 **Edit:**
+
 - `code` (TextField, disabled)
 - `name` (TextField, required)
 - `type` (TextField, select)
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
-| `is_active` | boolean | Checkbox or Select | PRD §3.9.1 — default true |
-| `cash_basis` | boolean | Checkbox | PRD §3.9.1 — default false |
-| `bank_account_number` | varchar(32) | TextField (conditional: type=cash/bank) | PRD §3.9.1 |
-| `routing_number` | varchar(16) | TextField (conditional: type=cash/bank) | PRD §3.9.1 |
-| `bank_name` | varchar(64) | TextField (conditional: type=cash/bank) | PRD §3.9.1 |
+| Field                   | Type        | Expected Control                        | Notes                        |
+| ----------------------- | ----------- | --------------------------------------- | ---------------------------- |
+| `is_active`           | boolean     | Checkbox or Select                      | PRD §3.9.1 — default true  |
+| `cash_basis`          | boolean     | Checkbox                                | PRD §3.9.1 — default false |
+| `bank_account_number` | varchar(32) | TextField (conditional: type=cash/bank) | PRD §3.9.1                  |
+| `routing_number`      | varchar(16) | TextField (conditional: type=cash/bank) | PRD §3.9.1                  |
+| `bank_name`           | varchar(64) | TextField (conditional: type=cash/bank) | PRD §3.9.1                  |
 
 ### Fix Checklist
 
@@ -1373,12 +1362,12 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
-| `is_active` | boolean | FieldRow | Verify if StatusBadge already maps this |
-| `bank_account_number` | varchar(32) | FieldRow (conditional: type=cash/bank) | |
-| `routing_number` | varchar(16) | FieldRow (conditional: type=cash/bank) | |
-| `bank_name` | varchar(64) | FieldRow (conditional: type=cash/bank) | |
+| Field                   | Type        | Expected Control                       | Notes                                   |
+| ----------------------- | ----------- | -------------------------------------- | --------------------------------------- |
+| `is_active`           | boolean     | FieldRow                               | Verify if StatusBadge already maps this |
+| `bank_account_number` | varchar(32) | FieldRow (conditional: type=cash/bank) |                                         |
+| `routing_number`      | varchar(16) | FieldRow (conditional: type=cash/bank) |                                         |
+| `bank_name`           | varchar(64) | FieldRow (conditional: type=cash/bank) |                                         |
 
 ### Fix Checklist
 
@@ -1402,11 +1391,11 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
-| `company_id` | uuid | Autocomplete FK lookup to companies | PRD §3.9.2 — FK to companies (RESTRICT) |
-| `project_id` | uuid | Autocomplete FK lookup to projects | PRD §3.9.2 — FK to projects, enables project-level GL |
-| `source_id` | uuid | TextField or Autocomplete | PRD §3.9.2 — reference to source record |
+| Field          | Type | Expected Control                    | Notes                                                   |
+| -------------- | ---- | ----------------------------------- | ------------------------------------------------------- |
+| `company_id` | uuid | Autocomplete FK lookup to companies | PRD §3.9.2 — FK to companies (RESTRICT)               |
+| `project_id` | uuid | Autocomplete FK lookup to projects  | PRD §3.9.2 — FK to projects, enables project-level GL |
+| `source_id`  | uuid | TextField or Autocomplete           | PRD §3.9.2 — reference to source record               |
 
 > Note: `corrects_id` is system-managed for reversals — expected absent from Create/Edit.
 
@@ -1435,12 +1424,12 @@
 
 ### Missing Fields (PRD defines, dialog omits)
 
-| Field | Type | Expected Control | Notes |
-|-------|------|-----------------|-------|
-| `company_id` | uuid | FieldRow (resolved to company name) | |
-| `project_id` | uuid | FieldRow (resolved to project name) | |
-| `source_id` | uuid | FieldRow | Reference to source record |
-| `corrects_id` | uuid | FieldRow (resolved to entry reference) | Show reversal chain |
+| Field           | Type | Expected Control                       | Notes                      |
+| --------------- | ---- | -------------------------------------- | -------------------------- |
+| `company_id`  | uuid | FieldRow (resolved to company name)    |                            |
+| `project_id`  | uuid | FieldRow (resolved to project name)    |                            |
+| `source_id`   | uuid | FieldRow                               | Reference to source record |
+| `corrects_id` | uuid | FieldRow (resolved to entry reference) | Show reversal chain        |
 
 ### Fix Checklist
 
@@ -1492,93 +1481,93 @@
 
 ## Summary
 
-| Entity | Dialog Type | Missing Fields | Extra Fields | Status |
-|--------|-------------|---------------|-------------|--------|
-| Vendor | Create/Edit | 4 | 2 | ⚠️ Needs Fix |
-| Vendor | View | 3 | 0 | ⚠️ Needs Fix |
-| Client | Create/Edit | 5 | 0 | ⚠️ Needs Fix |
-| Client | View | 5 | 0 | ⚠️ Needs Fix |
-| Employee | Create | 0 | 0 | ✅ OK |
-| Employee | Edit | 2 | 2 | ⚠️ Minor |
-| Employee | View | 0 | 0 | ✅ OK |
-| Contact | Create/Edit | 6 | 3 | ⚠️ Needs Fix |
-| Contact | View | 5 | 0 | ⚠️ Needs Fix |
-| Company | Create/Edit | 3 (1 field + 2 sub-sections) | 0 | ⚠️ Needs Fix |
-| Company | View | 3 (1 field + 2 collections) | 0 | ⚠️ Needs Fix |
-| Tenant | Create (Wizard) | 1 | 0 | ⚠️ Needs Fix |
-| Tenant | Edit | 1 | 0 | ⚠️ Needs Fix |
-| Tenant | View | 1 | 0 | ⚠️ Needs Fix |
-| nap_users | Edit | 3 | 1 | ⚠️ Needs Fix |
-| nap_users | View | 2 | 0 | ⚠️ Needs Fix |
-| Project | Create/Edit | 3 | 0 | ⚠️ Needs Fix |
-| Project | View | 4 | 0 | ⚠️ Needs Fix |
-| Project Clients | — | — | — | 🔴 Not Implemented |
-| Unit | Create/Edit | 3 | 0 | ⚠️ Needs Fix |
-| Task | Create/Edit | 2 | 0 | ⚠️ Needs Fix |
-| Cost Item | Create/Edit | 1 | 0 | ⚠️ Needs Fix |
-| Change Order | Create/Edit | 1 | 0 | ⚠️ Needs Fix |
-| Change Order | View | 2 | 0 | ⚠️ Needs Fix |
-| Category | All | 0 | 0 | ✅ OK |
-| Activity | All | 0 | 0 | ✅ OK |
-| Deliverable | All | 0 | 0 | ✅ OK |
-| Deliverable Assignment | — | — | — | 🔴 Not Implemented |
-| Budget | Create/Edit | 2 | 0 | ⚠️ Needs Fix |
-| Budget | View | 3 | 0 | ⚠️ Needs Fix |
-| Cost Line | — | — | — | 🔴 Not Implemented |
-| Actual Cost | Create/Edit | 1 | 0 | ⚠️ Needs Fix |
-| Actual Cost | View | 1 | 0 | ⚠️ Needs Fix |
-| Vendor Part | — | — | — | 🔴 Not Implemented |
-| Catalog SKU | All | 0 | 0 | ✅ OK |
-| Vendor SKU | — | — | — | 🔴 Not Implemented (matching UI only) |
-| Vendor Pricing | — | — | — | 🔴 Not Implemented |
-| AP Invoice | Create/Edit | 3 | 0 | ⚠️ Needs Fix |
-| AP Invoice | View | 4 | 0 | ⚠️ Needs Fix |
-| AP Invoice Line | — | — | — | 🔴 Not Implemented |
-| Payment | Create/Edit | 0 | 0 | ✅ OK |
-| Payment | View | 2 | 0 | ⚠️ Needs Fix |
-| AP Credit Memo | Create/Edit | 0 | 0 | ✅ OK |
-| AP Credit Memo | View | 1 | 0 | ⚠️ Needs Fix |
-| AR Invoice | Create/Edit | 4 | 0 | ⚠️ Needs Fix |
-| AR Invoice | View | 5 | 0 | ⚠️ Needs Fix |
-| AR Invoice Line | — | — | — | 🔴 Not Implemented |
-| Receipt | Create/Edit | 0 | 0 | ✅ OK |
-| Receipt | View | 2 | 0 | ⚠️ Needs Fix |
-| Chart of Accounts | Create/Edit | 5 | 0 | ⚠️ Needs Fix |
-| Chart of Accounts | View | 3 | 0 | ⚠️ Needs Fix |
-| Journal Entry | Create/Edit | 3 | 0 | ⚠️ Needs Fix |
-| Journal Entry | View | 4 | 0 | ⚠️ Needs Fix |
-| Journal Entry Line | — | — | — | 🔴 Not Implemented |
-| Task Group | — | — | — | 🔴 Not Implemented |
-| Tasks Master | — | — | — | 🔴 Not Implemented |
-| Numbering Config | Settings | 0 | 0 | ✅ OK |
+| Entity                 | Dialog Type     | Missing Fields               | Extra Fields | Status                                |
+| ---------------------- | --------------- | ---------------------------- | ------------ | ------------------------------------- |
+| Vendor                 | Create/Edit     | 4                            | 2            | ⚠️ Needs Fix                        |
+| Vendor                 | View            | 3                            | 0            | ⚠️ Needs Fix                        |
+| Client                 | Create/Edit     | 5                            | 0            | ⚠️ Needs Fix                        |
+| Client                 | View            | 5                            | 0            | ⚠️ Needs Fix                        |
+| Employee               | Create          | 0                            | 0            | ✅ OK                                 |
+| Employee               | Edit            | 2                            | 2            | ⚠️ Minor                            |
+| Employee               | View            | 0                            | 0            | ✅ OK                                 |
+| Contact                | Create/Edit     | 6                            | 3            | ⚠️ Needs Fix                        |
+| Contact                | View            | 5                            | 0            | ⚠️ Needs Fix                        |
+| Company                | Create/Edit     | 3 (1 field + 2 sub-sections) | 0            | ⚠️ Needs Fix                        |
+| Company                | View            | 3 (1 field + 2 collections)  | 0            | ⚠️ Needs Fix                        |
+| Tenant                 | Create (Wizard) | 1                            | 0            | ⚠️ Needs Fix                        |
+| Tenant                 | Edit            | 1                            | 0            | ⚠️ Needs Fix                        |
+| Tenant                 | View            | 1                            | 0            | ⚠️ Needs Fix                        |
+| nap_users              | Edit            | 3                            | 1            | ⚠️ Needs Fix                        |
+| nap_users              | View            | 2                            | 0            | ⚠️ Needs Fix                        |
+| Project                | Create/Edit     | 3                            | 0            | ⚠️ Needs Fix                        |
+| Project                | View            | 4                            | 0            | ⚠️ Needs Fix                        |
+| Project Clients        | —              | —                           | —           | 🔴 Not Implemented                    |
+| Unit                   | Create/Edit     | 3                            | 0            | ⚠️ Needs Fix                        |
+| Task                   | Create/Edit     | 2                            | 0            | ⚠️ Needs Fix                        |
+| Cost Item              | Create/Edit     | 1                            | 0            | ⚠️ Needs Fix                        |
+| Change Order           | Create/Edit     | 1                            | 0            | ⚠️ Needs Fix                        |
+| Change Order           | View            | 2                            | 0            | ⚠️ Needs Fix                        |
+| Category               | All             | 0                            | 0            | ✅ OK                                 |
+| Activity               | All             | 0                            | 0            | ✅ OK                                 |
+| Deliverable            | All             | 0                            | 0            | ✅ OK                                 |
+| Deliverable Assignment | —              | —                           | —           | 🔴 Not Implemented                    |
+| Budget                 | Create/Edit     | 2                            | 0            | ⚠️ Needs Fix                        |
+| Budget                 | View            | 3                            | 0            | ⚠️ Needs Fix                        |
+| Cost Line              | —              | —                           | —           | 🔴 Not Implemented                    |
+| Actual Cost            | Create/Edit     | 1                            | 0            | ⚠️ Needs Fix                        |
+| Actual Cost            | View            | 1                            | 0            | ⚠️ Needs Fix                        |
+| Vendor Part            | —              | —                           | —           | 🔴 Not Implemented                    |
+| Catalog SKU            | All             | 0                            | 0            | ✅ OK                                 |
+| Vendor SKU             | —              | —                           | —           | 🔴 Not Implemented (matching UI only) |
+| Vendor Pricing         | —              | —                           | —           | 🔴 Not Implemented                    |
+| AP Invoice             | Create/Edit     | 3                            | 0            | ⚠️ Needs Fix                        |
+| AP Invoice             | View            | 4                            | 0            | ⚠️ Needs Fix                        |
+| AP Invoice Line        | —              | —                           | —           | 🔴 Not Implemented                    |
+| Payment                | Create/Edit     | 0                            | 0            | ✅ OK                                 |
+| Payment                | View            | 2                            | 0            | ⚠️ Needs Fix                        |
+| AP Credit Memo         | Create/Edit     | 0                            | 0            | ✅ OK                                 |
+| AP Credit Memo         | View            | 1                            | 0            | ⚠️ Needs Fix                        |
+| AR Invoice             | Create/Edit     | 4                            | 0            | ⚠️ Needs Fix                        |
+| AR Invoice             | View            | 5                            | 0            | ⚠️ Needs Fix                        |
+| AR Invoice Line        | —              | —                           | —           | 🔴 Not Implemented                    |
+| Receipt                | Create/Edit     | 0                            | 0            | ✅ OK                                 |
+| Receipt                | View            | 2                            | 0            | ⚠️ Needs Fix                        |
+| Chart of Accounts      | Create/Edit     | 5                            | 0            | ⚠️ Needs Fix                        |
+| Chart of Accounts      | View            | 3                            | 0            | ⚠️ Needs Fix                        |
+| Journal Entry          | Create/Edit     | 3                            | 0            | ⚠️ Needs Fix                        |
+| Journal Entry          | View            | 4                            | 0            | ⚠️ Needs Fix                        |
+| Journal Entry Line     | —              | —                           | —           | 🔴 Not Implemented                    |
+| Task Group             | —              | —                           | —           | 🔴 Not Implemented                    |
+| Tasks Master           | —              | —                           | —           | 🔴 Not Implemented                    |
+| Numbering Config       | Settings        | 0                            | 0            | ✅ OK                                 |
 
 ---
 
 ## Branch Plan
 
-| Branch | Dialogs Covered | Est. Changes |
-|--------|----------------|-------------|
-| `fix/dialog-vendor-fields` | Vendor Create/Edit/View | 7 |
-| `fix/dialog-client-fields` | Client Create/Edit/View | 10 |
-| `fix/dialog-employee-fields` | Employee Edit/View (minor) | 2 |
-| `fix/dialog-contact-fields` | Contact Create/Edit/View | 14 |
-| `fix/dialog-company-fields` | Company Create/Edit/View + address & tax-id sub-sections | 7 |
-| `fix/dialog-tenant-fields` | Tenant Create (Wizard), Edit, View | 3 |
-| `fix/dialog-user-fields` | nap_users Edit/View | 5 |
-| `fix/dialog-project-fields` | Project Create/Edit/View | 7 |
-| `fix/dialog-unit-fields` | Unit Create/Edit (inline in ProjectDetailPage) | 3 |
-| `fix/dialog-task-fields` | Task Create/Edit (inline in ProjectDetailPage) | 2 |
-| `fix/dialog-cost-item-fields` | Cost Item Create/Edit (inline in ProjectDetailPage) | 2 |
-| `fix/dialog-change-order-fields` | Change Order Create/Edit/View | 4 |
-| `fix/dialog-budget-fields` | Budget Create/View | 5 |
-| `fix/dialog-actual-cost-fields` | Actual Cost Create/Edit/View | 2 |
-| `fix/dialog-ap-invoice-fields` | AP Invoice Create/Edit/View | 7 |
-| `fix/dialog-payment-fields` | Payment Create/View | 3 |
-| `fix/dialog-credit-memo-fields` | AP Credit Memo Create/View | 2 |
-| `fix/dialog-ar-invoice-fields` | AR Invoice Create/Edit/View | 9 |
-| `fix/dialog-receipt-fields` | Receipt Create/View | 3 |
-| `fix/dialog-chart-of-accounts-fields` | Chart of Accounts Create/Edit/View | 8 |
-| `fix/dialog-journal-entry-fields` | Journal Entry Create/Edit/View | 7 |
+| Branch                                  | Dialogs Covered                                          | Est. Changes |
+| --------------------------------------- | -------------------------------------------------------- | ------------ |
+| `fix/dialog-vendor-fields`            | Vendor Create/Edit/View                                  | 7            |
+| `fix/dialog-client-fields`            | Client Create/Edit/View                                  | 10           |
+| `fix/dialog-employee-fields`          | Employee Edit/View (minor)                               | 2            |
+| `fix/dialog-contact-fields`           | Contact Create/Edit/View                                 | 14           |
+| `fix/dialog-company-fields`           | Company Create/Edit/View + address & tax-id sub-sections | 7            |
+| `fix/dialog-tenant-fields`            | Tenant Create (Wizard), Edit, View                       | 3            |
+| `fix/dialog-user-fields`              | nap_users Edit/View                                      | 5            |
+| `fix/dialog-project-fields`           | Project Create/Edit/View                                 | 7            |
+| `fix/dialog-unit-fields`              | Unit Create/Edit (inline in ProjectDetailPage)           | 3            |
+| `fix/dialog-task-fields`              | Task Create/Edit (inline in ProjectDetailPage)           | 2            |
+| `fix/dialog-cost-item-fields`         | Cost Item Create/Edit (inline in ProjectDetailPage)      | 2            |
+| `fix/dialog-change-order-fields`      | Change Order Create/Edit/View                            | 4            |
+| `fix/dialog-budget-fields`            | Budget Create/View                                       | 5            |
+| `fix/dialog-actual-cost-fields`       | Actual Cost Create/Edit/View                             | 2            |
+| `fix/dialog-ap-invoice-fields`        | AP Invoice Create/Edit/View                              | 7            |
+| `fix/dialog-payment-fields`           | Payment Create/View                                      | 3            |
+| `fix/dialog-credit-memo-fields`       | AP Credit Memo Create/View                               | 2            |
+| `fix/dialog-ar-invoice-fields`        | AR Invoice Create/Edit/View                              | 9            |
+| `fix/dialog-receipt-fields`           | Receipt Create/View                                      | 3            |
+| `fix/dialog-chart-of-accounts-fields` | Chart of Accounts Create/Edit/View                       | 8            |
+| `fix/dialog-journal-entry-fields`     | Journal Entry Create/Edit/View                           | 7            |
 
 **Total: 21 branches, ~102 field changes**
 
@@ -1590,21 +1579,22 @@ The following components and hooks are used by multiple dialog branches. Branche
 
 ### Shared Components
 
-| Component | File | Used By Branches |
-|-----------|------|-----------------|
-| `FormDialog` | `src/components/shared/FormDialog.jsx` | All 21 branches (wrapper only — no field changes needed) |
-| `FieldRow` | `src/components/shared/FieldRow.jsx` | All branches with View dialogs (display only — no changes needed) |
-| `StatusBadge` | `src/components/shared/StatusBadge.jsx` | All branches with View dialogs (display only — no changes needed) |
-| `PatternTextField` | `src/components/shared/PatternTextField.jsx` | `fix/dialog-vendor-fields`, `fix/dialog-client-fields`, `fix/dialog-employee-fields`, `fix/dialog-contact-fields` |
-| `StepperFormDialog` | `src/components/shared/StepperFormDialog.jsx` | `fix/dialog-tenant-fields` (wrapper only — no changes needed) |
-| `PasswordField` | `src/components/shared/PasswordField.jsx` | `fix/dialog-tenant-fields`, `fix/dialog-user-fields` (no changes needed) |
+| Component                                          | File                                                       | Used By Branches                                                                                                                                         |
+| -------------------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `FormDialog`                                     | `src/components/shared/FormDialog.jsx`                   | All 21 branches (wrapper only — no field changes needed)                                                                                                |
+| `FieldRow`                                       | `src/components/shared/FieldRow.jsx`                     | All branches with View dialogs (display only — no changes needed)                                                                                       |
+| `StatusBadge`                                    | `src/components/shared/StatusBadge.jsx`                  | All branches with View dialogs (display only — no changes needed)                                                                                       |
+| `PatternTextField`                               | `src/components/shared/PatternTextField.jsx`             | `fix/dialog-vendor-fields`, `fix/dialog-client-fields`, `fix/dialog-employee-fields`, `fix/dialog-contact-fields`                                |
+| `StepperFormDialog`                              | `src/components/shared/StepperFormDialog.jsx`            | `fix/dialog-tenant-fields` (wrapper only — no changes needed)                                                                                         |
+| `PasswordField`                                  | `src/components/shared/PasswordField.jsx`                | `fix/dialog-tenant-fields`, `fix/dialog-user-fields` (no changes needed)                                                                             |
 | Inline phone/email/address/tax-id editing patterns | Duplicated code in each Core page (NOT a shared component) | `fix/dialog-vendor-fields`, `fix/dialog-client-fields`, `fix/dialog-employee-fields`, `fix/dialog-contact-fields`, `fix/dialog-company-fields` |
-| `layoutTokens.js` | `src/config/layoutTokens.js` | All branches (read-only import — no changes needed) |
-| `useRoles` hook | `src/hooks/useRoles.js` | `fix/dialog-vendor-fields`, `fix/dialog-client-fields`, `fix/dialog-contact-fields` (new import — no hook changes needed) |
+| `layoutTokens.js`                                | `src/config/layoutTokens.js`                             | All branches (read-only import — no changes needed)                                                                                                     |
+| `useRoles` hook                                  | `src/hooks/useRoles.js`                                  | `fix/dialog-vendor-fields`, `fix/dialog-client-fields`, `fix/dialog-contact-fields` (new import — no hook changes needed)                         |
 
 ### Merge Order Recommendations
 
 **Group A — Independent (no shared component conflicts, merge in any order):**
+
 - `fix/dialog-tenant-fields`
 - `fix/dialog-user-fields`
 - `fix/dialog-project-fields`
@@ -1623,6 +1613,7 @@ The following components and hooks are used by multiple dialog branches. Branche
 - `fix/dialog-journal-entry-fields`
 
 **Group B — Core entity pages with duplicated inline source patterns (merge sequentially if shared extraction is done):**
+
 1. `fix/dialog-vendor-fields` — merge first (largest Core entity, establishes pattern for `roles`/`is_app_user`/`is_active`)
 2. `fix/dialog-client-fields` — rebase onto dev after step 1
 3. `fix/dialog-contact-fields` — rebase onto dev after step 2
@@ -1637,11 +1628,46 @@ The following components and hooks are used by multiple dialog branches. Branche
 **Required change:** Currently, each Core page (except Companies) duplicates ~200 lines of inline editing logic for phone numbers, emails, addresses, and tax identifiers. Adding `address_line_3` to the address section requires changing this duplicated code in 4 files independently. CompaniesPage has no source sub-sections at all and needs them added from scratch.
 **Affects dialogs:** Vendor, Client, Employee, Contact, Company Edit dialogs
 **Recommended action:**
-  1. *Optional but recommended*: Extract the inline phone/email/address/tax-id sections into shared components (e.g., `<PhoneNumberSection>`, `<AddressSection>`, `<TaxIdSection>`, `<EmailsSection>`) in a prerequisite branch: `fix/shared-entity-form-sections`
-  2. Cut all 5 Core entity dialog branches from `fix/shared-entity-form-sections`
-  3. Open `fix/shared-entity-form-sections` as a PR first — it simplifies all 5 dialog PRs (especially CompaniesPage which currently has NO source sub-sections)
-  4. If NOT extracting shared components, each branch independently adds `address_line_3` to its own inline code and CompaniesPage duplicates ~200 lines of inline editing logic from other Core pages — safe to merge in parallel but significantly increases code duplication
+
+1. *Optional but recommended*: Extract the inline phone/email/address/tax-id sections into shared components (e.g., `<PhoneNumberSection>`, `<AddressSection>`, `<TaxIdSection>`, `<EmailsSection>`) in a prerequisite branch: `fix/shared-entity-form-sections`
+2. Cut all 5 Core entity dialog branches from `fix/shared-entity-form-sections`
+3. Open `fix/shared-entity-form-sections` as a PR first — it simplifies all 5 dialog PRs (especially CompaniesPage which currently has NO source sub-sections)
+4. If NOT extracting shared components, each branch independently adds `address_line_3` to its own inline code and CompaniesPage duplicates ~200 lines of inline editing logic from other Core pages — safe to merge in parallel but significantly increases code duplication
 
 **⛔ Do NOT embed this shared component change inside any dialog branch.** Shared component changes buried in dialog PRs create silent regressions in sibling branches that use the same component.
 
 ✅ All other missing fields can be added at the dialog level — no other shared component changes required.
+
+---
+
+## Payment Terms — Create/Edit Dialog
+
+**File:** `apps/nap-client/src/pages/Settings/PaymentTermsPage.jsx`
+**Branch:** `fix/dialog-fields`
+
+### Fields Present
+
+- `label` (TextField, required) — Create + Edit
+- `term` (TextField, type=number, required) — Create + Edit
+- `units` (Select: days/months) — Create + Edit
+- `is_active` (Select: Yes/No) — Edit only
+
+✅ All schema fields present in dialog.
+
+---
+
+## Payment Terms — View Dialog
+
+**File:** `apps/nap-client/src/pages/Settings/PaymentTermsPage.jsx`
+**Branch:** `fix/dialog-fields`
+
+### Fields Present
+
+- `label` (FieldRow)
+- `term` (FieldRow)
+- `units` (FieldRow)
+- `is_active` (FieldRow)
+- `created_at` (FieldRow)
+- `updated_at` (FieldRow)
+
+✅ All fields present.

@@ -28,6 +28,7 @@ import Companies from './models/Companies.js';
 import TaxIdentifiers from './models/TaxIdentifiers.js';
 import Emails from './models/Emails.js';
 import VendorContacts from './models/VendorContacts.js';
+import PaymentTerms from './models/PaymentTerms.js';
 import TenantNumberingConfig from './models/TenantNumberingConfig.js';
 import TenantNumberSequenceState from './models/TenantNumberSequenceState.js';
 
@@ -54,6 +55,7 @@ const repositories = {
   taxIdentifiers: TaxIdentifiers,
   emails: Emails,
   vendorContacts: VendorContacts,
+  paymentTerms: PaymentTerms,
 
   // Numbering system
   tenantNumberingConfig: TenantNumberingConfig,

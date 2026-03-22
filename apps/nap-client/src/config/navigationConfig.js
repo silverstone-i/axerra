@@ -132,6 +132,7 @@ export const NAV_ITEMS = [
     capability: 'core::',
     children: [
       { label: 'Numbering', path: '/settings/numbering', capability: 'core::numbering-config' },
+      { label: 'Payment Terms', path: '/settings/payment-terms', capability: 'core::payment-terms' },
     ],
   },
   {

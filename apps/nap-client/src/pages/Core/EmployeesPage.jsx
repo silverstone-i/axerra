@@ -9,6 +9,7 @@
  */
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -37,9 +38,13 @@ import PatternTextField from '../../components/shared/PatternTextField.jsx';
 import ResetPasswordDialog from '../../components/shared/ResetPasswordDialog.jsx';
 import SetPasswordPopover from '../../components/shared/SetPasswordPopover.jsx';
 import StatusBadge from '../../components/shared/StatusBadge.jsx';
+import EmailsSection from '../../components/shared/EmailsSection.jsx';
+import PhoneNumbersSection from '../../components/shared/PhoneNumbersSection.jsx';
+import AddressesSection from '../../components/shared/AddressesSection.jsx';
+import TaxIdentifiersSection from '../../components/shared/TaxIdentifiersSection.jsx';
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
 import {
-  useEmployees, useCreateEmployee, useUpdateEmployee, useArchiveEmployee, useRestoreEmployee,
+  useEmployees, useCreateEmployee, useUpdateEmployee, useArchiveEmployee, useRestoreEmployee, useResetEmployeePassword,
 } from '../../hooks/useEmployees.js';
 import { useRoles } from '../../hooks/useRoles.js';
 import {
@@ -77,7 +82,7 @@ const EMAIL_LABELS = ['work', 'personal', 'billing', 'other'];
 const BLANK_PHONE = { country_code: 'US', phone_type: 'cell', phone_number: '', is_primary: false };
 const BLANK_EMAIL = { email: '', label: 'work', is_primary: false, is_login: false };
 const BLANK_ADDRESS = {
-  label: '', address_line_1: '', address_line_2: '', city: '',
+  label: '', address_line_1: '', address_line_2: '', address_line_3: '', city: '',
   state_province: '', postal_code: '', country_code: 'US', is_primary: false,
 };
 const BLANK_TAX_ID = { country_code: 'US', tax_type: 'TIN', tax_value: '', is_primary: false };
@@ -106,6 +111,7 @@ const columns = [
 ];
 
 export default function EmployeesPage() {
+  const qc = useQueryClient();
   const { user } = useAuth();
   const caps = user?.perms?.caps || {};
   const canResetPassword = resolveLevel(caps, 'core', '', 'reset-password') === 'full';
@@ -129,6 +135,7 @@ export default function EmployeesPage() {
   const updateMut = useUpdateEmployee();
   const archiveMut = useArchiveEmployee();
   const restoreMut = useRestoreEmployee();
+  const resetPwMut = useResetEmployeePassword();
 
   const importMut = useImportXls(employeeApi.importXls, ['employees']);
   const exportMut = useExportXls(employeeApi.exportXls, 'employees');
@@ -359,7 +366,7 @@ export default function EmployeesPage() {
     };
     if (collectionChanged(editPhones, init.phones, ['country_code', 'phone_type', 'phone_number', 'is_primary'])) return true;
     if (collectionChanged(editEmails, init.emails, ['email', 'label', 'is_primary', 'is_login'])) return true;
-    if (collectionChanged(editAddresses, init.addresses, ['label', 'address_line_1', 'address_line_2', 'city', 'state_province', 'postal_code', 'country_code', 'is_primary'])) return true;
+    if (collectionChanged(editAddresses, init.addresses, ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code', 'is_primary'])) return true;
     if (collectionChanged(editTaxIds, init.taxIds, ['country_code', 'tax_type', 'tax_value', 'is_primary'])) return true;
     return false;
   }, [editForm, editPhones, editEmails, editAddresses, editTaxIds]);
@@ -439,6 +446,9 @@ export default function EmployeesPage() {
         }
       }
 
+      if (editForm.is_app_user !== editRow.is_app_user) {
+        qc.invalidateQueries({ queryKey: ['nap-users'] });
+      }
       toast('Employee updated');
       setEditOpen(false);
       setEditRow(null);
@@ -591,71 +601,10 @@ export default function EmployeesPage() {
                 <FieldRow label="Updated" value={fmtDate(viewEmployee.updated_at)} />
               </Box>
 
-              {/* ── Phone Numbers ──────────────────────────────── */}
-              {viewPhones.length > 0 && (
-                <>
-                  <Divider />
-                  <Typography variant="subtitle2" color="text.secondary">Phone Numbers</Typography>
-                  {viewPhones.map((p) => (
-                    <Box key={p.id} sx={detailGridSx}>
-                      <FieldRow label="Type" value={p.phone_type} />
-                      <FieldRow label="Number" value={p.phone_number} />
-                      <FieldRow label="Primary" value={p.is_primary ? 'Yes' : 'No'} />
-                    </Box>
-                  ))}
-                </>
-              )}
-
-              {/* ── Emails ──────────────────────────────────── */}
-              {viewEmails.length > 0 && (
-                <>
-                  <Divider />
-                  <Typography variant="subtitle2" color="text.secondary">Emails</Typography>
-                  {viewEmails.map((em) => (
-                    <Box key={em.id} sx={detailGridSx}>
-                      <FieldRow label="Email" value={em.email} />
-                      <FieldRow label="Label" value={cap(em.label)} />
-                      <FieldRow label="Primary" value={em.is_primary ? 'Yes' : 'No'} />
-                      {em.is_login && <FieldRow label="Login" value="Yes" />}
-                    </Box>
-                  ))}
-                </>
-              )}
-
-              {/* ── Addresses ─────────────────────────────────── */}
-              {viewAddresses.length > 0 && (
-                <>
-                  <Divider />
-                  <Typography variant="subtitle2" color="text.secondary">Addresses</Typography>
-                  {viewAddresses.map((a) => (
-                    <Box key={a.id} sx={detailGridSx}>
-                      <FieldRow label="Label" value={a.label || '\u2014'} />
-                      <FieldRow label="Address" value={[a.address_line_1, a.address_line_2, a.address_line_3].filter(Boolean).join(', ') || '\u2014'} />
-                      <FieldRow label="City" value={a.city || '\u2014'} />
-                      <FieldRow label="State" value={a.state_province || '\u2014'} />
-                      <FieldRow label="Postal Code" value={a.postal_code || '\u2014'} />
-                      <FieldRow label="Country" value={a.country_code || '\u2014'} />
-                      <FieldRow label="Primary" value={a.is_primary ? 'Yes' : 'No'} />
-                    </Box>
-                  ))}
-                </>
-              )}
-
-              {/* ── Tax Identifiers ───────────────────────────── */}
-              {viewTaxIds.length > 0 && (
-                <>
-                  <Divider />
-                  <Typography variant="subtitle2" color="text.secondary">Tax Identifiers</Typography>
-                  {viewTaxIds.map((t) => (
-                    <Box key={t.id} sx={detailGridSx}>
-                      <FieldRow label="Country" value={t.country_code} />
-                      <FieldRow label="Type" value={t.tax_type} />
-                      <FieldRow label="Value" value={t.tax_value} />
-                      <FieldRow label="Primary" value={t.is_primary ? 'Yes' : 'No'} />
-                    </Box>
-                  ))}
-                </>
-              )}
+              <PhoneNumbersSection phones={viewPhones} />
+              <EmailsSection emails={viewEmails} showLogin />
+              <AddressesSection addresses={viewAddresses} />
+              <TaxIdentifiersSection taxIds={viewTaxIds} />
             </Box>
           )}
         </DialogContent>
@@ -812,7 +761,7 @@ export default function EmployeesPage() {
               />
               {editForm.is_app_user && (
                 <FormControlLabel
-                  control={<Checkbox checked={em.is_login} onChange={(e) => updateEmail(idx, 'is_login', e.target.checked)} size="small" disabled={editRow.is_app_user} />}
+                  control={<Checkbox checked={em.is_login} onChange={(e) => updateEmail(idx, 'is_login', e.target.checked)} size="small" disabled={editRow?.is_app_user} />}
                   label="Login"
                   sx={{ mr: 0 }}
                 />
@@ -859,6 +808,7 @@ export default function EmployeesPage() {
               <Box sx={formGridSx}>
                 <TextField label="Address Line 1" value={addr.address_line_1} onChange={(e) => updateAddress(idx, 'address_line_1', e.target.value)} size="small" sx={formFullSpanSx} />
                 <TextField label="Address Line 2" value={addr.address_line_2} onChange={(e) => updateAddress(idx, 'address_line_2', e.target.value)} size="small" sx={formFullSpanSx} />
+                <TextField label="Address Line 3" value={addr.address_line_3 || ''} onChange={(e) => updateAddress(idx, 'address_line_3', e.target.value)} size="small" sx={formFullSpanSx} />
                 <TextField label="City" value={addr.city} onChange={(e) => updateAddress(idx, 'city', e.target.value)} size="small" />
                 <TextField label="State / Province" value={addr.state_province} onChange={(e) => updateAddress(idx, 'state_province', e.target.value)} size="small" />
                 <TextField label="Postal Code" value={addr.postal_code} onChange={(e) => updateAddress(idx, 'postal_code', e.target.value)} size="small" />
@@ -951,8 +901,9 @@ export default function EmployeesPage() {
         open={resetPwOpen}
         onClose={() => { setResetPwOpen(false); setResetPwTarget(null); }}
         onSuccess={() => { setResetPwOpen(false); setResetPwTarget(null); toast('Password reset successfully'); }}
-        employeeId={resetPwTarget?.id}
-        employeeName={resetPwTarget ? `${resetPwTarget.first_name} ${resetPwTarget.last_name}` : ''}
+        onReset={(id, password) => resetPwMut.mutateAsync({ id, password })}
+        entityId={resetPwTarget?.id}
+        entityName={resetPwTarget ? `${resetPwTarget.first_name} ${resetPwTarget.last_name}` : ''}
       />
 
       <SetPasswordPopover anchorEl={pwAnchor} onConfirm={handlePwConfirm} onCancel={handlePwCancel} />

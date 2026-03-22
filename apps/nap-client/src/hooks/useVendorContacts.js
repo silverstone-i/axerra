@@ -57,3 +57,11 @@ export function useRestoreVendorContact() {
     onSuccess: () => qc.invalidateQueries({ queryKey: VENDOR_CONTACTS_KEY }),
   });
 }
+
+export function useResetVendorContactPassword() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, password }) => vendorContactApi.resetPassword(id, password),
+    onSuccess: () => qc.invalidateQueries({ queryKey: VENDOR_CONTACTS_KEY }),
+  });
+}

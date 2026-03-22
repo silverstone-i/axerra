@@ -25,12 +25,11 @@ const CONFIG = {
   idType: 'contact',
   buildLabel: (row) => row.name,
   returningCols: ['id', 'name'],
-  boolCols: ['is_app_user'],
-  hasRoles: true,
+  boolCols: [],
+  hasRoles: false,
   codeRequired: false,
   extraExportCols: [
     { name: 'status', derive: (origRow) => (origRow.deactivated_at ? 'archived' : 'active') },
-    { name: 'password', derive: () => '' },
   ],
   extraImportStrip: [],
   childSheets: [
@@ -39,7 +38,6 @@ const CONFIG = {
     { sheetName: 'Addresses', modelName: 'addresses', headers: ADDRESS_HEADERS },
     { sheetName: 'Tax Identifiers', modelName: 'taxIdentifiers', headers: TAX_ID_HEADERS },
   ],
-  appUserProvisioning: { entityType: 'contact' },
 };
 
 export default class Contacts extends TableModel {

@@ -93,11 +93,15 @@ describe('System Role Seeding', () => {
     expect(mockDb.one).not.toHaveBeenCalled();
   });
 
-  it('all system roles use scope all_projects', async () => {
+  it('system roles use correct scopes', async () => {
     await seedSystemRoles(mockDb, mockPgp, 'nap', 'NAP', true);
 
     for (const role of insertedRoles) {
-      expect(role.scope).toBe('all_projects');
+      if (role.code === 'vendor_contact' || role.code === 'client') {
+        expect(role.scope).toBe('self');
+      } else {
+        expect(role.scope).toBe('all_projects');
+      }
     }
   });
 });

@@ -218,6 +218,69 @@ export function coerceChildRow(row, model) {
  */
 
 /**
+ * Build an export workbook for a source entity with curated columns and child sheets,
+ * but do NOT write to disk. Returns the workbook builder and metadata so callers can
+ * append additional sheets (e.g. combined vendor + vendor_contacts export).
+ *
+ * @param {Object} model    pg-schemata model instance
+ * @param {Array}  where    findWhere conditions
+ * @param {string} joinType 'AND' or 'OR'
+ * @param {Object} options  findWhere options (includeDeactivated, etc.)
+ * @param {SourceEntityConfig} config
+ * @param {import('@nap-sft/tablsx').WorkbookBuilder} [existingWb]  Optional workbook to append to
+ * @returns {Promise<{wb: Object, rows: Object[], sourceIds: string[], idBySourceId: Map, writeXlsx: Function}>}
+ */
+export async function buildExportWorkbook(model, where, joinType, options, config, existingWb = null) {
+  const { includeDeactivated, ...rest } = options;
+  const rows = await model.findWhere(where, joinType, { ...rest, includeDeactivated });
+
+  const { WorkbookBuilder, writeXlsx } = await import('@nap-sft/tablsx');
+  const wb = existingWb || WorkbookBuilder.create();
+
+  const mainSheet = wb.sheet(config.sheetName);
+  if (!rows.length) {
+    const schemaHeaders = (model._schema?.columns || [])
+      .map((c) => c.name)
+      .filter((n) => !INTERNAL_COLS.has(n));
+    const extraHeaders = config.extraExportCols.map((c) => c.name);
+    mainSheet.setHeaders([...schemaHeaders, ...extraHeaders]);
+    for (const child of config.childSheets) {
+      const childSheet = wb.sheet(child.sheetName);
+      childSheet.setHeaders([config.linkColName, ...child.headers]);
+    }
+    return { wb, rows, sourceIds: [], idBySourceId: new Map(), writeXlsx };
+  }
+
+  const curated = curateRows(rows);
+  const withExtras = curated.map((row, i) => {
+    const extra = {};
+    for (const col of config.extraExportCols) {
+      extra[col.name] = col.derive(rows[i]);
+    }
+    return { ...row, ...extra };
+  });
+  mainSheet.setHeaders(Object.keys(withExtras[0]));
+  mainSheet.addObjects(withExtras);
+
+  const idBySourceId = new Map();
+  const sourceIds = [];
+  for (const row of rows) {
+    if (row.source_id) {
+      idBySourceId.set(row.source_id, row.id);
+      sourceIds.push(row.source_id);
+    }
+  }
+
+  const { db } = await getDb();
+  const schema = model._schema.dbSchema;
+  for (const child of config.childSheets) {
+    await buildChildSheet(wb, child.sheetName, db(child.modelName, schema), sourceIds, idBySourceId, config.linkColName, child.headers);
+  }
+
+  return { wb, rows, sourceIds, idBySourceId, writeXlsx };
+}
+
+/**
  * Export a source entity with curated columns and child data on separate sheets.
  *
  * @param {Object} model    pg-schemata model instance (this)
@@ -229,57 +292,7 @@ export function coerceChildRow(row, model) {
  * @returns {Promise<{exported: number, filePath: string}>}
  */
 export async function exportSourceEntity(model, filePath, where, joinType, options, config) {
-  const { includeDeactivated, ...rest } = options;
-  const rows = await model.findWhere(where, joinType, { ...rest, includeDeactivated });
-
-  const { WorkbookBuilder, writeXlsx } = await import('@nap-sft/tablsx');
-  const wb = WorkbookBuilder.create();
-
-  const mainSheet = wb.sheet(config.sheetName);
-  if (!rows.length) {
-    // Empty table — write template headers so the file serves as an import template
-    const schemaHeaders = (model._schema?.columns || [])
-      .map((c) => c.name)
-      .filter((n) => !INTERNAL_COLS.has(n));
-    const extraHeaders = config.extraExportCols.map((c) => c.name);
-    mainSheet.setHeaders([...schemaHeaders, ...extraHeaders]);
-    // Also add empty child sheets with headers
-    for (const child of config.childSheets) {
-      const childSheet = wb.sheet(child.sheetName);
-      childSheet.setHeaders([config.linkColName, ...child.headers]);
-    }
-    writeFileSync(filePath, writeXlsx(wb.build()));
-    return { exported: 0, filePath };
-  }
-
-  const curated = curateRows(rows);
-  // Append extra columns (status, password, etc.) using original rows for derivation
-  const withExtras = curated.map((row, i) => {
-    const extra = {};
-    for (const col of config.extraExportCols) {
-      extra[col.name] = col.derive(rows[i]);
-    }
-    return { ...row, ...extra };
-  });
-  mainSheet.setHeaders(Object.keys(withExtras[0]));
-  mainSheet.addObjects(withExtras);
-
-  // Build source_id → parent id map for child linkage
-  const idBySourceId = new Map();
-  const sourceIds = [];
-  for (const row of rows) {
-    if (row.source_id) {
-      idBySourceId.set(row.source_id, row.id);
-      sourceIds.push(row.source_id);
-    }
-  }
-
-  // Child sheets
-  const { db } = await getDb();
-  const schema = model._schema.dbSchema;
-  for (const child of config.childSheets) {
-    await buildChildSheet(wb, child.sheetName, db(child.modelName, schema), sourceIds, idBySourceId, config.linkColName, child.headers);
-  }
+  const { wb, rows, writeXlsx } = await buildExportWorkbook(model, where, joinType, options, config);
 
   writeFileSync(filePath, writeXlsx(wb.build()));
   return { exported: rows.length, filePath };
@@ -509,7 +522,7 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
  * @param {Object}   t              Transaction object
  * @returns {Promise<number>} Number of rows inserted
  */
-async function importChildSheet(reader, sheetIndex, refToSourceId, modelName, schema, linkColName, callbackFn, tenantId, t) {
+export async function importChildSheet(reader, sheetIndex, refToSourceId, modelName, schema, linkColName, callbackFn, tenantId, t) {
   const childRows = parseSheet(reader, sheetIndex);
   if (!childRows.length) return 0;
 

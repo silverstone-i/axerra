@@ -25,6 +25,8 @@ export const vendorApi = {
   restore: (filterParams) => client.patch(`${BASE}/restore${qs(filterParams)}`, {}),
   importXls: (formData) => client.post(`${BASE}/import-xls`, formData),
   exportXls: (body = {}) => client.post(`${BASE}/export-xls`, body, { responseType: 'blob' }),
+  importCombinedXls: (formData) => client.post(`${BASE}/import-combined-xls`, formData),
+  exportCombinedXls: (body = {}) => client.post(`${BASE}/export-combined-xls`, body, { responseType: 'blob' }),
 };
 
 export default vendorApi;

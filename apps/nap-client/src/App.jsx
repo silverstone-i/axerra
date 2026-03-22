@@ -46,6 +46,7 @@ import ArAgingPage from './pages/Reports/ArAgingPage.jsx';
 import ApAgingPage from './pages/Reports/ApAgingPage.jsx';
 import MarginAnalysisPage from './pages/Reports/MarginAnalysisPage.jsx';
 import NumberingConfigPage from './pages/Settings/NumberingConfigPage.jsx';
+import PaymentTermsPage from './pages/Settings/PaymentTermsPage.jsx';
 
 export default function App() {
   return (
@@ -116,6 +117,7 @@ export default function App() {
 
           {/* Settings routes */}
           <Route path="/settings/numbering" element={<NumberingConfigPage />} />
+          <Route path="/settings/payment-terms" element={<PaymentTermsPage />} />
 
           {/* Default redirect */}
           <Route index element={<Navigate to="/dashboard" replace />} />

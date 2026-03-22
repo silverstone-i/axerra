@@ -18,10 +18,8 @@ const vendorsSchema = {
     { name: 'source_id', type: 'uuid' },
     { name: 'name', type: 'varchar(128)', notNull: true },
     { name: 'code', type: 'varchar(16)' },
-    { name: 'payment_terms', type: 'varchar(32)' },
+    { name: 'payment_term_id', type: 'uuid' },
     { name: 'is_active', type: 'boolean', notNull: true, default: true },
-    { name: 'roles', type: 'text[]', notNull: true, default: '{}' },
-    { name: 'is_app_user', type: 'boolean', notNull: true, default: false },
     { name: 'notes', type: 'text' },
   ],
   constraints: {
@@ -33,6 +31,12 @@ const vendorsSchema = {
         columns: ['source_id'],
         references: { table: 'sources', columns: ['id'] },
         onDelete: 'CASCADE',
+      },
+      {
+        type: 'ForeignKey',
+        columns: ['payment_term_id'],
+        references: { table: 'payment_terms', columns: ['id'] },
+        onDelete: 'SET NULL',
       },
     ],
     indexes: [

@@ -56,3 +56,11 @@ export function useRestoreClient() {
     onSuccess: () => qc.invalidateQueries({ queryKey: CLIENTS_KEY }),
   });
 }
+
+export function useResetClientPassword() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, password }) => clientApi.resetPassword(id, password),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CLIENTS_KEY }),
+  });
+}
