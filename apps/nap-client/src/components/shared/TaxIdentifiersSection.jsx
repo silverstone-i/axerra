@@ -31,7 +31,6 @@ export default function TaxIdentifiersSection({ taxIds }) {
             <FieldRow label="Country" value={t.country_code} />
             <FieldRow label="Type" value={t.tax_type} />
             <FieldRow label="Value" value={formatByPattern(t.tax_value, taxType?.placeholder) || '\u2014'} />
-            <FieldRow label="Primary" value={t.is_primary ? 'Yes' : 'No'} />
           </Box>
         );
       })}

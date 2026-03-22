@@ -55,7 +55,6 @@ const BLANK_ADDRESS = {
   state_province: '',
   postal_code: '',
   country_code: 'US',
-  is_primary: false,
 };
 
 const BLANK_TAX = { country_code: 'US', tax_type: 'EIN', tax_value: '' };
@@ -248,7 +247,6 @@ function AddressCard({ address, isNew, sourceId, onSaved, onDeleted, onError }) 
         state_province: address.state_province ?? '',
         postal_code: address.postal_code ?? '',
         country_code: address.country_code ?? 'US',
-        is_primary: address.is_primary ?? false,
       });
     }
   }, [address]);

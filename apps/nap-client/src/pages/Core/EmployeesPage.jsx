@@ -83,9 +83,9 @@ const BLANK_PHONE = { country_code: 'US', phone_type: 'cell', phone_number: '', 
 const BLANK_EMAIL = { email: '', label: 'work', is_primary: false, is_login: false };
 const BLANK_ADDRESS = {
   label: '', address_line_1: '', address_line_2: '', address_line_3: '', city: '',
-  state_province: '', postal_code: '', country_code: 'US', is_primary: false,
+  state_province: '', postal_code: '', country_code: 'US',
 };
-const BLANK_TAX_ID = { country_code: 'US', tax_type: 'TIN', tax_value: '', is_primary: false };
+const BLANK_TAX_ID = { country_code: 'US', tax_type: 'TIN', tax_value: '' };
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
 const fmtDate = (v) => (v ? new Date(v).toLocaleDateString() : '\u2014');
@@ -228,8 +228,14 @@ export default function EmployeesPage() {
 
   /* ── Phone edit helpers ─────────────────────────────────────── */
   const updatePhone = (idx, field, value) =>
-    setEditPhones((prev) => prev.map((p, i) => (i === idx ? { ...p, [field]: value } : p)));
-  const addPhone = () => setEditPhones((prev) => [...prev, { ...BLANK_PHONE }]);
+    setEditPhones((prev) => prev.map((p, i) => {
+      if (i !== idx) {
+        if (field === 'is_primary' && value) return { ...p, is_primary: false };
+        return p;
+      }
+      return { ...p, [field]: value };
+    }));
+  const addPhone = () => setEditPhones((prev) => [...prev, { ...BLANK_PHONE, is_primary: !prev.filter((p) => !p._deleted).length }]);
   const removePhone = (idx) =>
     setEditPhones((prev) => prev.map((p, i) => (i === idx ? { ...p, _deleted: true } : p)));
 
@@ -237,13 +243,14 @@ export default function EmployeesPage() {
   const updateEmail = (idx, field, value) =>
     setEditEmails((prev) => prev.map((e, i) => {
       if (i !== idx) {
-        // Radio behavior: when setting is_login on one row, clear it on all others
+        // Radio behavior: when setting is_login or is_primary on one row, clear it on all others
         if (field === 'is_login' && value) return { ...e, is_login: false };
+        if (field === 'is_primary' && value) return { ...e, is_primary: false };
         return e;
       }
       return { ...e, [field]: value };
     }));
-  const addEmail = () => setEditEmails((prev) => [...prev, { ...BLANK_EMAIL }]);
+  const addEmail = () => setEditEmails((prev) => [...prev, { ...BLANK_EMAIL, is_primary: !prev.filter((e) => !e._deleted).length }]);
   const removeEmail = (idx) =>
     setEditEmails((prev) => prev.map((e, i) => (i === idx ? { ...e, _deleted: true } : e)));
 
@@ -366,8 +373,8 @@ export default function EmployeesPage() {
     };
     if (collectionChanged(editPhones, init.phones, ['country_code', 'phone_type', 'phone_number', 'is_primary'])) return true;
     if (collectionChanged(editEmails, init.emails, ['email', 'label', 'is_primary', 'is_login'])) return true;
-    if (collectionChanged(editAddresses, init.addresses, ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code', 'is_primary'])) return true;
-    if (collectionChanged(editTaxIds, init.taxIds, ['country_code', 'tax_type', 'tax_value', 'is_primary'])) return true;
+    if (collectionChanged(editAddresses, init.addresses, ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'])) return true;
+    if (collectionChanged(editTaxIds, init.taxIds, ['country_code', 'tax_type', 'tax_value'])) return true;
     return false;
   }, [editForm, editPhones, editEmails, editAddresses, editTaxIds]);
 
@@ -435,12 +442,12 @@ export default function EmployeesPage() {
           } else if (!t.id && !t._deleted) {
             await createTaxIdMut.mutateAsync({
               source_id: editRow.source_id, country_code: t.country_code,
-              tax_type: t.tax_type, tax_value: t.tax_value, is_primary: t.is_primary,
+              tax_type: t.tax_type, tax_value: t.tax_value,
             });
           } else if (t.id && !t._deleted) {
             await updateTaxIdMut.mutateAsync({
               filter: { id: t.id },
-              changes: { country_code: t.country_code, tax_type: t.tax_type, tax_value: t.tax_value, is_primary: t.is_primary },
+              changes: { country_code: t.country_code, tax_type: t.tax_type, tax_value: t.tax_value },
             });
           }
         }
@@ -794,16 +801,9 @@ export default function EmployeesPage() {
                   size="small"
                   sx={{ width: 200 }}
                 />
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <FormControlLabel
-                    control={<Checkbox checked={addr.is_primary} onChange={(e) => updateAddress(idx, 'is_primary', e.target.checked)} size="small" />}
-                    label="Primary"
-                    sx={{ mr: 0 }}
-                  />
-                  <IconButton size="small" onClick={() => removeAddress(idx)} color="error">
-                    <DeleteOutlineIcon fontSize="small" />
-                  </IconButton>
-                </Box>
+                <IconButton size="small" onClick={() => removeAddress(idx)} color="error">
+                  <DeleteOutlineIcon fontSize="small" />
+                </IconButton>
               </Box>
               <Box sx={formGridSx}>
                 <TextField label="Address Line 1" value={addr.address_line_1} onChange={(e) => updateAddress(idx, 'address_line_1', e.target.value)} size="small" sx={formFullSpanSx} />
@@ -871,11 +871,6 @@ export default function EmployeesPage() {
                   pattern={taxTypes.find((t) => t.code === taxId.tax_type)?.placeholder}
                   size="small"
                   sx={{ flex: 1, minWidth: 160 }}
-                />
-                <FormControlLabel
-                  control={<Checkbox checked={taxId.is_primary} onChange={(e) => updateTaxId(idx, 'is_primary', e.target.checked)} size="small" />}
-                  label="Primary"
-                  sx={{ mr: 0 }}
                 />
                 <IconButton size="small" onClick={() => removeTaxId(idx)} color="error">
                   <DeleteOutlineIcon fontSize="small" />
