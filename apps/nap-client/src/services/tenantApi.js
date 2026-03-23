@@ -42,6 +42,12 @@ export const tenantApi = {
 
   /** GET /:id/company — tenant's self-company with addresses and tax identifiers. */
   getCompany: (tenantId) => client.get(`${BASE}/${tenantId}/company`),
+
+  /** POST /export-xls — export tenants to flat spreadsheet. */
+  exportXls: (body = {}) => client.post(`${BASE}/export-xls`, body, { responseType: 'blob' }),
+
+  /** POST /import-xls — import tenants from flat spreadsheet. */
+  importXls: (formData) => client.post(`${BASE}/import-xls`, formData),
 };
 
 export default tenantApi;

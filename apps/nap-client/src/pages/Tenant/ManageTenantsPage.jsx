@@ -34,10 +34,13 @@ import TaxIdentifiersSection from '../../components/shared/TaxIdentifiersSection
 import ConfirmDialog from '../../components/shared/ConfirmDialog.jsx';
 import DataTable from '../../components/shared/DataTable.jsx';
 import FormDialog from '../../components/shared/FormDialog.jsx';
+import ImportDialog from '../../components/shared/ImportDialog.jsx';
 import CreateTenantWizard from './CreateTenantWizard.jsx';
 import { formatByPattern } from '../../utils/formatByPattern.js';
 import { COUNTRIES } from '@nap/shared';
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
+import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
+import { tenantApi } from '../../services/tenantApi.js';
 import {
   useTenants,
   useTenantContacts,
@@ -160,6 +163,8 @@ export default function ManageTenantsPage() {
   const updateMut = useUpdateTenant();
   const archiveMut = useArchiveTenant();
   const restoreMut = useRestoreTenant();
+  const importMut = useImportXls(tenantApi.importXls, TENANTS_KEY);
+  const exportMut = useExportXls(tenantApi.exportXls, 'tenants');
 
   /* ── selection (multi-select with root-tenant mutual exclusion) */
   const selection = useListSelection(rows, 'tenant');
@@ -171,6 +176,7 @@ export default function ManageTenantsPage() {
   const [editRow, setEditRow] = useState(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [restoreOpen, setRestoreOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   /* ── form state ──────────────────────────────────────────── */
   const [editForm, setEditForm] = useState(BLANK_EDIT);
@@ -255,9 +261,45 @@ export default function ManageTenantsPage() {
     }
   };
 
+  /* ── import / export handlers ─────────────────────────────── */
+  const handleImport = useCallback(async (formData) => {
+    try {
+      const result = await importMut.mutateAsync(formData);
+      const parts = [];
+      if (result.inserted) parts.push(`${result.inserted} created`);
+      if (result.updated) parts.push(`${result.updated} updated`);
+      if (result.errors?.length) parts.push(`${result.errors.length} errors`);
+      toast(parts.join(', ') || 'Import complete');
+      setImportOpen(false);
+    } catch (err) {
+      toast(errMsg(err), 'error');
+    }
+  }, [importMut.mutateAsync, toast]);
+
+  const handleExport = useCallback(async () => {
+    try {
+      await exportMut.mutateAsync({});
+      toast('Export downloaded');
+    } catch (err) {
+      toast(errMsg(err), 'error');
+    }
+  }, [exportMut.mutateAsync, toast]);
+
   /* ── toolbar registration ────────────────────────────────── */
   const toolbar = useMemo(() => {
     const primary = [];
+
+    primary.push({
+      label: 'Export',
+      variant: 'outlined',
+      disabled: exportMut.isPending,
+      onClick: handleExport,
+    });
+    primary.push({
+      label: 'Import',
+      variant: 'outlined',
+      onClick: () => setImportOpen(true),
+    });
 
     if (viewFilter === 'active' || viewFilter === 'all') {
       primary.push({
@@ -294,7 +336,7 @@ export default function ManageTenantsPage() {
       filters: [],
       primaryActions: primary,
     };
-  }, [viewFilter, selectedRows.length, allActive, allArchived, selection.hasRootSelected, selection.clearSelection]);
+  }, [viewFilter, selectedRows.length, allActive, allArchived, selection.hasRootSelected, selection.clearSelection, exportMut.isPending, handleExport]);
   useModuleToolbarRegistration(toolbar);
 
   /* ── render ──────────────────────────────────────────────── */
@@ -521,6 +563,15 @@ export default function ManageTenantsPage() {
         loading={restoreMut.isPending}
         onConfirm={handleRestore}
         onCancel={() => setRestoreOpen(false)}
+      />
+
+      {/* ── Import Dialog ──────────────────────────────────── */}
+      <ImportDialog
+        open={importOpen}
+        title="Import Tenants"
+        loading={importMut.isPending}
+        onSubmit={handleImport}
+        onCancel={() => setImportOpen(false)}
       />
 
       {/* ── Snackbar ───────────────────────────────────────── */}
