@@ -165,6 +165,59 @@ describe('Email CRUD — /api/core/v1/emails', () => {
     }
   });
 
+  test('enforces single is_primary — creating a new primary demotes the previous one', async () => {
+    // Create first primary email
+    const first = await request(app)
+      .post('/api/core/v1/emails')
+      .set('Cookie', cookies)
+      .send({ source_id: employeeSourceId, email: 'primary-a@emtest.com', label: 'work', is_primary: true });
+    expect(first.status).toBe(201);
+    expect(first.body.is_primary).toBe(true);
+
+    // Create second primary email — should succeed and demote the first
+    const second = await request(app)
+      .post('/api/core/v1/emails')
+      .set('Cookie', cookies)
+      .send({ source_id: employeeSourceId, email: 'primary-b@emtest.com', label: 'personal', is_primary: true });
+    expect(second.status).toBe(201);
+    expect(second.body.is_primary).toBe(true);
+
+    // Verify only one active primary remains
+    const list = await request(app)
+      .get(`/api/core/v1/emails?source_id=${employeeSourceId}`)
+      .set('Cookie', cookies);
+    const rows = list.body.rows ?? list.body;
+    const primaries = rows.filter((e) => e.is_primary);
+    expect(primaries.length).toBe(1);
+    expect(primaries[0].email).toBe('primary-b@emtest.com');
+  });
+
+  test('enforces single is_primary — updating to primary demotes the previous one', async () => {
+    // Find a non-primary email to promote
+    const list = await request(app)
+      .get(`/api/core/v1/emails?source_id=${employeeSourceId}`)
+      .set('Cookie', cookies);
+    const rows = list.body.rows ?? list.body;
+    const nonPrimary = rows.find((e) => !e.is_primary && !e.is_login);
+
+    if (nonPrimary) {
+      const res = await request(app)
+        .put(`/api/core/v1/emails/update?id=${nonPrimary.id}`)
+        .set('Cookie', cookies)
+        .send({ is_primary: true });
+      expect(res.status).toBe(200);
+
+      // Verify only one active primary remains
+      const updated = await request(app)
+        .get(`/api/core/v1/emails?source_id=${employeeSourceId}`)
+        .set('Cookie', cookies);
+      const updatedRows = updated.body.rows ?? updated.body;
+      const primaries = updatedRows.filter((e) => e.is_primary);
+      expect(primaries.length).toBe(1);
+      expect(primaries[0].id).toBe(nonPrimary.id);
+    }
+  });
+
   test('archives a non-login email', async () => {
     const res = await request(app)
       .delete(`/api/core/v1/emails/archive?id=${emailId}`)
