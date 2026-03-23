@@ -4,17 +4,17 @@
  *
  * Overrides:
  *   create → inserts tenant record, provisions schema, seeds RBAC, creates admin user
+ *   importXls → passes created_by only (each row carries its own tenant_code)
  *   archive → cascades deactivation to all tenant users; rejects root tenant (NAP)
  *   restore → reactivates tenant (users remain archived until individually restored)
  *
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
 
-import bcrypt from 'bcrypt';
+import fs from 'node:fs';
 import BaseController from '../../../lib/BaseController.js';
 import db, { pgp } from '../../../db/db.js';
-import { provisionTenant } from '../../../services/tenantProvisioning.js';
-import logger from '../../../lib/logger.js';
+import { provisionNewTenant } from '../../../services/tenantSetup.js';
 
 class TenantsController extends BaseController {
   constructor() {
@@ -39,189 +39,34 @@ class TenantsController extends BaseController {
    *         admin_first_name, admin_last_name, admin_email, admin_password }
    */
   async create(req, res) {
-    const {
-      tenant_code,
-      company,
-      schema_name,
-      status,
-      tier,
-      region,
-      allowed_modules,
-      max_users,
-      notes,
-      billing_address,
-      tax_identifiers,
-      admin_first_name,
-      admin_last_name,
-      admin_email,
-      admin_password,
-    } = req.body;
+    try {
+      const result = await provisionNewTenant(req.body, req.user?.id || null);
+      res.status(201).json({ ...result.tenant, admin_user_id: result.admin_user_id, company_id: result.company_id, source_id: result.source_id });
+    } catch (err) {
+      if (err.statusCode) return res.status(err.statusCode).json({ error: err.message });
+      this.handleError(err, res, 'creating', this.errorLabel);
+    }
+  }
 
-    if (!tenant_code || !company) {
-      return res.status(400).json({ error: 'tenant_code and company are required' });
-    }
-    if (!billing_address || !billing_address.address_line_1 || !billing_address.country_code) {
-      return res.status(400).json({ error: 'billing_address with address_line_1 and country_code is required' });
-    }
-    if (!admin_first_name || !admin_last_name) {
-      return res.status(400).json({ error: 'admin_first_name and admin_last_name are required' });
-    }
-    if (!admin_email || !admin_password) {
-      return res.status(400).json({ error: 'admin_email and admin_password are required' });
-    }
-
-    const schemaName = (schema_name || tenant_code).toLowerCase();
-
-    const SCHEMA_NAME_RE = /^[a-z][a-z0-9_]*$/;
-    if (!SCHEMA_NAME_RE.test(schemaName) || schemaName.length > 63) {
-      return res.status(400).json({
-        error: 'schema_name must start with a letter, contain only lowercase letters/digits/underscores, and not exceed 63 characters',
-      });
-    }
-
-    const upperCode = tenant_code.toUpperCase();
+  /**
+   * POST /import-xls — import tenants from uploaded spreadsheet.
+   *
+   * Overrides BaseController.importXls to pass only created_by in the callback
+   * (each row carries its own tenant_code, unlike tenant-scoped entities).
+   */
+  async importXls(req, res) {
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: 'No file uploaded' });
 
     try {
-      // 1. Insert tenant record
-      const tenant = await db('tenants', 'admin').insert({
-        tenant_code: upperCode,
-        company,
-        schema_name: schemaName,
-        status: status || 'active',
-        tier: tier || 'starter',
-        region: region || null,
-        allowed_modules: allowed_modules || [],
-        max_users: max_users || 5,
-        notes: notes || null,
-        created_by: req.user?.id || null,
-      });
-
-      // 2. Provision tenant schema (create schema, run migrations, seed RBAC)
-      try {
-        await provisionTenant({ schemaName, tenantCode: upperCode, createdBy: req.user?.id || null });
-      } catch (provisionErr) {
-        logger.error(`Schema provisioning failed for "${schemaName}":`, { error: provisionErr.message });
-        // Rollback: soft-delete the tenant record
-        try {
-          await db('tenants', 'admin').updateWhere(
-            [{ id: tenant.id }],
-            { deactivated_at: new Date(), updated_by: req.user?.id || null },
-          );
-        } catch {
-          /* best effort */
-        }
-        return res.status(500).json({ error: `Schema provisioning failed: ${provisionErr.message}` });
-      }
-
-      // 3. Create company + address + tax IDs + admin employee + nap_users in a single transaction
-      const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
-      const passwordHash = await bcrypt.hash(admin_password, rounds);
-      const actorId = req.user?.id || null;
-      const sch = pgp.as.name(schemaName);
-      const taxIds = Array.isArray(tax_identifiers) ? tax_identifiers : [];
-
-      const result = await db.tx(async (t) => {
-        // 3a. Create the tenant's self-company record
-        const comp = await t.one(
-          `INSERT INTO ${sch}.companies (tenant_id, code, name, created_by)
-           VALUES ($1, $2, $3, $4)
-           RETURNING *`,
-          [tenant.id, upperCode, company, actorId],
-        );
-
-        // 3b. Create sources record for the company (polymorphic link)
-        const source = await t.one(
-          `INSERT INTO ${sch}.sources (tenant_id, table_id, source_type, label, created_by)
-           VALUES ($1, $2, $3, $4, $5)
-           RETURNING *`,
-          [tenant.id, comp.id, 'company', company, actorId],
-        );
-
-        // 3c. Back-link source_id onto the company
-        await t.none(
-          `UPDATE ${sch}.companies SET source_id = $1, updated_by = $2 WHERE id = $3`,
-          [source.id, actorId, comp.id],
-        );
-
-        // 3d. Insert billing address
-        await t.one(
-          `INSERT INTO ${sch}.addresses
-             (tenant_id, source_id, label, address_line_1, address_line_2, address_line_3,
-              city, state_province, postal_code, country_code, created_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-           RETURNING id`,
-          [
-            tenant.id, source.id, 'billing',
-            billing_address.address_line_1,
-            billing_address.address_line_2 || null,
-            billing_address.address_line_3 || null,
-            billing_address.city || null,
-            billing_address.state_province || null,
-            billing_address.postal_code || null,
-            billing_address.country_code,
-            actorId,
-          ],
-        );
-
-        // 3e. Insert tax identifiers (if any)
-        for (let i = 0; i < taxIds.length; i++) {
-          const ti = taxIds[i];
-          await t.one(
-            `INSERT INTO ${sch}.tax_identifiers
-               (tenant_id, source_id, country_code, tax_type, tax_value, created_by)
-             VALUES ($1, $2, $3, $4, $5, $6)
-             RETURNING id`,
-            [tenant.id, source.id, ti.country_code, ti.tax_type, ti.tax_value, actorId],
-          );
-        }
-
-        // 3f. Create employee record in the tenant schema
-        const emp = await t.one(
-          `INSERT INTO ${sch}.employees
-             (tenant_id, first_name, last_name, roles, is_app_user, is_primary_contact, created_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
-           RETURNING *`,
-          [tenant.id, admin_first_name, admin_last_name, '{admin}', true, true, actorId],
-        );
-
-        // 3f-ii. Create sources record for the employee
-        const empSource = await t.one(
-          `INSERT INTO ${sch}.sources (tenant_id, table_id, source_type, label, created_by)
-           VALUES ($1, $2, $3, $4, $5)
-           RETURNING *`,
-          [tenant.id, emp.id, 'employee', `${admin_first_name} ${admin_last_name}`, actorId],
-        );
-
-        // 3f-iii. Back-link source_id onto the employee
-        await t.none(
-          `UPDATE ${sch}.employees SET source_id = $1, updated_by = $2 WHERE id = $3`,
-          [empSource.id, actorId, emp.id],
-        );
-
-        // 3f-iv. Create the admin employee's login email
-        await t.one(
-          `INSERT INTO ${sch}.emails
-             (tenant_id, source_id, email, label, is_primary, is_login, created_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
-           RETURNING id`,
-          [tenant.id, empSource.id, admin_email, 'work', true, true, actorId],
-        );
-
-        // 3g. Create nap_users login linked to the employee
-        const user = await t.one(
-          `INSERT INTO admin.nap_users
-             (tenant_id, entity_type, entity_id, email, password_hash, status, created_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
-           RETURNING *`,
-          [tenant.id, 'employee', emp.id, admin_email, passwordHash, 'active', actorId],
-        );
-
-        return { admin_user_id: user.id, company_id: comp.id, source_id: source.id };
-      });
-
-      res.status(201).json({ ...tenant, ...result });
+      const result = await this.model('admin').importFromSpreadsheet(
+        file.path, 0, (row) => ({ ...row, created_by: req.user?.id }),
+      );
+      res.status(201).json(result);
     } catch (err) {
-      this.handleError(err, res, 'creating', this.errorLabel);
+      this.handleError(err, res, 'importing', this.errorLabel);
+    } finally {
+      fs.unlink(file.path, () => {});
     }
   }
 
