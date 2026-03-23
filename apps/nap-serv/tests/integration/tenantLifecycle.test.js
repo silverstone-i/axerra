@@ -95,7 +95,7 @@ describe('Tenant lifecycle — create, provision, archive, restore', () => {
     expect(user).not.toBeNull();
     expect(user.email).toBe('admin@testco.com');
     expect(user.tenant_id).toBe(tenantId);
-    expect(user.status).toBe('active');
+    expect(user.status).toBe('invited');
     expect(user.password_hash).toBeDefined();
     expect(user.password_hash.startsWith('$2')).toBe(true); // bcrypt
   });

@@ -208,7 +208,7 @@ export async function provisionNewTenant(body, actorId) {
          (tenant_id, entity_type, entity_id, email, password_hash, status, created_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [tenant.id, 'employee', emp.id, admin_email, passwordHash, 'active', actorId],
+      [tenant.id, 'employee', emp.id, admin_email, passwordHash, 'invited', actorId],
     );
 
     return { admin_user_id: user.id, company_id: comp.id, source_id: source.id };
