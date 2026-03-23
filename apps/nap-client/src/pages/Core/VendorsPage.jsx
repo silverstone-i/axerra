@@ -63,7 +63,7 @@ import {
   useTaxIdentifiers, useCreateTaxIdentifier, useUpdateTaxIdentifier, useArchiveTaxIdentifier,
 } from '../../hooks/useTaxIdentifiers.js';
 import {
-  useVendorContacts, useCreateVendorContact, useUpdateVendorContact, useArchiveVendorContact, useResetVendorContactPassword,
+  useVendorContacts, useCreateVendorContact, useUpdateVendorContact, useArchiveVendorContact, useRestoreVendorContact, useResetVendorContactPassword,
 } from '../../hooks/useVendorContacts.js';
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import { useActivePaymentTerms } from '../../hooks/usePaymentTerms.js';
@@ -168,7 +168,8 @@ export default function VendorsPage() {
   const archiveTaxIdMut = useArchiveTaxIdentifier();
   const createContactMut = useCreateVendorContact();
   const updateContactMut = useUpdateVendorContact();
-  const _archiveContactMut = useArchiveVendorContact();
+  const archiveContactMut = useArchiveVendorContact();
+  const restoreContactMut = useRestoreVendorContact();
   const resetContactPwMut = useResetVendorContactPassword();
 
   /* ── Selection (new system) ─────────────────────────────────── */
@@ -190,6 +191,7 @@ export default function VendorsPage() {
   const [createTab, setCreateTab] = useState(0);
   const [editTab, setEditTab] = useState(0);
   const [viewTab, setViewTab] = useState(0);
+  const [contactViewFilter, setContactViewFilter] = useState('active');
 
   /* ── Edit contact sub-collection state ──────────────────────── */
   const [contactEmails, setContactEmails] = useState({});
@@ -234,7 +236,7 @@ export default function VendorsPage() {
 
   const [editVendorId, setEditVendorId] = useState(null);
   const { data: contactsRes } = useVendorContacts(
-    { vendor_id: editVendorId, includeDeactivated: 'false' },
+    { vendor_id: editVendorId, includeDeactivated: 'true' },
     { enabled: !!editVendorId },
   );
 
@@ -325,9 +327,30 @@ export default function VendorsPage() {
     },
   ], [contactPhoneMap, contactEmailMap, viewContactPhoneMap, viewContactEmailMap]);
 
-  /* ── Contact DataTable selection ────────────────────────────── */
-  const contactSelection = useListSelection(editContacts.filter((c) => !c._deleted) || []);
+  /* ── Contact view filter + selection ──────────────────────────── */
+  const filteredContacts = useMemo(() => {
+    const live = editContacts.filter((c) => !c._deleted);
+    if (contactViewFilter === 'active') return live.filter((c) => !c.deactivated_at);
+    if (contactViewFilter === 'archived') return live.filter((c) => !!c.deactivated_at);
+    return live;
+  }, [editContacts, contactViewFilter]);
+
+  const contactSelection = useListSelection(filteredContacts);
   const viewContactSelection = useListSelection(viewContacts || []);
+
+  const {
+    setArchiveOpen: setContactArchiveOpen, setRestoreOpen: setContactRestoreOpen,
+    archiveConfirmProps: contactArchiveProps, restoreConfirmProps: contactRestoreProps,
+  } = useArchiveRestore({
+    selectedRows: contactSelection.selectedRows,
+    archiveMut: archiveContactMut,
+    restoreMut: restoreContactMut,
+    entityName: 'contact',
+    setSelectionModel: () => contactSelection.clearSelection(),
+    toast,
+    errMsg,
+    getLabel: (r) => `${r.first_name} ${r.last_name}`,
+  });
 
   /* ── Contact password popover handlers ──────────────────────── */
   const handleContactAppUserToggle = (target) => (e) => {
@@ -511,6 +534,7 @@ export default function VendorsPage() {
     setContactPhones({});
     setContactEmailMap(new Map());
     setContactPhoneMap(new Map());
+    setContactViewFilter('active');
     setEditTab(0);
     setEditOpen(true);
   }, []);
@@ -1090,7 +1114,7 @@ export default function VendorsPage() {
       {/* ── Edit Vendor Dialog ──────────────────────────────────── */}
       <Dialog
         open={editOpen}
-        onClose={() => { setEditOpen(false); setEditRow(null); setEditSourceId(null); setEditVendorId(null); setContactEmails({}); setContactPhones({}); setContactEmailMap(new Map()); setContactPhoneMap(new Map()); setEditTab(0); }}
+        onClose={() => { setEditOpen(false); setEditRow(null); setEditSourceId(null); setEditVendorId(null); setContactEmails({}); setContactPhones({}); setContactEmailMap(new Map()); setContactPhoneMap(new Map()); setContactViewFilter('active'); setEditTab(0); }}
         maxWidth="md"
         fullWidth
         disableRestoreFocus
@@ -1102,7 +1126,7 @@ export default function VendorsPage() {
             <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
               <Button
                 size="small"
-                onClick={() => { setEditOpen(false); setEditRow(null); setEditSourceId(null); setEditVendorId(null); setContactEmails({}); setContactPhones({}); setContactEmailMap(new Map()); setContactPhoneMap(new Map()); setEditTab(0); }}
+                onClick={() => { setEditOpen(false); setEditRow(null); setEditSourceId(null); setEditVendorId(null); setContactEmails({}); setContactPhones({}); setContactEmailMap(new Map()); setContactPhoneMap(new Map()); setContactViewFilter('active'); setEditTab(0); }}
                 disabled={updateMut.isPending}
               >
                 Cancel
@@ -1297,19 +1321,46 @@ export default function VendorsPage() {
 
             {editTab === 1 && (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <Button size="small" startIcon={<AddIcon />} onClick={() => { setContactCreateForm({ ...BLANK_CONTACT_FORM }); setContactCreateEmails([]); setContactCreatePhones([]); setContactCreateOpen(true); }}>
-                    Create Contact
-                  </Button>
+                <Tabs value={contactViewFilter} onChange={(_, v) => { setContactViewFilter(v); contactSelection.clearSelection(); }} sx={{ minHeight: 32 }}>
+                  <Tab value="active" label="Active" sx={{ minHeight: 32, py: 0 }} />
+                  <Tab value="all" label="All" sx={{ minHeight: 32, py: 0 }} />
+                  <Tab value="archived" label="Archived" sx={{ minHeight: 32, py: 0 }} />
+                </Tabs>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                  {(contactViewFilter === 'active' || contactViewFilter === 'all') && (
+                    <Button
+                      size="small" variant="outlined" color="error"
+                      disabled={contactSelection.selectedRows.length === 0 || !contactSelection.allActive}
+                      onClick={() => setContactArchiveOpen(true)}
+                    >
+                      {contactSelection.selectedRows.length > 1 ? `Archive (${contactSelection.selectedRows.length})` : 'Archive'}
+                    </Button>
+                  )}
+                  {(contactViewFilter === 'archived' || contactViewFilter === 'all') && (
+                    <Button
+                      size="small" variant="outlined" color="success"
+                      disabled={contactSelection.selectedRows.length === 0 || !contactSelection.allArchived}
+                      onClick={() => setContactRestoreOpen(true)}
+                    >
+                      {contactSelection.selectedRows.length > 1 ? `Restore (${contactSelection.selectedRows.length})` : 'Restore'}
+                    </Button>
+                  )}
+                  {contactViewFilter !== 'archived' && (
+                    <Button size="small" startIcon={<AddIcon />} onClick={() => { setContactCreateForm({ ...BLANK_CONTACT_FORM }); setContactCreateEmails([]); setContactCreatePhones([]); setContactCreateOpen(true); }}>
+                      Create Contact
+                    </Button>
+                  )}
                 </Box>
                 <DataTable
-                  rows={editContacts.filter((c) => !c._deleted)}
+                  rows={filteredContacts}
                   columns={contactColumns}
                   selection={contactSelection}
                   onView={(row) => { setContactViewRow(row); setContactViewOpen(true); }}
                   onEdit={(row) => { openContactEdit(row); }}
-                  dataGridProps={{ autoHeight: true, checkboxSelection: false, pageSizeOptions: [10, 25] }}
+                  dataGridProps={{ autoHeight: true, checkboxSelection: true, pageSizeOptions: [10, 25] }}
                 />
+                <ConfirmDialog {...contactArchiveProps} />
+                {contactRestoreProps && <ConfirmDialog {...contactRestoreProps} />}
               </Box>
             )}
           </DialogContent>
