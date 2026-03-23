@@ -443,8 +443,8 @@ export default function VendorsPage() {
   }, [viewOpen, viewContacts]);
 
   /* ── refreshContactChildren helper ──────────────────────────── */
-  const refreshContactChildren = useCallback(async () => {
-    const contacts = editContacts.filter((c) => !c._deleted);
+  const refreshContactChildren = useCallback(async (overrideContacts) => {
+    const contacts = (overrideContacts || editContacts).filter((c) => !c._deleted);
     const emails = {};
     const phones = {};
     const eMap = new Map();
@@ -667,8 +667,10 @@ export default function VendorsPage() {
         }
       }
 
-      // Refresh contact children for the maps
-      await refreshContactChildren();
+      // Add the new contact to local state and refresh children with it included
+      const updatedContacts = [...editContacts, contactRecord];
+      setEditContacts(updatedContacts);
+      await refreshContactChildren(updatedContacts);
       setContactCreateOpen(false);
       setContactCreateForm({ ...BLANK_CONTACT_FORM });
       setContactCreateEmails([]);
@@ -677,7 +679,7 @@ export default function VendorsPage() {
     } catch (err) {
       toast(errMsg(err), 'error');
     }
-  }, [contactCreateForm, contactCreateEmails, contactCreatePhones, editRow, createContactMut, createEmailMut, createPhoneMut, toast, errMsg, refreshContactChildren]);
+  }, [contactCreateForm, contactCreateEmails, contactCreatePhones, editRow, editContacts, createContactMut, createEmailMut, createPhoneMut, toast, errMsg, refreshContactChildren]);
 
   /* ── Contact Edit handler ───────────────────────────────────── */
   const handleContactEdit = useCallback(async () => {
