@@ -69,6 +69,7 @@ import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import { useActivePaymentTerms } from '../../hooks/usePaymentTerms.js';
 import { useRoles } from '../../hooks/useRoles.js';
 import { TAX_TYPES, COUNTRIES, resolveLevel } from '@nap/shared';
+import { formatByPattern } from '../../utils/formatByPattern.js';
 import { vendorApi } from '../../services/vendorApi.js';
 import { emailApi } from '../../services/emailApi.js';
 import { phoneNumberApi } from '../../services/phoneNumberApi.js';
@@ -84,12 +85,14 @@ const BLANK_EMAIL = { email: '', label: 'work', is_primary: false };
 const BLANK_PHONE = { country_code: 'US', phone_type: 'cell', phone_number: '', is_primary: false };
 const BLANK_ADDRESS = {
   label: '', address_line_1: '', address_line_2: '', address_line_3: '', city: '',
-  state_province: '', postal_code: '', country_code: 'US', is_primary: false,
+  state_province: '', postal_code: '', country_code: 'US',
 };
-const BLANK_TAX_ID = { country_code: 'US', tax_type: 'TIN', tax_value: '', is_primary: false };
+const BLANK_TAX_ID = { country_code: 'US', tax_type: 'TIN', tax_value: '' };
+const fmtPhone = (p) => formatByPattern(p.phone_number, COUNTRIES.find((c) => c.code === p.country_code)?.placeholder);
+
 const BLANK_CONTACT_FORM = {
   first_name: '', last_name: '', position: '', department: '',
-  is_app_user: false, roles: [], is_primary: false, password: '',
+  is_app_user: false, roles: [], password: '',
 };
 
 const PHONE_TYPES = ['cell', 'work', 'home', 'fax', 'other'];
@@ -268,28 +271,38 @@ export default function VendorsPage() {
 
   /* ── Email edit helpers ─────────────────────────────────────── */
   const updateEmail = (idx, field, value) =>
-    setEditEmails((prev) => prev.map((e, i) => (i === idx ? { ...e, [field]: value } : e)));
-  const addEmail = () => setEditEmails((prev) => [...prev, { ...BLANK_EMAIL }]);
+    setEditEmails((prev) => prev.map((e, i) => {
+      if (i !== idx) {
+        if (field === 'is_primary' && value) return { ...e, is_primary: false };
+        return e;
+      }
+      return { ...e, [field]: value };
+    }));
+  const addEmail = () => setEditEmails((prev) => [...prev, { ...BLANK_EMAIL, is_primary: !prev.filter((e) => !e._deleted).length }]);
   const removeEmail = (idx) =>
     setEditEmails((prev) => prev.map((e, i) => (i === idx ? { ...e, _deleted: true } : e)));
 
   /* ── Phone edit helpers ─────────────────────────────────────── */
   const updatePhone = (idx, field, value) =>
-    setEditPhones((prev) => prev.map((p, i) => (i === idx ? { ...p, [field]: value } : p)));
-  const addPhone = () => setEditPhones((prev) => [...prev, { ...BLANK_PHONE }]);
+    setEditPhones((prev) => prev.map((p, i) => {
+      if (i !== idx) {
+        if (field === 'is_primary' && value) return { ...p, is_primary: false };
+        return p;
+      }
+      return { ...p, [field]: value };
+    }));
+  const addPhone = () => setEditPhones((prev) => [...prev, { ...BLANK_PHONE, is_primary: !prev.filter((p) => !p._deleted).length }]);
   const removePhone = (idx) =>
     setEditPhones((prev) => prev.map((p, i) => (i === idx ? { ...p, _deleted: true } : p)));
 
   /* ── Address edit helpers ───────────────────────────────────── */
-  const updateAddress = (idx, field, value) =>
-    setEditAddresses((prev) => prev.map((a, i) => (i === idx ? { ...a, [field]: value } : a)));
+  const updateAddress = (idx, field, value) => setEditAddresses((prev) => prev.map((a, i) => (i === idx ? { ...a, [field]: value } : a)));
   const addAddress = () => setEditAddresses((prev) => [...prev, { ...BLANK_ADDRESS }]);
   const removeAddress = (idx) =>
     setEditAddresses((prev) => prev.map((a, i) => (i === idx ? { ...a, _deleted: true } : a)));
 
   /* ── Tax ID edit helpers ──────────────────────────────────── */
-  const updateTaxId = (idx, field, value) =>
-    setEditTaxIds((prev) => prev.map((t, i) => (i === idx ? { ...t, [field]: value } : t)));
+  const updateTaxId = (idx, field, value) => setEditTaxIds((prev) => prev.map((t, i) => (i === idx ? { ...t, [field]: value } : t)));
   const addTaxId = () => setEditTaxIds((prev) => [...prev, { ...BLANK_TAX_ID }]);
   const removeTaxId = (idx) =>
     setEditTaxIds((prev) => prev.map((t, i) => (i === idx ? { ...t, _deleted: true } : t)));
@@ -388,7 +401,7 @@ export default function VendorsPage() {
             const primaryEmail = emails[c.id].find((e) => e.is_primary) || emails[c.id][0];
             if (primaryEmail) eMap.set(c.id, primaryEmail.email);
             const primaryPhone = phones[c.id].find((p) => p.is_primary) || phones[c.id][0];
-            if (primaryPhone) pMap.set(c.id, primaryPhone.phone_number);
+            if (primaryPhone) pMap.set(c.id, fmtPhone(primaryPhone));
           }
         }
         setContactEmails(emails);
@@ -417,7 +430,7 @@ export default function VendorsPage() {
             const primaryEmail = emails[c.id].find((e) => e.is_primary) || emails[c.id][0];
             if (primaryEmail) eMap.set(c.id, primaryEmail.email);
             const primaryPhone = phones[c.id].find((p) => p.is_primary) || phones[c.id][0];
-            if (primaryPhone) pMap.set(c.id, primaryPhone.phone_number);
+            if (primaryPhone) pMap.set(c.id, fmtPhone(primaryPhone));
           }
         }
         setViewContactEmails(emails);
@@ -430,8 +443,8 @@ export default function VendorsPage() {
   }, [viewOpen, viewContacts]);
 
   /* ── refreshContactChildren helper ──────────────────────────── */
-  const refreshContactChildren = useCallback(async () => {
-    const contacts = editContacts.filter((c) => !c._deleted);
+  const refreshContactChildren = useCallback(async (overrideContacts) => {
+    const contacts = (overrideContacts || editContacts).filter((c) => !c._deleted);
     const emails = {};
     const phones = {};
     const eMap = new Map();
@@ -445,7 +458,7 @@ export default function VendorsPage() {
         const primaryEmail = emails[c.id].find((e) => e.is_primary) || emails[c.id][0];
         if (primaryEmail) eMap.set(c.id, primaryEmail.email);
         const primaryPhone = phones[c.id].find((p) => p.is_primary) || phones[c.id][0];
-        if (primaryPhone) pMap.set(c.id, primaryPhone.phone_number);
+        if (primaryPhone) pMap.set(c.id, fmtPhone(primaryPhone));
       }
     }
     setContactEmails(emails);
@@ -509,7 +522,7 @@ export default function VendorsPage() {
       first_name: row.first_name, last_name: row.last_name,
       position: row.position || '', department: row.department || '',
       is_app_user: row.is_app_user || false, roles: row.roles || [],
-      is_primary: row.is_primary || false, password: '',
+      password: '',
     });
     setContactEditEmails([...(contactEmails[row.id] || [])]);
     setContactEditPhones([...(contactPhones[row.id] || [])]);
@@ -533,8 +546,8 @@ export default function VendorsPage() {
     };
     if (collectionChanged(editEmails, init.emails, ['email', 'label', 'is_primary'])) return true;
     if (collectionChanged(editPhones, init.phones, ['country_code', 'phone_type', 'phone_number', 'is_primary'])) return true;
-    if (collectionChanged(editAddresses, init.addresses, ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code', 'is_primary'])) return true;
-    if (collectionChanged(editTaxIds, init.taxIds, ['country_code', 'tax_type', 'tax_value', 'is_primary'])) return true;
+    if (collectionChanged(editAddresses, init.addresses, ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'])) return true;
+    if (collectionChanged(editTaxIds, init.taxIds, ['country_code', 'tax_type', 'tax_value'])) return true;
     return false;
   }, [editForm, editEmails, editPhones, editAddresses, editTaxIds]);
 
@@ -593,12 +606,12 @@ export default function VendorsPage() {
           } else if (!t.id && !t._deleted) {
             await createTaxIdMut.mutateAsync({
               source_id: editRow.source_id, country_code: t.country_code,
-              tax_type: t.tax_type, tax_value: t.tax_value, is_primary: t.is_primary,
+              tax_type: t.tax_type, tax_value: t.tax_value,
             });
           } else if (t.id && !t._deleted) {
             await updateTaxIdMut.mutateAsync({
               filter: { id: t.id },
-              changes: { country_code: t.country_code, tax_type: t.tax_type, tax_value: t.tax_value, is_primary: t.is_primary },
+              changes: { country_code: t.country_code, tax_type: t.tax_type, tax_value: t.tax_value },
             });
           }
         }
@@ -631,7 +644,6 @@ export default function VendorsPage() {
         department: contactCreateForm.department,
         is_app_user: contactCreateForm.is_app_user,
         roles: contactCreateForm.roles,
-        is_primary: contactCreateForm.is_primary,
         email: primaryEmail,
         password: contactCreateForm.password,
       });
@@ -655,8 +667,10 @@ export default function VendorsPage() {
         }
       }
 
-      // Refresh contact children for the maps
-      await refreshContactChildren();
+      // Add the new contact to local state and refresh children with it included
+      const updatedContacts = [...editContacts, contactRecord];
+      setEditContacts(updatedContacts);
+      await refreshContactChildren(updatedContacts);
       setContactCreateOpen(false);
       setContactCreateForm({ ...BLANK_CONTACT_FORM });
       setContactCreateEmails([]);
@@ -665,7 +679,7 @@ export default function VendorsPage() {
     } catch (err) {
       toast(errMsg(err), 'error');
     }
-  }, [contactCreateForm, contactCreateEmails, contactCreatePhones, editRow, createContactMut, createEmailMut, createPhoneMut, toast, errMsg, refreshContactChildren]);
+  }, [contactCreateForm, contactCreateEmails, contactCreatePhones, editRow, editContacts, createContactMut, createEmailMut, createPhoneMut, toast, errMsg, refreshContactChildren]);
 
   /* ── Contact Edit handler ───────────────────────────────────── */
   const handleContactEdit = useCallback(async () => {
@@ -676,7 +690,6 @@ export default function VendorsPage() {
         first_name: contactEditForm.first_name, last_name: contactEditForm.last_name,
         position: contactEditForm.position, department: contactEditForm.department,
         is_app_user: contactEditForm.is_app_user, roles: contactEditForm.roles,
-        is_primary: contactEditForm.is_primary,
         ...(contactEditForm.password && { password: contactEditForm.password }),
       };
       if (changes.is_app_user && !contactEditRow?.is_app_user) {
@@ -1201,16 +1214,9 @@ export default function VendorsPage() {
                           size="small"
                           sx={{ width: 200 }}
                         />
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <FormControlLabel
-                            control={<Checkbox checked={addr.is_primary} onChange={(e) => updateAddress(idx, 'is_primary', e.target.checked)} size="small" />}
-                            label="Primary"
-                            sx={{ mr: 0 }}
-                          />
-                          <IconButton size="small" onClick={() => removeAddress(idx)} color="error">
-                            <DeleteOutlineIcon fontSize="small" />
-                          </IconButton>
-                        </Box>
+                        <IconButton size="small" onClick={() => removeAddress(idx)} color="error">
+                          <DeleteOutlineIcon fontSize="small" />
+                        </IconButton>
                       </Box>
                       <Box sx={formGridSx}>
                         <TextField label="Address Line 1" value={addr.address_line_1} onChange={(e) => updateAddress(idx, 'address_line_1', e.target.value)} size="small" sx={formFullSpanSx} />
@@ -1279,11 +1285,6 @@ export default function VendorsPage() {
                           size="small"
                           sx={{ flex: 1, minWidth: 160 }}
                         />
-                        <FormControlLabel
-                          control={<Checkbox checked={taxId.is_primary} onChange={(e) => updateTaxId(idx, 'is_primary', e.target.checked)} size="small" />}
-                          label="Primary"
-                          sx={{ mr: 0 }}
-                        />
                         <IconButton size="small" onClick={() => removeTaxId(idx)} color="error">
                           <DeleteOutlineIcon fontSize="small" />
                         </IconButton>
@@ -1339,7 +1340,6 @@ export default function VendorsPage() {
                 <FieldRow label="Department" value={contactViewRow.department || '\u2014'} />
                 <FieldRow label="App User" value={contactViewRow.is_app_user ? 'Yes' : 'No'} />
                 <FieldRow label="Roles" value={contactViewRow.roles?.length ? contactViewRow.roles.join(', ') : '\u2014'} />
-                <FieldRow label="Primary" value={contactViewRow.is_primary ? 'Yes' : 'No'} />
               </Box>
               <Divider />
               <EmailsSection emails={contactEmails[contactViewRow.id] || viewContactEmails[contactViewRow.id] || []} />
@@ -1379,16 +1379,11 @@ export default function VendorsPage() {
             renderInput={(params) => <TextField {...params} label="Roles" />}
           />
         )}
-        <FormControlLabel
-          control={<Checkbox checked={contactCreateForm.is_primary} onChange={(e) => setContactCreateForm((p) => ({ ...p, is_primary: e.target.checked }))} size="small" />}
-          label="Primary Contact"
-        />
-
         {/* Emails */}
         <Divider />
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Typography variant="subtitle2">Emails</Typography>
-          <Button size="small" startIcon={<AddIcon />} onClick={() => setContactCreateEmails((p) => [...p, { ...BLANK_EMAIL }])}>Add Email</Button>
+          <Button size="small" startIcon={<AddIcon />} onClick={() => setContactCreateEmails((p) => [...p, { ...BLANK_EMAIL, is_primary: !p.length }])}>Add Email</Button>
         </Box>
         {contactCreateEmails.filter((e) => !e._deleted).length === 0 && (
           <Typography variant="body2" color="text.secondary">No emails</Typography>
@@ -1399,7 +1394,7 @@ export default function VendorsPage() {
             <TextField select label="Label" value={em.label} onChange={(e) => setContactCreateEmails((p) => p.map((x, i) => i === idx ? { ...x, label: e.target.value } : x))} size="small" sx={{ minWidth: 120 }}>
               {EMAIL_LABELS.map((l) => <MenuItem key={l} value={l}>{cap(l)}</MenuItem>)}
             </TextField>
-            <FormControlLabel control={<Checkbox checked={em.is_primary} onChange={(e) => setContactCreateEmails((p) => p.map((x, i) => i === idx ? { ...x, is_primary: e.target.checked } : x))} size="small" />} label="Primary" sx={{ mr: 0 }} />
+            <FormControlLabel control={<Checkbox checked={em.is_primary} onChange={(e) => setContactCreateEmails((p) => p.map((x, i) => i === idx ? { ...x, is_primary: e.target.checked } : e.target.checked ? { ...x, is_primary: false } : x))} size="small" />} label="Primary" sx={{ mr: 0 }} />
             <IconButton size="small" onClick={() => setContactCreateEmails((p) => p.filter((_, i) => i !== idx))} color="error"><DeleteOutlineIcon fontSize="small" /></IconButton>
           </Box>
         ))}
@@ -1408,7 +1403,7 @@ export default function VendorsPage() {
         <Divider />
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Typography variant="subtitle2">Phone Numbers</Typography>
-          <Button size="small" startIcon={<AddIcon />} onClick={() => setContactCreatePhones((p) => [...p, { ...BLANK_PHONE }])}>Add Phone</Button>
+          <Button size="small" startIcon={<AddIcon />} onClick={() => setContactCreatePhones((p) => [...p, { ...BLANK_PHONE, is_primary: !p.length }])}>Add Phone</Button>
         </Box>
         {contactCreatePhones.filter((p) => !p._deleted).length === 0 && (
           <Typography variant="body2" color="text.secondary">No phone numbers</Typography>
@@ -1421,8 +1416,8 @@ export default function VendorsPage() {
             <TextField select label="Type" value={ph.phone_type} onChange={(e) => setContactCreatePhones((p) => p.map((x, i) => i === idx ? { ...x, phone_type: e.target.value } : x))} size="small" sx={{ minWidth: 100 }}>
               {PHONE_TYPES.map((t) => <MenuItem key={t} value={t}>{cap(t)}</MenuItem>)}
             </TextField>
-            <PatternTextField label="Number" value={ph.phone_number} onChange={(val) => setContactCreatePhones((p) => p.map((x, i) => i === idx ? { ...x, phone_number: val } : x))} countryCode={ph.country_code} size="small" sx={{ flex: 1, minWidth: 140 }} />
-            <FormControlLabel control={<Checkbox checked={ph.is_primary} onChange={(e) => setContactCreatePhones((p) => p.map((x, i) => i === idx ? { ...x, is_primary: e.target.checked } : x))} size="small" />} label="Primary" sx={{ mr: 0 }} />
+            <PatternTextField label="Number" value={ph.phone_number} onChange={(val) => setContactCreatePhones((p) => p.map((x, i) => i === idx ? { ...x, phone_number: val } : x))} pattern={COUNTRIES.find((c) => c.code === ph.country_code)?.placeholder} size="small" sx={{ flex: 1, minWidth: 140 }} />
+            <FormControlLabel control={<Checkbox checked={ph.is_primary} onChange={(e) => setContactCreatePhones((p) => p.map((x, i) => i === idx ? { ...x, is_primary: e.target.checked } : e.target.checked ? { ...x, is_primary: false } : x))} size="small" />} label="Primary" sx={{ mr: 0 }} />
             <IconButton size="small" onClick={() => setContactCreatePhones((p) => p.filter((_, i) => i !== idx))} color="error"><DeleteOutlineIcon fontSize="small" /></IconButton>
           </Box>
         ))}
@@ -1463,16 +1458,11 @@ export default function VendorsPage() {
             renderInput={(params) => <TextField {...params} label="Roles" />}
           />
         )}
-        <FormControlLabel
-          control={<Checkbox checked={contactEditForm.is_primary} onChange={(e) => setContactEditForm((p) => ({ ...p, is_primary: e.target.checked }))} size="small" />}
-          label="Primary Contact"
-        />
-
         {/* Emails */}
         <Divider />
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Typography variant="subtitle2">Emails</Typography>
-          <Button size="small" startIcon={<AddIcon />} onClick={() => setContactEditEmails((p) => [...p, { ...BLANK_EMAIL }])}>Add Email</Button>
+          <Button size="small" startIcon={<AddIcon />} onClick={() => setContactEditEmails((p) => [...p, { ...BLANK_EMAIL, is_primary: !p.filter((e) => !e._deleted).length }])}>Add Email</Button>
         </Box>
         {contactEditEmails.filter((e) => !e._deleted).length === 0 && (
           <Typography variant="body2" color="text.secondary">No emails</Typography>
@@ -1483,7 +1473,7 @@ export default function VendorsPage() {
             <TextField select label="Label" value={em.label} onChange={(e) => setContactEditEmails((p) => p.map((x, i) => i === idx ? { ...x, label: e.target.value } : x))} size="small" sx={{ minWidth: 120 }}>
               {EMAIL_LABELS.map((l) => <MenuItem key={l} value={l}>{cap(l)}</MenuItem>)}
             </TextField>
-            <FormControlLabel control={<Checkbox checked={em.is_primary} onChange={(e) => setContactEditEmails((p) => p.map((x, i) => i === idx ? { ...x, is_primary: e.target.checked } : x))} size="small" />} label="Primary" sx={{ mr: 0 }} />
+            <FormControlLabel control={<Checkbox checked={em.is_primary} onChange={(e) => setContactEditEmails((p) => p.map((x, i) => i === idx ? { ...x, is_primary: e.target.checked } : e.target.checked ? { ...x, is_primary: false } : x))} size="small" />} label="Primary" sx={{ mr: 0 }} />
             <IconButton size="small" onClick={() => setContactEditEmails((p) => p.map((x, i) => i === idx ? { ...x, _deleted: true } : x))} color="error"><DeleteOutlineIcon fontSize="small" /></IconButton>
           </Box>
         ))}
@@ -1492,7 +1482,7 @@ export default function VendorsPage() {
         <Divider />
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Typography variant="subtitle2">Phone Numbers</Typography>
-          <Button size="small" startIcon={<AddIcon />} onClick={() => setContactEditPhones((p) => [...p, { ...BLANK_PHONE }])}>Add Phone</Button>
+          <Button size="small" startIcon={<AddIcon />} onClick={() => setContactEditPhones((p) => [...p, { ...BLANK_PHONE, is_primary: !p.filter((ph) => !ph._deleted).length }])}>Add Phone</Button>
         </Box>
         {contactEditPhones.filter((p) => !p._deleted).length === 0 && (
           <Typography variant="body2" color="text.secondary">No phone numbers</Typography>
@@ -1505,8 +1495,8 @@ export default function VendorsPage() {
             <TextField select label="Type" value={ph.phone_type} onChange={(e) => setContactEditPhones((p) => p.map((x, i) => i === idx ? { ...x, phone_type: e.target.value } : x))} size="small" sx={{ minWidth: 100 }}>
               {PHONE_TYPES.map((t) => <MenuItem key={t} value={t}>{cap(t)}</MenuItem>)}
             </TextField>
-            <PatternTextField label="Number" value={ph.phone_number} onChange={(val) => setContactEditPhones((p) => p.map((x, i) => i === idx ? { ...x, phone_number: val } : x))} countryCode={ph.country_code} size="small" sx={{ flex: 1, minWidth: 140 }} />
-            <FormControlLabel control={<Checkbox checked={ph.is_primary} onChange={(e) => setContactEditPhones((p) => p.map((x, i) => i === idx ? { ...x, is_primary: e.target.checked } : x))} size="small" />} label="Primary" sx={{ mr: 0 }} />
+            <PatternTextField label="Number" value={ph.phone_number} onChange={(val) => setContactEditPhones((p) => p.map((x, i) => i === idx ? { ...x, phone_number: val } : x))} pattern={COUNTRIES.find((c) => c.code === ph.country_code)?.placeholder} size="small" sx={{ flex: 1, minWidth: 140 }} />
+            <FormControlLabel control={<Checkbox checked={ph.is_primary} onChange={(e) => setContactEditPhones((p) => p.map((x, i) => i === idx ? { ...x, is_primary: e.target.checked } : e.target.checked ? { ...x, is_primary: false } : x))} size="small" />} label="Primary" sx={{ mr: 0 }} />
             <IconButton size="small" onClick={() => setContactEditPhones((p) => p.map((x, i) => i === idx ? { ...x, _deleted: true } : x))} color="error"><DeleteOutlineIcon fontSize="small" /></IconButton>
           </Box>
         ))}

@@ -28,7 +28,6 @@ const addressesSchema = {
     { name: 'state_province', type: 'varchar(128)' },
     { name: 'postal_code', type: 'varchar(20)' },
     { name: 'country_code', type: 'char(2)' },
-    { name: 'is_primary', type: 'boolean', notNull: true, default: false },
   ],
   constraints: {
     primaryKey: ['id'],

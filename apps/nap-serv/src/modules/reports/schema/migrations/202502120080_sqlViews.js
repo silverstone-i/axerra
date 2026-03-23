@@ -342,7 +342,6 @@ export default defineMigration({
         a.state_province,
         a.postal_code,
         a.country_code,
-        a.is_primary,
         a.created_at,
         a.updated_at
       FROM ${s}.addresses a

@@ -28,7 +28,6 @@ export default function AddressesSection({ addresses }) {
           <FieldRow label="State" value={a.state_province || '\u2014'} />
           <FieldRow label="Postal Code" value={a.postal_code || '\u2014'} />
           <FieldRow label="Country" value={a.country_code || '\u2014'} />
-          <FieldRow label="Primary" value={a.is_primary ? 'Yes' : 'No'} />
         </Box>
       ))}
     </>

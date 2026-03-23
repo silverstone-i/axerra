@@ -75,7 +75,7 @@ describe('Vendor Contact CRUD — /api/core/v1/vendor-contacts', () => {
     const res = await request(app)
       .post('/api/core/v1/vendor-contacts')
       .set('Cookie', cookies)
-      .send({ vendor_id: vendorId, first_name: 'Jane', last_name: 'Smith', position: 'Manager', department: 'Sales', is_primary: true });
+      .send({ vendor_id: vendorId, first_name: 'Jane', last_name: 'Smith', position: 'Manager', department: 'Sales' });
 
     expect(res.status).toBe(201);
     expect(res.body.first_name).toBe('Jane');

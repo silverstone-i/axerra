@@ -61,7 +61,7 @@ const CONTACT_CONFIG = {
   idType: 'vendor_contact',
   buildLabel: (row) => `${row.first_name} ${row.last_name}`,
   returningCols: ['id', 'first_name', 'last_name'],
-  boolCols: ['is_app_user', 'is_primary'],
+  boolCols: ['is_app_user'],
   hasRoles: true,
   codeRequired: false,
   extraExportCols: [
@@ -129,7 +129,7 @@ export default class Vendors extends TableModel {
     const contactSheet = wb.sheet(CONTACT_CONFIG.sheetName);
     if (!contactRows.length) {
       // Empty contacts — template headers
-      contactSheet.setHeaders(['vendor_id', 'id', 'first_name', 'last_name', 'position', 'department', 'is_app_user', 'roles', 'is_primary', 'status', 'password']);
+      contactSheet.setHeaders(['vendor_id', 'id', 'first_name', 'last_name', 'position', 'department', 'is_app_user', 'roles', 'status', 'password']);
       for (const child of CONTACT_CONFIG.childSheets) {
         const childSheet = wb.sheet(child.sheetName);
         childSheet.setHeaders([CONTACT_CONFIG.linkColName, ...child.headers]);

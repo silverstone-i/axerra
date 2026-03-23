@@ -22,8 +22,8 @@ const INTERNAL_COLS = new Set([
 
 /** Default headers for empty child sheets */
 export const PHONE_HEADERS = ['country_code', 'phone_type', 'phone_number', 'is_primary'];
-export const ADDRESS_HEADERS = ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code', 'is_primary'];
-export const TAX_ID_HEADERS = ['country_code', 'tax_type', 'tax_value', 'is_primary'];
+export const ADDRESS_HEADERS = ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'];
+export const TAX_ID_HEADERS = ['country_code', 'tax_type', 'tax_value'];
 export const EMAIL_HEADERS = ['email', 'label', 'is_primary', 'is_login'];
 
 /** Lazy-load db to avoid triggering DB.init() at module load (breaks unit tests) */

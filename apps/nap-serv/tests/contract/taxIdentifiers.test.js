@@ -72,14 +72,13 @@ describe('Tax Identifiers CRUD — /api/core/v1/tax-identifiers', () => {
     const res = await request(app)
       .post('/api/core/v1/tax-identifiers')
       .set('Cookie', cookies)
-      .send({ source_id: sourceId, country_code: 'US', tax_type: 'EIN', tax_value: '12-3456789', is_primary: true });
+      .send({ source_id: sourceId, country_code: 'US', tax_type: 'EIN', tax_value: '12-3456789' });
 
     expect(res.status).toBe(201);
     expect(res.body.source_id).toBe(sourceId);
     expect(res.body.country_code).toBe('US');
     expect(res.body.tax_type).toBe('EIN');
     expect(res.body.tax_value).toBe('12-3456789');
-    expect(res.body.is_primary).toBe(true);
     taxIdRecordId = res.body.id;
   });
 
@@ -113,7 +112,7 @@ describe('Tax Identifiers CRUD — /api/core/v1/tax-identifiers', () => {
     const res = await request(app)
       .post('/api/core/v1/tax-identifiers')
       .set('Cookie', cookies)
-      .send({ source_id: sourceId, country_code: 'US', tax_type: 'EIN', tax_value: '00-0000000', is_primary: false });
+      .send({ source_id: sourceId, country_code: 'US', tax_type: 'EIN', tax_value: '00-0000000' });
 
     expect(res.status).toBe(409);
   });

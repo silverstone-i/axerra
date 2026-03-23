@@ -56,9 +56,9 @@ const BLANK_CREATE = { name: '', code: '', is_active: true };
 const BLANK_EDIT = { name: '', code: '', is_active: true };
 const BLANK_ADDRESS = {
   label: '', address_line_1: '', address_line_2: '', address_line_3: '',
-  city: '', state_province: '', postal_code: '', country_code: 'US', is_primary: false,
+  city: '', state_province: '', postal_code: '', country_code: 'US',
 };
-const BLANK_TAX_ID = { country_code: 'US', tax_type: 'TIN', tax_value: '', is_primary: false };
+const BLANK_TAX_ID = { country_code: 'US', tax_type: 'TIN', tax_value: '' };
 
 const fmtDate = (v) => (v ? new Date(v).toLocaleDateString() : '\u2014');
 
@@ -241,12 +241,11 @@ export default function CompaniesPage() {
             country_code: t.country_code,
             tax_type: t.tax_type,
             tax_value: t.tax_value,
-            is_primary: t.is_primary,
           });
         } else if (t.id && !t._deleted) {
           await updateTaxIdMut.mutateAsync({
             filter: { id: t.id },
-            changes: { country_code: t.country_code, tax_type: t.tax_type, tax_value: t.tax_value, is_primary: t.is_primary },
+            changes: { country_code: t.country_code, tax_type: t.tax_type, tax_value: t.tax_value },
           });
         }
       }
@@ -469,16 +468,9 @@ export default function CompaniesPage() {
                   size="small"
                   sx={{ width: 200 }}
                 />
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <FormControlLabel
-                    control={<Checkbox checked={addr.is_primary} onChange={(e) => updateAddress(idx, 'is_primary', e.target.checked)} size="small" />}
-                    label="Primary"
-                    sx={{ mr: 0 }}
-                  />
-                  <IconButton size="small" onClick={() => removeAddress(idx)} color="error">
-                    <DeleteOutlineIcon fontSize="small" />
-                  </IconButton>
-                </Box>
+                <IconButton size="small" onClick={() => removeAddress(idx)} color="error">
+                  <DeleteOutlineIcon fontSize="small" />
+                </IconButton>
               </Box>
               <Box sx={formGridSx}>
                 <TextField label="Address Line 1" value={addr.address_line_1} onChange={(e) => updateAddress(idx, 'address_line_1', e.target.value)} size="small" sx={formFullSpanSx} />
@@ -549,11 +541,6 @@ export default function CompaniesPage() {
                   pattern={taxTypes.find((t) => t.code === taxId.tax_type)?.placeholder}
                   size="small"
                   sx={{ flex: 1, minWidth: 160 }}
-                />
-                <FormControlLabel
-                  control={<Checkbox checked={taxId.is_primary} onChange={(e) => updateTaxId(idx, 'is_primary', e.target.checked)} size="small" />}
-                  label="Primary"
-                  sx={{ mr: 0 }}
                 />
                 <IconButton size="small" onClick={() => removeTaxId(idx)} color="error">
                   <DeleteOutlineIcon fontSize="small" />
