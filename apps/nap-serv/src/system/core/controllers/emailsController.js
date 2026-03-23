@@ -39,12 +39,16 @@ class EmailsController extends BaseController {
         }
       }
 
-      // Clear sibling is_primary before insert
-      if (req.body.is_primary && req.body.source_id) {
-        await clearOtherPrimary(db, schema, 'emails', 'source_id', req.body.source_id, null, req.user?.id);
-      }
+      const record = await db.tx(async (t) => {
+        // Clear sibling is_primary before insert (atomic with the insert)
+        if (req.body.is_primary && req.body.source_id) {
+          await clearOtherPrimary(t, schema, 'emails', 'source_id', req.body.source_id, null, req.user?.id);
+        }
 
-      const record = await this.model(schema).insert(req.body);
+        const model = this.model(schema);
+        model.tx = t;
+        return model.insert(req.body);
+      });
 
       // Sync login email to nap_users
       if (record.is_login) {
@@ -88,12 +92,16 @@ class EmailsController extends BaseController {
         }
       }
 
-      // Clear sibling is_primary before update
-      if (req.body.is_primary && !before.is_primary) {
-        await clearOtherPrimary(db, schema, 'emails', 'source_id', before.source_id, before.id, req.user?.id);
-      }
+      const count = await db.tx(async (t) => {
+        // Clear sibling is_primary before update (atomic with the update)
+        if (req.body.is_primary && !before.is_primary) {
+          await clearOtherPrimary(t, schema, 'emails', 'source_id', before.source_id, before.id, req.user?.id);
+        }
 
-      const count = await this.model(schema).updateWhere([{ id: emailId }], req.body);
+        const model = this.model(schema);
+        model.tx = t;
+        return model.updateWhere([{ id: emailId }], req.body);
+      });
       if (!count) return res.status(404).json({ error: `${this.errorLabel} not found` });
 
       // Sync to nap_users if login email changed

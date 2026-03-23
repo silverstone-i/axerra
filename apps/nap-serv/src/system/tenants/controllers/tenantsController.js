@@ -311,10 +311,10 @@ class TenantsController extends BaseController {
   }
 
   /**
-   * GET /:id/contacts — primary and billing contacts with their primary phone/address
+   * GET /:id/contacts — primary and billing contacts with their phone/address
    *
    * Queries the tenant's schema for employees flagged as is_primary_contact
-   * or is_billing_contact, joining their primary phone number and address
+   * or is_billing_contact, joining their primary email/phone and first address
    * via the polymorphic sources table.
    */
   async getContacts(req, res) {
@@ -350,7 +350,7 @@ class TenantsController extends BaseController {
            LIMIT 1
          ) pn ON true
          LEFT JOIN LATERAL (
-           SELECT a.address_line_1, a.city, a.state_province, a.postal_code, a.country_code
+           SELECT a.address_line_1, a.address_line_2, a.city, a.state_province, a.postal_code, a.country_code
            FROM ${sch}.addresses a
            WHERE a.source_id = s.id AND a.deactivated_at IS NULL
            ORDER BY a.created_at
