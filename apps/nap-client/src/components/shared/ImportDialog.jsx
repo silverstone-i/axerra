@@ -8,10 +8,17 @@
 import { useState, useCallback, useEffect } from 'react';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
+import Alert from '@mui/material/Alert';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import FormDialog from './FormDialog.jsx';
 
-export default function ImportDialog({ open, title = 'Import Spreadsheet', loading, onSubmit, onCancel }) {
+export default function ImportDialog({ open, title = 'Import Spreadsheet', loading, errors, onSubmit, onCancel }) {
   const [file, setFile] = useState(null);
 
   useEffect(() => {
@@ -47,6 +54,37 @@ export default function ImportDialog({ open, title = 'Import Spreadsheet', loadi
         <Typography variant="body2" color="text.secondary">
           {(file.size / 1024).toFixed(1)} KB
         </Typography>
+      )}
+      {errors?.length > 0 && (
+        <Alert severity="error" sx={{ mt: 2 }}>
+          <Typography variant="subtitle2" gutterBottom>
+            Please fix {errors.length} error{errors.length > 1 ? 's' : ''} in the spreadsheet:
+          </Typography>
+          <TableContainer sx={{ maxHeight: 240 }}>
+            <Table size="small" stickyHeader>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Sheet</TableCell>
+                  <TableCell>Row</TableCell>
+                  <TableCell>Column</TableCell>
+                  <TableCell>Value</TableCell>
+                  <TableCell>Error</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {errors.map((e, i) => (
+                  <TableRow key={i}>
+                    <TableCell>{e.sheet}</TableCell>
+                    <TableCell>{e.row}</TableCell>
+                    <TableCell>{e.column}</TableCell>
+                    <TableCell sx={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.value}</TableCell>
+                    <TableCell>{e.message}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Alert>
       )}
     </FormDialog>
   );

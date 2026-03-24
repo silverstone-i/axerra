@@ -178,6 +178,7 @@ export default function VendorsPage() {
 
   /* ── Dialog state ───────────────────────────────────────────── */
   const [importOpen, setImportOpen] = useState(false);
+  const [importErrors, setImportErrors] = useState(null);
   const [viewOpen, setViewOpen] = useState(false);
   const [viewVendor, setViewVendor] = useState(null);
   const [viewSourceId, setViewSourceId] = useState(null);
@@ -770,12 +771,18 @@ export default function VendorsPage() {
   }, [contactEditRow, contactEditForm, contactEditEmails, contactEditPhones, updateContactMut, createEmailMut, updateEmailMut, archiveEmailMut, createPhoneMut, updatePhoneMut, archivePhoneMut, qc, toast, errMsg, refreshContactChildren]);
 
   const handleImport = useCallback(async (formData) => {
+    setImportErrors(null);
     try {
       const result = await importMut.mutateAsync(formData);
       toast(`Imported ${result.inserted} records`);
       setImportOpen(false);
     } catch (err) {
-      toast(errMsg(err), 'error');
+      const validationErrors = err.payload?.errors;
+      if (validationErrors?.length) {
+        setImportErrors(validationErrors);
+      } else {
+        toast(errMsg(err), 'error');
+      }
     }
   }, [importMut.mutateAsync, toast]);
 
@@ -1557,8 +1564,9 @@ export default function VendorsPage() {
         open={importOpen}
         title="Import Vendors"
         loading={importMut.isPending}
+        errors={importErrors}
         onSubmit={handleImport}
-        onCancel={() => setImportOpen(false)}
+        onCancel={() => { setImportOpen(false); setImportErrors(null); }}
       />
 
       <ConfirmDialog {...archiveConfirmProps} />
