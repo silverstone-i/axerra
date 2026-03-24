@@ -114,6 +114,7 @@ class VendorsController extends BaseController {
         tenant_code: tenantCode,
         created_by: req.user?.id || null,
       }));
+      if (result.errors) return res.status(422).json(result);
       res.json(result);
     } catch (err) {
       this.handleError(err, res, 'importing', this.errorLabel);

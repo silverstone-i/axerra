@@ -139,6 +139,7 @@ export function parseSheet(reader, sheetIndex) {
     headers.forEach((header, idx) => {
       obj[header] = cellRow[idx]?.value;
     });
+    obj._rowNum = i + 1; // 1-based spreadsheet row number (row 1 = header)
     rows.push(obj);
   }
 
@@ -597,4 +598,84 @@ async function provisionAppUser(entityId, email, password, tenantId, createdBy, 
     status: 'invited',
     created_by: createdBy,
   });
+}
+
+// ── Flat-format helpers (repeated-row export/import) ─────────────────────────
+
+/**
+ * Build flat repeated rows from a parent record and its child arrays.
+ * Produces N rows where N = max(childArrays[*].rows.length, 1).
+ * Each row repeats all parent columns; child columns are filled from the i-th
+ * record of each type, or left as empty strings if that type has fewer records.
+ *
+ * @param {Object} parent        Parent row object (all columns to repeat)
+ * @param {Array<{prefix: string, cols: string[], rows: Object[]}>} childArrays
+ *   Each entry has:
+ *   - prefix: column prefix in the flat sheet (e.g. 'email', 'phone')
+ *   - cols: source column names from the child record (e.g. ['email', 'label'])
+ *   - flatCols: column names in the flat sheet (e.g. ['email', 'email_label'])
+ *   - rows: array of child record objects
+ * @returns {Object[]} Array of flat row objects
+ */
+export function buildFlatRows(parent, childArrays) {
+  const maxRows = Math.max(...childArrays.map((c) => c.rows.length), 1);
+  const result = [];
+
+  for (let i = 0; i < maxRows; i++) {
+    const row = { ...parent };
+    for (const child of childArrays) {
+      const childRow = child.rows[i];
+      for (let j = 0; j < child.cols.length; j++) {
+        row[child.flatCols[j]] = childRow ? (childRow[child.cols[j]] ?? '') : '';
+      }
+    }
+    result.push(row);
+  }
+
+  return result;
+}
+
+/**
+ * Group parsed flat rows by a key function and extract child records.
+ * Rows with the same key are collected into one group. The parent columns
+ * are taken from the first row; child records are extracted from every row
+ * where the child's test function returns true.
+ *
+ * @param {Object[]} rows             Parsed sheet rows
+ * @param {Function} keyFn            (row) => string grouping key
+ * @param {string[]} parentCols       Column names that belong to the parent
+ * @param {Array<{name: string, test: Function, extract: Function}>} childExtractors
+ *   Each entry has:
+ *   - name: child type identifier (e.g. 'emails')
+ *   - test(row): returns true if this row has data for this child type
+ *   - extract(row): returns a plain object with the child columns
+ * @returns {Array<{parent: Object, children: Object}>}
+ */
+export function groupFlatRows(rows, keyFn, parentCols, childExtractors) {
+  const groups = [];
+  const keyMap = new Map();
+
+  for (const row of rows) {
+    const key = keyFn(row);
+    let group = keyMap.get(key);
+    if (!group) {
+      const parent = {};
+      for (const col of parentCols) parent[col] = row[col];
+      if (row._rowNum != null) parent._rowNum = row._rowNum;
+      group = { parent, children: {} };
+      for (const ext of childExtractors) group.children[ext.name] = [];
+      groups.push(group);
+      keyMap.set(key, group);
+    }
+
+    for (const ext of childExtractors) {
+      if (ext.test(row)) {
+        const child = ext.extract(row);
+        if (row._rowNum != null) child._rowNum = row._rowNum;
+        group.children[ext.name].push(child);
+      }
+    }
+  }
+
+  return groups;
 }
