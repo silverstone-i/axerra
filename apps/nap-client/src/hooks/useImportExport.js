@@ -11,14 +11,18 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
  * Mutation hook for importing a spreadsheet via multipart upload.
  * Invalidates the entity query cache on success.
  *
- * @param {Function} importFn  API method that accepts FormData (e.g. vendorApi.importXls)
- * @param {Array}    queryKey  React Query key to invalidate on success (e.g. ['vendors'])
+ * @param {Function}  importFn       API method that accepts FormData (e.g. vendorApi.importXls)
+ * @param {Array}     queryKey       React Query key to invalidate on success (e.g. ['vendors'])
+ * @param {Array[]}   [extraKeys=[]] Additional query keys to invalidate (e.g. [['nap-users']])
  */
-export function useImportXls(importFn, queryKey) {
+export function useImportXls(importFn, queryKey, extraKeys = []) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (formData) => importFn(formData),
-    onSuccess: () => qc.invalidateQueries({ queryKey }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey });
+      for (const key of extraKeys) qc.invalidateQueries({ queryKey: key });
+    },
   });
 }
 

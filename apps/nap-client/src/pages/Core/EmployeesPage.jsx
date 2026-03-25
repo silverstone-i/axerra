@@ -137,7 +137,7 @@ export default function EmployeesPage() {
   const restoreMut = useRestoreEmployee();
   const resetPwMut = useResetEmployeePassword();
 
-  const importMut = useImportXls(employeeApi.importXls, ['employees']);
+  const importMut = useImportXls(employeeApi.importXls, ['employees'], [['nap-users']]);
   const exportMut = useExportXls(employeeApi.exportXls, 'employees');
 
   const createPhoneMut = useCreatePhoneNumber();
@@ -159,6 +159,7 @@ export default function EmployeesPage() {
 
   /* ── Dialog state ───────────────────────────────────────────── */
   const [importOpen, setImportOpen] = useState(false);
+  const [importErrors, setImportErrors] = useState(null);
   const [viewOpen, setViewOpen] = useState(false);
   const [viewEmployee, setViewEmployee] = useState(null);
   const [viewSourceId, setViewSourceId] = useState(null);
@@ -466,12 +467,18 @@ export default function EmployeesPage() {
   };
 
   const handleImport = useCallback(async (formData) => {
+    setImportErrors(null);
     try {
       const result = await importMut.mutateAsync(formData);
       toast(`Imported ${result.inserted} records`);
       setImportOpen(false);
     } catch (err) {
-      toast(errMsg(err), 'error');
+      const validationErrors = err.payload?.errors;
+      if (validationErrors?.length) {
+        setImportErrors(validationErrors);
+      } else {
+        toast(errMsg(err), 'error');
+      }
     }
   }, [importMut.mutateAsync, toast]);
 
@@ -885,8 +892,9 @@ export default function EmployeesPage() {
         open={importOpen}
         title="Import Employees"
         loading={importMut.isPending}
+        errors={importErrors}
         onSubmit={handleImport}
-        onCancel={() => setImportOpen(false)}
+        onCancel={() => { setImportOpen(false); setImportErrors(null); }}
       />
 
       <ConfirmDialog {...archiveConfirmProps} />

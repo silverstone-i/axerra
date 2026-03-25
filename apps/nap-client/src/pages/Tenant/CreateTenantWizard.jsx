@@ -18,6 +18,8 @@ import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import PatternTextField from '../../components/shared/PatternTextField.jsx';
+import { TAX_TYPES } from '@nap/shared';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 
@@ -237,7 +239,16 @@ export default function CreateTenantWizard({ open, onClose, onSuccess }) {
                   </MenuItem>
                 ))}
               </TextField>
-              <TextField label="Value" value={row.tax_value} onChange={onTaxField(idx, 'tax_value')} sx={{ flex: 1 }} />
+              <PatternTextField
+                label="Value"
+                value={row.tax_value}
+                onChange={(raw) => setForm((p) => ({
+                  ...p,
+                  tax_identifiers: p.tax_identifiers.map((r, i) => (i === idx ? { ...r, tax_value: raw } : r)),
+                }))}
+                pattern={(TAX_TYPES[row.country_code] || []).find((t) => t.code === row.tax_type)?.placeholder}
+                sx={{ flex: 1 }}
+              />
               <IconButton size="small" onClick={() => removeTaxRow(idx)} sx={{ mt: 1 }}>
                 <DeleteIcon fontSize="small" />
               </IconButton>

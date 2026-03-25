@@ -1,18 +1,26 @@
 /**
- * @file Employees model — extends TableModel with multi-sheet upsert export/import
+ * @file Employees model — extends TableModel with flat single-sheet export/import
  * @module core/models/Employees
  *
- * Overrides exportToSpreadsheet and importFromSpreadsheet using the shared
- * config-driven helpers from spreadsheetHelpers.js.
+ * Exports/imports employees as a single flat worksheet with repeated rows
+ * for child data (emails, phones, addresses, tax identifiers).
+ * Legacy multi-sheet workbooks (>1 sheet) are auto-detected on import.
  *
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
 
+import { readFileSync } from 'node:fs';
 import { TableModel } from 'pg-schemata';
 import employeesSchema from '../schemas/employeesSchema.js';
 import {
-  exportSourceEntity,
   importSourceEntity,
+  exportFlatSourceEntity,
+  importFlatSourceEntity,
+  isUuid,
+  FLAT_CHILD_EMAILS,
+  FLAT_CHILD_PHONES,
+  FLAT_CHILD_ADDRESSES,
+  FLAT_CHILD_TAX_IDS,
   PHONE_HEADERS,
   ADDRESS_HEADERS,
   TAX_ID_HEADERS,
@@ -43,6 +51,19 @@ const CONFIG = {
     { sheetName: 'Tax Identifiers', modelName: 'taxIdentifiers', headers: TAX_ID_HEADERS },
   ],
   appUserProvisioning: { entityType: 'employee' },
+  flat: {
+    parentCols: [
+      'id', 'code', 'first_name', 'last_name', 'position', 'department',
+      'is_app_user', 'is_primary_contact', 'is_billing_contact', 'roles', 'status', 'password',
+    ],
+    children: [FLAT_CHILD_EMAILS, FLAT_CHILD_PHONES, FLAT_CHILD_ADDRESSES, FLAT_CHILD_TAX_IDS],
+    nameFields: ['first_name', 'last_name'],
+    groupKeyFn: (r) => {
+      if (isUuid(r.id)) return r.id;
+      if (r.id != null && String(r.id).trim()) return `ref::${r.id}`;
+      return `${r.code || ''}::${r.first_name || ''}::${r.last_name || ''}`;
+    },
+  },
 };
 
 export default class Employees extends TableModel {
@@ -51,21 +72,27 @@ export default class Employees extends TableModel {
   }
 
   /**
-   * Export employees with curated columns and child data on separate sheets.
+   * Export employees as a single flat worksheet with repeated rows for child data.
    */
   async exportToSpreadsheet(filePath, where = [], joinType = 'AND', options = {}) {
-    return exportSourceEntity(this, filePath, where, joinType, options, CONFIG);
+    return exportFlatSourceEntity(this, filePath, where, joinType, options, CONFIG);
   }
 
   /**
-   * Import employees from a multi-sheet workbook with upsert semantics.
-   *
-   * @param {string}   filePath
-   * @param {number}   [_sheetIndex=0]  Ignored — always reads all sheets
-   * @param {Function} [callbackFn]     Row transformer (adds tenant_code, created_by)
-   * @param {Array}    [_returning]     Ignored
+   * Import employees from a spreadsheet.
+   * Auto-detects format:
+   *   - 1 sheet: new flat repeated-row format
+   *   - >1 sheet: legacy multi-sheet format (delegate to importSourceEntity)
    */
   async importFromSpreadsheet(filePath, _sheetIndex = 0, callbackFn = null, _returning = null) {
-    return importSourceEntity(this, filePath, _sheetIndex, callbackFn, CONFIG);
+    const { WorkbookReader } = await import('@nap-sft/tablsx');
+    const buffer = readFileSync(filePath);
+    const reader = WorkbookReader.fromBuffer(buffer);
+
+    if (reader.sheetCount > 1) {
+      return importSourceEntity(this, filePath, _sheetIndex, callbackFn, CONFIG);
+    }
+
+    return importFlatSourceEntity(this, reader, callbackFn, CONFIG);
   }
 }

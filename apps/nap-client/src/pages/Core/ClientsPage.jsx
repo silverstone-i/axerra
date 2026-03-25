@@ -120,7 +120,7 @@ export default function ClientsPage() {
   const restoreMut = useRestoreClient();
   const resetPwMut = useResetClientPassword();
 
-  const importMut = useImportXls(clientApi.importXls, ['clients']);
+  const importMut = useImportXls(clientApi.importXls, ['clients'], [['nap-users']]);
   const exportMut = useExportXls(clientApi.exportXls, 'clients');
 
   const createEmailMut = useCreateEmail();
@@ -142,6 +142,7 @@ export default function ClientsPage() {
 
   /* ── Dialog state ───────────────────────────────────────────── */
   const [importOpen, setImportOpen] = useState(false);
+  const [importErrors, setImportErrors] = useState(null);
   const [viewOpen, setViewOpen] = useState(false);
   const [viewClient, setViewClient] = useState(null);
   const [viewSourceId, setViewSourceId] = useState(null);
@@ -411,12 +412,18 @@ export default function ClientsPage() {
   };
 
   const handleImport = useCallback(async (formData) => {
+    setImportErrors(null);
     try {
       const result = await importMut.mutateAsync(formData);
       toast(`Imported ${result.inserted} records`);
       setImportOpen(false);
     } catch (err) {
-      toast(errMsg(err), 'error');
+      const validationErrors = err.payload?.errors;
+      if (validationErrors?.length) {
+        setImportErrors(validationErrors);
+      } else {
+        toast(errMsg(err), 'error');
+      }
     }
   }, [importMut.mutateAsync, toast]);
 
@@ -834,8 +841,9 @@ export default function ClientsPage() {
         open={importOpen}
         title="Import Clients"
         loading={importMut.isPending}
+        errors={importErrors}
         onSubmit={handleImport}
-        onCancel={() => setImportOpen(false)}
+        onCancel={() => { setImportOpen(false); setImportErrors(null); }}
       />
 
       <ConfirmDialog {...archiveConfirmProps} />

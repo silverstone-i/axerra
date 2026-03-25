@@ -1,16 +1,24 @@
 /**
- * @file Companies model — extends TableModel with multi-sheet upsert export/import
+ * @file Companies model — extends TableModel with flat single-sheet export/import
  * @module core/models/Companies
+ *
+ * Exports/imports companies as a single flat worksheet with repeated rows
+ * for child data (addresses, tax identifiers — no emails or phones).
+ * Legacy multi-sheet workbooks (>1 sheet) are auto-detected on import.
  *
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
 
+import { readFileSync } from 'node:fs';
 import { TableModel } from 'pg-schemata';
 import companiesSchema from '../schemas/companiesSchema.js';
 import {
-  exportSourceEntity,
   importSourceEntity,
-  PHONE_HEADERS,
+  exportFlatSourceEntity,
+  importFlatSourceEntity,
+  isUuid,
+  FLAT_CHILD_ADDRESSES,
+  FLAT_CHILD_TAX_IDS,
   ADDRESS_HEADERS,
   TAX_ID_HEADERS,
 } from '../../../lib/spreadsheetHelpers.js';
@@ -32,11 +40,20 @@ const CONFIG = {
   ],
   extraImportStrip: [],
   childSheets: [
-    { sheetName: 'Phone Numbers', modelName: 'phoneNumbers', headers: PHONE_HEADERS },
     { sheetName: 'Addresses', modelName: 'addresses', headers: ADDRESS_HEADERS },
     { sheetName: 'Tax Identifiers', modelName: 'taxIdentifiers', headers: TAX_ID_HEADERS },
   ],
   appUserProvisioning: null,
+  flat: {
+    parentCols: ['id', 'code', 'name', 'status'],
+    children: [FLAT_CHILD_ADDRESSES, FLAT_CHILD_TAX_IDS],
+    nameFields: ['name'],
+    groupKeyFn: (r) => {
+      if (isUuid(r.id)) return r.id;
+      if (r.id != null && String(r.id).trim()) return `ref::${r.id}`;
+      return `${r.code || ''}::${r.name || ''}`;
+    },
+  },
 };
 
 export default class Companies extends TableModel {
@@ -44,11 +61,28 @@ export default class Companies extends TableModel {
     super(db, pgp, companiesSchema, logger);
   }
 
+  /**
+   * Export companies as a single flat worksheet with repeated rows for child data.
+   */
   async exportToSpreadsheet(filePath, where = [], joinType = 'AND', options = {}) {
-    return exportSourceEntity(this, filePath, where, joinType, options, CONFIG);
+    return exportFlatSourceEntity(this, filePath, where, joinType, options, CONFIG);
   }
 
+  /**
+   * Import companies from a spreadsheet.
+   * Auto-detects format:
+   *   - 1 sheet: new flat repeated-row format
+   *   - >1 sheet: legacy multi-sheet format (delegate to importSourceEntity)
+   */
   async importFromSpreadsheet(filePath, _sheetIndex = 0, callbackFn = null, _returning = null) {
-    return importSourceEntity(this, filePath, _sheetIndex, callbackFn, CONFIG);
+    const { WorkbookReader } = await import('@nap-sft/tablsx');
+    const buffer = readFileSync(filePath);
+    const reader = WorkbookReader.fromBuffer(buffer);
+
+    if (reader.sheetCount > 1) {
+      return importSourceEntity(this, filePath, _sheetIndex, callbackFn, CONFIG);
+    }
+
+    return importFlatSourceEntity(this, reader, callbackFn, CONFIG);
   }
 }

@@ -7,7 +7,9 @@
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
 
+import fs from 'node:fs';
 import ViewController from './ViewController.js';
+import logger from './logger.js';
 
 class BaseController extends ViewController {
   constructor(modelName, errorLabel = null) {
@@ -112,9 +114,14 @@ class BaseController extends ViewController {
         tenant_code: tenantCode,
         created_by: req.user?.id,
       }));
+      if (result.errors) return res.status(422).json(result);
       res.status(201).json(result);
     } catch (err) {
       this.handleError(err, res, 'importing', this.errorLabel);
+    } finally {
+      fs.unlink(file.path, (unlinkErr) => {
+        if (unlinkErr) logger.error(`Failed to delete uploaded file: ${unlinkErr.message}`);
+      });
     }
   }
 }

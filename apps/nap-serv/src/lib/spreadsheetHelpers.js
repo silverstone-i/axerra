@@ -25,6 +25,7 @@ export const PHONE_HEADERS = ['country_code', 'phone_type', 'phone_number', 'is_
 export const ADDRESS_HEADERS = ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'];
 export const TAX_ID_HEADERS = ['country_code', 'tax_type', 'tax_value'];
 export const EMAIL_HEADERS = ['email', 'label', 'is_primary', 'is_login'];
+export const CONTACT_EMAIL_HEADERS = ['email', 'label', 'is_primary'];
 
 /** Lazy-load db to avoid triggering DB.init() at module load (breaks unit tests) */
 let _db, _pgp;
@@ -139,6 +140,7 @@ export function parseSheet(reader, sheetIndex) {
     headers.forEach((header, idx) => {
       obj[header] = cellRow[idx]?.value;
     });
+    obj._rowNum = i + 1; // 1-based spreadsheet row number (row 1 = header)
     rows.push(obj);
   }
 
@@ -181,6 +183,7 @@ export function coerceRow(row, boolCols, hasRoles) {
 export function coerceChildRow(row, model) {
   const columns = model._schema?.columns;
   if (!columns) return row;
+  const enumMap = _getEnumColumns(model._schema);
   for (const col of columns) {
     if (!(col.name in row)) continue;
     const val = row[col.name];
@@ -189,12 +192,36 @@ export function coerceChildRow(row, model) {
     if (/^(varchar|char|text)/i.test(col.type) && typeof val === 'number') {
       row[col.name] = String(val);
     }
+    // enum columns: lowercase to match CHECK constraint values
+    if (enumMap.has(col.name) && typeof val === 'string') {
+      row[col.name] = val.toLowerCase().trim();
+    }
     // boolean columns: coerce strings
     if (col.type === 'boolean' && typeof val === 'string') {
       row[col.name] = val.toLowerCase() === 'true';
     }
   }
   return row;
+}
+
+/**
+ * Extract a Map of column name → Set of valid enum values from a schema's CHECK constraints.
+ * Parses expressions like: "phone_type IN ('cell', 'work', 'home')"
+ * @param {Object} schema pg-schemata schema definition
+ * @returns {Map<string, Set<string>>}
+ */
+function _getEnumColumns(schema) {
+  const map = new Map();
+  const checks = schema?.constraints?.checks;
+  if (!checks) return map;
+  for (const check of checks) {
+    if (!check.columns?.length || !check.expression) continue;
+    const match = check.expression.match(/IN\s*\(([^)]+)\)/i);
+    if (!match) continue;
+    const values = new Set(match[1].match(/'([^']+)'/g)?.map((v) => v.slice(1, -1)) || []);
+    if (values.size) map.set(check.columns[0], values);
+  }
+  return map;
 }
 
 // ── Config-driven export/import for source entities ──────────────────────────
@@ -351,6 +378,7 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
   // Columns to strip from every row before DB operations
   const stripCols = ['status', 'deactivated_at', 'password', ...(config.extraImportStrip || [])];
 
+  try {
   await db.tx(async (t) => {
     model.tx = t;
 
@@ -477,7 +505,11 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
         }
         // Provision nap_users for app users with password
         if (config.appUserProvisioning && cleanInserts[i].is_app_user && cleanInserts[i].email && toInsert[i]._password) {
-          await provisionAppUser(rec.id, cleanInserts[i].email, toInsert[i]._password, tid, createdBy, config.appUserProvisioning.entityType, t);
+          const created = await provisionAppUser(rec.id, cleanInserts[i].email, toInsert[i]._password, tid, createdBy, config.appUserProvisioning.entityType, t);
+          if (!created) {
+            await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET is_app_user = false WHERE id = $1`, [rec.id]);
+            appUserSkipped++;
+          }
         }
       }
     }
@@ -494,8 +526,9 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
       }
     }
   });
-
-  model.tx = null;
+  } finally {
+    model.tx = null;
+  }
 
   return {
     inserted: insertedCount,
@@ -579,7 +612,14 @@ export async function importChildSheet(reader, sheetIndex, refToSourceId, modelN
  * @param {string} entityType Entity type for nap_users (e.g. 'employee', 'client')
  * @param {Object} t          Transaction object
  */
-async function provisionAppUser(entityId, email, password, tenantId, createdBy, entityType, t) {
+export async function provisionAppUser(entityId, email, password, tenantId, createdBy, entityType, t) {
+  // Skip if an active nap_user with this email already exists
+  const existing = await t.oneOrNone(
+    'SELECT id FROM admin.nap_users WHERE email = $1 AND deactivated_at IS NULL',
+    [email],
+  );
+  if (existing) return false;
+
   const bcrypt = await import('bcrypt');
   const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
   const passwordHash = await bcrypt.default.hash(password, rounds);
@@ -597,4 +637,600 @@ async function provisionAppUser(entityId, email, password, tenantId, createdBy, 
     status: 'invited',
     created_by: createdBy,
   });
+  return true;
+}
+
+// ── Flat child descriptors ───────────────────────────────────────────────────
+
+/**
+ * @typedef {Object} FlatChildDescriptor
+ * @property {string}   key       Key in the children object (e.g. 'emails')
+ * @property {string}   modelName pg-schemata model name (e.g. 'emails')
+ * @property {Function} test      (row) => boolean — does this row have data for this child?
+ * @property {Function} extract   (row) => Object — extract child columns from a flat row
+ * @property {string[]} cols      Source column names from the child record
+ * @property {string[]} flatCols  Column names in the flat sheet
+ */
+
+/** @type {FlatChildDescriptor} */
+export const FLAT_CHILD_EMAILS = {
+  key: 'emails',
+  modelName: 'emails',
+  test: (r) => !!r.email,
+  extract: (r) => ({ email: r.email, label: r.email_label, is_primary: r.email_is_primary, is_login: r.email_is_login }),
+  cols: ['email', 'label', 'is_primary', 'is_login'],
+  flatCols: ['email', 'email_label', 'email_is_primary', 'email_is_login'],
+};
+
+/** @type {FlatChildDescriptor} — same as FLAT_CHILD_EMAILS but without is_login (for contacts) */
+export const FLAT_CHILD_EMAILS_NO_LOGIN = {
+  key: 'emails',
+  modelName: 'emails',
+  test: (r) => !!r.email,
+  extract: (r) => ({ email: r.email, label: r.email_label, is_primary: r.email_is_primary }),
+  cols: ['email', 'label', 'is_primary'],
+  flatCols: ['email', 'email_label', 'email_is_primary'],
+};
+
+/** @type {FlatChildDescriptor} */
+export const FLAT_CHILD_PHONES = {
+  key: 'phones',
+  modelName: 'phoneNumbers',
+  test: (r) => !!r.phone_number,
+  extract: (r) => ({ country_code: r.phone_country_code, phone_type: r.phone_type, phone_number: r.phone_number, is_primary: r.phone_is_primary }),
+  cols: ['country_code', 'phone_type', 'phone_number', 'is_primary'],
+  flatCols: ['phone_country_code', 'phone_type', 'phone_number', 'phone_is_primary'],
+};
+
+/** @type {FlatChildDescriptor} */
+export const FLAT_CHILD_ADDRESSES = {
+  key: 'addresses',
+  modelName: 'addresses',
+  test: (r) => !!r.address_line_1,
+  extract: (r) => ({
+    label: r.address_label, address_line_1: r.address_line_1, address_line_2: r.address_line_2,
+    address_line_3: r.address_line_3, city: r.address_city, state_province: r.address_state_province,
+    postal_code: r.address_postal_code, country_code: r.address_country_code,
+  }),
+  cols: ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'],
+  flatCols: ['address_label', 'address_line_1', 'address_line_2', 'address_line_3', 'address_city', 'address_state_province', 'address_postal_code', 'address_country_code'],
+};
+
+/** @type {FlatChildDescriptor} */
+export const FLAT_CHILD_TAX_IDS = {
+  key: 'taxIds',
+  modelName: 'taxIdentifiers',
+  test: (r) => !!r.tax_value,
+  extract: (r) => ({ country_code: r.tax_country_code, tax_type: r.tax_type, tax_value: r.tax_value }),
+  cols: ['country_code', 'tax_type', 'tax_value'],
+  flatCols: ['tax_country_code', 'tax_type', 'tax_value'],
+};
+
+// Simple email regex matching pg-schemata / Zod email validation
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// ── Config-driven flat export/import for source entities ─────────────────────
+
+/**
+ * Export a source entity as a single flat worksheet with repeated rows for children.
+ *
+ * @param {Object} model    pg-schemata model instance
+ * @param {string} filePath Output .xlsx path
+ * @param {Array}  where    findWhere conditions
+ * @param {string} joinType 'AND' | 'OR'
+ * @param {Object} options  { includeDeactivated, ... }
+ * @param {SourceEntityConfig} config  Must include `flat` sub-object
+ * @returns {Promise<{exported: number, filePath: string}>}
+ */
+export async function exportFlatSourceEntity(model, filePath, where, joinType, options, config) {
+  const { includeDeactivated, ...rest } = options;
+  const parentRows = await model.findWhere(where, joinType, { ...rest, includeDeactivated });
+
+  const { WorkbookBuilder, writeXlsx } = await import('@nap-sft/tablsx');
+  const wb = WorkbookBuilder.create();
+  const flatHeaders = [...config.flat.parentCols, ...config.flat.children.flatMap((c) => c.flatCols)];
+  const sheet = wb.sheet(config.sheetName);
+  sheet.setHeaders(flatHeaders);
+
+  if (!parentRows.length) {
+    writeFileSync(filePath, writeXlsx(wb.build()));
+    return { exported: 0, filePath };
+  }
+
+  const { db } = await getDb();
+  const schema = model._schema.dbSchema;
+
+  // Batch-query all children by source_id
+  const sourceIds = parentRows.map((c) => c.source_id).filter(Boolean);
+  const childrenBySource = new Map();
+
+  if (sourceIds.length) {
+    for (const cfg of config.flat.children) {
+      const rows = await db(cfg.modelName, schema).findWhere([{ source_id: { $in: sourceIds } }]);
+      for (const row of rows) {
+        let entry = childrenBySource.get(row.source_id);
+        if (!entry) {
+          entry = {};
+          for (const c of config.flat.children) entry[c.key] = [];
+          childrenBySource.set(row.source_id, entry);
+        }
+        entry[cfg.key].push(row);
+      }
+    }
+  }
+
+  // Build flat rows
+  const emptyChildren = {};
+  for (const c of config.flat.children) emptyChildren[c.key] = [];
+
+  for (const rec of parentRows) {
+    const children = childrenBySource.get(rec.source_id) || emptyChildren;
+    // Build parent object from config parentCols, applying extraExportCols
+    const parent = {};
+    for (const col of config.flat.parentCols) {
+      if (config.extraExportCols?.some((e) => e.name === col)) {
+        parent[col] = config.extraExportCols.find((e) => e.name === col).derive(rec);
+      } else if (col === 'roles' && Array.isArray(rec.roles)) {
+        parent[col] = `{${rec.roles.join(',')}}`;
+      } else {
+        parent[col] = rec[col] ?? '';
+      }
+    }
+
+    const childArrays = config.flat.children.map((cfg) => ({
+      cols: cfg.cols,
+      flatCols: cfg.flatCols,
+      rows: children[cfg.key],
+    }));
+    const flatRows = buildFlatRows(parent, childArrays);
+    sheet.addObjects(flatRows);
+  }
+
+  writeFileSync(filePath, writeXlsx(wb.build()));
+  return { exported: parentRows.length, filePath };
+}
+
+/**
+ * Import a source entity from a single flat sheet with repeated rows for children.
+ *
+ * @param {Object}   model       pg-schemata model instance
+ * @param {Object}   reader      WorkbookReader (already loaded)
+ * @param {Function} callbackFn  Row transformer (tenant_code, created_by)
+ * @param {SourceEntityConfig} config  Must include `flat` sub-object
+ * @returns {Promise<{inserted: number, updated: number, appUserSkipped: number} | {errors: Array}>}
+ */
+export async function importFlatSourceEntity(model, reader, callbackFn, config) {
+  const { db, pgp } = await getDb();
+  const schema = model._schema.dbSchema;
+  const s = pgp.as.name(schema);
+
+  // Resolve tenant_id
+  let tenantId;
+  const sampleRow = callbackFn ? await callbackFn({}) : {};
+  if (sampleRow.tenant_code) {
+    const tenantRec = await db.oneOrNone(
+      'SELECT id FROM admin.tenants WHERE tenant_code = $1 AND deactivated_at IS NULL',
+      [sampleRow.tenant_code.toUpperCase()],
+    );
+    tenantId = tenantRec?.id;
+  }
+
+  // Parse and group rows
+  const flatRows = parseSheet(reader, 0);
+  if (!flatRows.length) {
+    const { SchemaDefinitionError } = await import('pg-schemata');
+    throw new SchemaDefinitionError('Spreadsheet is empty or invalid format');
+  }
+
+  const childExtractors = config.flat.children.map((c) => ({ name: c.key, test: c.test, extract: c.extract }));
+  const { groups, conflicts } = groupFlatRows(flatRows, config.flat.groupKeyFn, config.flat.parentCols, childExtractors);
+
+  // ── Pre-validation ─────────────────────────────────────────────────────────
+  const sheetName = reader.sheetNames?.[0] || config.sheetName;
+  const errors = [];
+
+  // Surface conflicting parent fields across rows in the same group
+  for (const c of conflicts) {
+    errors.push({
+      sheet: sheetName, row: c.row, column: c.column, value: c.value,
+      message: `Conflicts with row ${c.existingRow} which has "${c.existingValue}"`,
+    });
+  }
+
+  const hasEmails = config.flat.children.some((c) => c.key === 'emails');
+
+  // Validate emails
+  if (hasEmails) {
+    for (const group of groups) {
+      for (const child of group.children.emails || []) {
+        if (child.email && !EMAIL_RE.test(child.email)) {
+          errors.push({ sheet: sheetName, row: child._rowNum || null, column: 'email', value: child.email, message: 'Invalid email format' });
+        }
+      }
+    }
+  }
+
+  // Validate child enum fields (e.g. phone_type)
+  for (const cfg of config.flat.children) {
+    const childModel = db(cfg.modelName, schema);
+    const enumMap = _getEnumColumns(childModel._schema);
+    if (!enumMap.size) continue;
+    for (const group of groups) {
+      const childRows = group.children[cfg.key];
+      if (!childRows?.length) continue;
+      for (const row of childRows) {
+        for (const [colName, validValues] of enumMap) {
+          const val = row[colName];
+          if (val == null || val === '') continue;
+          const normalized = String(val).toLowerCase().trim();
+          if (!validValues.has(normalized)) {
+            const flatCol = cfg.flatCols?.[cfg.cols.indexOf(colName)] || colName;
+            const options = [...validValues].join(', ');
+            errors.push({ sheet: sheetName, row: row._rowNum || null, column: flatCol, value: val, message: `Invalid value — must be one of: ${options}` });
+          }
+        }
+      }
+    }
+  }
+
+  // Validate no duplicate codes
+  const codeCounts = new Map();
+  for (const group of groups) {
+    const code = typeof group.parent.code === 'string' ? group.parent.code.trim() : '';
+    if (code) {
+      const prev = codeCounts.get(code);
+      if (prev) {
+        errors.push({ sheet: sheetName, row: group.parent._rowNum || null, column: 'code', value: code, message: `Duplicate code — also appears on row ${prev}` });
+      } else {
+        codeCounts.set(code, group.parent._rowNum || '?');
+      }
+    }
+  }
+
+  // Validate required name fields and status
+  const VALID_STATUSES = new Set(['active', 'archived', '']);
+  for (const group of groups) {
+    for (const field of config.flat.nameFields) {
+      if (!group.parent[field] || (typeof group.parent[field] === 'string' && !group.parent[field].trim())) {
+        errors.push({ sheet: sheetName, row: group.parent._rowNum || null, column: field, value: group.parent[field] ?? '', message: `${field.replace(/_/g, ' ')} is required` });
+      }
+    }
+    const status = String(group.parent.status ?? '').toLowerCase().trim();
+    if (!VALID_STATUSES.has(status)) {
+      errors.push({ sheet: sheetName, row: group.parent._rowNum || null, column: 'status', value: group.parent.status, message: 'Status must be "active" or "archived"' });
+    }
+    if (config.codeRequired) {
+      const code = typeof group.parent.code === 'string' ? group.parent.code.trim() : '';
+      if (!code) {
+        errors.push({ sheet: sheetName, row: group.parent._rowNum || null, column: 'code', value: group.parent.code ?? '', message: 'Code is required' });
+      }
+    }
+  }
+
+  if (errors.length) return { errors };
+
+  let insertedCount = 0;
+  let updatedCount = 0;
+  let appUserSkipped = 0;
+
+  try {
+  await db.tx(async (t) => {
+    model.tx = t;
+
+    // ── Phase 1: Partition into updates vs inserts ──────────────────────
+    const uuidIds = groups.filter((g) => isUuid(g.parent.id)).map((g) => g.parent.id);
+    const existingEntities = new Map();
+    if (uuidIds.length) {
+      const existing = await t.any(
+        `SELECT id, source_id FROM ${s}.${pgp.as.name(config.entityName)} WHERE id IN ($1:csv)`,
+        [uuidIds],
+      );
+      for (const row of existing) existingEntities.set(row.id, row.source_id);
+    }
+
+    const toUpdate = [];
+    const toInsert = [];
+    const stripCols = ['status', 'deactivated_at', 'password'];
+
+    for (const group of groups) {
+      const { parent } = group;
+      const isArchived = String(parent.status).toLowerCase() === 'archived';
+      const password = parent.password || null;
+      const { _rowNum: _rn, ...entityData } = { ...parent };
+      for (const col of stripCols) delete entityData[col];
+
+      const transformed = callbackFn ? await callbackFn({ ...entityData }) : { ...entityData };
+      for (const col of stripCols) delete transformed[col];
+      delete transformed.tenant_code;
+      if (tenantId) transformed.tenant_id = tenantId;
+      coerceRow(transformed, config.boolCols, config.hasRoles);
+      // Normalize empty-string codes to null
+      if (typeof transformed.code === 'string' && !transformed.code.trim()) transformed.code = null;
+
+      if (existingEntities.has(parent.id)) {
+        toUpdate.push({ transformed, isArchived, group });
+      } else {
+        toInsert.push({ transformed, isArchived, group, ref: parent.id || null, password });
+      }
+    }
+
+    // ── Phase 2: Run updates ───────────────────────────────────────────
+    for (const { transformed, isArchived, group } of toUpdate) {
+      const { id, ...changes } = transformed;
+      await model.updateWhere([{ id }], changes, { includeDeactivated: true });
+      if (isArchived) {
+        await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET deactivated_at = NOW() WHERE id = $1 AND deactivated_at IS NULL`, [id]);
+      } else {
+        await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET deactivated_at = NULL WHERE id = $1 AND deactivated_at IS NOT NULL`, [id]);
+      }
+      updatedCount++;
+
+      // Upsert children for updated entity
+      const sourceId = existingEntities.get(id);
+      if (sourceId) {
+        await _upsertFlatChildren(t, s, schema, db, pgp, sourceId, group.children, config.flat.children, callbackFn, tenantId);
+      }
+    }
+
+    // ── Phase 3: Run inserts ───────────────────────────────────────────
+    if (toInsert.length) {
+      const cleanInserts = toInsert.map(({ transformed }) => {
+        const { id: _id, ...clean } = transformed;
+        if (typeof clean.code === 'string' && !clean.code.trim()) clean.code = null;
+        return clean;
+      });
+
+      // Clear codes that already exist in the DB
+      if (!config.codeRequired) {
+        const insertCodes = cleanInserts.map((r) => r.code).filter(Boolean);
+        if (insertCodes.length) {
+          const existingCodes = await t.any(
+            `SELECT code FROM ${s}.${pgp.as.name(config.entityName)} WHERE code IN ($1:csv)`,
+            [insertCodes],
+          );
+          const takenCodes = new Set(existingCodes.map((r) => r.code));
+          for (const row of cleanInserts) {
+            if (row.code && takenCodes.has(row.code)) row.code = null;
+          }
+        }
+      }
+
+      const insertResults = await model.bulkInsert(cleanInserts, config.returningCols);
+      insertedCount = insertResults.length;
+
+      // Create sources records
+      const sourcesModel = db('sources', schema);
+      sourcesModel.tx = t;
+      const tid = cleanInserts[0]?.tenant_id;
+      const createdBy = cleanInserts[0]?.created_by || null;
+
+      const sourceRecords = insertResults.map((rec) => ({
+        tenant_id: tid,
+        table_id: rec.id,
+        source_type: config.sourceType,
+        label: config.buildLabel(rec),
+        created_by: createdBy,
+      }));
+      const sourceResults = await sourcesModel.bulkInsert(sourceRecords, ['id', 'table_id']);
+      const sourceByParentId = new Map(sourceResults.map((sr) => [sr.table_id, sr.id]));
+
+      for (let i = 0; i < insertResults.length; i++) {
+        const rec = insertResults[i];
+        const sourceId = sourceByParentId.get(rec.id);
+        if (sourceId) {
+          await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET source_id = $1 WHERE id = $2`, [sourceId, rec.id]);
+        }
+        if (!cleanInserts[i].code && config.idType) {
+          const numbering = await allocateNumber(schema, config.idType, null, new Date(), t);
+          if (numbering) {
+            await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET code = $1 WHERE id = $2`, [numbering.displayId, rec.id]);
+          }
+        }
+
+        if (toInsert[i].isArchived) {
+          await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET deactivated_at = NOW() WHERE id = $1`, [rec.id]);
+        }
+
+        // Insert children for new entity
+        if (sourceId) {
+          await _upsertFlatChildren(t, s, schema, db, pgp, sourceId, toInsert[i].group.children, config.flat.children, callbackFn, tenantId);
+        }
+      }
+
+      // Provision nap_users for app-user entities after emails are inserted
+      if (config.appUserProvisioning) {
+        const crypto = await import('node:crypto');
+
+        for (let i = 0; i < insertResults.length; i++) {
+          if (!cleanInserts[i].is_app_user) continue;
+
+          const rec = insertResults[i];
+          const sourceId = sourceByParentId.get(rec.id);
+          if (!sourceId) continue;
+
+          const loginEmail = await t.oneOrNone(
+            `SELECT email FROM ${s}.emails
+             WHERE source_id = $1 AND deactivated_at IS NULL
+             ORDER BY is_login DESC, is_primary DESC, created_at LIMIT 1`,
+            [sourceId],
+          );
+          if (!loginEmail) {
+            await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET is_app_user = false WHERE id = $1`, [rec.id]);
+            appUserSkipped++;
+            continue;
+          }
+
+          const clearPassword = toInsert[i].password || crypto.randomBytes(12).toString('base64url');
+          const created = await provisionAppUser(rec.id, loginEmail.email, clearPassword, tid, createdBy, config.appUserProvisioning.entityType, t);
+          if (!created) {
+            await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET is_app_user = false WHERE id = $1`, [rec.id]);
+            appUserSkipped++;
+          }
+        }
+      }
+    }
+  });
+  } finally {
+    model.tx = null;
+  }
+
+  return {
+    inserted: insertedCount,
+    updated: updatedCount,
+    appUserSkipped,
+  };
+}
+
+/**
+ * Upsert flat children: soft-delete existing, insert new from grouped child arrays.
+ * @private
+ */
+async function _upsertFlatChildren(t, s, schema, db, pgp, sourceId, children, childConfigs, callbackFn, tenantId) {
+  for (const cfg of childConfigs) {
+    const childRows = children[cfg.key];
+    if (!childRows || !childRows.length) continue;
+
+    const childModel = db(cfg.modelName, schema);
+    childModel.tx = t;
+    const tableName = childModel._schema?.table || cfg.modelName;
+
+    // Soft-delete existing children
+    await t.none(
+      `UPDATE ${s}.${pgp.as.name(tableName)} SET deactivated_at = NOW() WHERE source_id = $1 AND deactivated_at IS NULL`,
+      [sourceId],
+    );
+
+    // Insert new children
+    const toInsert = [];
+    for (const row of childRows) {
+      const { _rowNum: _, ...rest } = row;
+      const base = { ...rest, source_id: sourceId };
+      const transformed = callbackFn ? await callbackFn(base) : base;
+      delete transformed.tenant_code;
+      if (tenantId) transformed.tenant_id = tenantId;
+      coerceChildRow(transformed, childModel);
+      // Default null values on notNull boolean columns to false (continuation rows leave them blank)
+      for (const col of childModel._schema?.columns || []) {
+        if (col.type === 'boolean' && col.notNull && transformed[col.name] == null) {
+          transformed[col.name] = col.default ?? false;
+        }
+      }
+      toInsert.push(transformed);
+    }
+
+    if (toInsert.length) {
+      await childModel.bulkInsert(toInsert);
+    }
+  }
+}
+
+// ── Flat-format helpers (repeated-row export/import) ─────────────────────────
+
+/**
+ * Build flat repeated rows from a parent record and its child arrays.
+ * Produces N rows where N = max(childArrays[*].rows.length, 1).
+ * Each row repeats all parent columns; child columns are filled from the i-th
+ * record of each type, or left as empty strings if that type has fewer records.
+ *
+ * @param {Object} parent        Parent row object (all columns to repeat)
+ * @param {Array<{prefix: string, cols: string[], rows: Object[]}>} childArrays
+ *   Each entry has:
+ *   - prefix: column prefix in the flat sheet (e.g. 'email', 'phone')
+ *   - cols: source column names from the child record (e.g. ['email', 'label'])
+ *   - flatCols: column names in the flat sheet (e.g. ['email', 'email_label'])
+ *   - rows: array of child record objects
+ * @returns {Object[]} Array of flat row objects
+ */
+export function buildFlatRows(parent, childArrays) {
+  const maxRows = Math.max(...childArrays.map((c) => c.rows.length), 1);
+  const result = [];
+
+  for (let i = 0; i < maxRows; i++) {
+    const row = { ...parent };
+    for (const child of childArrays) {
+      const childRow = child.rows[i];
+      for (let j = 0; j < child.cols.length; j++) {
+        row[child.flatCols[j]] = childRow ? (childRow[child.cols[j]] ?? '') : '';
+      }
+    }
+    result.push(row);
+  }
+
+  return result;
+}
+
+/**
+ * Group parsed flat rows by a key function and extract child records.
+ * Rows with the same key are collected into one group. The parent columns
+ * are taken from the first row; child records are extracted from every row
+ * where the child's test function returns true.
+ *
+ * @param {Object[]} rows             Parsed sheet rows
+ * @param {Function} keyFn            (row) => string grouping key
+ * @param {string[]} parentCols       Column names that belong to the parent
+ * @param {Array<{name: string, test: Function, extract: Function}>} childExtractors
+ *   Each entry has:
+ *   - name: child type identifier (e.g. 'emails')
+ *   - test(row): returns true if this row has data for this child type
+ *   - extract(row): returns a plain object with the child columns
+ * @returns {Array<{parent: Object, children: Object}>}
+ */
+export function groupFlatRows(rows, keyFn, parentCols, childExtractors) {
+  const groups = [];
+  const conflicts = [];
+  const keyMap = new Map();
+  let lastGroup = null;
+
+  for (const row of rows) {
+    // Detect continuation rows: all parent columns are null/empty → attach to previous group
+    const isContinuation = lastGroup && parentCols.every((col) => {
+      const v = row[col];
+      return v == null || v === '' || (typeof v === 'string' && !v.trim());
+    });
+
+    let group;
+    if (isContinuation) {
+      group = lastGroup;
+    } else {
+      const key = keyFn(row);
+      group = keyMap.get(key);
+      if (group) {
+        // Existing group — check for conflicting parent values
+        for (const col of parentCols) {
+          const incoming = row[col];
+          if (incoming == null || incoming === '' || (typeof incoming === 'string' && !incoming.trim())) continue;
+          const existing = group.parent[col];
+          if (existing == null || existing === '' || (typeof existing === 'string' && !existing.trim())) continue;
+          if (String(incoming).trim() !== String(existing).trim()) {
+            conflicts.push({
+              row: row._rowNum || null,
+              column: col,
+              value: incoming,
+              existingRow: group.parent._rowNum || null,
+              existingValue: existing,
+            });
+          }
+        }
+      } else {
+        const parent = {};
+        for (const col of parentCols) parent[col] = row[col];
+        if (row._rowNum != null) parent._rowNum = row._rowNum;
+        group = { parent, children: {} };
+        for (const ext of childExtractors) group.children[ext.name] = [];
+        groups.push(group);
+        keyMap.set(key, group);
+      }
+      lastGroup = group;
+    }
+
+    for (const ext of childExtractors) {
+      if (ext.test(row)) {
+        const child = ext.extract(row);
+        if (row._rowNum != null) child._rowNum = row._rowNum;
+        group.children[ext.name].push(child);
+      }
+    }
+  }
+
+  return { groups, conflicts };
 }
