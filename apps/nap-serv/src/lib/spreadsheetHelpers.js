@@ -607,7 +607,7 @@ export async function importChildSheet(reader, sheetIndex, refToSourceId, modelN
  * @param {string} entityType Entity type for nap_users (e.g. 'employee', 'client')
  * @param {Object} t          Transaction object
  */
-async function provisionAppUser(entityId, email, password, tenantId, createdBy, entityType, t) {
+export async function provisionAppUser(entityId, email, password, tenantId, createdBy, entityType, t) {
   // Skip if a nap_user with this email already exists
   const existing = await t.oneOrNone('SELECT id FROM admin.nap_users WHERE email = $1', [email]);
   if (existing) return false;

@@ -63,7 +63,7 @@ class TenantsController extends BaseController {
       const result = await this.model('admin').importFromSpreadsheet(
         file.path, 0, (row) => ({ ...row, created_by: req.user?.id }),
       );
-      if (result.errors) return res.status(422).json(result);
+      if (result.errors?.length) return res.status(422).json(result);
       res.status(201).json(result);
     } catch (err) {
       this.handleError(err, res, 'importing', this.errorLabel);

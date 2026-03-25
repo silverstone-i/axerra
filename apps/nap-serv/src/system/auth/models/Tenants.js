@@ -164,7 +164,7 @@ export default class Tenants extends TableModel {
       }
     }
 
-    return { inserted, updated, errors };
+    return { inserted, updated, ...(errors.length ? { errors } : {}) };
   }
 
   // ── Private helpers ────────────────────────────────────────────────────────
@@ -184,7 +184,10 @@ export default class Tenants extends TableModel {
     if (normalizedStatus && VALID_STATUSES.has(normalizedStatus) && normalizedStatus !== 'archived') changes.status = normalizedStatus;
     if (row.tier) changes.tier = row.tier;
     if ('region' in row) changes.region = row.region || null;
-    if (row.max_users != null) changes.max_users = parseInt(row.max_users, 10) || tenant.max_users;
+    if (row.max_users != null) {
+      const parsed = parseInt(row.max_users, 10);
+      if (Number.isFinite(parsed)) changes.max_users = parsed;
+    }
     if ('notes' in row) changes.notes = row.notes || null;
     if (actorId) changes.updated_by = actorId;
 

@@ -22,6 +22,7 @@ import {
   coerceChildRow,
   buildFlatRows,
   groupFlatRows,
+  provisionAppUser,
   PHONE_HEADERS,
   ADDRESS_HEADERS,
   TAX_ID_HEADERS,
@@ -663,8 +664,6 @@ export default class Vendors extends TableModel {
         // Provision nap_users for app-user contacts after emails are inserted
         if (CONTACT_CONFIG.appUserProvisioning) {
           const crypto = await import('node:crypto');
-          const bcrypt = await import('bcrypt');
-          const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
 
           for (let i = 0; i < insertResults.length; i++) {
             if (!cleanInserts[i].is_app_user) continue;
@@ -685,18 +684,10 @@ export default class Vendors extends TableModel {
             }
 
             const clearPassword = contactToInsert[i].password || crypto.randomBytes(12).toString('base64url');
-            const passwordHash = await bcrypt.default.hash(clearPassword, rounds);
-            const napUsersModel = db('napUsers', 'admin');
-            napUsersModel.tx = t;
-            await napUsersModel.insert({
-              tenant_id: tid,
-              entity_type: CONTACT_CONFIG.appUserProvisioning.entityType,
-              entity_id: rec.id,
-              email: loginEmail.email,
-              password_hash: passwordHash,
-              status: 'invited',
-              created_by: createdBy,
-            });
+            const created = await provisionAppUser(rec.id, loginEmail.email, clearPassword, tid, createdBy, CONTACT_CONFIG.appUserProvisioning.entityType, t);
+            if (!created) {
+              await t.none(`UPDATE ${s}.vendor_contacts SET is_app_user = false WHERE id = $1`, [rec.id]);
+            }
           }
         }
       }
