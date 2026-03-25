@@ -77,7 +77,7 @@ export default function ImportDialog({ open, title = 'Import Spreadsheet', loadi
                     <TableCell>{e.sheet}</TableCell>
                     <TableCell>{e.row}</TableCell>
                     <TableCell>{e.column}</TableCell>
-                    <TableCell sx={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.value}</TableCell>
+                    <TableCell sx={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.value}</TableCell>
                     <TableCell>{e.message}</TableCell>
                   </TableRow>
                 ))}
