@@ -378,6 +378,7 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
   // Columns to strip from every row before DB operations
   const stripCols = ['status', 'deactivated_at', 'password', ...(config.extraImportStrip || [])];
 
+  try {
   await db.tx(async (t) => {
     model.tx = t;
 
@@ -525,8 +526,9 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
       }
     }
   });
-
-  model.tx = null;
+  } finally {
+    model.tx = null;
+  }
 
   return {
     inserted: insertedCount,
@@ -911,6 +913,7 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
   let updatedCount = 0;
   let appUserSkipped = 0;
 
+  try {
   await db.tx(async (t) => {
     model.tx = t;
 
@@ -1067,8 +1070,9 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
       }
     }
   });
-
-  model.tx = null;
+  } finally {
+    model.tx = null;
+  }
 
   return {
     inserted: insertedCount,

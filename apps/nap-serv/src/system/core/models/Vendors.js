@@ -440,6 +440,7 @@ export default class Vendors extends TableModel {
     const vendorRefToId = new Map(); // spreadsheet id/ref → DB vendor id
     const vendorIdToSourceId = new Map(); // DB vendor id → source_id
 
+    try {
     await db.tx(async (t) => {
       this.tx = t;
 
@@ -700,8 +701,9 @@ export default class Vendors extends TableModel {
         }
       }
     });
-
-    this.tx = null;
+    } finally {
+      this.tx = null;
+    }
 
     return {
       inserted: insertedCount,
