@@ -110,6 +110,7 @@ export default function CompaniesPage() {
 
   /* ── Dialog state ───────────────────────────────────────────── */
   const [importOpen, setImportOpen] = useState(false);
+  const [importErrors, setImportErrors] = useState(null);
   const [viewOpen, setViewOpen] = useState(false);
   const [viewCompany, setViewCompany] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -262,12 +263,18 @@ export default function CompaniesPage() {
   };
 
   const handleImport = useCallback(async (formData) => {
+    setImportErrors(null);
     try {
       const result = await importMut.mutateAsync(formData);
       toast(`Imported ${result.inserted} records`);
       setImportOpen(false);
     } catch (err) {
-      toast(errMsg(err), 'error');
+      const validationErrors = err.payload?.errors;
+      if (validationErrors?.length) {
+        setImportErrors(validationErrors);
+      } else {
+        toast(errMsg(err), 'error');
+      }
     }
   }, [importMut.mutateAsync, toast]);
 
@@ -555,8 +562,9 @@ export default function CompaniesPage() {
         open={importOpen}
         title="Import Companies"
         loading={importMut.isPending}
+        errors={importErrors}
         onSubmit={handleImport}
-        onCancel={() => setImportOpen(false)}
+        onCancel={() => { setImportOpen(false); setImportErrors(null); }}
       />
 
       <ConfirmDialog {...archiveConfirmProps} />
