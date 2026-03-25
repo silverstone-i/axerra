@@ -505,7 +505,10 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
         // Provision nap_users for app users with password
         if (config.appUserProvisioning && cleanInserts[i].is_app_user && cleanInserts[i].email && toInsert[i]._password) {
           const created = await provisionAppUser(rec.id, cleanInserts[i].email, toInsert[i]._password, tid, createdBy, config.appUserProvisioning.entityType, t);
-          if (!created) appUserSkipped++;
+          if (!created) {
+            await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET is_app_user = false WHERE id = $1`, [rec.id]);
+            appUserSkipped++;
+          }
         }
       }
     }
@@ -608,8 +611,11 @@ export async function importChildSheet(reader, sheetIndex, refToSourceId, modelN
  * @param {Object} t          Transaction object
  */
 export async function provisionAppUser(entityId, email, password, tenantId, createdBy, entityType, t) {
-  // Skip if a nap_user with this email already exists
-  const existing = await t.oneOrNone('SELECT id FROM admin.nap_users WHERE email = $1', [email]);
+  // Skip if an active nap_user with this email already exists
+  const existing = await t.oneOrNone(
+    'SELECT id FROM admin.nap_users WHERE email = $1 AND deactivated_at IS NULL',
+    [email],
+  );
   if (existing) return false;
 
   const bcrypt = await import('bcrypt');
@@ -1053,7 +1059,10 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
 
           const clearPassword = toInsert[i].password || crypto.randomBytes(12).toString('base64url');
           const created = await provisionAppUser(rec.id, loginEmail.email, clearPassword, tid, createdBy, config.appUserProvisioning.entityType, t);
-          if (!created) appUserSkipped++;
+          if (!created) {
+            await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET is_app_user = false WHERE id = $1`, [rec.id]);
+            appUserSkipped++;
+          }
         }
       }
     }

@@ -359,7 +359,11 @@ export default class Vendors extends TableModel {
 
     const { groups: vendorGroups, conflicts: vendorConflicts } = groupFlatRows(
       flatRows,
-      (r) => (isUuid(r.id) ? r.id : `${r.code || ''}::${r.name || ''}`),
+      (r) => {
+        const rawId = r.id != null ? String(r.id).trim() : '';
+        if (rawId) return isUuid(rawId) ? rawId : `ref::${rawId}`;
+        return `${r.code || ''}::${r.name || ''}`;
+      },
       VENDOR_PARENT_COLS,
       VENDOR_CHILD_EXTRACTORS,
     );
@@ -394,7 +398,11 @@ export default class Vendors extends TableModel {
     if (contactFlatRows.length) {
       ({ groups: contactGroups, conflicts: contactConflicts } = groupFlatRows(
         contactFlatRows,
-        (r) => (isUuid(r.id) ? r.id : `${r.vendor_id || ''}::${r.first_name || ''}::${r.last_name || ''}`),
+        (r) => {
+          const rawId = r.id != null ? String(r.id).trim() : '';
+          if (rawId) return isUuid(rawId) ? rawId : `ref::${rawId}`;
+          return `${r.vendor_id || ''}::${r.first_name || ''}::${r.last_name || ''}`;
+        },
         CONTACT_PARENT_COLS,
         CONTACT_CHILD_EXTRACTORS,
       ));

@@ -141,7 +141,7 @@ export default class Tenants extends TableModel {
     const buffer = readFileSync(filePath);
     const reader = WorkbookReader.fromBuffer(buffer);
     const rows = parseSheet(reader, 0);
-    if (!rows.length) return { inserted: 0, updated: 0, errors: [] };
+    if (!rows.length) return { inserted: 0, updated: 0 };
 
     const actorId = callbackFn ? (await callbackFn({})).created_by || null : null;
 
