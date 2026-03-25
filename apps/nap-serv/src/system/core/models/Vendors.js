@@ -356,7 +356,7 @@ export default class Vendors extends TableModel {
       throw new SchemaDefinitionError('Spreadsheet is empty or invalid format');
     }
 
-    const vendorGroups = groupFlatRows(
+    const { groups: vendorGroups, conflicts: vendorConflicts } = groupFlatRows(
       flatRows,
       (r) => (isUuid(r.id) ? r.id : `${r.code || ''}::${r.name || ''}`),
       VENDOR_PARENT_COLS,
@@ -388,18 +388,26 @@ export default class Vendors extends TableModel {
 
     // Parse contacts before the transaction so we can validate everything upfront
     const contactFlatRows = parseSheet(reader, 1);
-    const contactGroups = contactFlatRows.length
-      ? groupFlatRows(
-          contactFlatRows,
-          (r) => (isUuid(r.id) ? r.id : `${r.vendor_id || ''}::${r.first_name || ''}::${r.last_name || ''}`),
-          CONTACT_PARENT_COLS,
-          CONTACT_CHILD_EXTRACTORS,
-        )
-      : [];
+    let contactGroups = [];
+    let contactConflicts = [];
+    if (contactFlatRows.length) {
+      ({ groups: contactGroups, conflicts: contactConflicts } = groupFlatRows(
+        contactFlatRows,
+        (r) => (isUuid(r.id) ? r.id : `${r.vendor_id || ''}::${r.first_name || ''}::${r.last_name || ''}`),
+        CONTACT_PARENT_COLS,
+        CONTACT_CHILD_EXTRACTORS,
+      ));
+    }
 
     // ── Pre-validation: collect all data errors before touching the DB ──
     const sheetNames = reader.sheetNames;
     const errors = [];
+    for (const c of vendorConflicts) {
+      errors.push({ sheet: sheetNames[0] || 'Vendors', row: c.row, column: c.column, value: c.value, message: `Conflicting value — row ${c.existingRow} has "${c.existingValue}"` });
+    }
+    for (const c of contactConflicts) {
+      errors.push({ sheet: sheetNames[1] || 'Vendor Contacts', row: c.row, column: c.column, value: c.value, message: `Conflicting value — row ${c.existingRow} has "${c.existingValue}"` });
+    }
     const validateEmails = (groups, sheetName) => {
       for (const group of groups) {
         const emailChildren = group.children.emails || [];

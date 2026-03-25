@@ -14,6 +14,7 @@
 import fs from 'node:fs';
 import BaseController from '../../../lib/BaseController.js';
 import db, { pgp } from '../../../db/db.js';
+import logger from '../../../lib/logger.js';
 import { provisionNewTenant } from '../../../services/tenantSetup.js';
 
 class TenantsController extends BaseController {
@@ -62,11 +63,14 @@ class TenantsController extends BaseController {
       const result = await this.model('admin').importFromSpreadsheet(
         file.path, 0, (row) => ({ ...row, created_by: req.user?.id }),
       );
+      if (result.errors) return res.status(422).json(result);
       res.status(201).json(result);
     } catch (err) {
       this.handleError(err, res, 'importing', this.errorLabel);
     } finally {
-      fs.unlink(file.path, () => {});
+      fs.unlink(file.path, (unlinkErr) => {
+        if (unlinkErr) logger.error(`Failed to delete uploaded file: ${unlinkErr.message}`);
+      });
     }
   }
 

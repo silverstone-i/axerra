@@ -177,9 +177,11 @@ export default class Tenants extends TableModel {
     if (!tenant) throw new Error(`Tenant id ${row.id} not found`);
 
     // Update tenant metadata
+    const VALID_STATUSES = new Set(['active', 'trial', 'suspended', 'pending', 'archived']);
+    const normalizedStatus = row.status ? String(row.status).toLowerCase().trim() : null;
     const changes = {};
     if (row.company) changes.company = row.company;
-    if (row.status && row.status !== 'archived') changes.status = row.status;
+    if (normalizedStatus && VALID_STATUSES.has(normalizedStatus) && normalizedStatus !== 'archived') changes.status = normalizedStatus;
     if (row.tier) changes.tier = row.tier;
     if ('region' in row) changes.region = row.region || null;
     if (row.max_users != null) changes.max_users = parseInt(row.max_users, 10) || tenant.max_users;
@@ -191,9 +193,9 @@ export default class Tenants extends TableModel {
     }
 
     // Handle archive/restore via status column
-    if (String(row.status).toLowerCase() === 'archived' && !tenant.deactivated_at) {
+    if (normalizedStatus === 'archived' && !tenant.deactivated_at) {
       await this.db.none('UPDATE admin.tenants SET deactivated_at = NOW() WHERE id = $1', [row.id]);
-    } else if (String(row.status).toLowerCase() !== 'archived' && tenant.deactivated_at) {
+    } else if (normalizedStatus && normalizedStatus !== 'archived' && tenant.deactivated_at) {
       await this.db.none('UPDATE admin.tenants SET deactivated_at = NULL WHERE id = $1', [row.id]);
     }
 
