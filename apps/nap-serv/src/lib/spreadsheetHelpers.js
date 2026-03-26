@@ -192,7 +192,11 @@ export function coerceChildRow(row, model) {
   for (const col of columns) {
     if (!(col.name in row)) continue;
     const val = row[col.name];
-    if (val == null) continue;
+    if (val == null) {
+      // Default null/undefined booleans to the schema default (or false)
+      if (col.type === 'boolean') row[col.name] = col.default ?? false;
+      continue;
+    }
     // varchar/char/text columns: coerce numbers to strings
     if (/^(varchar|char|text)/i.test(col.type) && typeof val === 'number') {
       row[col.name] = String(val);
@@ -1370,8 +1374,13 @@ export function groupFlatRows(rows, keyFn, parentCols, childExtractors) {
     for (const ext of childExtractors) {
       if (ext.test(row)) {
         const child = ext.extract(row);
+        // Deduplicate: skip if identical child data already exists in this group
+        const { _rowNum: _, ...vals } = child;
+        const key = JSON.stringify(vals);
+        const existing = group.children[ext.name];
+        if (existing.some((c) => { const { _rowNum: __, ...v } = c; return JSON.stringify(v) === key; })) continue;
         if (row._rowNum != null) child._rowNum = row._rowNum;
-        group.children[ext.name].push(child);
+        existing.push(child);
       }
     }
   }

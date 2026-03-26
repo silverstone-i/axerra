@@ -739,6 +739,17 @@ export default class Vendors extends TableModel {
         toInsert.push(transformed);
       }
 
+      // Enforce single is_primary per source (partial unique index)
+      if (toInsert.length > 1) {
+        let seenPrimary = false;
+        for (const r of toInsert) {
+          if (r.is_primary) {
+            if (seenPrimary) r.is_primary = false;
+            else seenPrimary = true;
+          }
+        }
+      }
+
       if (toInsert.length) {
         await childModel.bulkInsert(toInsert);
       }

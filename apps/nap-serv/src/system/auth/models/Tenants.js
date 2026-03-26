@@ -42,7 +42,9 @@ export default class Tenants extends TableModel {
    * Cross-schema joins fetch billing address + primary tax identifier per tenant.
    */
   async exportToSpreadsheet(filePath, where = [], joinType = 'AND', options = {}) {
-    const tenants = await this.findWhere(where, joinType, options);
+    const napsoftTenant = (process.env.NAPSOFT_TENANT || 'NAP').toUpperCase();
+    const allTenants = await this.findWhere(where, joinType, options);
+    const tenants = allTenants.filter((t) => t.tenant_code?.toUpperCase() !== napsoftTenant);
     const { WorkbookBuilder, writeXlsx } = await import('@nap-sft/tablsx');
     const wb = WorkbookBuilder.create();
     const sheet = wb.sheet('Tenants');
