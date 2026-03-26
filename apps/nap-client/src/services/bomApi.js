@@ -16,7 +16,7 @@ const qs = (params) => {
 const CATALOG = '/bom/v1/catalog-skus';
 
 export const catalogSkuApi = {
-  list: (params = {}) => client.get(`${CATALOG}${qs(params)}`),
+  list: (params = {}) => client.getAll(CATALOG, params),
   getById: (id) => client.get(`${CATALOG}/${id}`),
   create: (body) => client.post(CATALOG, body),
   update: (filterParams, changes) => client.put(`${CATALOG}/update${qs(filterParams)}`, changes),
@@ -31,7 +31,7 @@ export const catalogSkuApi = {
 const VENDOR = '/bom/v1/vendor-skus';
 
 export const vendorSkuApi = {
-  list: (params = {}) => client.get(`${VENDOR}${qs(params)}`),
+  list: (params = {}) => client.getAll(VENDOR, params),
   getById: (id) => client.get(`${VENDOR}/${id}`),
   create: (body) => client.post(VENDOR, body),
   update: (filterParams, changes) => client.put(`${VENDOR}/update${qs(filterParams)}`, changes),
@@ -48,7 +48,7 @@ export const vendorSkuApi = {
 const PRICING = '/bom/v1/vendor-pricing';
 
 export const vendorPricingApi = {
-  list: (params = {}) => client.get(`${PRICING}${qs(params)}`),
+  list: (params = {}) => client.getAll(PRICING, params),
   getById: (id) => client.get(`${PRICING}/${id}`),
   create: (body) => client.post(PRICING, body),
   update: (filterParams, changes) => client.put(`${PRICING}/update${qs(filterParams)}`, changes),

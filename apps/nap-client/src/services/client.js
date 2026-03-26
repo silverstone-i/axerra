@@ -85,8 +85,39 @@ async function request(method, path, body, opts = {}) {
   return res.json();
 }
 
+/**
+ * Auto-paginating GET for cursor-based list endpoints.
+ * Follows nextCursor until all rows are fetched, returning { rows, totalCount }.
+ */
+async function getAll(path, params = {}, opts) {
+  const url = new URL(path, 'http://localhost');
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null) url.searchParams.set(k, v);
+  }
+
+  let allRows = [];
+  let totalCount = 0;
+  let cursor = null;
+
+  do {
+    if (cursor) {
+      for (const [col, val] of Object.entries(cursor)) {
+        url.searchParams.set(`cursor.${col}`, val);
+      }
+    }
+
+    const res = await request('GET', `${url.pathname}${url.search}`, null, opts);
+    allRows = allRows.concat(res.rows ?? []);
+    totalCount = res.totalCount ?? allRows.length;
+    cursor = res.nextCursor;
+  } while (cursor && allRows.length < totalCount);
+
+  return { rows: allRows, totalCount };
+}
+
 export const client = {
   get: (path, opts) => request('GET', path, null, opts),
+  getAll,
   post: (path, body, opts) => request('POST', path, body, opts),
   put: (path, body, opts) => request('PUT', path, body, opts),
   patch: (path, body, opts) => request('PATCH', path, body, opts),

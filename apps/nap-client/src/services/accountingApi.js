@@ -17,7 +17,7 @@ const qs = (params) => {
 const COA = '/accounting/v1/chart-of-accounts';
 
 export const chartOfAccountsApi = {
-  list: (params = {}) => client.get(`${COA}${qs(params)}`),
+  list: (params = {}) => client.getAll(COA, params),
   getById: (id) => client.get(`${COA}/${id}`),
   create: (body) => client.post(COA, body),
   update: (filterParams, changes) => client.put(`${COA}/update${qs(filterParams)}`, changes),
@@ -31,7 +31,7 @@ export const chartOfAccountsApi = {
 const JE = '/accounting/v1/journal-entries';
 
 export const journalEntryApi = {
-  list: (params = {}) => client.get(`${JE}${qs(params)}`),
+  list: (params = {}) => client.getAll(JE, params),
   getById: (id) => client.get(`${JE}/${id}`),
   create: (body) => client.post(JE, body),
   update: (filterParams, changes) => client.put(`${JE}/update${qs(filterParams)}`, changes),
@@ -47,7 +47,7 @@ export const journalEntryApi = {
 const JEL = '/accounting/v1/journal-entry-lines';
 
 export const journalEntryLineApi = {
-  list: (params = {}) => client.get(`${JEL}${qs(params)}`),
+  list: (params = {}) => client.getAll(JEL, params),
   getById: (id) => client.get(`${JEL}/${id}`),
   create: (body) => client.post(JEL, body),
   update: (filterParams, changes) => client.put(`${JEL}/update${qs(filterParams)}`, changes),
@@ -59,7 +59,7 @@ export const journalEntryLineApi = {
 const LB = '/accounting/v1/ledger-balances';
 
 export const ledgerBalanceApi = {
-  list: (params = {}) => client.get(`${LB}${qs(params)}`),
+  list: (params = {}) => client.getAll(LB, params),
   getById: (id) => client.get(`${LB}/${id}`),
 };
 
@@ -67,7 +67,7 @@ export const ledgerBalanceApi = {
 const PQ = '/accounting/v1/posting-queues';
 
 export const postingQueueApi = {
-  list: (params = {}) => client.get(`${PQ}${qs(params)}`),
+  list: (params = {}) => client.getAll(PQ, params),
   getById: (id) => client.get(`${PQ}/${id}`),
   retry: (body) => client.post(`${PQ}/retry`, body),
 };
@@ -76,7 +76,7 @@ export const postingQueueApi = {
 const CAM = '/accounting/v1/category-account-map';
 
 export const categoryAccountMapApi = {
-  list: (params = {}) => client.get(`${CAM}${qs(params)}`),
+  list: (params = {}) => client.getAll(CAM, params),
   getById: (id) => client.get(`${CAM}/${id}`),
   create: (body) => client.post(CAM, body),
   update: (filterParams, changes) => client.put(`${CAM}/update${qs(filterParams)}`, changes),
@@ -88,7 +88,7 @@ export const categoryAccountMapApi = {
 const CA = '/accounting/v1/company-accounts';
 
 export const companyAccountApi = {
-  list: (params = {}) => client.get(`${CA}${qs(params)}`),
+  list: (params = {}) => client.getAll(CA, params),
   getById: (id) => client.get(`${CA}/${id}`),
   create: (body) => client.post(CA, body),
   update: (filterParams, changes) => client.put(`${CA}/update${qs(filterParams)}`, changes),
@@ -100,7 +100,7 @@ export const companyAccountApi = {
 const CT = '/accounting/v1/company-transactions';
 
 export const companyTransactionApi = {
-  list: (params = {}) => client.get(`${CT}${qs(params)}`),
+  list: (params = {}) => client.getAll(CT, params),
   getById: (id) => client.get(`${CT}/${id}`),
   create: (body) => client.post(CT, body),
   update: (filterParams, changes) => client.put(`${CT}/update${qs(filterParams)}`, changes),
@@ -112,7 +112,7 @@ export const companyTransactionApi = {
 const IT = '/accounting/v1/internal-transfers';
 
 export const internalTransferApi = {
-  list: (params = {}) => client.get(`${IT}${qs(params)}`),
+  list: (params = {}) => client.getAll(IT, params),
   getById: (id) => client.get(`${IT}/${id}`),
   create: (body) => client.post(IT, body),
   update: (filterParams, changes) => client.put(`${IT}/update${qs(filterParams)}`, changes),

@@ -20,7 +20,7 @@ const qs = (params) => {
 
 export const tenantApi = {
   /** GET / — cursor-based pagination. */
-  list: (params = {}) => client.get(`${BASE}${qs(params)}`),
+  list: (params = {}) => client.getAll(BASE, params),
 
   /** GET /:id — single tenant by UUID. */
   getById: (id) => client.get(`${BASE}/${id}`),

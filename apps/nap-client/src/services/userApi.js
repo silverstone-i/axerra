@@ -20,7 +20,7 @@ const qs = (params) => {
 
 export const userApi = {
   /** GET / — cursor-based pagination (password_hash stripped server-side). */
-  list: (params = {}) => client.get(`${BASE}${qs(params)}`),
+  list: (params = {}) => client.getAll(BASE, params),
 
   /** GET /:id — single user by UUID. */
   getById: (id) => client.get(`${BASE}/${id}`),

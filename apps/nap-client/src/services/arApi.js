@@ -19,7 +19,7 @@ const qs = (params) => {
 const INVOICES = '/ar/v1/ar-invoices';
 
 export const arInvoiceApi = {
-  list: (params = {}) => client.get(`${INVOICES}${qs(params)}`),
+  list: (params = {}) => client.getAll(INVOICES, params),
   getById: (id) => client.get(`${INVOICES}/${id}`),
   create: (body) => client.post(INVOICES, body),
   update: (filterParams, changes) => client.put(`${INVOICES}/update${qs(filterParams)}`, changes),
@@ -34,7 +34,7 @@ export const arInvoiceApi = {
 const LINES = '/ar/v1/ar-invoice-lines';
 
 export const arInvoiceLineApi = {
-  list: (params = {}) => client.get(`${LINES}${qs(params)}`),
+  list: (params = {}) => client.getAll(LINES, params),
   getById: (id) => client.get(`${LINES}/${id}`),
   create: (body) => client.post(LINES, body),
   update: (filterParams, changes) => client.put(`${LINES}/update${qs(filterParams)}`, changes),
@@ -46,7 +46,7 @@ export const arInvoiceLineApi = {
 const RECEIPTS = '/ar/v1/receipts';
 
 export const receiptApi = {
-  list: (params = {}) => client.get(`${RECEIPTS}${qs(params)}`),
+  list: (params = {}) => client.getAll(RECEIPTS, params),
   getById: (id) => client.get(`${RECEIPTS}/${id}`),
   create: (body) => client.post(RECEIPTS, body),
   update: (filterParams, changes) => client.put(`${RECEIPTS}/update${qs(filterParams)}`, changes),

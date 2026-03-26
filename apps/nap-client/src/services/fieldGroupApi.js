@@ -18,7 +18,7 @@ const qs = (params) => {
 };
 
 export const fieldGroupApi = {
-  listDefinitions: (params = {}) => client.get(`${DEF_BASE}${qs(params)}`),
+  listDefinitions: (params = {}) => client.getAll(DEF_BASE, params),
   createDefinition: (body) => client.post(DEF_BASE, body),
   updateDefinition: (id, body) => client.put(`${DEF_BASE}/update${qs({ id })}`, body),
   archiveDefinition: (id) => client.del(`${DEF_BASE}/archive${qs({ id })}`),
