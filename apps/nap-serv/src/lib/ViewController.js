@@ -181,11 +181,18 @@ class ViewController {
       const rbacConditions = [];
       this._applyRbacFilters(req, rbacConditions, options);
 
-      const records = await this.model(this.getSchema(req)).findAfterCursor(cursor, limit, orderBy, {
-        ...options,
-        filters: { ...options.filters, ...Object.assign({}, ...rbacConditions) },
-      });
-      res.json(records);
+      const mergedFilters = { ...options.filters, ...Object.assign({}, ...rbacConditions) };
+      const mergedOptions = { ...options, filters: mergedFilters };
+
+      const schema = this.getSchema(req);
+      const model = this.model(schema);
+
+      const [records, totalCount] = await Promise.all([
+        model.findAfterCursor(cursor, limit, orderBy, mergedOptions),
+        model.countWhere([], 'AND', { filters: mergedFilters, includeDeactivated: options.includeDeactivated ?? false }),
+      ]);
+
+      res.json({ ...records, totalCount });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }

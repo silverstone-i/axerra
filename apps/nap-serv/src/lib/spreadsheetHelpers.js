@@ -13,6 +13,7 @@ import { writeFileSync, readFileSync } from 'node:fs';
 import { allocateNumber } from '../system/core/services/numberingService.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** Columns stripped from every exported sheet (id is kept for upsert) */
 const INTERNAL_COLS = new Set([
@@ -164,10 +165,14 @@ export function coerceRow(row, boolCols, hasRoles) {
       row[col] = row[col].toLowerCase() === 'true';
     }
   }
-  if (hasRoles && 'roles' in row && typeof row.roles === 'string') {
-    // Handle PG array literal "{a,b}" or comma-separated "a,b"
-    const raw = row.roles.replace(/^\{|\}$/g, '').trim();
-    row.roles = raw ? raw.split(',').map((s) => s.trim()) : [];
+  if (hasRoles) {
+    if (typeof row.roles === 'string') {
+      // Handle PG array literal "{a,b}" or comma-separated "a,b"
+      const raw = row.roles.replace(/^\{|\}$/g, '').trim();
+      row.roles = raw ? raw.split(',').map((s) => s.trim()) : [];
+    } else if (row.roles == null) {
+      row.roles = [];
+    }
   }
   return row;
 }
@@ -222,6 +227,138 @@ function _getEnumColumns(schema) {
     if (values.size) map.set(check.columns[0], values);
   }
   return map;
+}
+
+/**
+ * Validate grouped import rows before any DB operations.
+ * Checks required parent fields, valid statuses, duplicate codes, and email formats.
+ * Returns an array of error objects ({ sheet, row, column, value, message }).
+ *
+ * @param {Object[]}  groups       Output of groupFlatRows
+ * @param {Object}    opts
+ * @param {string}    opts.sheetName     Sheet label for error messages
+ * @param {string[]}  opts.requiredFields Parent fields that must be non-empty
+ * @param {boolean}   [opts.codeRequired] Whether code is required
+ * @param {boolean}   [opts.validateEmails] Whether to check child emails
+ * @param {Object[]}  [opts.conflicts]   Conflict objects from groupFlatRows
+ * @returns {Object[]} Array of validation errors (empty = valid)
+ */
+export function validateImportGroups(groups, opts) {
+  const { sheetName, requiredFields = [], codeRequired = false, validateEmails = true, conflicts = [] } = opts;
+  const errors = [];
+
+  for (const c of conflicts) {
+    errors.push({
+      sheet: sheetName, row: c.row, column: c.column, value: c.value,
+      message: `Conflicting value — row ${c.existingRow} has "${c.existingValue}"`,
+    });
+  }
+
+  const VALID_STATUSES = new Set(['active', 'archived', '']);
+  const codeCounts = new Map();
+
+  for (const group of groups) {
+    const p = group.parent;
+
+    // Required fields
+    for (const field of requiredFields) {
+      if (!p[field] || (typeof p[field] === 'string' && !p[field].trim())) {
+        errors.push({ sheet: sheetName, row: p._rowNum || null, column: field, value: p[field] ?? '', message: `${field.replace(/_/g, ' ')} is required` });
+      }
+    }
+
+    // Status
+    const status = String(p.status ?? '').toLowerCase().trim();
+    if (!VALID_STATUSES.has(status)) {
+      errors.push({ sheet: sheetName, row: p._rowNum || null, column: 'status', value: p.status, message: 'Status must be "active" or "archived"' });
+    }
+
+    // Code uniqueness
+    if (codeRequired) {
+      const code = typeof p.code === 'string' ? p.code.trim() : '';
+      if (!code) {
+        errors.push({ sheet: sheetName, row: p._rowNum || null, column: 'code', value: p.code ?? '', message: 'Code is required' });
+      }
+    }
+    if (p.code) {
+      const code = String(p.code).trim();
+      if (code) {
+        const prev = codeCounts.get(code);
+        if (prev) {
+          errors.push({ sheet: sheetName, row: p._rowNum || null, column: 'code', value: code, message: `Duplicate code — also appears on row ${prev}` });
+        } else {
+          codeCounts.set(code, p._rowNum || '?');
+        }
+      }
+    }
+
+    // Emails
+    if (validateEmails) {
+      for (const child of group.children?.emails || []) {
+        if (child.email && !EMAIL_RE.test(child.email)) {
+          errors.push({ sheet: sheetName, row: child._rowNum || null, column: 'email', value: child.email, message: 'Invalid email format' });
+        }
+      }
+    }
+  }
+
+  return errors;
+}
+
+/**
+ * Parse a PG database error into a user-friendly import error.
+ * Returns an error array if the error is a data issue, or null if it's an
+ * unexpected system error that should propagate normally.
+ *
+ * @param {Error} err  The caught error
+ * @returns {Object[]|null} Array of error objects or null
+ */
+export function parseDbImportError(err) {
+  const pgCode = err.cause?.code || err.code;
+  const detail = err.cause?.detail || err.detail || '';
+  const message = err.cause?.message || err.message || '';
+
+  // Not-null violation (23502)
+  if (pgCode === '23502') {
+    const colMatch = message.match(/column "(\w+)"/);
+    const column = colMatch ? colMatch[1] : null;
+    return [{ sheet: null, row: null, column, value: null, message: `${column ? column.replace(/_/g, ' ') : 'A required field'} cannot be empty` }];
+  }
+
+  // Unique violation (23505)
+  if (pgCode === '23505') {
+    const colMatch = detail.match(/\(([^)]+)\)=/);
+    const column = colMatch ? colMatch[1] : null;
+    const valMatch = detail.match(/=\(([^)]+)\)/);
+    const value = valMatch ? valMatch[1] : null;
+    return [{ sheet: null, row: null, column, value, message: `Duplicate value — already exists in the database` }];
+  }
+
+  // Foreign key violation (23503)
+  if (pgCode === '23503') {
+    const colMatch = detail.match(/\(([^)]+)\)=/);
+    const column = colMatch ? colMatch[1] : null;
+    const valMatch = detail.match(/=\(([^)]+)\)/);
+    const value = valMatch ? valMatch[1] : null;
+    return [{ sheet: null, row: null, column, value, message: `Referenced record does not exist` }];
+  }
+
+  // Check constraint violation (23514)
+  if (pgCode === '23514') {
+    return [{ sheet: null, row: null, column: null, value: null, message: `Value violates a data constraint: ${message}` }];
+  }
+
+  // String too long / data too long (22001)
+  if (pgCode === '22001') {
+    return [{ sheet: null, row: null, column: null, value: null, message: `A value exceeds the maximum allowed length` }];
+  }
+
+  // Invalid text representation / wrong data type (22P02)
+  if (pgCode === '22P02') {
+    return [{ sheet: null, row: null, column: null, value: null, message: `Invalid data format: ${message}` }];
+  }
+
+  return null;
 }
 
 // ── Config-driven export/import for source entities ──────────────────────────
@@ -526,6 +663,10 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
       }
     }
   });
+  } catch (err) {
+    const dataErrors = parseDbImportError(err);
+    if (dataErrors) return { errors: dataErrors };
+    throw err;
   } finally {
     model.tx = null;
   }
@@ -706,8 +847,7 @@ export const FLAT_CHILD_TAX_IDS = {
   flatCols: ['tax_country_code', 'tax_type', 'tax_value'],
 };
 
-// Simple email regex matching pg-schemata / Zod email validation
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// EMAIL_RE moved to top of file (before validateImportGroups)
 
 // ── Config-driven flat export/import for source entities ─────────────────────
 
@@ -1070,6 +1210,10 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
       }
     }
   });
+  } catch (err) {
+    const dataErrors = parseDbImportError(err);
+    if (dataErrors) return { errors: dataErrors };
+    throw err;
   } finally {
     model.tx = null;
   }

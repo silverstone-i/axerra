@@ -23,6 +23,8 @@ import {
   buildFlatRows,
   groupFlatRows,
   provisionAppUser,
+  validateImportGroups,
+  parseDbImportError,
   PHONE_HEADERS,
   ADDRESS_HEADERS,
   TAX_ID_HEADERS,
@@ -85,7 +87,7 @@ const CONTACT_CONFIG = {
 
 const VENDOR_FLAT_HEADERS = [
   'id', 'code', 'name', 'payment_term_id', 'notes', 'status',
-  'email', 'email_label', 'email_is_primary', 'email_is_login',
+  'email', 'email_label', 'email_is_primary',
   'phone_country_code', 'phone_type', 'phone_number', 'phone_is_primary',
   'address_label', 'address_line_1', 'address_line_2', 'address_line_3',
   'address_city', 'address_state_province', 'address_postal_code', 'address_country_code',
@@ -111,7 +113,7 @@ const VENDOR_CHILD_EXTRACTORS = [
   {
     name: 'emails',
     test: (r) => !!r.email,
-    extract: (r) => ({ email: r.email, label: r.email_label, is_primary: r.email_is_primary, is_login: r.email_is_login }),
+    extract: (r) => ({ email: r.email, label: r.email_label, is_primary: r.email_is_primary }),
   },
   {
     name: 'phones',
@@ -149,7 +151,7 @@ const CONTACT_CHILD_EXTRACTORS = [
 
 /** Child column mappings for flat export (source cols → flat cols) */
 const VENDOR_CHILD_ARRAYS_CONFIG = [
-  { model: 'emails', cols: ['email', 'label', 'is_primary', 'is_login'], flatCols: ['email', 'email_label', 'email_is_primary', 'email_is_login'] },
+  { model: 'emails', cols: ['email', 'label', 'is_primary'], flatCols: ['email', 'email_label', 'email_is_primary'] },
   { model: 'phoneNumbers', cols: ['country_code', 'phone_type', 'phone_number', 'is_primary'], flatCols: ['phone_country_code', 'phone_type', 'phone_number', 'phone_is_primary'] },
   { model: 'addresses', cols: ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'], flatCols: ['address_label', 'address_line_1', 'address_line_2', 'address_line_3', 'address_city', 'address_state_province', 'address_postal_code', 'address_country_code'] },
   { model: 'taxIdentifiers', cols: ['country_code', 'tax_type', 'tax_value'], flatCols: ['tax_country_code', 'tax_type', 'tax_value'] },
@@ -159,9 +161,6 @@ const CONTACT_CHILD_ARRAYS_CONFIG = [
   { model: 'emails', cols: ['email', 'label', 'is_primary', 'is_login'], flatCols: ['email', 'email_label', 'email_is_primary', 'email_is_login'] },
   { model: 'phoneNumbers', cols: ['country_code', 'phone_type', 'phone_number', 'is_primary'], flatCols: ['phone_country_code', 'phone_type', 'phone_number', 'phone_is_primary'] },
 ];
-
-// Simple email regex matching pg-schemata / Zod email validation
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** Lazy-load db */
 let _db, _pgp;
@@ -410,25 +409,18 @@ export default class Vendors extends TableModel {
 
     // ── Pre-validation: collect all data errors before touching the DB ──
     const sheetNames = reader.sheetNames;
-    const errors = [];
-    for (const c of vendorConflicts) {
-      errors.push({ sheet: sheetNames[0] || 'Vendors', row: c.row, column: c.column, value: c.value, message: `Conflicting value — row ${c.existingRow} has "${c.existingValue}"` });
-    }
-    for (const c of contactConflicts) {
-      errors.push({ sheet: sheetNames[1] || 'Vendor Contacts', row: c.row, column: c.column, value: c.value, message: `Conflicting value — row ${c.existingRow} has "${c.existingValue}"` });
-    }
-    const validateEmails = (groups, sheetName) => {
-      for (const group of groups) {
-        const emailChildren = group.children.emails || [];
-        for (const child of emailChildren) {
-          if (child.email && !EMAIL_RE.test(child.email)) {
-            errors.push({ sheet: sheetName, row: child._rowNum || null, column: 'email', value: child.email, message: 'Invalid email format' });
-          }
-        }
-      }
-    };
-    validateEmails(vendorGroups, sheetNames[0] || 'Vendors');
-    validateEmails(contactGroups, sheetNames[1] || 'Vendor Contacts');
+    const errors = [
+      ...validateImportGroups(vendorGroups, {
+        sheetName: sheetNames[0] || 'Vendors',
+        requiredFields: ['name'],
+        conflicts: vendorConflicts,
+      }),
+      ...validateImportGroups(contactGroups, {
+        sheetName: sheetNames[1] || 'Vendor Contacts',
+        requiredFields: ['first_name', 'last_name'],
+        conflicts: contactConflicts,
+      }),
+    ];
     if (errors.length) return { errors };
 
     let insertedCount = 0;
@@ -443,7 +435,6 @@ export default class Vendors extends TableModel {
     try {
     await db.tx(async (t) => {
       this.tx = t;
-
       // ── Phase 1: Upsert vendors ──────────────────────────────────────
 
       const uuidIds = vendorGroups.filter((g) => isUuid(g.parent.id)).map((g) => g.parent.id);
@@ -701,6 +692,10 @@ export default class Vendors extends TableModel {
         }
       }
     });
+    } catch (err) {
+      const dataErrors = parseDbImportError(err);
+      if (dataErrors) return { errors: dataErrors };
+      throw err;
     } finally {
       this.tx = null;
     }
@@ -780,6 +775,7 @@ export default class Vendors extends TableModel {
 
     const stripCols = ['status', 'deactivated_at', 'password'];
 
+    try {
     await db.tx(async (t) => {
       const contactModel = db('vendorContacts', schema);
       contactModel.tx = t;
@@ -924,6 +920,11 @@ export default class Vendors extends TableModel {
         }
       }
     });
+    } catch (err) {
+      const dataErrors = parseDbImportError(err);
+      if (dataErrors) return { errors: dataErrors };
+      throw err;
+    }
 
     return {
       ...vendorResult,
