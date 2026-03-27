@@ -100,10 +100,11 @@ export async function allocateNumber(schema, idType, scopeId = null, issuedAt = 
       [idType, effectiveScopeId, periodKey],
     );
 
+    const step = config.increment || 1;
     let serial;
     if (!state) {
-      // 4a. Insert new row with last_serial = 1
-      serial = 1;
+      // 4a. Insert new row — first serial equals the increment value
+      serial = step;
       await tx.none(
         `INSERT INTO ${s}.tenant_number_sequence_state
          (tenant_id, id_type, scope_id, period_key, last_serial)
@@ -111,8 +112,8 @@ export async function allocateNumber(schema, idType, scopeId = null, issuedAt = 
         [config.tenant_id, idType, effectiveScopeId, periodKey, serial],
       );
     } else {
-      // 4b. Increment
-      serial = Number(state.last_serial) + 1;
+      // 4b. Advance by increment
+      serial = Number(state.last_serial) + step;
       await tx.none(`UPDATE ${s}.tenant_number_sequence_state SET last_serial = $1 WHERE id = $2`, [serial, state.id]);
     }
 
@@ -166,29 +167,30 @@ export async function allocateNumbers(schema, idType, count, scopeId = null, iss
       [idType, effectiveScopeId, periodKey],
     );
 
+    const step = config.increment || 1;
     let startSerial;
     if (!state) {
-      // New period — insert with last_serial = count
-      startSerial = 1;
+      // New period — first serial equals increment, last_serial = increment * count
+      startSerial = step;
       await tx.none(
         `INSERT INTO ${s}.tenant_number_sequence_state
          (tenant_id, id_type, scope_id, period_key, last_serial)
          VALUES ($1, $2, $3, $4, $5)`,
-        [config.tenant_id, idType, effectiveScopeId, periodKey, count],
+        [config.tenant_id, idType, effectiveScopeId, periodKey, step * count],
       );
     } else {
-      // Existing period — increment by count
-      startSerial = Number(state.last_serial) + 1;
+      // Existing period — advance by increment * count
+      startSerial = Number(state.last_serial) + step;
       await tx.none(
         `UPDATE ${s}.tenant_number_sequence_state SET last_serial = $1 WHERE id = $2`,
-        [Number(state.last_serial) + count, state.id],
+        [Number(state.last_serial) + step * count, state.id],
       );
     }
 
     // 4. Build all display IDs in JS
     const results = [];
     for (let i = 0; i < count; i++) {
-      const serial = startSerial + i;
+      const serial = startSerial + step * i;
       results.push({ serial, periodKey, displayId: buildDisplayId(config, serial, periodKey) });
     }
     return results;

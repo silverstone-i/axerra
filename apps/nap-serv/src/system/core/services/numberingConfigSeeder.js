@@ -56,8 +56,8 @@ export async function seedNumberingConfig(dbInstance, pgp, schemaName, tenantId)
     if (!existing) {
       await dbInstance.none(
         `INSERT INTO ${s}.tenant_numbering_config
-         (tenant_id, id_type, prefix, suffix, date_mode, reset_mode, padding, separator, uppercase, scope_type, is_enabled)
-         VALUES ($1, $2, $3, '', $4, $5, $6, '-', true, $7, false)`,
+         (tenant_id, id_type, prefix, suffix, date_mode, reset_mode, padding, increment, separator, uppercase, scope_type, is_enabled)
+         VALUES ($1, $2, $3, '', $4, $5, $6, 1, '-', true, $7, false)`,
         [tenantId, cfg.id_type, cfg.prefix, cfg.date_mode, cfg.reset_mode, cfg.padding, cfg.scope_type],
       );
       inserted++;
