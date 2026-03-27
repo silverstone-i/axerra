@@ -23,7 +23,7 @@ export const policyApi = {
 };
 
 export const policyCatalogApi = {
-  list: (params = {}) => client.get(`${CATALOG_BASE}${qs(params)}`),
+  list: (params = {}) => client.getAll(CATALOG_BASE, params),
 };
 
 export default policyApi;

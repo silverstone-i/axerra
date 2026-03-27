@@ -17,7 +17,7 @@ const qs = (params) => {
 };
 
 export const categoryApi = {
-  list: (params = {}) => client.get(`${BASE}${qs(params)}`),
+  list: (params = {}) => client.getAll(BASE, params),
   getById: (id) => client.get(`${BASE}/${id}`),
   create: (body) => client.post(BASE, body),
   update: (filterParams, changes) => client.put(`${BASE}/update${qs(filterParams)}`, changes),

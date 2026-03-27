@@ -39,6 +39,13 @@ import { useListSelection } from '../../hooks/useListSelection.js';
 
 const STATUS_OPTS = ['active', 'invited', 'locked'];
 
+const ENTITY_TYPE_OPTS = [
+  { value: '', label: 'All Types' },
+  { value: 'employee', label: 'Employee' },
+  { value: 'vendor_contact', label: 'Vendor Contact' },
+  { value: 'client', label: 'Client' },
+];
+
 /* ── Empty form shapes ────────────────────────────────────────── */
 
 const BLANK_EDIT = {
@@ -90,7 +97,21 @@ const columns = [
 export default function ManageUsersPage() {
   /* ── queries ─────────────────────────────────────────────── */
   const { data: usersRes, isLoading } = useUsers();
-  const rows = usersRes?.rows ?? [];
+  const allRows = usersRes?.rows ?? [];
+
+  /* ── filter state ─────────────────────────────────────────── */
+  const [emailFilter, setEmailFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+
+  const rows = useMemo(() => {
+    let out = allRows;
+    if (emailFilter) {
+      const q = emailFilter.toLowerCase();
+      out = out.filter((r) => r.email?.toLowerCase().includes(q));
+    }
+    if (typeFilter) out = out.filter((r) => r.entity_type === typeFilter);
+    return out;
+  }, [allRows, emailFilter, typeFilter]);
 
   /* ── mutations ───────────────────────────────────────────── */
   const updateMut = useUpdateUser();
@@ -153,10 +174,13 @@ export default function ManageUsersPage() {
   const toolbar = useMemo(
     () => ({
       tabs: [],
-      filters: [],
+      filters: [
+        { name: 'email', placeholder: 'Search email\u2026', value: emailFilter, onChange: (e) => setEmailFilter(e.target.value) },
+        { name: 'entity_type', placeholder: 'User Type', value: typeFilter, onChange: (e) => setTypeFilter(e.target.value), options: ENTITY_TYPE_OPTS },
+      ],
       primaryActions: [],
     }),
-    [selectedRows.length],
+    [selectedRows.length, emailFilter, typeFilter],
   );
   useModuleToolbarRegistration(toolbar);
 

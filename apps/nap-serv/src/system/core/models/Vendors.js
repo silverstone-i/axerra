@@ -10,6 +10,7 @@
  */
 
 import { writeFileSync, readFileSync } from 'node:fs';
+import logger from '../../../lib/logger.js';
 import { TableModel } from 'pg-schemata';
 import vendorsSchema from '../schemas/vendorsSchema.js';
 import {
@@ -23,12 +24,15 @@ import {
   buildFlatRows,
   groupFlatRows,
   provisionAppUser,
+  batchHashPasswords,
+  validateImportGroups,
+  parseDbImportError,
   PHONE_HEADERS,
   ADDRESS_HEADERS,
   TAX_ID_HEADERS,
   EMAIL_HEADERS,
 } from '../../../lib/spreadsheetHelpers.js';
-import { allocateNumber } from '../services/numberingService.js';
+import { allocateNumbers } from '../services/numberingService.js';
 
 /** @type {import('../../../lib/spreadsheetHelpers.js').SourceEntityConfig} */
 const CONFIG = {
@@ -85,7 +89,7 @@ const CONTACT_CONFIG = {
 
 const VENDOR_FLAT_HEADERS = [
   'id', 'code', 'name', 'payment_term_id', 'notes', 'status',
-  'email', 'email_label', 'email_is_primary', 'email_is_login',
+  'email', 'email_label', 'email_is_primary',
   'phone_country_code', 'phone_type', 'phone_number', 'phone_is_primary',
   'address_label', 'address_line_1', 'address_line_2', 'address_line_3',
   'address_city', 'address_state_province', 'address_postal_code', 'address_country_code',
@@ -111,7 +115,7 @@ const VENDOR_CHILD_EXTRACTORS = [
   {
     name: 'emails',
     test: (r) => !!r.email,
-    extract: (r) => ({ email: r.email, label: r.email_label, is_primary: r.email_is_primary, is_login: r.email_is_login }),
+    extract: (r) => ({ email: r.email, label: r.email_label, is_primary: r.email_is_primary }),
   },
   {
     name: 'phones',
@@ -149,7 +153,7 @@ const CONTACT_CHILD_EXTRACTORS = [
 
 /** Child column mappings for flat export (source cols → flat cols) */
 const VENDOR_CHILD_ARRAYS_CONFIG = [
-  { model: 'emails', cols: ['email', 'label', 'is_primary', 'is_login'], flatCols: ['email', 'email_label', 'email_is_primary', 'email_is_login'] },
+  { model: 'emails', cols: ['email', 'label', 'is_primary'], flatCols: ['email', 'email_label', 'email_is_primary'] },
   { model: 'phoneNumbers', cols: ['country_code', 'phone_type', 'phone_number', 'is_primary'], flatCols: ['phone_country_code', 'phone_type', 'phone_number', 'phone_is_primary'] },
   { model: 'addresses', cols: ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'], flatCols: ['address_label', 'address_line_1', 'address_line_2', 'address_line_3', 'address_city', 'address_state_province', 'address_postal_code', 'address_country_code'] },
   { model: 'taxIdentifiers', cols: ['country_code', 'tax_type', 'tax_value'], flatCols: ['tax_country_code', 'tax_type', 'tax_value'] },
@@ -159,9 +163,6 @@ const CONTACT_CHILD_ARRAYS_CONFIG = [
   { model: 'emails', cols: ['email', 'label', 'is_primary', 'is_login'], flatCols: ['email', 'email_label', 'email_is_primary', 'email_is_login'] },
   { model: 'phoneNumbers', cols: ['country_code', 'phone_type', 'phone_number', 'is_primary'], flatCols: ['phone_country_code', 'phone_type', 'phone_number', 'phone_is_primary'] },
 ];
-
-// Simple email regex matching pg-schemata / Zod email validation
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** Lazy-load db */
 let _db, _pgp;
@@ -410,25 +411,18 @@ export default class Vendors extends TableModel {
 
     // ── Pre-validation: collect all data errors before touching the DB ──
     const sheetNames = reader.sheetNames;
-    const errors = [];
-    for (const c of vendorConflicts) {
-      errors.push({ sheet: sheetNames[0] || 'Vendors', row: c.row, column: c.column, value: c.value, message: `Conflicting value — row ${c.existingRow} has "${c.existingValue}"` });
-    }
-    for (const c of contactConflicts) {
-      errors.push({ sheet: sheetNames[1] || 'Vendor Contacts', row: c.row, column: c.column, value: c.value, message: `Conflicting value — row ${c.existingRow} has "${c.existingValue}"` });
-    }
-    const validateEmails = (groups, sheetName) => {
-      for (const group of groups) {
-        const emailChildren = group.children.emails || [];
-        for (const child of emailChildren) {
-          if (child.email && !EMAIL_RE.test(child.email)) {
-            errors.push({ sheet: sheetName, row: child._rowNum || null, column: 'email', value: child.email, message: 'Invalid email format' });
-          }
-        }
-      }
-    };
-    validateEmails(vendorGroups, sheetNames[0] || 'Vendors');
-    validateEmails(contactGroups, sheetNames[1] || 'Vendor Contacts');
+    const errors = [
+      ...validateImportGroups(vendorGroups, {
+        sheetName: sheetNames[0] || 'Vendors',
+        requiredFields: ['name'],
+        conflicts: vendorConflicts,
+      }),
+      ...validateImportGroups(contactGroups, {
+        sheetName: sheetNames[1] || 'Vendor Contacts',
+        requiredFields: ['first_name', 'last_name'],
+        conflicts: contactConflicts,
+      }),
+    ];
     if (errors.length) return { errors };
 
     let insertedCount = 0;
@@ -440,10 +434,11 @@ export default class Vendors extends TableModel {
     const vendorRefToId = new Map(); // spreadsheet id/ref → DB vendor id
     const vendorIdToSourceId = new Map(); // DB vendor id → source_id
 
+    const _t0 = Date.now();
+    let _tVendorUpdates, _tVendorInserts, _tContactInserts, _tAppUsers;
     try {
     await db.tx(async (t) => {
       this.tx = t;
-
       // ── Phase 1: Upsert vendors ──────────────────────────────────────
 
       const uuidIds = vendorGroups.filter((g) => isUuid(g.parent.id)).map((g) => g.parent.id);
@@ -498,6 +493,7 @@ export default class Vendors extends TableModel {
         }
       }
 
+      _tVendorUpdates = Date.now();
       // Run inserts
       if (toInsert.length) {
         const cleanInserts = toInsert.map(({ transformed }) => {
@@ -537,34 +533,53 @@ export default class Vendors extends TableModel {
         const sourceResults = await sourcesModel.bulkInsert(sourceRecords, ['id', 'table_id']);
         const sourceByParentId = new Map(sourceResults.map((sr) => [sr.table_id, sr.id]));
 
-        for (let i = 0; i < insertResults.length; i++) {
-          const rec = insertResults[i];
-          const sourceId = sourceByParentId.get(rec.id);
-          if (sourceId) {
-            await t.none(`UPDATE ${s}.vendors SET source_id = $1 WHERE id = $2`, [sourceId, rec.id]);
+        // ── Batch: link source_id ──────────────────────────────────
+        const sourceLinks = insertResults
+          .map((rec) => ({ id: rec.id, source_id: sourceByParentId.get(rec.id) }))
+          .filter((r) => r.source_id);
+        if (sourceLinks.length) {
+          const vals = sourceLinks.map((r) => pgp.as.format('($1::uuid, $2::uuid)', [r.id, r.source_id])).join(', ');
+          await t.none(`UPDATE ${s}.vendors AS v SET source_id = vals.source_id FROM (VALUES ${vals}) AS vals(id, source_id) WHERE v.id = vals.id`);
+        }
+
+        // ── Batch: allocate codes ──────────────────────────────────
+        if (CONFIG.idType) {
+          const needCodeIndices = [];
+          for (let i = 0; i < cleanInserts.length; i++) {
+            if (!cleanInserts[i].code) needCodeIndices.push(i);
           }
-          if (!cleanInserts[i].code && CONFIG.idType) {
-            const numbering = await allocateNumber(schema, CONFIG.idType, null, new Date(), t);
-            if (numbering) {
-              await t.none(`UPDATE ${s}.vendors SET code = $1 WHERE id = $2`, [numbering.displayId, rec.id]);
+          if (needCodeIndices.length) {
+            const codes = await allocateNumbers(schema, CONFIG.idType, needCodeIndices.length, null, new Date(), t);
+            if (codes) {
+              const codeUpdates = needCodeIndices.map((idx, ci) => ({
+                id: insertResults[idx].id,
+                code: codes[ci].displayId,
+              }));
+              const codeVals = codeUpdates.map((r) => pgp.as.format('($1::uuid, $2)', [r.id, r.code])).join(', ');
+              await t.none(`UPDATE ${s}.vendors AS v SET code = vals.code FROM (VALUES ${codeVals}) AS vals(id, code) WHERE v.id = vals.id`);
             }
           }
-          const ref = toInsert[i].ref;
-          if (ref) vendorRefToId.set(ref, rec.id);
-          vendorRefToId.set(rec.id, rec.id);
-          vendorIdToSourceId.set(rec.id, sourceId);
-
-          if (toInsert[i].isArchived) {
-            await t.none(`UPDATE ${s}.vendors SET deactivated_at = NOW() WHERE id = $1`, [rec.id]);
-          }
-
-          // Insert children for new vendor
-          if (sourceId) {
-            await this._upsertFlatChildren(t, s, schema, db, pgp, sourceId, toInsert[i].group.children, VENDOR_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
-          }
         }
+
+        // Build ref maps (JS only, no DB)
+        for (let i = 0; i < insertResults.length; i++) {
+          const ref = toInsert[i].ref;
+          if (ref) vendorRefToId.set(ref, insertResults[i].id);
+          vendorRefToId.set(insertResults[i].id, insertResults[i].id);
+          vendorIdToSourceId.set(insertResults[i].id, sourceByParentId.get(insertResults[i].id));
+        }
+
+        // ── Batch: archive inserted rows whose status was 'archived' ─
+        const archiveIds = insertResults.filter((_, i) => toInsert[i].isArchived).map((r) => r.id);
+        if (archiveIds.length) {
+          await t.none(`UPDATE ${s}.vendors SET deactivated_at = NOW() WHERE id IN ($1:csv)`, [archiveIds]);
+        }
+
+        // ── Batch: insert children across all new vendors ──────────
+        await this._batchUpsertFlatChildren(t, s, schema, db, pgp, insertResults, sourceByParentId, toInsert, VENDOR_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
       }
 
+      _tVendorInserts = Date.now();
       // ── Phase 2: Import vendor contacts from sheet 1 ─────────────────
 
       if (!contactGroups.length) return;
@@ -654,57 +669,94 @@ export default class Vendors extends TableModel {
         const sourceResults = await sourcesModel.bulkInsert(sourceRecords, ['id', 'table_id']);
         const sourceByParentId = new Map(sourceResults.map((sr) => [sr.table_id, sr.id]));
 
-        for (let i = 0; i < insertResults.length; i++) {
-          const rec = insertResults[i];
-          const sourceId = sourceByParentId.get(rec.id);
-          if (sourceId) {
-            await t.none(`UPDATE ${s}.vendor_contacts SET source_id = $1 WHERE id = $2`, [sourceId, rec.id]);
-          }
-          if (contactToInsert[i].isArchived) {
-            await t.none(`UPDATE ${s}.vendor_contacts SET deactivated_at = NOW() WHERE id = $1`, [rec.id]);
-          }
-
-          // Insert children for new contact
-          if (sourceId) {
-            await this._upsertFlatChildren(t, s, schema, db, pgp, sourceId, contactToInsert[i].group.children, CONTACT_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
-          }
+        // ── Batch: link source_id for contacts ─────────────────────
+        const contactSourceLinks = insertResults
+          .map((rec) => ({ id: rec.id, source_id: sourceByParentId.get(rec.id) }))
+          .filter((r) => r.source_id);
+        if (contactSourceLinks.length) {
+          const vals = contactSourceLinks.map((r) => pgp.as.format('($1::uuid, $2::uuid)', [r.id, r.source_id])).join(', ');
+          await t.none(`UPDATE ${s}.vendor_contacts AS v SET source_id = vals.source_id FROM (VALUES ${vals}) AS vals(id, source_id) WHERE v.id = vals.id`);
         }
 
+        // ── Batch: archive inserted contacts whose status was 'archived' ─
+        const contactArchiveIds = insertResults.filter((_, i) => contactToInsert[i].isArchived).map((r) => r.id);
+        if (contactArchiveIds.length) {
+          await t.none(`UPDATE ${s}.vendor_contacts SET deactivated_at = NOW() WHERE id IN ($1:csv)`, [contactArchiveIds]);
+        }
+
+        // ── Batch: insert children across all new contacts ─────────
+        await this._batchUpsertFlatChildren(t, s, schema, db, pgp, insertResults, sourceByParentId, contactToInsert, CONTACT_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
+
+        _tContactInserts = Date.now();
         // Provision nap_users for app-user contacts after emails are inserted
         if (CONTACT_CONFIG.appUserProvisioning) {
           const crypto = await import('node:crypto');
 
+          // Identify app-user contacts and their source_ids
+          const appUserCandidates = [];
           for (let i = 0; i < insertResults.length; i++) {
             if (!cleanInserts[i].is_app_user) continue;
-
-            const rec = insertResults[i];
-            const sourceId = sourceByParentId.get(rec.id);
+            const sourceId = sourceByParentId.get(insertResults[i].id);
             if (!sourceId) continue;
+            appUserCandidates.push({ index: i, sourceId });
+          }
 
-            const loginEmail = await t.oneOrNone(
-              `SELECT email FROM ${s}.emails
-               WHERE source_id = $1 AND deactivated_at IS NULL
-               ORDER BY is_login DESC, is_primary DESC, created_at LIMIT 1`,
-              [sourceId],
+          if (appUserCandidates.length) {
+            // Batch email lookup — single query instead of N
+            const candidateSourceIds = appUserCandidates.map((c) => c.sourceId);
+            const emailRows = await t.any(
+              `SELECT DISTINCT ON (source_id) source_id, email
+               FROM ${s}.emails
+               WHERE source_id IN ($1:csv) AND deactivated_at IS NULL
+               ORDER BY source_id, is_login DESC, is_primary DESC, created_at`,
+              [candidateSourceIds],
             );
-            if (!loginEmail) {
-              await t.none(`UPDATE ${s}.vendor_contacts SET is_app_user = false WHERE id = $1`, [rec.id]);
-              continue;
+            const emailBySourceId = new Map(emailRows.map((r) => [r.source_id, r.email]));
+
+            // Build password list and pre-hash in parallel
+            const toProvision = [];
+            for (const { index, sourceId } of appUserCandidates) {
+              const email = emailBySourceId.get(sourceId);
+              if (!email) {
+                await t.none(`UPDATE ${s}.vendor_contacts SET is_app_user = false WHERE id = $1`, [insertResults[index].id]);
+                continue;
+              }
+              const clearPassword = contactToInsert[index].password || crypto.randomBytes(12).toString('base64url');
+              toProvision.push({ index, email, clearPassword });
             }
 
-            const clearPassword = contactToInsert[i].password || crypto.randomBytes(12).toString('base64url');
-            const created = await provisionAppUser(rec.id, loginEmail.email, clearPassword, tid, createdBy, CONTACT_CONFIG.appUserProvisioning.entityType, t);
-            if (!created) {
-              await t.none(`UPDATE ${s}.vendor_contacts SET is_app_user = false WHERE id = $1`, [rec.id]);
+            if (toProvision.length) {
+              const hashMap = await batchHashPasswords(toProvision.map((p) => ({ index: p.index, password: p.clearPassword })));
+
+              for (const { index, email, clearPassword } of toProvision) {
+                const created = await provisionAppUser(
+                  insertResults[index].id, email, clearPassword, tid, createdBy,
+                  CONTACT_CONFIG.appUserProvisioning.entityType, t, hashMap.get(index),
+                );
+                if (!created) {
+                  await t.none(`UPDATE ${s}.vendor_contacts SET is_app_user = false WHERE id = $1`, [insertResults[index].id]);
+                }
+              }
             }
           }
         }
       }
     });
+    } catch (err) {
+      const dataErrors = parseDbImportError(err);
+      if (dataErrors) return { errors: dataErrors };
+      throw err;
     } finally {
       this.tx = null;
     }
-
+    _tAppUsers = Date.now();
+    logger.info('Vendor combined import timing', {
+      vendorUpdates: `${(_tVendorUpdates || _t0) - _t0}ms (${updatedCount} rows)`,
+      vendorInserts: `${(_tVendorInserts || _tVendorUpdates || _t0) - (_tVendorUpdates || _t0)}ms (${insertedCount} rows)`,
+      contactInserts: `${(_tContactInserts || _tVendorInserts || _t0) - (_tVendorInserts || _t0)}ms (${contactsInserted + contactsUpdated} rows)`,
+      appUserProvisioning: `${_tAppUsers - (_tContactInserts || _t0)}ms`,
+      total: `${_tAppUsers - _t0}ms`,
+    });
     return {
       inserted: insertedCount,
       updated: updatedCount,
@@ -744,8 +796,99 @@ export default class Vendors extends TableModel {
         toInsert.push(transformed);
       }
 
+      // Enforce single is_primary per source (partial unique index)
+      if (toInsert.length > 1) {
+        let seenPrimary = false;
+        for (const r of toInsert) {
+          if (r.is_primary) {
+            if (seenPrimary) r.is_primary = false;
+            else seenPrimary = true;
+          }
+        }
+      }
+
       if (toInsert.length) {
         await childModel.bulkInsert(toInsert);
+      }
+    }
+  }
+
+  /**
+   * Batch upsert flat children across ALL newly inserted entities at once.
+   * Instead of per-entity soft-delete + insert, collects all children per type
+   * and executes 1 soft-delete + 1 bulkInsert per child type.
+   *
+   * @param {Object}   t               Transaction context
+   * @param {string}   s               Quoted schema name
+   * @param {string}   schema          Raw schema name
+   * @param {Function} db              Repository accessor
+   * @param {Object}   pgp             pg-promise instance
+   * @param {Object[]} insertResults   Array of inserted parent records (must have .id)
+   * @param {Map}      sourceByParentId  Maps parent id → source_id
+   * @param {Object[]} toInsertMeta    Array of { group: { children }, ... } per parent
+   * @param {Object[]} childConfig     Child config array (e.g. VENDOR_CHILD_ARRAYS_CONFIG)
+   * @param {Function} callbackFn      Row transformer
+   * @param {string}   tenantId        Resolved tenant UUID
+   */
+  async _batchUpsertFlatChildren(t, s, schema, db, pgp, insertResults, sourceByParentId, toInsertMeta, childConfig, callbackFn, tenantId) {
+    for (const cfg of childConfig) {
+      const key = cfg.model === 'phoneNumbers' ? 'phones' : cfg.model === 'taxIdentifiers' ? 'taxIds' : cfg.model;
+
+      const childModel = db(cfg.model, schema);
+      childModel.tx = t;
+      const tableName = childModel._schema?.table || cfg.model;
+
+      const allSourceIds = new Set();
+      const allToInsert = [];
+
+      // Collect children from all parents
+      for (let i = 0; i < insertResults.length; i++) {
+        const sourceId = sourceByParentId.get(insertResults[i].id);
+        if (!sourceId) continue;
+
+        const children = toInsertMeta[i].group?.children;
+        const childRows = children?.[key];
+        if (!childRows?.length) continue;
+
+        allSourceIds.add(sourceId);
+
+        // Track rows per source for is_primary enforcement
+        const sourceRows = [];
+        for (const row of childRows) {
+          const { _rowNum: _, ...rest } = row;
+          const base = { ...rest, source_id: sourceId };
+          const transformed = callbackFn ? await callbackFn(base) : base;
+          delete transformed.tenant_code;
+          if (tenantId) transformed.tenant_id = tenantId;
+          coerceChildRow(transformed, childModel);
+          sourceRows.push(transformed);
+        }
+
+        // Enforce single is_primary per source (partial unique index)
+        if (sourceRows.length > 1) {
+          let seenPrimary = false;
+          for (const r of sourceRows) {
+            if (r.is_primary) {
+              if (seenPrimary) r.is_primary = false;
+              else seenPrimary = true;
+            }
+          }
+        }
+
+        allToInsert.push(...sourceRows);
+      }
+
+      if (!allSourceIds.size) continue;
+
+      // Single soft-delete for all affected source_ids
+      await t.none(
+        `UPDATE ${s}.${pgp.as.name(tableName)} SET deactivated_at = NOW() WHERE source_id IN ($1:csv) AND deactivated_at IS NULL`,
+        [[...allSourceIds]],
+      );
+
+      // Single bulk insert for all children of this type
+      if (allToInsert.length) {
+        await childModel.bulkInsert(allToInsert);
       }
     }
   }
@@ -780,6 +923,7 @@ export default class Vendors extends TableModel {
 
     const stripCols = ['status', 'deactivated_at', 'password'];
 
+    try {
     await db.tx(async (t) => {
       const contactModel = db('vendorContacts', schema);
       contactModel.tx = t;
@@ -861,19 +1005,26 @@ export default class Vendors extends TableModel {
         const sourceResults = await sourcesModel.bulkInsert(sourceRecords, ['id', 'table_id']);
         sourceByParentId = new Map(sourceResults.map((sr) => [sr.table_id, sr.id]));
 
+        // ── Batch: link source_id for contacts ─────────────────────
+        const contactSourceLinks = insertResults
+          .map((rec) => ({ id: rec.id, source_id: sourceByParentId.get(rec.id) }))
+          .filter((r) => r.source_id);
+        if (contactSourceLinks.length) {
+          const vals = contactSourceLinks.map((r) => pgp.as.format('($1::uuid, $2::uuid)', [r.id, r.source_id])).join(', ');
+          await t.none(`UPDATE ${s}.vendor_contacts AS v SET source_id = vals.source_id FROM (VALUES ${vals}) AS vals(id, source_id) WHERE v.id = vals.id`);
+        }
+
+        // Build ref map (JS only)
         for (let i = 0; i < insertResults.length; i++) {
-          const rec = insertResults[i];
-          const sourceId = sourceByParentId.get(rec.id);
-          if (sourceId) {
-            await t.none(`UPDATE ${s}.vendor_contacts SET source_id = $1 WHERE id = $2`, [sourceId, rec.id]);
-          }
           const ref = toInsert[i]._ref;
-          if (ref && sourceId) {
-            contactRefToSourceId.set(ref, sourceId);
-          }
-          if (toInsert[i]._archive) {
-            await t.none(`UPDATE ${s}.vendor_contacts SET deactivated_at = NOW() WHERE id = $1`, [rec.id]);
-          }
+          const sourceId = sourceByParentId.get(insertResults[i].id);
+          if (ref && sourceId) contactRefToSourceId.set(ref, sourceId);
+        }
+
+        // ── Batch: archive inserted contacts ───────────────────────
+        const contactArchiveIds = insertResults.filter((_, i) => toInsert[i]._archive).map((r) => r.id);
+        if (contactArchiveIds.length) {
+          await t.none(`UPDATE ${s}.vendor_contacts SET deactivated_at = NOW() WHERE id IN ($1:csv)`, [contactArchiveIds]);
         }
       }
 
@@ -886,44 +1037,70 @@ export default class Vendors extends TableModel {
 
       if (CONTACT_CONFIG.appUserProvisioning && insertResults.length) {
         const crypto = await import('node:crypto');
-        const bcrypt = await import('bcrypt');
-        const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
 
+        // Identify app-user contacts and their source_ids
+        const appUserCandidates = [];
         for (let i = 0; i < insertResults.length; i++) {
-          const row = toInsert[i];
-          if (!row.is_app_user) continue;
-
-          const rec = insertResults[i];
-          const sourceId = sourceByParentId.get(rec.id);
+          if (!toInsert[i].is_app_user) continue;
+          const sourceId = sourceByParentId.get(insertResults[i].id);
           if (!sourceId) continue;
+          appUserCandidates.push({ index: i, sourceId });
+        }
 
-          const loginEmail = await t.oneOrNone(
-            `SELECT email FROM ${s}.emails
-             WHERE source_id = $1 AND deactivated_at IS NULL
-             ORDER BY is_login DESC, is_primary DESC, created_at LIMIT 1`,
-            [sourceId],
+        if (appUserCandidates.length) {
+          // Batch email lookup
+          const candidateSourceIds = appUserCandidates.map((c) => c.sourceId);
+          const emailRows = await t.any(
+            `SELECT DISTINCT ON (source_id) source_id, email
+             FROM ${s}.emails
+             WHERE source_id IN ($1:csv) AND deactivated_at IS NULL
+             ORDER BY source_id, is_login DESC, is_primary DESC, created_at`,
+            [candidateSourceIds],
           );
-          if (!loginEmail) {
-            await t.none(`UPDATE ${s}.vendor_contacts SET is_app_user = false WHERE id = $1`, [rec.id]);
-            continue;
+          const emailBySourceId = new Map(emailRows.map((r) => [r.source_id, r.email]));
+
+          // Build password list and pre-hash in parallel
+          const toProvision = [];
+          for (const { index, sourceId } of appUserCandidates) {
+            const email = emailBySourceId.get(sourceId);
+            if (!email) {
+              await t.none(`UPDATE ${s}.vendor_contacts SET is_app_user = false WHERE id = $1`, [insertResults[index].id]);
+              continue;
+            }
+            const clearPassword = toInsert[index]._password || crypto.randomBytes(12).toString('base64url');
+            toProvision.push({ index, email, clearPassword });
           }
 
-          const clearPassword = row._password || crypto.randomBytes(12).toString('base64url');
-          const passwordHash = await bcrypt.default.hash(clearPassword, rounds);
-          const napUsersModel = db('napUsers', 'admin');
-          napUsersModel.tx = t;
-          await napUsersModel.insert({
-            tenant_id: tid,
-            entity_type: CONTACT_CONFIG.appUserProvisioning.entityType,
-            entity_id: rec.id,
-            email: loginEmail.email,
-            password_hash: passwordHash,
-            status: 'invited',
-            created_by: createdBy,
-          });
+          if (toProvision.length) {
+            const hashMap = await batchHashPasswords(toProvision.map((p) => ({ index: p.index, password: p.clearPassword })));
+
+            const napUsersModel = db('napUsers', 'admin');
+            napUsersModel.tx = t;
+            for (const { index, email } of toProvision) {
+              const existing = await t.oneOrNone(
+                'SELECT id FROM admin.nap_users WHERE email = $1 AND deactivated_at IS NULL',
+                [email],
+              );
+              if (existing) continue;
+              await napUsersModel.insert({
+                tenant_id: tid,
+                entity_type: CONTACT_CONFIG.appUserProvisioning.entityType,
+                entity_id: insertResults[index].id,
+                email,
+                password_hash: hashMap.get(index),
+                status: 'invited',
+                created_by: createdBy,
+              });
+            }
+          }
         }
       }
     });
+    } catch (err) {
+      const dataErrors = parseDbImportError(err);
+      if (dataErrors) return { errors: dataErrors };
+      throw err;
+    }
 
     return {
       ...vendorResult,

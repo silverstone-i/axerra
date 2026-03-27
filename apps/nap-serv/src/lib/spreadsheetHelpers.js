@@ -10,9 +10,10 @@
  */
 
 import { writeFileSync, readFileSync } from 'node:fs';
-import { allocateNumber } from '../system/core/services/numberingService.js';
+import { allocateNumber, allocateNumbers } from '../system/core/services/numberingService.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** Columns stripped from every exported sheet (id is kept for upsert) */
 const INTERNAL_COLS = new Set([
@@ -164,10 +165,14 @@ export function coerceRow(row, boolCols, hasRoles) {
       row[col] = row[col].toLowerCase() === 'true';
     }
   }
-  if (hasRoles && 'roles' in row && typeof row.roles === 'string') {
-    // Handle PG array literal "{a,b}" or comma-separated "a,b"
-    const raw = row.roles.replace(/^\{|\}$/g, '').trim();
-    row.roles = raw ? raw.split(',').map((s) => s.trim()) : [];
+  if (hasRoles) {
+    if (typeof row.roles === 'string') {
+      // Handle PG array literal "{a,b}" or comma-separated "a,b"
+      const raw = row.roles.replace(/^\{|\}$/g, '').trim();
+      row.roles = raw ? raw.split(',').map((s) => s.trim()) : [];
+    } else if (row.roles == null) {
+      row.roles = [];
+    }
   }
   return row;
 }
@@ -187,7 +192,11 @@ export function coerceChildRow(row, model) {
   for (const col of columns) {
     if (!(col.name in row)) continue;
     const val = row[col.name];
-    if (val == null) continue;
+    if (val == null) {
+      // Default null/undefined booleans to the schema default (or false)
+      if (col.type === 'boolean') row[col.name] = col.default ?? false;
+      continue;
+    }
     // varchar/char/text columns: coerce numbers to strings
     if (/^(varchar|char|text)/i.test(col.type) && typeof val === 'number') {
       row[col.name] = String(val);
@@ -222,6 +231,138 @@ function _getEnumColumns(schema) {
     if (values.size) map.set(check.columns[0], values);
   }
   return map;
+}
+
+/**
+ * Validate grouped import rows before any DB operations.
+ * Checks required parent fields, valid statuses, duplicate codes, and email formats.
+ * Returns an array of error objects ({ sheet, row, column, value, message }).
+ *
+ * @param {Object[]}  groups       Output of groupFlatRows
+ * @param {Object}    opts
+ * @param {string}    opts.sheetName     Sheet label for error messages
+ * @param {string[]}  opts.requiredFields Parent fields that must be non-empty
+ * @param {boolean}   [opts.codeRequired] Whether code is required
+ * @param {boolean}   [opts.validateEmails] Whether to check child emails
+ * @param {Object[]}  [opts.conflicts]   Conflict objects from groupFlatRows
+ * @returns {Object[]} Array of validation errors (empty = valid)
+ */
+export function validateImportGroups(groups, opts) {
+  const { sheetName, requiredFields = [], codeRequired = false, validateEmails = true, conflicts = [] } = opts;
+  const errors = [];
+
+  for (const c of conflicts) {
+    errors.push({
+      sheet: sheetName, row: c.row, column: c.column, value: c.value,
+      message: `Conflicting value — row ${c.existingRow} has "${c.existingValue}"`,
+    });
+  }
+
+  const VALID_STATUSES = new Set(['active', 'archived', '']);
+  const codeCounts = new Map();
+
+  for (const group of groups) {
+    const p = group.parent;
+
+    // Required fields
+    for (const field of requiredFields) {
+      if (!p[field] || (typeof p[field] === 'string' && !p[field].trim())) {
+        errors.push({ sheet: sheetName, row: p._rowNum || null, column: field, value: p[field] ?? '', message: `${field.replace(/_/g, ' ')} is required` });
+      }
+    }
+
+    // Status
+    const status = String(p.status ?? '').toLowerCase().trim();
+    if (!VALID_STATUSES.has(status)) {
+      errors.push({ sheet: sheetName, row: p._rowNum || null, column: 'status', value: p.status, message: 'Status must be "active" or "archived"' });
+    }
+
+    // Code uniqueness
+    if (codeRequired) {
+      const code = typeof p.code === 'string' ? p.code.trim() : '';
+      if (!code) {
+        errors.push({ sheet: sheetName, row: p._rowNum || null, column: 'code', value: p.code ?? '', message: 'Code is required' });
+      }
+    }
+    if (p.code) {
+      const code = String(p.code).trim();
+      if (code) {
+        const prev = codeCounts.get(code);
+        if (prev) {
+          errors.push({ sheet: sheetName, row: p._rowNum || null, column: 'code', value: code, message: `Duplicate code — also appears on row ${prev}` });
+        } else {
+          codeCounts.set(code, p._rowNum || '?');
+        }
+      }
+    }
+
+    // Emails
+    if (validateEmails) {
+      for (const child of group.children?.emails || []) {
+        if (child.email && !EMAIL_RE.test(child.email)) {
+          errors.push({ sheet: sheetName, row: child._rowNum || null, column: 'email', value: child.email, message: 'Invalid email format' });
+        }
+      }
+    }
+  }
+
+  return errors;
+}
+
+/**
+ * Parse a PG database error into a user-friendly import error.
+ * Returns an error array if the error is a data issue, or null if it's an
+ * unexpected system error that should propagate normally.
+ *
+ * @param {Error} err  The caught error
+ * @returns {Object[]|null} Array of error objects or null
+ */
+export function parseDbImportError(err) {
+  const pgCode = err.cause?.code || err.code;
+  const detail = err.cause?.detail || err.detail || '';
+  const message = err.cause?.message || err.message || '';
+
+  // Not-null violation (23502)
+  if (pgCode === '23502') {
+    const colMatch = message.match(/column "(\w+)"/);
+    const column = colMatch ? colMatch[1] : null;
+    return [{ sheet: null, row: null, column, value: null, message: `${column ? column.replace(/_/g, ' ') : 'A required field'} cannot be empty` }];
+  }
+
+  // Unique violation (23505)
+  if (pgCode === '23505') {
+    const colMatch = detail.match(/\(([^)]+)\)=/);
+    const column = colMatch ? colMatch[1] : null;
+    const valMatch = detail.match(/=\(([^)]+)\)/);
+    const value = valMatch ? valMatch[1] : null;
+    return [{ sheet: null, row: null, column, value, message: `Duplicate value — already exists in the database` }];
+  }
+
+  // Foreign key violation (23503)
+  if (pgCode === '23503') {
+    const colMatch = detail.match(/\(([^)]+)\)=/);
+    const column = colMatch ? colMatch[1] : null;
+    const valMatch = detail.match(/=\(([^)]+)\)/);
+    const value = valMatch ? valMatch[1] : null;
+    return [{ sheet: null, row: null, column, value, message: `Referenced record does not exist` }];
+  }
+
+  // Check constraint violation (23514)
+  if (pgCode === '23514') {
+    return [{ sheet: null, row: null, column: null, value: null, message: `Value violates a data constraint: ${message}` }];
+  }
+
+  // String too long / data too long (22001)
+  if (pgCode === '22001') {
+    return [{ sheet: null, row: null, column: null, value: null, message: `A value exceeds the maximum allowed length` }];
+  }
+
+  // Invalid text representation / wrong data type (22P02)
+  if (pgCode === '22P02') {
+    return [{ sheet: null, row: null, column: null, value: null, message: `Invalid data format: ${message}` }];
+  }
+
+  return null;
 }
 
 // ── Config-driven export/import for source entities ──────────────────────────
@@ -481,34 +622,68 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
 
       // Link source_id back to parent and build ref map
       const sourceByParentId = new Map(sourceResults.map((sr) => [sr.table_id, sr.id]));
-      for (let i = 0; i < insertResults.length; i++) {
-        const rec = insertResults[i];
-        const sourceId = sourceByParentId.get(rec.id);
-        if (sourceId) {
-          await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET source_id = $1 WHERE id = $2`, [sourceId, rec.id]);
+      const tbl = pgp.as.name(config.entityName);
+
+      // ── Batch: link source_id ────────────────────────────────────
+      const sourceLinks = insertResults
+        .map((rec) => ({ id: rec.id, source_id: sourceByParentId.get(rec.id) }))
+        .filter((r) => r.source_id);
+      if (sourceLinks.length) {
+        const vals = sourceLinks.map((r) => pgp.as.format('($1::uuid, $2::uuid)', [r.id, r.source_id])).join(', ');
+        await t.none(`UPDATE ${s}.${tbl} AS v SET source_id = vals.source_id FROM (VALUES ${vals}) AS vals(id, source_id) WHERE v.id = vals.id`);
+      }
+
+      // ── Batch: allocate codes ────────────────────────────────────
+      if (config.idType) {
+        const needCodeIndices = [];
+        for (let i = 0; i < cleanInserts.length; i++) {
+          if (!cleanInserts[i].code) needCodeIndices.push(i);
         }
-        // Auto-assign code via numbering service if not provided
-        if (!cleanInserts[i].code && config.idType) {
-          const numbering = await allocateNumber(schema, config.idType, null, new Date(), t);
-          if (numbering) {
-            await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET code = $1 WHERE id = $2`, [numbering.displayId, rec.id]);
+        if (needCodeIndices.length) {
+          const codes = await allocateNumbers(schema, config.idType, needCodeIndices.length, null, new Date(), t);
+          if (codes) {
+            const codeUpdates = needCodeIndices.map((idx, ci) => ({
+              id: insertResults[idx].id,
+              code: codes[ci].displayId,
+            }));
+            const codeVals = codeUpdates.map((r) => pgp.as.format('($1::uuid, $2)', [r.id, r.code])).join(', ');
+            await t.none(`UPDATE ${s}.${tbl} AS v SET code = vals.code FROM (VALUES ${codeVals}) AS vals(id, code) WHERE v.id = vals.id`);
           }
         }
-        // Map the original spreadsheet ref → source_id
+      }
+
+      // Build ref map (JS only, no DB)
+      for (let i = 0; i < insertResults.length; i++) {
         const ref = toInsert[i]._ref;
-        if (ref && sourceId) {
-          refToSourceId.set(ref, sourceId);
+        const sourceId = sourceByParentId.get(insertResults[i].id);
+        if (ref && sourceId) refToSourceId.set(ref, sourceId);
+      }
+
+      // ── Batch: archive inserted rows whose status was 'archived' ─
+      const archiveIds = insertResults.filter((_, i) => toInsert[i]._archive).map((r) => r.id);
+      if (archiveIds.length) {
+        await t.none(`UPDATE ${s}.${tbl} SET deactivated_at = NOW() WHERE id IN ($1:csv)`, [archiveIds]);
+      }
+
+      // ── Provision app users (bcrypt hashed in parallel, DB inserts sequential) ─
+      if (config.appUserProvisioning) {
+        const appUserEntries = [];
+        for (let i = 0; i < insertResults.length; i++) {
+          if (cleanInserts[i].is_app_user && cleanInserts[i].email && toInsert[i]._password) {
+            appUserEntries.push({ index: i, password: toInsert[i]._password });
+          }
         }
-        // Archive newly inserted rows if status was 'archived'
-        if (toInsert[i]._archive) {
-          await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET deactivated_at = NOW() WHERE id = $1`, [rec.id]);
-        }
-        // Provision nap_users for app users with password
-        if (config.appUserProvisioning && cleanInserts[i].is_app_user && cleanInserts[i].email && toInsert[i]._password) {
-          const created = await provisionAppUser(rec.id, cleanInserts[i].email, toInsert[i]._password, tid, createdBy, config.appUserProvisioning.entityType, t);
-          if (!created) {
-            await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET is_app_user = false WHERE id = $1`, [rec.id]);
-            appUserSkipped++;
+        if (appUserEntries.length) {
+          const hashMap = await batchHashPasswords(appUserEntries);
+          for (const { index } of appUserEntries) {
+            const created = await provisionAppUser(
+              insertResults[index].id, cleanInserts[index].email, toInsert[index]._password,
+              tid, createdBy, config.appUserProvisioning.entityType, t, hashMap.get(index),
+            );
+            if (!created) {
+              await t.none(`UPDATE ${s}.${tbl} SET is_app_user = false WHERE id = $1`, [insertResults[index].id]);
+              appUserSkipped++;
+            }
           }
         }
       }
@@ -526,6 +701,10 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
       }
     }
   });
+  } catch (err) {
+    const dataErrors = parseDbImportError(err);
+    if (dataErrors) return { errors: dataErrors };
+    throw err;
   } finally {
     model.tx = null;
   }
@@ -601,18 +780,40 @@ export async function importChildSheet(reader, sheetIndex, refToSourceId, modelN
 }
 
 /**
+ * Hash multiple passwords in parallel using libuv worker threads.
+ * Uses 4 bcrypt rounds for bulk import — these are temporary hashes for
+ * 'invited' users who must change their password on first login.
+ *
+ * @param {Array<{index: number, password: string}>} entries
+ * @returns {Promise<Map<number, string>>} Map of index → bcrypt hash
+ */
+export async function batchHashPasswords(entries) {
+  if (!entries.length) return new Map();
+  const bcrypt = await import('bcrypt');
+  const rounds = 4;
+  const results = await Promise.all(
+    entries.map(async ({ index, password }) => ({
+      index,
+      hash: await bcrypt.default.hash(password, rounds),
+    })),
+  );
+  return new Map(results.map((r) => [r.index, r.hash]));
+}
+
+/**
  * Create a nap_users login record for an imported app user.
  * Sets status = 'invited' so the user must change their password on first login.
  *
- * @param {string} entityId   ID of the parent entity record
- * @param {string} email      User email
- * @param {string} password   Plain text password (will be hashed)
- * @param {string} tenantId   Tenant UUID
- * @param {string} createdBy  Creator UUID
- * @param {string} entityType Entity type for nap_users (e.g. 'employee', 'client')
- * @param {Object} t          Transaction object
+ * @param {string} entityId    ID of the parent entity record
+ * @param {string} email       User email
+ * @param {string} password    Plain text password (will be hashed unless preHash provided)
+ * @param {string} tenantId    Tenant UUID
+ * @param {string} createdBy   Creator UUID
+ * @param {string} entityType  Entity type for nap_users (e.g. 'employee', 'client')
+ * @param {Object} t           Transaction object
+ * @param {string} [preHash]   Pre-computed bcrypt hash (skips hashing when provided)
  */
-export async function provisionAppUser(entityId, email, password, tenantId, createdBy, entityType, t) {
+export async function provisionAppUser(entityId, email, password, tenantId, createdBy, entityType, t, preHash = null) {
   // Skip if an active nap_user with this email already exists
   const existing = await t.oneOrNone(
     'SELECT id FROM admin.nap_users WHERE email = $1 AND deactivated_at IS NULL',
@@ -620,9 +821,14 @@ export async function provisionAppUser(entityId, email, password, tenantId, crea
   );
   if (existing) return false;
 
-  const bcrypt = await import('bcrypt');
-  const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
-  const passwordHash = await bcrypt.default.hash(password, rounds);
+  let passwordHash;
+  if (preHash) {
+    passwordHash = preHash;
+  } else {
+    const bcrypt = await import('bcrypt');
+    const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
+    passwordHash = await bcrypt.default.hash(password, rounds);
+  }
 
   const { db } = await getDb();
   const napUsersModel = db('napUsers', 'admin');
@@ -706,8 +912,7 @@ export const FLAT_CHILD_TAX_IDS = {
   flatCols: ['tax_country_code', 'tax_type', 'tax_value'],
 };
 
-// Simple email regex matching pg-schemata / Zod email validation
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// EMAIL_RE moved to top of file (before validateImportGroups)
 
 // ── Config-driven flat export/import for source entities ─────────────────────
 
@@ -1070,6 +1275,10 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
       }
     }
   });
+  } catch (err) {
+    const dataErrors = parseDbImportError(err);
+    if (dataErrors) return { errors: dataErrors };
+    throw err;
   } finally {
     model.tx = null;
   }
@@ -1226,8 +1435,13 @@ export function groupFlatRows(rows, keyFn, parentCols, childExtractors) {
     for (const ext of childExtractors) {
       if (ext.test(row)) {
         const child = ext.extract(row);
+        // Deduplicate: skip if identical child data already exists in this group
+        const { _rowNum: _, ...vals } = child;
+        const key = JSON.stringify(vals);
+        const existing = group.children[ext.name];
+        if (existing.some((c) => { const { _rowNum: __, ...v } = c; return JSON.stringify(v) === key; })) continue;
         if (row._rowNum != null) child._rowNum = row._rowNum;
-        group.children[ext.name].push(child);
+        existing.push(child);
       }
     }
   }

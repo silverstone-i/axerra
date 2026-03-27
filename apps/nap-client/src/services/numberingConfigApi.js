@@ -15,7 +15,7 @@ const qs = (params) => {
 };
 
 export const numberingConfigApi = {
-  list: (params = {}) => client.get(`${BASE}${qs(params)}`),
+  list: (params = {}) => client.getAll(BASE, params),
   getById: (id) => client.get(`${BASE}/${id}`),
   update: (filterParams, changes) => client.put(`${BASE}/update${qs(filterParams)}`, changes),
 };

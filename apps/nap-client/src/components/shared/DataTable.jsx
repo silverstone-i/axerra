@@ -19,6 +19,9 @@ import { DataGrid } from '@mui/x-data-grid';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import RowActionsMenu from './RowActionsMenu.jsx';
+import { useTenantPrefs } from '../../contexts/TenantPreferencesContext.jsx';
+
+const PAGE_SIZE_OPTIONS = [25, 50, 100, 200, 500, 1000];
 
 /**
  * @param {Object}   props
@@ -43,6 +46,7 @@ export default function DataTable({
   getRowClassName,
   dataGridProps = {},
 }) {
+  const { defaultPageSize } = useTenantPrefs();
   // Base actions (static across all rows)
   const baseActions = useMemo(() => {
     const actions = [];
@@ -88,6 +92,7 @@ export default function DataTable({
 
   return (
     <DataGrid
+      key={defaultPageSize}
       rows={rows}
       columns={mergedColumns}
       getRowId={(r) => r.id}
@@ -97,8 +102,8 @@ export default function DataTable({
       rowSelectionModel={selection.selectionModel}
       onRowSelectionModelChange={selection.handleSelectionModelChange}
       onRowClick={selection.handleRowClick}
-      pageSizeOptions={[25, 50, 100]}
-      initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
+      pageSizeOptions={PAGE_SIZE_OPTIONS}
+      initialState={{ pagination: { paginationModel: { pageSize: defaultPageSize } } }}
       getRowClassName={mergedGetRowClassName}
       {...dataGridProps}
     />

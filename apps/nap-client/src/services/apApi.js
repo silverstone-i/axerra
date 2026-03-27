@@ -16,7 +16,7 @@ const qs = (params) => {
 const INVOICES = '/ap/v1/ap-invoices';
 
 export const apInvoiceApi = {
-  list: (params = {}) => client.get(`${INVOICES}${qs(params)}`),
+  list: (params = {}) => client.getAll(INVOICES, params),
   getById: (id) => client.get(`${INVOICES}/${id}`),
   create: (body) => client.post(INVOICES, body),
   update: (filterParams, changes) => client.put(`${INVOICES}/update${qs(filterParams)}`, changes),
@@ -30,7 +30,7 @@ export const apInvoiceApi = {
 const LINES = '/ap/v1/ap-invoice-lines';
 
 export const apInvoiceLineApi = {
-  list: (params = {}) => client.get(`${LINES}${qs(params)}`),
+  list: (params = {}) => client.getAll(LINES, params),
   getById: (id) => client.get(`${LINES}/${id}`),
   create: (body) => client.post(LINES, body),
   update: (filterParams, changes) => client.put(`${LINES}/update${qs(filterParams)}`, changes),
@@ -42,7 +42,7 @@ export const apInvoiceLineApi = {
 const PAYMENTS = '/ap/v1/payments';
 
 export const paymentApi = {
-  list: (params = {}) => client.get(`${PAYMENTS}${qs(params)}`),
+  list: (params = {}) => client.getAll(PAYMENTS, params),
   getById: (id) => client.get(`${PAYMENTS}/${id}`),
   create: (body) => client.post(PAYMENTS, body),
   update: (filterParams, changes) => client.put(`${PAYMENTS}/update${qs(filterParams)}`, changes),
@@ -56,7 +56,7 @@ export const paymentApi = {
 const CREDITS = '/ap/v1/ap-credit-memos';
 
 export const apCreditMemoApi = {
-  list: (params = {}) => client.get(`${CREDITS}${qs(params)}`),
+  list: (params = {}) => client.getAll(CREDITS, params),
   getById: (id) => client.get(`${CREDITS}/${id}`),
   create: (body) => client.post(CREDITS, body),
   update: (filterParams, changes) => client.put(`${CREDITS}/update${qs(filterParams)}`, changes),

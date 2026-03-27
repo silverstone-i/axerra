@@ -18,6 +18,7 @@ import { tenantModules } from '../db/migrations/moduleScopes.js';
 import { seedSystemRoles } from '../system/core/services/systemRoleSeeder.js';
 import { seedPolicyCatalog } from '../system/core/services/policyCatalogSeeder.js';
 import { seedNumberingConfig } from '../system/core/services/numberingConfigSeeder.js';
+import { seedTenantPreferences } from '../system/core/services/tenantPreferencesSeeder.js';
 import logger from '../lib/logger.js';
 
 const NAPSOFT_TENANT = (process.env.NAPSOFT_TENANT || 'NAP').toUpperCase();
@@ -94,6 +95,16 @@ export async function provisionTenant({ schemaName, tenantCode, createdBy: _crea
     }
   } catch (err) {
     logger.warn(`Numbering config seeding failed for "${normalized}":`, err?.message || err);
+  }
+
+  // 7. Seed default tenant preferences
+  try {
+    const tenant = await DB.db.oneOrNone('SELECT id FROM admin.tenants WHERE schema_name = $1', [normalized]);
+    if (tenant) {
+      await seedTenantPreferences(DB.db, DB.pgp, normalized, tenant.id);
+    }
+  } catch (err) {
+    logger.warn(`Tenant preferences seeding failed for "${normalized}":`, err?.message || err);
   }
 
   return result;
