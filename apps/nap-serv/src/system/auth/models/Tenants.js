@@ -21,7 +21,7 @@ const HEADERS = [
   'id', 'tenant_code', 'company', 'status', 'tier', 'region', 'max_users', 'notes',
   'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code',
   'tax_country_code', 'tax_type', 'tax_value',
-  'admin_first_name', 'admin_last_name', 'admin_email', 'admin_password',
+  'admin_first_name', 'admin_last_name', 'admin_email', 'admin_password', 'admin_phone',
 ];
 
 export default class Tenants extends TableModel {
@@ -82,9 +82,9 @@ export default class Tenants extends TableModel {
           ) || {};
         }
 
-        // Primary contact employee + their login email
+        // Primary contact employee + their login email + primary phone
         admin = await this.db.oneOrNone(
-          `SELECT e.first_name, e.last_name, em.email
+          `SELECT e.first_name, e.last_name, em.email, pn.phone_number
            FROM ${sch}.employees e
            JOIN ${sch}.sources s ON s.table_id = e.id AND s.source_type = 'employee' AND s.deactivated_at IS NULL
            LEFT JOIN LATERAL (
@@ -92,6 +92,11 @@ export default class Tenants extends TableModel {
              WHERE em.source_id = s.id AND em.is_login = true AND em.deactivated_at IS NULL
              ORDER BY em.is_primary DESC, em.created_at LIMIT 1
            ) em ON true
+           LEFT JOIN LATERAL (
+             SELECT pn.phone_number FROM ${sch}.phone_numbers pn
+             WHERE pn.source_id = s.id AND pn.deactivated_at IS NULL
+             ORDER BY pn.is_primary DESC, pn.created_at LIMIT 1
+           ) pn ON true
            WHERE e.is_primary_contact = true AND e.deactivated_at IS NULL
            ORDER BY e.created_at LIMIT 1`,
         ) || {};
@@ -122,6 +127,7 @@ export default class Tenants extends TableModel {
         admin_last_name: admin.last_name || '',
         admin_email: admin.email || '',
         admin_password: '',
+        admin_phone: admin.phone_number || '',
       };
     }));
 
@@ -142,6 +148,7 @@ export default class Tenants extends TableModel {
     const { WorkbookReader } = await import('@nap-sft/tablsx');
     const buffer = readFileSync(filePath);
     const reader = WorkbookReader.fromBuffer(buffer);
+    const sheetName = reader.sheetNames?.[0] || 'tenants';
     const rows = parseSheet(reader, 0);
     if (!rows.length) return { inserted: 0, updated: 0 };
 
@@ -162,7 +169,7 @@ export default class Tenants extends TableModel {
           inserted++;
         }
       } catch (err) {
-        errors.push({ row: i + 2, tenant_code: row.tenant_code || '', message: err.message });
+        errors.push({ sheet: sheetName, row: row._rowNum || i + 2, tenant_code: row.tenant_code || '', message: err.message });
       }
     }
 
@@ -266,6 +273,36 @@ export default class Tenants extends TableModel {
         );
       }
     }
+
+    // Upsert admin phone number
+    if (row.admin_phone) {
+      const adminEmp = await this.db.oneOrNone(
+        `SELECT s.id AS source_id
+         FROM ${sch}.employees e
+         JOIN ${sch}.sources s ON s.table_id = e.id AND s.source_type = 'employee' AND s.deactivated_at IS NULL
+         WHERE e.is_primary_contact = true AND e.deactivated_at IS NULL
+         ORDER BY e.created_at LIMIT 1`,
+      );
+      if (adminEmp?.source_id) {
+        const existingPhone = await this.db.oneOrNone(
+          `SELECT id FROM ${sch}.phone_numbers WHERE source_id = $1 AND deactivated_at IS NULL
+           ORDER BY is_primary DESC, created_at LIMIT 1`,
+          [adminEmp.source_id],
+        );
+        if (existingPhone) {
+          await this.db.none(
+            `UPDATE ${sch}.phone_numbers SET phone_number = $1, updated_by = $2 WHERE id = $3`,
+            [row.admin_phone, actorId, existingPhone.id],
+          );
+        } else {
+          await this.db.none(
+            `INSERT INTO ${sch}.phone_numbers (tenant_id, source_id, phone_number, phone_type, is_primary, created_by)
+             VALUES ($1, $2, $3, 'work', true, $4)`,
+            [tenant.id, adminEmp.source_id, row.admin_phone, actorId],
+          );
+        }
+      }
+    }
   }
 
   /**
@@ -307,6 +344,7 @@ export default class Tenants extends TableModel {
       admin_last_name: row.admin_last_name,
       admin_email: row.admin_email,
       admin_password: row.admin_password,
+      admin_phone: row.admin_phone || null,
     }, actorId);
   }
 }

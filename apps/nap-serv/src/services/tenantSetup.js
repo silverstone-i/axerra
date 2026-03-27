@@ -53,6 +53,7 @@ export async function provisionNewTenant(body, actorId) {
     admin_last_name,
     admin_email,
     admin_password,
+    admin_phone,
   } = body;
 
   if (!tenant_code || !company) {
@@ -201,6 +202,17 @@ export async function provisionNewTenant(body, actorId) {
        RETURNING id`,
       [tenant.id, empSource.id, admin_email, 'work', true, true, actorId],
     );
+
+    // 3f-v. Create the admin employee's phone number (if provided)
+    if (admin_phone) {
+      await t.one(
+        `INSERT INTO ${sch}.phone_numbers
+           (tenant_id, source_id, phone_number, phone_type, is_primary, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id`,
+        [tenant.id, empSource.id, admin_phone, 'work', true, actorId],
+      );
+    }
 
     // 3g. Create nap_users login linked to the employee
     const user = await t.one(

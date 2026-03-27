@@ -10,7 +10,7 @@
  */
 
 import { writeFileSync, readFileSync } from 'node:fs';
-import { allocateNumber } from '../system/core/services/numberingService.js';
+import { allocateNumber, allocateNumbers } from '../system/core/services/numberingService.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -622,34 +622,58 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
 
       // Link source_id back to parent and build ref map
       const sourceByParentId = new Map(sourceResults.map((sr) => [sr.table_id, sr.id]));
-      for (let i = 0; i < insertResults.length; i++) {
-        const rec = insertResults[i];
-        const sourceId = sourceByParentId.get(rec.id);
-        if (sourceId) {
-          await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET source_id = $1 WHERE id = $2`, [sourceId, rec.id]);
+      const tbl = pgp.as.name(config.entityName);
+
+      // ── Batch: link source_id ────────────────────────────────────
+      const sourceLinks = insertResults
+        .map((rec) => ({ id: rec.id, source_id: sourceByParentId.get(rec.id) }))
+        .filter((r) => r.source_id);
+      if (sourceLinks.length) {
+        const vals = sourceLinks.map((r) => pgp.as.format('($1::uuid, $2::uuid)', [r.id, r.source_id])).join(', ');
+        await t.none(`UPDATE ${s}.${tbl} AS v SET source_id = vals.source_id FROM (VALUES ${vals}) AS vals(id, source_id) WHERE v.id = vals.id`);
+      }
+
+      // ── Batch: allocate codes ────────────────────────────────────
+      if (config.idType) {
+        const needCodeIndices = [];
+        for (let i = 0; i < cleanInserts.length; i++) {
+          if (!cleanInserts[i].code) needCodeIndices.push(i);
         }
-        // Auto-assign code via numbering service if not provided
-        if (!cleanInserts[i].code && config.idType) {
-          const numbering = await allocateNumber(schema, config.idType, null, new Date(), t);
-          if (numbering) {
-            await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET code = $1 WHERE id = $2`, [numbering.displayId, rec.id]);
+        if (needCodeIndices.length) {
+          const codes = await allocateNumbers(schema, config.idType, needCodeIndices.length, null, new Date(), t);
+          if (codes) {
+            const codeUpdates = needCodeIndices.map((idx, ci) => ({
+              id: insertResults[idx].id,
+              code: codes[ci].displayId,
+            }));
+            const codeVals = codeUpdates.map((r) => pgp.as.format('($1::uuid, $2)', [r.id, r.code])).join(', ');
+            await t.none(`UPDATE ${s}.${tbl} AS v SET code = vals.code FROM (VALUES ${codeVals}) AS vals(id, code) WHERE v.id = vals.id`);
           }
         }
-        // Map the original spreadsheet ref → source_id
+      }
+
+      // Build ref map (JS only, no DB)
+      for (let i = 0; i < insertResults.length; i++) {
         const ref = toInsert[i]._ref;
-        if (ref && sourceId) {
-          refToSourceId.set(ref, sourceId);
-        }
-        // Archive newly inserted rows if status was 'archived'
-        if (toInsert[i]._archive) {
-          await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET deactivated_at = NOW() WHERE id = $1`, [rec.id]);
-        }
-        // Provision nap_users for app users with password
-        if (config.appUserProvisioning && cleanInserts[i].is_app_user && cleanInserts[i].email && toInsert[i]._password) {
-          const created = await provisionAppUser(rec.id, cleanInserts[i].email, toInsert[i]._password, tid, createdBy, config.appUserProvisioning.entityType, t);
-          if (!created) {
-            await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET is_app_user = false WHERE id = $1`, [rec.id]);
-            appUserSkipped++;
+        const sourceId = sourceByParentId.get(insertResults[i].id);
+        if (ref && sourceId) refToSourceId.set(ref, sourceId);
+      }
+
+      // ── Batch: archive inserted rows whose status was 'archived' ─
+      const archiveIds = insertResults.filter((_, i) => toInsert[i]._archive).map((r) => r.id);
+      if (archiveIds.length) {
+        await t.none(`UPDATE ${s}.${tbl} SET deactivated_at = NOW() WHERE id IN ($1:csv)`, [archiveIds]);
+      }
+
+      // ── Provision app users (inherently per-row — bcrypt + nap_users insert) ─
+      if (config.appUserProvisioning) {
+        for (let i = 0; i < insertResults.length; i++) {
+          if (cleanInserts[i].is_app_user && cleanInserts[i].email && toInsert[i]._password) {
+            const created = await provisionAppUser(insertResults[i].id, cleanInserts[i].email, toInsert[i]._password, tid, createdBy, config.appUserProvisioning.entityType, t);
+            if (!created) {
+              await t.none(`UPDATE ${s}.${tbl} SET is_app_user = false WHERE id = $1`, [insertResults[i].id]);
+              appUserSkipped++;
+            }
           }
         }
       }

@@ -10,6 +10,7 @@
  */
 
 import { writeFileSync, readFileSync } from 'node:fs';
+import logger from '../../../lib/logger.js';
 import { TableModel } from 'pg-schemata';
 import vendorsSchema from '../schemas/vendorsSchema.js';
 import {
@@ -30,7 +31,7 @@ import {
   TAX_ID_HEADERS,
   EMAIL_HEADERS,
 } from '../../../lib/spreadsheetHelpers.js';
-import { allocateNumber } from '../services/numberingService.js';
+import { allocateNumbers } from '../services/numberingService.js';
 
 /** @type {import('../../../lib/spreadsheetHelpers.js').SourceEntityConfig} */
 const CONFIG = {
@@ -432,6 +433,8 @@ export default class Vendors extends TableModel {
     const vendorRefToId = new Map(); // spreadsheet id/ref → DB vendor id
     const vendorIdToSourceId = new Map(); // DB vendor id → source_id
 
+    const _t0 = Date.now();
+    let _tVendorUpdates, _tVendorInserts, _tContactInserts, _tAppUsers;
     try {
     await db.tx(async (t) => {
       this.tx = t;
@@ -489,6 +492,7 @@ export default class Vendors extends TableModel {
         }
       }
 
+      _tVendorUpdates = Date.now();
       // Run inserts
       if (toInsert.length) {
         const cleanInserts = toInsert.map(({ transformed }) => {
@@ -528,34 +532,53 @@ export default class Vendors extends TableModel {
         const sourceResults = await sourcesModel.bulkInsert(sourceRecords, ['id', 'table_id']);
         const sourceByParentId = new Map(sourceResults.map((sr) => [sr.table_id, sr.id]));
 
-        for (let i = 0; i < insertResults.length; i++) {
-          const rec = insertResults[i];
-          const sourceId = sourceByParentId.get(rec.id);
-          if (sourceId) {
-            await t.none(`UPDATE ${s}.vendors SET source_id = $1 WHERE id = $2`, [sourceId, rec.id]);
+        // ── Batch: link source_id ──────────────────────────────────
+        const sourceLinks = insertResults
+          .map((rec) => ({ id: rec.id, source_id: sourceByParentId.get(rec.id) }))
+          .filter((r) => r.source_id);
+        if (sourceLinks.length) {
+          const vals = sourceLinks.map((r) => pgp.as.format('($1::uuid, $2::uuid)', [r.id, r.source_id])).join(', ');
+          await t.none(`UPDATE ${s}.vendors AS v SET source_id = vals.source_id FROM (VALUES ${vals}) AS vals(id, source_id) WHERE v.id = vals.id`);
+        }
+
+        // ── Batch: allocate codes ──────────────────────────────────
+        if (CONFIG.idType) {
+          const needCodeIndices = [];
+          for (let i = 0; i < cleanInserts.length; i++) {
+            if (!cleanInserts[i].code) needCodeIndices.push(i);
           }
-          if (!cleanInserts[i].code && CONFIG.idType) {
-            const numbering = await allocateNumber(schema, CONFIG.idType, null, new Date(), t);
-            if (numbering) {
-              await t.none(`UPDATE ${s}.vendors SET code = $1 WHERE id = $2`, [numbering.displayId, rec.id]);
+          if (needCodeIndices.length) {
+            const codes = await allocateNumbers(schema, CONFIG.idType, needCodeIndices.length, null, new Date(), t);
+            if (codes) {
+              const codeUpdates = needCodeIndices.map((idx, ci) => ({
+                id: insertResults[idx].id,
+                code: codes[ci].displayId,
+              }));
+              const codeVals = codeUpdates.map((r) => pgp.as.format('($1::uuid, $2)', [r.id, r.code])).join(', ');
+              await t.none(`UPDATE ${s}.vendors AS v SET code = vals.code FROM (VALUES ${codeVals}) AS vals(id, code) WHERE v.id = vals.id`);
             }
           }
-          const ref = toInsert[i].ref;
-          if (ref) vendorRefToId.set(ref, rec.id);
-          vendorRefToId.set(rec.id, rec.id);
-          vendorIdToSourceId.set(rec.id, sourceId);
-
-          if (toInsert[i].isArchived) {
-            await t.none(`UPDATE ${s}.vendors SET deactivated_at = NOW() WHERE id = $1`, [rec.id]);
-          }
-
-          // Insert children for new vendor
-          if (sourceId) {
-            await this._upsertFlatChildren(t, s, schema, db, pgp, sourceId, toInsert[i].group.children, VENDOR_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
-          }
         }
+
+        // Build ref maps (JS only, no DB)
+        for (let i = 0; i < insertResults.length; i++) {
+          const ref = toInsert[i].ref;
+          if (ref) vendorRefToId.set(ref, insertResults[i].id);
+          vendorRefToId.set(insertResults[i].id, insertResults[i].id);
+          vendorIdToSourceId.set(insertResults[i].id, sourceByParentId.get(insertResults[i].id));
+        }
+
+        // ── Batch: archive inserted rows whose status was 'archived' ─
+        const archiveIds = insertResults.filter((_, i) => toInsert[i].isArchived).map((r) => r.id);
+        if (archiveIds.length) {
+          await t.none(`UPDATE ${s}.vendors SET deactivated_at = NOW() WHERE id IN ($1:csv)`, [archiveIds]);
+        }
+
+        // ── Batch: insert children across all new vendors ──────────
+        await this._batchUpsertFlatChildren(t, s, schema, db, pgp, insertResults, sourceByParentId, toInsert, VENDOR_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
       }
 
+      _tVendorInserts = Date.now();
       // ── Phase 2: Import vendor contacts from sheet 1 ─────────────────
 
       if (!contactGroups.length) return;
@@ -645,22 +668,25 @@ export default class Vendors extends TableModel {
         const sourceResults = await sourcesModel.bulkInsert(sourceRecords, ['id', 'table_id']);
         const sourceByParentId = new Map(sourceResults.map((sr) => [sr.table_id, sr.id]));
 
-        for (let i = 0; i < insertResults.length; i++) {
-          const rec = insertResults[i];
-          const sourceId = sourceByParentId.get(rec.id);
-          if (sourceId) {
-            await t.none(`UPDATE ${s}.vendor_contacts SET source_id = $1 WHERE id = $2`, [sourceId, rec.id]);
-          }
-          if (contactToInsert[i].isArchived) {
-            await t.none(`UPDATE ${s}.vendor_contacts SET deactivated_at = NOW() WHERE id = $1`, [rec.id]);
-          }
-
-          // Insert children for new contact
-          if (sourceId) {
-            await this._upsertFlatChildren(t, s, schema, db, pgp, sourceId, contactToInsert[i].group.children, CONTACT_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
-          }
+        // ── Batch: link source_id for contacts ─────────────────────
+        const contactSourceLinks = insertResults
+          .map((rec) => ({ id: rec.id, source_id: sourceByParentId.get(rec.id) }))
+          .filter((r) => r.source_id);
+        if (contactSourceLinks.length) {
+          const vals = contactSourceLinks.map((r) => pgp.as.format('($1::uuid, $2::uuid)', [r.id, r.source_id])).join(', ');
+          await t.none(`UPDATE ${s}.vendor_contacts AS v SET source_id = vals.source_id FROM (VALUES ${vals}) AS vals(id, source_id) WHERE v.id = vals.id`);
         }
 
+        // ── Batch: archive inserted contacts whose status was 'archived' ─
+        const contactArchiveIds = insertResults.filter((_, i) => contactToInsert[i].isArchived).map((r) => r.id);
+        if (contactArchiveIds.length) {
+          await t.none(`UPDATE ${s}.vendor_contacts SET deactivated_at = NOW() WHERE id IN ($1:csv)`, [contactArchiveIds]);
+        }
+
+        // ── Batch: insert children across all new contacts ─────────
+        await this._batchUpsertFlatChildren(t, s, schema, db, pgp, insertResults, sourceByParentId, contactToInsert, CONTACT_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
+
+        _tContactInserts = Date.now();
         // Provision nap_users for app-user contacts after emails are inserted
         if (CONTACT_CONFIG.appUserProvisioning) {
           const crypto = await import('node:crypto');
@@ -699,7 +725,14 @@ export default class Vendors extends TableModel {
     } finally {
       this.tx = null;
     }
-
+    _tAppUsers = Date.now();
+    logger.info('Vendor combined import timing', {
+      vendorUpdates: `${(_tVendorUpdates || _t0) - _t0}ms (${updatedCount} rows)`,
+      vendorInserts: `${(_tVendorInserts || _tVendorUpdates || _t0) - (_tVendorUpdates || _t0)}ms (${insertedCount} rows)`,
+      contactInserts: `${(_tContactInserts || _tVendorInserts || _t0) - (_tVendorInserts || _t0)}ms (${contactsInserted + contactsUpdated} rows)`,
+      appUserProvisioning: `${_tAppUsers - (_tContactInserts || _t0)}ms`,
+      total: `${_tAppUsers - _t0}ms`,
+    });
     return {
       inserted: insertedCount,
       updated: updatedCount,
@@ -752,6 +785,86 @@ export default class Vendors extends TableModel {
 
       if (toInsert.length) {
         await childModel.bulkInsert(toInsert);
+      }
+    }
+  }
+
+  /**
+   * Batch upsert flat children across ALL newly inserted entities at once.
+   * Instead of per-entity soft-delete + insert, collects all children per type
+   * and executes 1 soft-delete + 1 bulkInsert per child type.
+   *
+   * @param {Object}   t               Transaction context
+   * @param {string}   s               Quoted schema name
+   * @param {string}   schema          Raw schema name
+   * @param {Function} db              Repository accessor
+   * @param {Object}   pgp             pg-promise instance
+   * @param {Object[]} insertResults   Array of inserted parent records (must have .id)
+   * @param {Map}      sourceByParentId  Maps parent id → source_id
+   * @param {Object[]} toInsertMeta    Array of { group: { children }, ... } per parent
+   * @param {Object[]} childConfig     Child config array (e.g. VENDOR_CHILD_ARRAYS_CONFIG)
+   * @param {Function} callbackFn      Row transformer
+   * @param {string}   tenantId        Resolved tenant UUID
+   */
+  async _batchUpsertFlatChildren(t, s, schema, db, pgp, insertResults, sourceByParentId, toInsertMeta, childConfig, callbackFn, tenantId) {
+    for (const cfg of childConfig) {
+      const key = cfg.model === 'phoneNumbers' ? 'phones' : cfg.model === 'taxIdentifiers' ? 'taxIds' : cfg.model;
+
+      const childModel = db(cfg.model, schema);
+      childModel.tx = t;
+      const tableName = childModel._schema?.table || cfg.model;
+
+      const allSourceIds = new Set();
+      const allToInsert = [];
+
+      // Collect children from all parents
+      for (let i = 0; i < insertResults.length; i++) {
+        const sourceId = sourceByParentId.get(insertResults[i].id);
+        if (!sourceId) continue;
+
+        const children = toInsertMeta[i].group?.children;
+        const childRows = children?.[key];
+        if (!childRows?.length) continue;
+
+        allSourceIds.add(sourceId);
+
+        // Track rows per source for is_primary enforcement
+        const sourceRows = [];
+        for (const row of childRows) {
+          const { _rowNum: _, ...rest } = row;
+          const base = { ...rest, source_id: sourceId };
+          const transformed = callbackFn ? await callbackFn(base) : base;
+          delete transformed.tenant_code;
+          if (tenantId) transformed.tenant_id = tenantId;
+          coerceChildRow(transformed, childModel);
+          sourceRows.push(transformed);
+        }
+
+        // Enforce single is_primary per source (partial unique index)
+        if (sourceRows.length > 1) {
+          let seenPrimary = false;
+          for (const r of sourceRows) {
+            if (r.is_primary) {
+              if (seenPrimary) r.is_primary = false;
+              else seenPrimary = true;
+            }
+          }
+        }
+
+        allToInsert.push(...sourceRows);
+      }
+
+      if (!allSourceIds.size) continue;
+
+      // Single soft-delete for all affected source_ids
+      await t.none(
+        `UPDATE ${s}.${pgp.as.name(tableName)} SET deactivated_at = NOW() WHERE source_id IN ($1:csv) AND deactivated_at IS NULL`,
+        [[...allSourceIds]],
+      );
+
+      // Single bulk insert for all children of this type
+      if (allToInsert.length) {
+        await childModel.bulkInsert(allToInsert);
       }
     }
   }
@@ -868,19 +981,26 @@ export default class Vendors extends TableModel {
         const sourceResults = await sourcesModel.bulkInsert(sourceRecords, ['id', 'table_id']);
         sourceByParentId = new Map(sourceResults.map((sr) => [sr.table_id, sr.id]));
 
+        // ── Batch: link source_id for contacts ─────────────────────
+        const contactSourceLinks = insertResults
+          .map((rec) => ({ id: rec.id, source_id: sourceByParentId.get(rec.id) }))
+          .filter((r) => r.source_id);
+        if (contactSourceLinks.length) {
+          const vals = contactSourceLinks.map((r) => pgp.as.format('($1::uuid, $2::uuid)', [r.id, r.source_id])).join(', ');
+          await t.none(`UPDATE ${s}.vendor_contacts AS v SET source_id = vals.source_id FROM (VALUES ${vals}) AS vals(id, source_id) WHERE v.id = vals.id`);
+        }
+
+        // Build ref map (JS only)
         for (let i = 0; i < insertResults.length; i++) {
-          const rec = insertResults[i];
-          const sourceId = sourceByParentId.get(rec.id);
-          if (sourceId) {
-            await t.none(`UPDATE ${s}.vendor_contacts SET source_id = $1 WHERE id = $2`, [sourceId, rec.id]);
-          }
           const ref = toInsert[i]._ref;
-          if (ref && sourceId) {
-            contactRefToSourceId.set(ref, sourceId);
-          }
-          if (toInsert[i]._archive) {
-            await t.none(`UPDATE ${s}.vendor_contacts SET deactivated_at = NOW() WHERE id = $1`, [rec.id]);
-          }
+          const sourceId = sourceByParentId.get(insertResults[i].id);
+          if (ref && sourceId) contactRefToSourceId.set(ref, sourceId);
+        }
+
+        // ── Batch: archive inserted contacts ───────────────────────
+        const contactArchiveIds = insertResults.filter((_, i) => toInsert[i]._archive).map((r) => r.id);
+        if (contactArchiveIds.length) {
+          await t.none(`UPDATE ${s}.vendor_contacts SET deactivated_at = NOW() WHERE id IN ($1:csv)`, [contactArchiveIds]);
         }
       }
 
