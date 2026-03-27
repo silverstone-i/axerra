@@ -16,6 +16,7 @@ import {
   Link,
   Typography,
   Button,
+  MenuItem,
   TextField,
   ToggleButtonGroup,
   ToggleButton,
@@ -155,11 +156,18 @@ export default function ModuleBar() {
             variant="outlined"
             value={filter.value || ''}
             onChange={filter.onChange}
+            select={!!filter.options}
             sx={{
               minWidth: 120,
               '& .MuiInputBase-input': { py: 0.5, ...FONT.toolbarAction },
             }}
-          />
+          >
+            {filter.options?.map((opt) => (
+              <MenuItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </MenuItem>
+            ))}
+          </TextField>
         ))}
 
         {/* Primary actions */}
