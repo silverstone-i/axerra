@@ -24,6 +24,7 @@ import {
   buildFlatRows,
   groupFlatRows,
   provisionAppUser,
+  batchHashPasswords,
   validateImportGroups,
   parseDbImportError,
   PHONE_HEADERS,
@@ -691,28 +692,51 @@ export default class Vendors extends TableModel {
         if (CONTACT_CONFIG.appUserProvisioning) {
           const crypto = await import('node:crypto');
 
+          // Identify app-user contacts and their source_ids
+          const appUserCandidates = [];
           for (let i = 0; i < insertResults.length; i++) {
             if (!cleanInserts[i].is_app_user) continue;
-
-            const rec = insertResults[i];
-            const sourceId = sourceByParentId.get(rec.id);
+            const sourceId = sourceByParentId.get(insertResults[i].id);
             if (!sourceId) continue;
+            appUserCandidates.push({ index: i, sourceId });
+          }
 
-            const loginEmail = await t.oneOrNone(
-              `SELECT email FROM ${s}.emails
-               WHERE source_id = $1 AND deactivated_at IS NULL
-               ORDER BY is_login DESC, is_primary DESC, created_at LIMIT 1`,
-              [sourceId],
+          if (appUserCandidates.length) {
+            // Batch email lookup — single query instead of N
+            const candidateSourceIds = appUserCandidates.map((c) => c.sourceId);
+            const emailRows = await t.any(
+              `SELECT DISTINCT ON (source_id) source_id, email
+               FROM ${s}.emails
+               WHERE source_id IN ($1:csv) AND deactivated_at IS NULL
+               ORDER BY source_id, is_login DESC, is_primary DESC, created_at`,
+              [candidateSourceIds],
             );
-            if (!loginEmail) {
-              await t.none(`UPDATE ${s}.vendor_contacts SET is_app_user = false WHERE id = $1`, [rec.id]);
-              continue;
+            const emailBySourceId = new Map(emailRows.map((r) => [r.source_id, r.email]));
+
+            // Build password list and pre-hash in parallel
+            const toProvision = [];
+            for (const { index, sourceId } of appUserCandidates) {
+              const email = emailBySourceId.get(sourceId);
+              if (!email) {
+                await t.none(`UPDATE ${s}.vendor_contacts SET is_app_user = false WHERE id = $1`, [insertResults[index].id]);
+                continue;
+              }
+              const clearPassword = contactToInsert[index].password || crypto.randomBytes(12).toString('base64url');
+              toProvision.push({ index, email, clearPassword });
             }
 
-            const clearPassword = contactToInsert[i].password || crypto.randomBytes(12).toString('base64url');
-            const created = await provisionAppUser(rec.id, loginEmail.email, clearPassword, tid, createdBy, CONTACT_CONFIG.appUserProvisioning.entityType, t);
-            if (!created) {
-              await t.none(`UPDATE ${s}.vendor_contacts SET is_app_user = false WHERE id = $1`, [rec.id]);
+            if (toProvision.length) {
+              const hashMap = await batchHashPasswords(toProvision.map((p) => ({ index: p.index, password: p.clearPassword })));
+
+              for (const { index, email, clearPassword } of toProvision) {
+                const created = await provisionAppUser(
+                  insertResults[index].id, email, clearPassword, tid, createdBy,
+                  CONTACT_CONFIG.appUserProvisioning.entityType, t, hashMap.get(index),
+                );
+                if (!created) {
+                  await t.none(`UPDATE ${s}.vendor_contacts SET is_app_user = false WHERE id = $1`, [insertResults[index].id]);
+                }
+              }
             }
           }
         }
@@ -1013,41 +1037,62 @@ export default class Vendors extends TableModel {
 
       if (CONTACT_CONFIG.appUserProvisioning && insertResults.length) {
         const crypto = await import('node:crypto');
-        const bcrypt = await import('bcrypt');
-        const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
 
+        // Identify app-user contacts and their source_ids
+        const appUserCandidates = [];
         for (let i = 0; i < insertResults.length; i++) {
-          const row = toInsert[i];
-          if (!row.is_app_user) continue;
-
-          const rec = insertResults[i];
-          const sourceId = sourceByParentId.get(rec.id);
+          if (!toInsert[i].is_app_user) continue;
+          const sourceId = sourceByParentId.get(insertResults[i].id);
           if (!sourceId) continue;
+          appUserCandidates.push({ index: i, sourceId });
+        }
 
-          const loginEmail = await t.oneOrNone(
-            `SELECT email FROM ${s}.emails
-             WHERE source_id = $1 AND deactivated_at IS NULL
-             ORDER BY is_login DESC, is_primary DESC, created_at LIMIT 1`,
-            [sourceId],
+        if (appUserCandidates.length) {
+          // Batch email lookup
+          const candidateSourceIds = appUserCandidates.map((c) => c.sourceId);
+          const emailRows = await t.any(
+            `SELECT DISTINCT ON (source_id) source_id, email
+             FROM ${s}.emails
+             WHERE source_id IN ($1:csv) AND deactivated_at IS NULL
+             ORDER BY source_id, is_login DESC, is_primary DESC, created_at`,
+            [candidateSourceIds],
           );
-          if (!loginEmail) {
-            await t.none(`UPDATE ${s}.vendor_contacts SET is_app_user = false WHERE id = $1`, [rec.id]);
-            continue;
+          const emailBySourceId = new Map(emailRows.map((r) => [r.source_id, r.email]));
+
+          // Build password list and pre-hash in parallel
+          const toProvision = [];
+          for (const { index, sourceId } of appUserCandidates) {
+            const email = emailBySourceId.get(sourceId);
+            if (!email) {
+              await t.none(`UPDATE ${s}.vendor_contacts SET is_app_user = false WHERE id = $1`, [insertResults[index].id]);
+              continue;
+            }
+            const clearPassword = toInsert[index]._password || crypto.randomBytes(12).toString('base64url');
+            toProvision.push({ index, email, clearPassword });
           }
 
-          const clearPassword = row._password || crypto.randomBytes(12).toString('base64url');
-          const passwordHash = await bcrypt.default.hash(clearPassword, rounds);
-          const napUsersModel = db('napUsers', 'admin');
-          napUsersModel.tx = t;
-          await napUsersModel.insert({
-            tenant_id: tid,
-            entity_type: CONTACT_CONFIG.appUserProvisioning.entityType,
-            entity_id: rec.id,
-            email: loginEmail.email,
-            password_hash: passwordHash,
-            status: 'invited',
-            created_by: createdBy,
-          });
+          if (toProvision.length) {
+            const hashMap = await batchHashPasswords(toProvision.map((p) => ({ index: p.index, password: p.clearPassword })));
+
+            const napUsersModel = db('napUsers', 'admin');
+            napUsersModel.tx = t;
+            for (const { index, email } of toProvision) {
+              const existing = await t.oneOrNone(
+                'SELECT id FROM admin.nap_users WHERE email = $1 AND deactivated_at IS NULL',
+                [email],
+              );
+              if (existing) continue;
+              await napUsersModel.insert({
+                tenant_id: tid,
+                entity_type: CONTACT_CONFIG.appUserProvisioning.entityType,
+                entity_id: insertResults[index].id,
+                email,
+                password_hash: hashMap.get(index),
+                status: 'invited',
+                created_by: createdBy,
+              });
+            }
+          }
         }
       }
     });

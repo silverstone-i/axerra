@@ -665,13 +665,23 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
         await t.none(`UPDATE ${s}.${tbl} SET deactivated_at = NOW() WHERE id IN ($1:csv)`, [archiveIds]);
       }
 
-      // ── Provision app users (inherently per-row — bcrypt + nap_users insert) ─
+      // ── Provision app users (bcrypt hashed in parallel, DB inserts sequential) ─
       if (config.appUserProvisioning) {
+        const appUserEntries = [];
         for (let i = 0; i < insertResults.length; i++) {
           if (cleanInserts[i].is_app_user && cleanInserts[i].email && toInsert[i]._password) {
-            const created = await provisionAppUser(insertResults[i].id, cleanInserts[i].email, toInsert[i]._password, tid, createdBy, config.appUserProvisioning.entityType, t);
+            appUserEntries.push({ index: i, password: toInsert[i]._password });
+          }
+        }
+        if (appUserEntries.length) {
+          const hashMap = await batchHashPasswords(appUserEntries);
+          for (const { index } of appUserEntries) {
+            const created = await provisionAppUser(
+              insertResults[index].id, cleanInserts[index].email, toInsert[index]._password,
+              tid, createdBy, config.appUserProvisioning.entityType, t, hashMap.get(index),
+            );
             if (!created) {
-              await t.none(`UPDATE ${s}.${tbl} SET is_app_user = false WHERE id = $1`, [insertResults[i].id]);
+              await t.none(`UPDATE ${s}.${tbl} SET is_app_user = false WHERE id = $1`, [insertResults[index].id]);
               appUserSkipped++;
             }
           }
@@ -770,18 +780,40 @@ export async function importChildSheet(reader, sheetIndex, refToSourceId, modelN
 }
 
 /**
+ * Hash multiple passwords in parallel using libuv worker threads.
+ * Uses 4 bcrypt rounds for bulk import — these are temporary hashes for
+ * 'invited' users who must change their password on first login.
+ *
+ * @param {Array<{index: number, password: string}>} entries
+ * @returns {Promise<Map<number, string>>} Map of index → bcrypt hash
+ */
+export async function batchHashPasswords(entries) {
+  if (!entries.length) return new Map();
+  const bcrypt = await import('bcrypt');
+  const rounds = 4;
+  const results = await Promise.all(
+    entries.map(async ({ index, password }) => ({
+      index,
+      hash: await bcrypt.default.hash(password, rounds),
+    })),
+  );
+  return new Map(results.map((r) => [r.index, r.hash]));
+}
+
+/**
  * Create a nap_users login record for an imported app user.
  * Sets status = 'invited' so the user must change their password on first login.
  *
- * @param {string} entityId   ID of the parent entity record
- * @param {string} email      User email
- * @param {string} password   Plain text password (will be hashed)
- * @param {string} tenantId   Tenant UUID
- * @param {string} createdBy  Creator UUID
- * @param {string} entityType Entity type for nap_users (e.g. 'employee', 'client')
- * @param {Object} t          Transaction object
+ * @param {string} entityId    ID of the parent entity record
+ * @param {string} email       User email
+ * @param {string} password    Plain text password (will be hashed unless preHash provided)
+ * @param {string} tenantId    Tenant UUID
+ * @param {string} createdBy   Creator UUID
+ * @param {string} entityType  Entity type for nap_users (e.g. 'employee', 'client')
+ * @param {Object} t           Transaction object
+ * @param {string} [preHash]   Pre-computed bcrypt hash (skips hashing when provided)
  */
-export async function provisionAppUser(entityId, email, password, tenantId, createdBy, entityType, t) {
+export async function provisionAppUser(entityId, email, password, tenantId, createdBy, entityType, t, preHash = null) {
   // Skip if an active nap_user with this email already exists
   const existing = await t.oneOrNone(
     'SELECT id FROM admin.nap_users WHERE email = $1 AND deactivated_at IS NULL',
@@ -789,9 +821,14 @@ export async function provisionAppUser(entityId, email, password, tenantId, crea
   );
   if (existing) return false;
 
-  const bcrypt = await import('bcrypt');
-  const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
-  const passwordHash = await bcrypt.default.hash(password, rounds);
+  let passwordHash;
+  if (preHash) {
+    passwordHash = preHash;
+  } else {
+    const bcrypt = await import('bcrypt');
+    const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
+    passwordHash = await bcrypt.default.hash(password, rounds);
+  }
 
   const { db } = await getDb();
   const napUsersModel = db('napUsers', 'admin');
