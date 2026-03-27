@@ -31,6 +31,7 @@ import VendorContacts from './models/VendorContacts.js';
 import PaymentTerms from './models/PaymentTerms.js';
 import TenantNumberingConfig from './models/TenantNumberingConfig.js';
 import TenantNumberSequenceState from './models/TenantNumberSequenceState.js';
+import TenantPreferences from './models/TenantPreferences.js';
 
 const repositories = {
   // RBAC (Phase 3)
@@ -60,6 +61,9 @@ const repositories = {
   // Numbering system
   tenantNumberingConfig: TenantNumberingConfig,
   tenantNumberSequenceState: TenantNumberSequenceState,
+
+  // Tenant preferences
+  tenantPreferences: TenantPreferences,
 };
 
 export default repositories;

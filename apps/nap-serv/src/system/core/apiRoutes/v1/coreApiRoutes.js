@@ -27,6 +27,7 @@ import projectMembersRouter from './projectMembersRouter.js';
 import companyMembersRouter from './companyMembersRouter.js';
 import numberingConfigRouter from './numberingConfigRouter.js';
 import paymentTermsRouter from './paymentTermsRouter.js';
+import tenantPreferencesRouter from './tenantPreferencesRouter.js';
 
 const router = Router();
 
@@ -51,5 +52,6 @@ router.use('/v1/project-members', projectMembersRouter);
 router.use('/v1/company-members', companyMembersRouter);
 router.use('/v1/numbering-config', numberingConfigRouter);
 router.use('/v1/payment-terms', paymentTermsRouter);
+router.use('/v1/tenant-preferences', tenantPreferencesRouter);
 
 export default router;
