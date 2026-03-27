@@ -63,7 +63,7 @@ const SCOPE_TYPE_OPTS = [
 /* ── Preview helper ────────────────────────────────────────────── */
 
 function buildPreview(cfg) {
-  const serial = '1';
+  const serial = String(cfg.increment || 1);
   const padded = serial.padStart(cfg.padding || 4, '0');
   const sep = cfg.separator || '';
 
@@ -90,6 +90,7 @@ function NumberingCard({ config, onSave, saving }) {
         date_mode: config.date_mode ?? 'none',
         reset_mode: config.reset_mode ?? 'never',
         padding: config.padding ?? 4,
+        increment: config.increment ?? 1,
         separator: config.separator ?? '-',
         uppercase: config.uppercase ?? true,
         scope_type: config.scope_type ?? 'none',
@@ -113,6 +114,7 @@ function NumberingCard({ config, onSave, saving }) {
       form.date_mode !== (config.date_mode ?? 'none') ||
       form.reset_mode !== (config.reset_mode ?? 'never') ||
       Number(form.padding) !== (config.padding ?? 4) ||
+      Number(form.increment) !== (config.increment ?? 1) ||
       form.separator !== (config.separator ?? '-') ||
       form.uppercase !== (config.uppercase ?? true) ||
       form.scope_type !== (config.scope_type ?? 'none') ||
@@ -121,7 +123,7 @@ function NumberingCard({ config, onSave, saving }) {
   }, [form, config]);
 
   const handleSave = () => {
-    onSave(config.id, { ...form, padding: Number(form.padding) });
+    onSave(config.id, { ...form, padding: Number(form.padding), increment: Number(form.increment) });
   };
 
   const label = ID_TYPE_LABELS[config?.id_type] || config?.id_type;
@@ -146,7 +148,7 @@ function NumberingCard({ config, onSave, saving }) {
             <Divider />
 
             {/* Format fields */}
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 2 }}>
               <TextField
                 label="Prefix"
                 size="small"
@@ -175,6 +177,14 @@ function NumberingCard({ config, onSave, saving }) {
                 value={form.padding ?? 4}
                 onChange={onChange('padding')}
                 inputProps={{ min: 1, max: 10 }}
+              />
+              <TextField
+                label="Increment"
+                size="small"
+                type="number"
+                value={form.increment ?? 1}
+                onChange={onChange('increment')}
+                inputProps={{ min: 1 }}
               />
             </Box>
 
