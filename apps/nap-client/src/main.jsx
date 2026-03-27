@@ -14,6 +14,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createAppTheme } from './theme.js';
 import { AuthProvider } from './contexts/AuthContext.jsx';
 import { ModuleActionsProvider } from './contexts/ModuleActionsContext.jsx';
+import { TenantPreferencesProvider } from './contexts/TenantPreferencesContext.jsx';
 import App from './App.jsx';
 
 const queryClient = new QueryClient({
@@ -34,9 +35,11 @@ function ThemedApp() {
       <CssBaseline />
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <ModuleActionsProvider>
-            <App />
-          </ModuleActionsProvider>
+          <TenantPreferencesProvider>
+            <ModuleActionsProvider>
+              <App />
+            </ModuleActionsProvider>
+          </TenantPreferencesProvider>
         </AuthProvider>
       </QueryClientProvider>
     </ThemeProvider>
