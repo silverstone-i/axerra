@@ -9,6 +9,5 @@ import coreRbac from './202502110010_coreRbac.js';
 import coreEntities from './202502110011_coreEntities.js';
 import numberingSystem from './202502250012_numberingSystem.js';
 import importExportCatalog from './202603150013_importExportCatalog.js';
-import numberingIncrement from './202603270014_numberingIncrement.js';
 import tenantPreferences from './202603270015_tenantPreferences.js';
-export default [coreRbac, coreEntities, numberingSystem, importExportCatalog, numberingIncrement, tenantPreferences];
+export default [coreRbac, coreEntities, numberingSystem, importExportCatalog, tenantPreferences];
