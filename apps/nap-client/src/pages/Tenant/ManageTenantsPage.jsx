@@ -177,6 +177,7 @@ export default function ManageTenantsPage() {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [restoreOpen, setRestoreOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [importErrors, setImportErrors] = useState(null);
 
   /* ── form state ──────────────────────────────────────────── */
   const [editForm, setEditForm] = useState(BLANK_EDIT);
@@ -263,16 +264,27 @@ export default function ManageTenantsPage() {
 
   /* ── import / export handlers ─────────────────────────────── */
   const handleImport = useCallback(async (formData) => {
+    setImportErrors(null);
     try {
       const result = await importMut.mutateAsync(formData);
       const parts = [];
       if (result.inserted) parts.push(`${result.inserted} created`);
       if (result.updated) parts.push(`${result.updated} updated`);
-      if (result.errors?.length) parts.push(`${result.errors.length} errors`);
       toast(parts.join(', ') || 'Import complete');
       setImportOpen(false);
     } catch (err) {
-      toast(errMsg(err), 'error');
+      const validationErrors = err.payload?.errors;
+      if (validationErrors?.length) {
+        setImportErrors(validationErrors.map((e) => ({
+          sheet: e.sheet || 'tenants',
+          row: e.row,
+          column: e.tenant_code ? 'tenant_code' : '',
+          value: e.tenant_code || '',
+          message: e.message,
+        })));
+      } else {
+        toast(errMsg(err), 'error');
+      }
     }
   }, [importMut.mutateAsync, toast]);
 
@@ -570,8 +582,9 @@ export default function ManageTenantsPage() {
         open={importOpen}
         title="Import Tenants"
         loading={importMut.isPending}
+        errors={importErrors}
         onSubmit={handleImport}
-        onCancel={() => setImportOpen(false)}
+        onCancel={() => { setImportOpen(false); setImportErrors(null); }}
       />
 
       {/* ── Snackbar ───────────────────────────────────────── */}

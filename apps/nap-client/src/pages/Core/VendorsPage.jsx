@@ -151,7 +151,7 @@ export default function VendorsPage() {
   const archiveMut = useArchiveVendor();
   const restoreMut = useRestoreVendor();
 
-  const importMut = useImportXls(vendorApi.importCombinedXls, ['vendors', 'vendorContacts']);
+  const importMut = useImportXls(vendorApi.importCombinedXls, ['vendors'], [['vendorContacts']]);
   const exportMut = useExportXls(vendorApi.exportCombinedXls, 'vendors');
 
   const createEmailMut = useCreateEmail();

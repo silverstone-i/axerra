@@ -23,10 +23,13 @@ import ConfirmDialog from '../../components/shared/ConfirmDialog.jsx';
 import DataTable from '../../components/shared/DataTable.jsx';
 import FieldRow from '../../components/shared/FieldRow.jsx';
 import FormDialog from '../../components/shared/FormDialog.jsx';
+import ImportDialog from '../../components/shared/ImportDialog.jsx';
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
 import {
   usePaymentTerms, useCreatePaymentTerm, useUpdatePaymentTerm, useArchivePaymentTerm, useRestorePaymentTerm,
 } from '../../hooks/usePaymentTerms.js';
+import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
+import { paymentTermApi } from '../../services/paymentTermApi.js';
 import { pageContainerSx, formGridSx, dialogHeaderSx, dialogActionBoxSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
@@ -39,6 +42,7 @@ const UNITS_OPTIONS = [
 ];
 
 const fmtDate = (v) => (v ? new Date(v).toLocaleDateString() : '\u2014');
+const errMsg = (err) => err.payload?.error || err.payload?.message || err.message;
 
 const columns = [
   { field: 'label', headerName: 'Label', flex: 1, minWidth: 180 },
@@ -71,11 +75,12 @@ export default function PaymentTermsPage() {
   const updateMut = useUpdatePaymentTerm();
   const archiveMut = useArchivePaymentTerm();
   const restoreMut = useRestorePaymentTerm();
+  const importMut = useImportXls(paymentTermApi.importXls, ['payment-terms']);
+  const exportMut = useExportXls(paymentTermApi.exportXls, 'payment_terms');
 
   /* ── Snackbar ──────────────────────────────────────────── */
   const [snack, setSnack] = useState({ open: false, severity: 'success', message: '' });
   const flash = useCallback((severity, message) => setSnack({ open: true, severity, message }), []);
-  const errMsg = (err) => err.payload?.error || err.payload?.message || err.message;
 
   /* ── Archive / Restore ─────────────────────────────────── */
   const { setArchiveOpen, setRestoreOpen, archiveConfirmProps, restoreConfirmProps } = useArchiveRestore({
@@ -88,6 +93,39 @@ export default function PaymentTermsPage() {
     errMsg,
     getLabel: (r) => r.label,
   });
+
+  /* ── Import / Export ──────────────────────────────────── */
+  const [importOpen, setImportOpen] = useState(false);
+  const [importErrors, setImportErrors] = useState(null);
+
+  const handleImport = useCallback(async (formData) => {
+    try {
+      const result = await importMut.mutateAsync(formData);
+      if (result?.errors) {
+        setImportErrors(result.errors);
+        return;
+      }
+      setImportOpen(false);
+      setImportErrors(null);
+      flash('success', `Imported ${(result?.inserted ?? 0) + (result?.updated ?? 0)} payment term(s)`);
+    } catch (err) {
+      const payload = err?.payload;
+      if (payload?.errors) {
+        setImportErrors(payload.errors);
+      } else {
+        flash('error', errMsg(err) || 'Import failed');
+      }
+    }
+  }, [importMut.mutateAsync, flash]);
+
+  const handleExport = useCallback(async () => {
+    try {
+      await exportMut.mutateAsync({});
+      flash('success', 'Export downloaded');
+    } catch (err) {
+      flash('error', errMsg(err) || 'Export failed');
+    }
+  }, [exportMut.mutateAsync, flash]);
 
   /* ── Create dialog ─────────────────────────────────────── */
   const [createOpen, setCreateOpen] = useState(false);
@@ -102,7 +140,7 @@ export default function PaymentTermsPage() {
     } catch (err) {
       flash('error', errMsg(err) || 'Create failed');
     }
-  }, [createForm, createMut, flash, errMsg]);
+  }, [createForm, createMut, flash]);
 
   /* ── View dialog ───────────────────────────────────────── */
   const [viewOpen, setViewOpen] = useState(false);
@@ -127,7 +165,7 @@ export default function PaymentTermsPage() {
     } catch (err) {
       flash('error', errMsg(err) || 'Update failed');
     }
-  }, [editRow, editForm, updateMut, flash, errMsg]);
+  }, [editRow, editForm, updateMut, flash]);
 
   /* ── Row action callbacks ───────────────────────────────── */
   const handleView = useCallback((row) => {
@@ -160,6 +198,20 @@ export default function PaymentTermsPage() {
     }
 
     primary.push({
+      label: 'Export',
+      variant: 'outlined',
+      color: 'primary',
+      disabled: exportMut.isPending,
+      onClick: handleExport,
+    });
+    primary.push({
+      label: 'Import',
+      variant: 'outlined',
+      color: 'primary',
+      disabled: importMut.isPending,
+      onClick: () => { setImportErrors(null); setImportOpen(true); },
+    });
+    primary.push({
       label: 'Create Payment Term',
       variant: 'contained',
       color: 'primary',
@@ -175,7 +227,7 @@ export default function PaymentTermsPage() {
       filters: [],
       primaryActions: primary,
     };
-  }, [viewFilter, selectedRows.length, allActive, allArchived, selection.clearSelection, setArchiveOpen, setRestoreOpen]);
+  }, [viewFilter, selectedRows.length, allActive, allArchived, selection.clearSelection, setArchiveOpen, setRestoreOpen, exportMut.isPending, importMut.isPending, handleExport]);
   useModuleToolbarRegistration(toolbar);
 
   /* ── Render ────────────────────────────────────────────── */
@@ -290,6 +342,16 @@ export default function PaymentTermsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ── Import Dialog ──────────────────────────────── */}
+      <ImportDialog
+        open={importOpen}
+        title="Import Payment Terms"
+        loading={importMut.isPending}
+        errors={importErrors}
+        onSubmit={handleImport}
+        onCancel={() => { setImportOpen(false); setImportErrors(null); }}
+      />
 
       {/* ── Confirm Dialogs ───────────────────────────── */}
       <ConfirmDialog {...archiveConfirmProps} />
