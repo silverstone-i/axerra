@@ -49,6 +49,7 @@ import {
   useArchiveTenant,
   useRestoreTenant,
   TENANTS_KEY,
+  TENANT_SCHEMAS_KEY,
 } from '../../hooks/useTenants.js';
 import { pageContainerSx, dialogHeaderSx, dialogActionBoxSx, formFullSpanSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
@@ -163,7 +164,7 @@ export default function ManageTenantsPage() {
   const updateMut = useUpdateTenant();
   const archiveMut = useArchiveTenant();
   const restoreMut = useRestoreTenant();
-  const importMut = useImportXls(tenantApi.importXls, TENANTS_KEY);
+  const importMut = useImportXls(tenantApi.importXls, TENANTS_KEY, [TENANT_SCHEMAS_KEY]);
   const exportMut = useExportXls(tenantApi.exportXls, 'tenants');
 
   /* ── selection (multi-select with root-tenant mutual exclusion) */
