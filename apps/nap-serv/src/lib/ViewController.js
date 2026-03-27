@@ -189,7 +189,7 @@ class ViewController {
 
       const [records, totalCount] = await Promise.all([
         model.findAfterCursor(cursor, limit, orderBy, mergedOptions),
-        model.countWhere([], 'AND', { filters: mergedFilters, includeDeactivated: options.includeDeactivated ?? false }),
+        model.countWhere ? model.countWhere([], 'AND', { filters: mergedFilters, includeDeactivated: options.includeDeactivated ?? false }) : Promise.resolve(null),
       ]);
 
       res.json({ ...records, totalCount });

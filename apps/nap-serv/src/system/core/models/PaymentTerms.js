@@ -56,7 +56,7 @@ export default class PaymentTerms extends TableModel {
 
     // Resolve tenant_id from tenant_code provided by callbackFn
     let tenantId;
-    const sampleRow = callbackFn ? callbackFn({}) : {};
+    const sampleRow = callbackFn ? await callbackFn({}) : {};
     if (sampleRow.tenant_code) {
       const tenantRec = await this.db.oneOrNone(
         'SELECT id FROM admin.tenants WHERE tenant_code = $1 AND deactivated_at IS NULL',
@@ -84,7 +84,7 @@ export default class PaymentTerms extends TableModel {
       }
 
       // Merge caller-provided fields (tenant_code, created_by)
-      const merged = callbackFn ? callbackFn(row) : row;
+      const merged = callbackFn ? await callbackFn(row) : row;
 
       // Replace tenant_code with resolved tenant_id
       delete merged.tenant_code;

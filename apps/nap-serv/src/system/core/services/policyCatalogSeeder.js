@@ -86,6 +86,7 @@ const CATALOG_ENTRIES = [
   { module: 'core', router: 'company-members', action: 'import', label: 'Import Company Members', description: 'Import company member records from spreadsheet', sort_order: 261, policy_required: false },
   { module: 'core', router: 'company-members', action: 'export', label: 'Export Company Members', description: 'Export company member records to spreadsheet', sort_order: 262, policy_required: false },
   { module: 'core', router: 'numbering-config', action: null, label: 'Numbering Config', description: 'Auto-numbering format configuration per entity type', sort_order: 270 },
+  { module: 'core', router: 'tenant-preferences', action: null, label: 'Tenant Preferences', description: 'Tenant-level UI preferences (e.g. default page size)', sort_order: 280 },
 
   // ── Projects ────────────────────────────────────────────────────
   { module: 'projects', router: null, action: null, label: 'Projects Module', description: 'Project structure, tasks, cost items, and templates', sort_order: 300 },
