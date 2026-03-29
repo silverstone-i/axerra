@@ -17,8 +17,6 @@ import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
 import Skeleton from '@mui/material/Skeleton';
-import Snackbar from '@mui/material/Snackbar';
-import Alert from '@mui/material/Alert';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import AddIcon from '@mui/icons-material/Add';
@@ -39,7 +37,9 @@ import {
   useUpdateTaxIdentifier,
   useArchiveTaxIdentifier,
 } from '../../hooks/useCompanyInfo.js';
+import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
 import { pageContainerSx } from '../../config/layoutTokens.js';
+import { useToast } from '../../hooks/useToast.js';
 import { cap, errMsg } from '../../utils/format.js';
 
 /* ── Constants ──────────────────────────────────────────────────── */
@@ -430,8 +430,7 @@ export default function CompanyInfoPage() {
   const [newTaxIds, setNewTaxIds] = useState([]);
 
   /* ── snackbar ─────────────────────────────────────────────── */
-  const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
-  const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
+  const { toast, snackProps } = useToast();
   const errToast = useCallback((err) => toast(errMsg(err), 'error'), [toast]);
 
   /* ── toolbar (empty — settings pages have no toolbar actions) */
@@ -574,20 +573,7 @@ export default function CompanyInfoPage() {
       )}
 
       {/* ── Snackbar (always rendered) ───────────────────────── */}
-      <Snackbar
-        open={snack.open}
-        autoHideDuration={4000}
-        onClose={() => setSnack((s) => ({ ...s, open: false }))}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert
-          severity={snack.sev}
-          variant="filled"
-          onClose={() => setSnack((s) => ({ ...s, open: false }))}
-        >
-          {snack.msg}
-        </Alert>
-      </Snackbar>
+      <ToastSnackbar {...snackProps} />
     </>
   );
 }

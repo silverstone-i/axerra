@@ -19,8 +19,8 @@ import DialogTitle from '@mui/material/DialogTitle';
 import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
-import Snackbar from '@mui/material/Snackbar';
-import Alert from '@mui/material/Alert';
+import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
+import { useToast } from '../../hooks/useToast.js';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import FormControlLabel from '@mui/material/FormControlLabel';
@@ -184,8 +184,7 @@ export default function EmployeesPage() {
   const [editTaxIds, setEditTaxIds] = useState([]);
   const editInitial = useRef({ form: null, phones: null, emails: null, addresses: null, taxIds: null });
 
-  const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
-  const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
+  const { toast, snackProps } = useToast();
 
 
   const onCreateField = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.value }));
@@ -902,9 +901,7 @@ export default function EmployeesPage() {
 
       <SetPasswordPopover anchorEl={pwAnchor} onConfirm={handlePwConfirm} onCancel={handlePwCancel} />
 
-      <Snackbar open={snack.open} autoHideDuration={4000} onClose={() => setSnack((s) => ({ ...s, open: false }))} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-        <Alert severity={snack.sev} variant="filled" onClose={() => setSnack((s) => ({ ...s, open: false }))}>{snack.msg}</Alert>
-      </Snackbar>
+      <ToastSnackbar {...snackProps} />
     </Box>
   );
 }

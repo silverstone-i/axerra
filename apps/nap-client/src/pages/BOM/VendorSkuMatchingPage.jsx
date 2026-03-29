@@ -5,18 +5,17 @@
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
-import Snackbar from '@mui/material/Snackbar';
-import Alert from '@mui/material/Alert';
 import LinearProgress from '@mui/material/LinearProgress';
 import { DataGrid } from '@mui/x-data-grid';
 
 import DataTable from '../../components/shared/DataTable.jsx';
+import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
 import {
   useVendorSkus,
@@ -27,6 +26,7 @@ import {
   useRefreshVendorEmbeddings,
 } from '../../hooks/useBom.js';
 import { pageContainerSx } from '../../config/layoutTokens.js';
+import { useToast } from '../../hooks/useToast.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { errMsg } from '../../utils/format.js';
 
@@ -82,8 +82,7 @@ export default function VendorSkuMatchingPage() {
   const batchMatchMut = useBatchMatchVendorSkus();
   const refreshMut = useRefreshVendorEmbeddings();
 
-  const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
-  const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
+  const { toast, snackProps } = useToast();
 
   const handleFindMatches = async () => {
     if (!selection.selected) return;
@@ -211,9 +210,7 @@ export default function VendorSkuMatchingPage() {
         </Paper>
       )}
 
-      <Snackbar open={snack.open} autoHideDuration={4000} onClose={() => setSnack((s) => ({ ...s, open: false }))} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-        <Alert severity={snack.sev} variant="filled" onClose={() => setSnack((s) => ({ ...s, open: false }))}>{snack.msg}</Alert>
-      </Snackbar>
+      <ToastSnackbar {...snackProps} />
     </Box>
   );
 }

@@ -8,7 +8,7 @@
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
@@ -16,13 +16,13 @@ import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
 import Button from '@mui/material/Button';
-import Snackbar from '@mui/material/Snackbar';
-import Alert from '@mui/material/Alert';
 import Skeleton from '@mui/material/Skeleton';
 
+import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
 import { useTenantPreferences, useUpdateTenantPreferences } from '../../hooks/useTenantPreferences.js';
 import { pageContainerSx } from '../../config/layoutTokens.js';
+import { useToast } from '../../hooks/useToast.js';
 
 /* ── Constants ─────────────────────────────────────────────────── */
 
@@ -43,8 +43,7 @@ export default function PreferencesPage() {
   const updateMut = useUpdateTenantPreferences();
 
   const [form, setForm] = useState({ default_page_size: 25 });
-  const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
-  const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
+  const { toast, snackProps } = useToast();
 
   const rowId = row?.id;
   const rowPageSize = row?.default_page_size ?? 25;
@@ -119,16 +118,7 @@ export default function PreferencesPage() {
         </Card>
       )}
 
-      <Snackbar
-        open={snack.open}
-        autoHideDuration={4000}
-        onClose={() => setSnack((s) => ({ ...s, open: false }))}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert severity={snack.sev} variant="filled" onClose={() => setSnack((s) => ({ ...s, open: false }))}>
-          {snack.msg}
-        </Alert>
-      </Snackbar>
+      <ToastSnackbar {...snackProps} />
     </Box>
   );
 }

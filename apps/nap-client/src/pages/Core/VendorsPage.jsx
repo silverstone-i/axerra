@@ -19,8 +19,6 @@ import DialogTitle from '@mui/material/DialogTitle';
 import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
-import Snackbar from '@mui/material/Snackbar';
-import Alert from '@mui/material/Alert';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
@@ -33,6 +31,7 @@ import AddIcon from '@mui/icons-material/Add';
 import LockResetIcon from '@mui/icons-material/LockReset';
 
 import StatusBadge from '../../components/shared/StatusBadge.jsx';
+import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
 import ConfirmDialog from '../../components/shared/ConfirmDialog.jsx';
 import ResetPasswordDialog from '../../components/shared/ResetPasswordDialog.jsx';
 import SetPasswordPopover from '../../components/shared/SetPasswordPopover.jsx';
@@ -69,6 +68,7 @@ import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import { useActivePaymentTerms } from '../../hooks/usePaymentTerms.js';
 import { useRoles } from '../../hooks/useRoles.js';
 import { TAX_TYPES, COUNTRIES, resolveLevel } from '@nap/shared';
+import { useToast } from '../../hooks/useToast.js';
 import { cap, fmtDate, fmtPhone, errMsg } from '../../utils/format.js';
 import { BLANK_EMAIL, BLANK_PHONE, BLANK_ADDRESS, BLANK_TAX_ID, PHONE_TYPES, EMAIL_LABELS } from '../../utils/formConstants.js';
 import { vendorApi } from '../../services/vendorApi.js';
@@ -251,8 +251,7 @@ export default function VendorsPage() {
   const [editContacts, setEditContacts] = useState([]);
   const editInitial = useRef({ form: null, emails: null, phones: null, addresses: null, taxIds: null });
 
-  const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
-  const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
+  const { toast, snackProps } = useToast();
 
   const onCreateField = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.value }));
   const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));
@@ -1568,9 +1567,7 @@ export default function VendorsPage() {
 
       <SetPasswordPopover anchorEl={contactPwAnchor} onConfirm={handleContactPwConfirm} onCancel={handleContactPwCancel} />
 
-      <Snackbar open={snack.open} autoHideDuration={4000} onClose={() => setSnack((s) => ({ ...s, open: false }))} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-        <Alert severity={snack.sev} variant="filled" onClose={() => setSnack((s) => ({ ...s, open: false }))}>{snack.msg}</Alert>
-      </Snackbar>
+      <ToastSnackbar {...snackProps} />
     </Box>
   );
 }

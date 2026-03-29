@@ -15,8 +15,8 @@ import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import MenuItem from '@mui/material/MenuItem';
-import Snackbar from '@mui/material/Snackbar';
-import Alert from '@mui/material/Alert';
+import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
+import { useToast } from '../../hooks/useToast.js';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 
@@ -101,8 +101,7 @@ export default function ChartOfAccountsPage() {
   const [createForm, setCreateForm] = useState(BLANK_CREATE);
   const [editForm, setEditForm] = useState(BLANK_EDIT);
 
-  const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
-  const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
+  const { toast, snackProps } = useToast();
 
   const onCreateField = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.value }));
   const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));
@@ -294,9 +293,7 @@ export default function ChartOfAccountsPage() {
       <ConfirmDialog {...archiveConfirmProps} />
       <ConfirmDialog {...restoreConfirmProps} />
 
-      <Snackbar open={snack.open} autoHideDuration={4000} onClose={() => setSnack((s) => ({ ...s, open: false }))} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-        <Alert severity={snack.sev} variant="filled" onClose={() => setSnack((s) => ({ ...s, open: false }))}>{snack.msg}</Alert>
-      </Snackbar>
+      <ToastSnackbar {...snackProps} />
     </Box>
   );
 }

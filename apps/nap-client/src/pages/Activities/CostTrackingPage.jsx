@@ -13,8 +13,6 @@ import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
-import Snackbar from '@mui/material/Snackbar';
-import Alert from '@mui/material/Alert';
 import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
 import Typography from '@mui/material/Typography';
@@ -29,12 +27,14 @@ import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContex
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useActualCosts, useCreateActualCost, useUpdateActualCost, useArchiveActualCost } from '../../hooks/useActualCosts.js';
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
+import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
 import { resolveLevel } from '@nap/shared';
 import { actualCostApi } from '../../services/actualCostApi.js';
 import { useActivities } from '../../hooks/useActivities.js';
 import { pageContainerSx, formGridSx, dialogHeaderSx, dialogActionBoxSx, formFullSpanSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
+import { useToast } from '../../hooks/useToast.js';
 import { fmtDate, errMsg } from '../../utils/format.js';
 
 const BLANK_CREATE = { activity_id: '', project_id: '', amount: '', currency: 'USD', reference: '', incurred_on: '' };
@@ -85,8 +85,7 @@ export default function CostTrackingPage() {
   const [createForm, setCreateForm] = useState(BLANK_CREATE);
   const [editForm, setEditForm] = useState(BLANK_EDIT);
 
-  const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
-  const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
+  const { toast, snackProps } = useToast();
 
   const onCreateField = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.value }));
   const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));
@@ -301,9 +300,7 @@ export default function CostTrackingPage() {
 
       <ConfirmDialog {...archiveConfirmProps} />
 
-      <Snackbar open={snack.open} autoHideDuration={4000} onClose={() => setSnack((s) => ({ ...s, open: false }))} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-        <Alert severity={snack.sev} variant="filled" onClose={() => setSnack((s) => ({ ...s, open: false }))}>{snack.msg}</Alert>
-      </Snackbar>
+      <ToastSnackbar {...snackProps} />
     </Box>
   );
 }

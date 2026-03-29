@@ -13,14 +13,13 @@ import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import MenuItem from '@mui/material/MenuItem';
-import Snackbar from '@mui/material/Snackbar';
-import Alert from '@mui/material/Alert';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 
 import StatusBadge from '../../components/shared/StatusBadge.jsx';
 import ConfirmDialog from '../../components/shared/ConfirmDialog.jsx';
 import DataTable from '../../components/shared/DataTable.jsx';
+import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
 import FieldRow from '../../components/shared/FieldRow.jsx';
 import FormDialog from '../../components/shared/FormDialog.jsx';
 import ImportDialog from '../../components/shared/ImportDialog.jsx';
@@ -33,6 +32,7 @@ import { paymentTermApi } from '../../services/paymentTermApi.js';
 import { pageContainerSx, formGridSx, dialogHeaderSx, dialogActionBoxSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
+import { useToast } from '../../hooks/useToast.js';
 import { fmtDate, errMsg } from '../../utils/format.js';
 
 const BLANK_CREATE = { label: '', term: 30, units: 'days' };
@@ -77,8 +77,7 @@ export default function PaymentTermsPage() {
   const exportMut = useExportXls(paymentTermApi.exportXls, 'payment_terms');
 
   /* ── Snackbar ──────────────────────────────────────────── */
-  const [snack, setSnack] = useState({ open: false, severity: 'success', message: '' });
-  const flash = useCallback((severity, message) => setSnack({ open: true, severity, message }), []);
+  const { toast, snackProps } = useToast();
 
   /* ── Archive / Restore ─────────────────────────────────── */
   const { setArchiveOpen, setRestoreOpen, archiveConfirmProps, restoreConfirmProps } = useArchiveRestore({
@@ -87,7 +86,7 @@ export default function PaymentTermsPage() {
     restoreMut,
     entityName: 'payment term',
     setSelectionModel: () => selection.clearSelection(),
-    toast: (msg, sev) => flash(sev || 'success', msg),
+    toast,
     errMsg,
     getLabel: (r) => r.label,
   });
@@ -105,25 +104,25 @@ export default function PaymentTermsPage() {
       }
       setImportOpen(false);
       setImportErrors(null);
-      flash('success', `Imported ${(result?.inserted ?? 0) + (result?.updated ?? 0)} payment term(s)`);
+      toast(`Imported ${(result?.inserted ?? 0) + (result?.updated ?? 0)} payment term(s)`);
     } catch (err) {
       const payload = err?.payload;
       if (payload?.errors) {
         setImportErrors(payload.errors);
       } else {
-        flash('error', errMsg(err) || 'Import failed');
+        toast(errMsg(err) || 'Import failed', 'error');
       }
     }
-  }, [importMut.mutateAsync, flash]);
+  }, [importMut.mutateAsync, toast]);
 
   const handleExport = useCallback(async () => {
     try {
       await exportMut.mutateAsync({});
-      flash('success', 'Export downloaded');
+      toast('Export downloaded');
     } catch (err) {
-      flash('error', errMsg(err) || 'Export failed');
+      toast(errMsg(err) || 'Export failed', 'error');
     }
-  }, [exportMut.mutateAsync, flash]);
+  }, [exportMut.mutateAsync, toast]);
 
   /* ── Create dialog ─────────────────────────────────────── */
   const [createOpen, setCreateOpen] = useState(false);
@@ -134,11 +133,11 @@ export default function PaymentTermsPage() {
       await createMut.mutateAsync({ ...createForm, term: Number(createForm.term) });
       setCreateOpen(false);
       setCreateForm({ ...BLANK_CREATE });
-      flash('success', 'Payment term created');
+      toast('Payment term created');
     } catch (err) {
-      flash('error', errMsg(err) || 'Create failed');
+      toast(errMsg(err) || 'Create failed', 'error');
     }
-  }, [createForm, createMut, flash]);
+  }, [createForm, createMut, toast]);
 
   /* ── View dialog ───────────────────────────────────────── */
   const [viewOpen, setViewOpen] = useState(false);
@@ -159,11 +158,11 @@ export default function PaymentTermsPage() {
     try {
       await updateMut.mutateAsync({ filter: { id: editRow.id }, changes: { ...editForm, term: Number(editForm.term) } });
       setEditOpen(false);
-      flash('success', 'Payment term updated');
+      toast('Payment term updated');
     } catch (err) {
-      flash('error', errMsg(err) || 'Update failed');
+      toast(errMsg(err) || 'Update failed', 'error');
     }
-  }, [editRow, editForm, updateMut, flash]);
+  }, [editRow, editForm, updateMut, toast]);
 
   /* ── Row action callbacks ───────────────────────────────── */
   const handleView = useCallback((row) => {
@@ -356,11 +355,7 @@ export default function PaymentTermsPage() {
       {restoreConfirmProps && <ConfirmDialog {...restoreConfirmProps} />}
 
       {/* ── Snackbar ──────────────────────────────────── */}
-      <Snackbar open={snack.open} autoHideDuration={4000} onClose={() => setSnack((s) => ({ ...s, open: false }))}>
-        <Alert severity={snack.severity} variant="filled" onClose={() => setSnack((s) => ({ ...s, open: false }))}>
-          {snack.message}
-        </Alert>
-      </Snackbar>
+      <ToastSnackbar {...snackProps} />
     </Box>
   );
 }
