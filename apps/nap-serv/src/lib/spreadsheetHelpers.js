@@ -232,8 +232,9 @@ export function coerceChildRow(row, model) {
 export function formatExportRow(row, phoneCol, phoneCtryCol, taxCol, taxCtryCol, taxTypeCol) {
   if (row[phoneCol]) {
     const cc = (row[phoneCtryCol] || '').trim().toUpperCase();
+    const normalizedCc = cc.replace(/^\+/, '');
     const country = COUNTRIES.find((c) => c.code === cc)
-      || COUNTRIES.find((c) => c.dial_code === `+${cc}` && c.placeholder);
+      || COUNTRIES.find((c) => c.placeholder && (c.dial_code === cc || c.dial_code === `+${normalizedCc}`));
     if (country?.placeholder) row[phoneCol] = formatByPattern(String(row[phoneCol]), country.placeholder);
   }
   if (taxCol && row[taxCol]) {
