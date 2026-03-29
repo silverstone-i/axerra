@@ -58,37 +58,64 @@ export function useContactChildrenData({ editOpen, viewOpen, editContacts, viewC
   const [viewContactEmailMap, setViewContactEmailMap] = useState(new Map());
   const [viewContactPhoneMap, setViewContactPhoneMap] = useState(new Map());
 
+  /* ── Reset helpers for close handlers ──────────────────────── */
+  const resetEditMaps = useCallback(() => {
+    setContactEmails({});
+    setContactPhones({});
+    setContactEmailMap(new Map());
+    setContactPhoneMap(new Map());
+  }, []);
+
+  const resetViewMaps = useCallback(() => {
+    setViewContactEmails({});
+    setViewContactPhones({});
+    setViewContactEmailMap(new Map());
+    setViewContactPhoneMap(new Map());
+  }, []);
+
   /* ── Fetch edit contact children ───────────────────────────── */
   useEffect(() => {
     let cancelled = false;
     if (editOpen && contactsRes?.rows) {
       const contacts = contactsRes.rows;
       setEditContacts(contacts);
-      fetchChildrenForContacts(contacts).then(({ emails, phones, emailMap, phoneMap }) => {
-        if (cancelled) return;
-        setContactEmails(emails);
-        setContactPhones(phones);
-        setContactEmailMap(emailMap);
-        setContactPhoneMap(phoneMap);
-      });
+      fetchChildrenForContacts(contacts)
+        .then(({ emails, phones, emailMap, phoneMap }) => {
+          if (cancelled) return;
+          setContactEmails(emails);
+          setContactPhones(phones);
+          setContactEmailMap(emailMap);
+          setContactPhoneMap(phoneMap);
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          console.warn('Failed to fetch child data for edit contacts:', err);
+          resetEditMaps();
+        });
     }
     return () => { cancelled = true; };
-  }, [editOpen, contactsRes]);
+  }, [editOpen, contactsRes, resetEditMaps]);
 
   /* ── Fetch view contact children ───────────────────────────── */
   useEffect(() => {
     let cancelled = false;
     if (viewOpen && viewContacts.length) {
-      fetchChildrenForContacts(viewContacts).then(({ emails, phones, emailMap, phoneMap }) => {
-        if (cancelled) return;
-        setViewContactEmails(emails);
-        setViewContactPhones(phones);
-        setViewContactEmailMap(emailMap);
-        setViewContactPhoneMap(phoneMap);
-      });
+      fetchChildrenForContacts(viewContacts)
+        .then(({ emails, phones, emailMap, phoneMap }) => {
+          if (cancelled) return;
+          setViewContactEmails(emails);
+          setViewContactPhones(phones);
+          setViewContactEmailMap(emailMap);
+          setViewContactPhoneMap(phoneMap);
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          console.warn('Failed to fetch child data for view contacts:', err);
+          resetViewMaps();
+        });
     }
     return () => { cancelled = true; };
-  }, [viewOpen, viewContacts]);
+  }, [viewOpen, viewContacts, resetViewMaps]);
 
   /* ── Refresh helper (after contact create/edit) ────────────── */
   const refreshContactChildren = useCallback(async (overrideContacts) => {
@@ -118,21 +145,6 @@ export function useContactChildrenData({ editOpen, viewOpen, editContacts, viewC
       renderCell: ({ row }) => <StatusBadge status={row.deactivated_at ? 'archived' : 'active'} />,
     },
   ], [contactPhoneMap, contactEmailMap, viewContactPhoneMap, viewContactEmailMap]);
-
-  /* ── Reset helpers for close handlers ──────────────────────── */
-  const resetEditMaps = useCallback(() => {
-    setContactEmails({});
-    setContactPhones({});
-    setContactEmailMap(new Map());
-    setContactPhoneMap(new Map());
-  }, []);
-
-  const resetViewMaps = useCallback(() => {
-    setViewContactEmails({});
-    setViewContactPhones({});
-    setViewContactEmailMap(new Map());
-    setViewContactPhoneMap(new Map());
-  }, []);
 
   return {
     contactEmails,
