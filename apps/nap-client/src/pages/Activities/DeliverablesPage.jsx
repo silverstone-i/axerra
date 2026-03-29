@@ -11,6 +11,7 @@
  */
 
 import { useState, useMemo, useCallback } from 'react';
+import { useFormState } from '../../hooks/useFormState.js';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -99,13 +100,10 @@ export default function DeliverablesPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [editRow, setEditRow] = useState(null);
 
-  const [createForm, setCreateForm] = useState(BLANK_CREATE);
-  const [editForm, setEditForm] = useState(BLANK_EDIT);
+  const { form: createForm, field: onCreateField, reset: resetCreateForm } = useFormState(BLANK_CREATE);
+  const { form: editForm, setForm: setEditForm, field: onEditField } = useFormState(BLANK_EDIT);
 
   const { toast, snackProps } = useToast();
-
-  const onCreateField = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.value }));
-  const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));
 
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {
@@ -130,7 +128,7 @@ export default function DeliverablesPage() {
       await createMut.mutateAsync(createForm);
       toast('Deliverable created');
       setCreateOpen(false);
-      setCreateForm(BLANK_CREATE);
+      resetCreateForm();
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -211,7 +209,7 @@ export default function DeliverablesPage() {
       label: 'Create',
       variant: 'contained',
       color: 'primary',
-      onClick: () => { setCreateForm(BLANK_CREATE); setCreateOpen(true); },
+      onClick: () => { resetCreateForm(); setCreateOpen(true); },
     });
 
     return {

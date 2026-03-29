@@ -12,6 +12,7 @@
  */
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useFormState } from '../../hooks/useFormState.js';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -148,8 +149,8 @@ export default function ContactsPage() {
   const viewAddresses = viewAddressesRes?.rows ?? [];
   const viewTaxIds = viewTaxIdsRes?.rows ?? [];
 
-  const [createForm, setCreateForm] = useState(BLANK_CREATE);
-  const [editForm, setEditForm] = useState(BLANK_EDIT);
+  const { form: createForm, setForm: setCreateForm, field: onCreateField, reset: resetCreateForm } = useFormState(BLANK_CREATE);
+  const { form: editForm, setForm: setEditForm, field: onEditField } = useFormState(BLANK_EDIT);
   const [editEmails, setEditEmails] = useState([]);
   const [editPhones, setEditPhones] = useState([]);
   const [editAddresses, setEditAddresses] = useState([]);
@@ -159,8 +160,6 @@ export default function ContactsPage() {
   const { toast, snackProps } = useToast();
 
 
-  const onCreateField = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.value }));
-  const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));
 
   /* ── Email edit helpers ──────────────────────────────────────── */
   const updateEmail = (idx, field, value) =>
@@ -290,7 +289,7 @@ export default function ContactsPage() {
       await createMut.mutateAsync(createForm);
       toast('Contact created');
       setCreateOpen(false);
-      setCreateForm(BLANK_CREATE);
+      resetCreateForm();
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -434,7 +433,7 @@ export default function ContactsPage() {
       label: 'Create Contact',
       variant: 'contained',
       color: 'primary',
-      onClick: () => { setCreateForm(BLANK_CREATE); setCreateOpen(true); },
+      onClick: () => { resetCreateForm(); setCreateOpen(true); },
     });
 
     return {

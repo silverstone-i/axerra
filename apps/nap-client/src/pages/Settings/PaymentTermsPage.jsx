@@ -8,6 +8,7 @@
  */
 
 import { useState, useMemo, useCallback } from 'react';
+import { useFormState } from '../../hooks/useFormState.js';
 import Box from '@mui/material/Box';
 import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
@@ -126,13 +127,13 @@ export default function PaymentTermsPage() {
 
   /* ── Create dialog ─────────────────────────────────────── */
   const [createOpen, setCreateOpen] = useState(false);
-  const [createForm, setCreateForm] = useState({ ...BLANK_CREATE });
+  const { form: createForm, field: onCreateField, reset: resetCreateForm } = useFormState(BLANK_CREATE);
 
   const handleCreate = useCallback(async () => {
     try {
       await createMut.mutateAsync({ ...createForm, term: Number(createForm.term) });
       setCreateOpen(false);
-      setCreateForm({ ...BLANK_CREATE });
+      resetCreateForm();
       toast('Payment term created');
     } catch (err) {
       toast(errMsg(err) || 'Create failed', 'error');
@@ -146,7 +147,7 @@ export default function PaymentTermsPage() {
   /* ── Edit dialog ───────────────────────────────────────── */
   const [editOpen, setEditOpen] = useState(false);
   const [editRow, setEditRow] = useState(null);
-  const [editForm, setEditForm] = useState({ ...BLANK_EDIT });
+  const { form: editForm, setForm: setEditForm, field: onEditField } = useFormState(BLANK_EDIT);
 
   const openEdit = useCallback((row) => {
     setEditRow(row);
@@ -212,7 +213,7 @@ export default function PaymentTermsPage() {
       label: 'Create Payment Term',
       variant: 'contained',
       color: 'primary',
-      onClick: () => { setCreateForm({ ...BLANK_CREATE }); setCreateOpen(true); },
+      onClick: () => { resetCreateForm(); setCreateOpen(true); },
     });
 
     return {
@@ -246,28 +247,28 @@ export default function PaymentTermsPage() {
         submitLabel="Create"
         loading={createMut.isPending}
         onSubmit={handleCreate}
-        onCancel={() => { setCreateOpen(false); setCreateForm({ ...BLANK_CREATE }); }}
+        onCancel={() => { setCreateOpen(false); resetCreateForm(); }}
       >
         <Box sx={formGridSx}>
           <TextField
             label="Label"
             required
             value={createForm.label}
-            onChange={(e) => setCreateForm((p) => ({ ...p, label: e.target.value }))}
+            onChange={onCreateField('label')}
           />
           <TextField
             label="Term"
             type="number"
             required
             value={createForm.term}
-            onChange={(e) => setCreateForm((p) => ({ ...p, term: e.target.value }))}
+            onChange={onCreateField('term')}
             inputProps={{ min: 1 }}
           />
           <TextField
             label="Units"
             select
             value={createForm.units}
-            onChange={(e) => setCreateForm((p) => ({ ...p, units: e.target.value }))}
+            onChange={onCreateField('units')}
           >
             {UNITS_OPTIONS.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
           </TextField>
@@ -288,21 +289,21 @@ export default function PaymentTermsPage() {
             label="Label"
             required
             value={editForm.label}
-            onChange={(e) => setEditForm((p) => ({ ...p, label: e.target.value }))}
+            onChange={onEditField('label')}
           />
           <TextField
             label="Term"
             type="number"
             required
             value={editForm.term}
-            onChange={(e) => setEditForm((p) => ({ ...p, term: e.target.value }))}
+            onChange={onEditField('term')}
             inputProps={{ min: 1 }}
           />
           <TextField
             label="Units"
             select
             value={editForm.units}
-            onChange={(e) => setEditForm((p) => ({ ...p, units: e.target.value }))}
+            onChange={onEditField('units')}
           >
             {UNITS_OPTIONS.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
           </TextField>

@@ -9,6 +9,7 @@
  */
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useFormState } from '../../hooks/useFormState.js';
 import { useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -158,8 +159,8 @@ export default function ClientsPage() {
   const viewAddresses = viewAddressesRes?.rows ?? [];
   const viewTaxIds = viewTaxIdsRes?.rows ?? [];
 
-  const [createForm, setCreateForm] = useState(BLANK_CREATE);
-  const [editForm, setEditForm] = useState(BLANK_EDIT);
+  const { form: createForm, setForm: setCreateForm, field: onCreateField, reset: resetCreateForm } = useFormState(BLANK_CREATE);
+  const { form: editForm, setForm: setEditForm, field: onEditField } = useFormState(BLANK_EDIT);
   const [editEmails, setEditEmails] = useState([]);
   const [editPhones, setEditPhones] = useState([]);
   const [editAddresses, setEditAddresses] = useState([]);
@@ -168,8 +169,6 @@ export default function ClientsPage() {
 
   const { toast, snackProps } = useToast();
 
-  const onCreateField = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.value }));
-  const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));
 
   /* ── App-user password popover state ────────────────────────── */
   const [pwAnchor, setPwAnchor] = useState(null);
@@ -320,7 +319,7 @@ export default function ClientsPage() {
       await createMut.mutateAsync(createForm);
       toast('Client created');
       setCreateOpen(false);
-      setCreateForm(BLANK_CREATE);
+      resetCreateForm();
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -478,7 +477,7 @@ export default function ClientsPage() {
       label: 'Create Client',
       variant: 'contained',
       color: 'primary',
-      onClick: () => { setCreateForm(BLANK_CREATE); setCreateOpen(true); },
+      onClick: () => { resetCreateForm(); setCreateOpen(true); },
     });
 
     return {
