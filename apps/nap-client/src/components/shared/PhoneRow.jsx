@@ -1,6 +1,6 @@
 /**
- * @file Inline editable phone row — shared between vendor and contact edit forms
- * @module nap-client/pages/Core/vendors/PhoneRow
+ * @file Inline editable phone row — reusable across all entity edit forms
+ * @module nap-client/components/shared/PhoneRow
  *
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
@@ -13,9 +13,9 @@ import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 
-import PatternTextField from '../../../components/shared/PatternTextField.jsx';
-import { cap } from '../../../utils/format.js';
-import { PHONE_TYPES } from '../../../utils/formConstants.js';
+import PatternTextField from './PatternTextField.jsx';
+import { cap } from '../../utils/format.js';
+import { PHONE_TYPES } from '../../utils/formConstants.js';
 import { COUNTRIES } from '@nap/shared';
 
 export default function PhoneRow({ item, index, onUpdate, onRemove }) {
