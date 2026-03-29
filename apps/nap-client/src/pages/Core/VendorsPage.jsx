@@ -1,5 +1,5 @@
 /**
- * @file Vendors CRUD page — DataTable + create/edit/view/archive/restore with sub-forms
+ * @file Vendors CRUD page — coordinator component that owns all state, queries, and handlers
  * @module nap-client/pages/Core/VendorsPage
  *
  * Reference implementation for the standardised list-view selection system:
@@ -11,23 +11,12 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import CircularProgress from '@mui/material/CircularProgress';
-import Dialog from '@mui/material/Dialog';
-import DialogContent from '@mui/material/DialogContent';
-import DialogTitle from '@mui/material/DialogTitle';
-import Divider from '@mui/material/Divider';
+import Checkbox from '@mui/material/Checkbox';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
-import Tab from '@mui/material/Tab';
-import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
-import Typography from '@mui/material/Typography';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import Checkbox from '@mui/material/Checkbox';
-import Autocomplete from '@mui/material/Autocomplete';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import AddIcon from '@mui/icons-material/Add';
 import LockResetIcon from '@mui/icons-material/LockReset';
 
 import StatusBadge from '../../components/shared/StatusBadge.jsx';
@@ -36,14 +25,8 @@ import ConfirmDialog from '../../components/shared/ConfirmDialog.jsx';
 import ResetPasswordDialog from '../../components/shared/ResetPasswordDialog.jsx';
 import SetPasswordPopover from '../../components/shared/SetPasswordPopover.jsx';
 import DataTable from '../../components/shared/DataTable.jsx';
-import FieldRow from '../../components/shared/FieldRow.jsx';
-import FormDialog from '../../components/shared/FormDialog.jsx';
 import ImportDialog from '../../components/shared/ImportDialog.jsx';
 import PatternTextField from '../../components/shared/PatternTextField.jsx';
-import EmailsSection from '../../components/shared/EmailsSection.jsx';
-import PhoneNumbersSection from '../../components/shared/PhoneNumbersSection.jsx';
-import AddressesSection from '../../components/shared/AddressesSection.jsx';
-import TaxIdentifiersSection from '../../components/shared/TaxIdentifiersSection.jsx';
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import {
@@ -67,9 +50,9 @@ import {
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import { useActivePaymentTerms } from '../../hooks/usePaymentTerms.js';
 import { useRoles } from '../../hooks/useRoles.js';
-import { TAX_TYPES, COUNTRIES, resolveLevel } from '@nap/shared';
+import { COUNTRIES, resolveLevel } from '@nap/shared';
 import { useToast } from '../../hooks/useToast.js';
-import { cap, fmtDate, fmtPhone, errMsg } from '../../utils/format.js';
+import { cap, fmtPhone, errMsg } from '../../utils/format.js';
 import { useFormState } from '../../hooks/useFormState.js';
 import { useCollectionState } from '../../hooks/useCollectionState.js';
 import { saveCollection } from '../../utils/saveCollection.js';
@@ -77,21 +60,21 @@ import { BLANK_EMAIL, BLANK_PHONE, BLANK_ADDRESS, BLANK_TAX_ID, PHONE_TYPES, EMA
 import { vendorApi } from '../../services/vendorApi.js';
 import { emailApi } from '../../services/emailApi.js';
 import { phoneNumberApi } from '../../services/phoneNumberApi.js';
-import {
-  pageContainerSx, formGridSx, formGroupCardSx, formFullSpanSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx,
-} from '../../config/layoutTokens.js';
+import { pageContainerSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
+
+import VendorViewDialog from './vendors/VendorViewDialog.jsx';
+import VendorCreateDialog from './vendors/VendorCreateDialog.jsx';
+import VendorEditDialog from './vendors/VendorEditDialog.jsx';
+import ContactViewDialog from './vendors/ContactViewDialog.jsx';
+import ContactFormDialog from './vendors/ContactFormDialog.jsx';
 
 const BLANK_CREATE = { name: '', code: '', payment_term_id: '', notes: '', is_active: true };
 const BLANK_EDIT = { name: '', code: '', payment_term_id: '', notes: '', is_active: true };
 const BLANK_CONTACT_FORM = {
   first_name: '', last_name: '', position: '', department: '',
   is_app_user: false, roles: [], password: '',
-};
-
-const dialogSx = {
-  '& .MuiDialogTitle-root + .MuiDialogContent-root': { paddingTop: '16px' },
 };
 
 const baseColumns = [
@@ -178,9 +161,6 @@ export default function VendorsPage() {
   const [resetPwTarget, setResetPwTarget] = useState(null);
 
   /* ── Tab state ──────────────────────────────────────────────── */
-  const [createTab, setCreateTab] = useState(0);
-  const [editTab, setEditTab] = useState(0);
-  const [viewTab, setViewTab] = useState(0);
   const [contactViewFilter, setContactViewFilter] = useState('active');
 
   /* ── Edit contact sub-collection state ──────────────────────── */
@@ -358,24 +338,24 @@ export default function VendorsPage() {
 
       // Fetch emails and phones for each contact + build lookup maps
       const fetchContactChildren = async () => {
-        const emails = {};
-        const phones = {};
+        const em = {};
+        const ph = {};
         const eMap = new Map();
         const pMap = new Map();
         for (const c of contacts) {
           if (c.source_id) {
             const emailRes = await emailApi.list({ source_id: c.source_id, includeDeactivated: 'false' });
-            emails[c.id] = emailRes?.rows ?? [];
+            em[c.id] = emailRes?.rows ?? [];
             const phoneRes = await phoneNumberApi.list({ source_id: c.source_id, includeDeactivated: 'false' });
-            phones[c.id] = phoneRes?.rows ?? [];
-            const primaryEmail = emails[c.id].find((e) => e.is_primary) || emails[c.id][0];
+            ph[c.id] = phoneRes?.rows ?? [];
+            const primaryEmail = em[c.id].find((e) => e.is_primary) || em[c.id][0];
             if (primaryEmail) eMap.set(c.id, primaryEmail.email);
-            const primaryPhone = phones[c.id].find((p) => p.is_primary) || phones[c.id][0];
+            const primaryPhone = ph[c.id].find((p) => p.is_primary) || ph[c.id][0];
             if (primaryPhone) pMap.set(c.id, fmtPhone(primaryPhone));
           }
         }
-        setContactEmails(emails);
-        setContactPhones(phones);
+        setContactEmails(em);
+        setContactPhones(ph);
         setContactEmailMap(eMap);
         setContactPhoneMap(pMap);
       };
@@ -387,24 +367,24 @@ export default function VendorsPage() {
   useEffect(() => {
     if (viewOpen && viewContacts.length) {
       const fetchViewContactChildren = async () => {
-        const emails = {};
-        const phones = {};
+        const em = {};
+        const ph = {};
         const eMap = new Map();
         const pMap = new Map();
         for (const c of viewContacts) {
           if (c.source_id) {
             const emailRes = await emailApi.list({ source_id: c.source_id, includeDeactivated: 'false' });
-            emails[c.id] = emailRes?.rows ?? [];
+            em[c.id] = emailRes?.rows ?? [];
             const phoneRes = await phoneNumberApi.list({ source_id: c.source_id, includeDeactivated: 'false' });
-            phones[c.id] = phoneRes?.rows ?? [];
-            const primaryEmail = emails[c.id].find((e) => e.is_primary) || emails[c.id][0];
+            ph[c.id] = phoneRes?.rows ?? [];
+            const primaryEmail = em[c.id].find((e) => e.is_primary) || em[c.id][0];
             if (primaryEmail) eMap.set(c.id, primaryEmail.email);
-            const primaryPhone = phones[c.id].find((p) => p.is_primary) || phones[c.id][0];
+            const primaryPhone = ph[c.id].find((p) => p.is_primary) || ph[c.id][0];
             if (primaryPhone) pMap.set(c.id, fmtPhone(primaryPhone));
           }
         }
-        setViewContactEmails(emails);
-        setViewContactPhones(phones);
+        setViewContactEmails(em);
+        setViewContactPhones(ph);
         setViewContactEmailMap(eMap);
         setViewContactPhoneMap(pMap);
       };
@@ -415,33 +395,66 @@ export default function VendorsPage() {
   /* ── refreshContactChildren helper ──────────────────────────── */
   const refreshContactChildren = useCallback(async (overrideContacts) => {
     const contacts = (overrideContacts || editContacts).filter((c) => !c._deleted);
-    const emails = {};
-    const phones = {};
+    const em = {};
+    const ph = {};
     const eMap = new Map();
     const pMap = new Map();
     for (const c of contacts) {
       if (c.source_id) {
         const emailRes = await emailApi.list({ source_id: c.source_id, includeDeactivated: 'false' });
-        emails[c.id] = emailRes?.rows ?? [];
+        em[c.id] = emailRes?.rows ?? [];
         const phoneRes = await phoneNumberApi.list({ source_id: c.source_id, includeDeactivated: 'false' });
-        phones[c.id] = phoneRes?.rows ?? [];
-        const primaryEmail = emails[c.id].find((e) => e.is_primary) || emails[c.id][0];
+        ph[c.id] = phoneRes?.rows ?? [];
+        const primaryEmail = em[c.id].find((e) => e.is_primary) || em[c.id][0];
         if (primaryEmail) eMap.set(c.id, primaryEmail.email);
-        const primaryPhone = phones[c.id].find((p) => p.is_primary) || phones[c.id][0];
+        const primaryPhone = ph[c.id].find((p) => p.is_primary) || ph[c.id][0];
         if (primaryPhone) pMap.set(c.id, fmtPhone(primaryPhone));
       }
     }
-    setContactEmails(emails);
-    setContactPhones(phones);
+    setContactEmails(em);
+    setContactPhones(ph);
     setContactEmailMap(eMap);
     setContactPhoneMap(pMap);
   }, [editContacts]);
+
+  /* ── Bundled close handlers ─────────────────────────────────── */
+  const handleViewClose = useCallback(() => {
+    setViewOpen(false);
+    setViewSourceId(null);
+    setViewContactEmails({});
+    setViewContactPhones({});
+    setViewContactEmailMap(new Map());
+    setViewContactPhoneMap(new Map());
+  }, []);
+
+  const handleEditClose = useCallback(() => {
+    setEditOpen(false);
+    setEditRow(null);
+    setEditSourceId(null);
+    setEditVendorId(null);
+    setContactEmails({});
+    setContactPhones({});
+    setContactEmailMap(new Map());
+    setContactPhoneMap(new Map());
+    setContactViewFilter('active');
+  }, []);
+
+  const handleViewContact = useCallback((row) => {
+    setContactViewRow(row);
+    setContactViewOpen(true);
+  }, []);
+
+  const handleOpenContactCreate = useCallback(() => {
+    resetContactCreateForm();
+    setContactCreateEmails([]);
+    setContactCreatePhones([]);
+    setContactCreateOpen(true);
+  }, [resetContactCreateForm]);
 
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {
     setViewVendor(row);
     setViewSourceId(row.source_id || null);
-    setViewTab(0);
     setViewContactEmails({});
     setViewContactPhones({});
     setViewContactEmailMap(new Map());
@@ -482,7 +495,6 @@ export default function VendorsPage() {
     setContactEmailMap(new Map());
     setContactPhoneMap(new Map());
     setContactViewFilter('active');
-    setEditTab(0);
     setEditOpen(true);
   }, []);
 
@@ -530,7 +542,6 @@ export default function VendorsPage() {
       toast('Vendor created');
       setCreateOpen(false);
       resetCreateForm();
-      setCreateTab(0);
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -562,15 +573,7 @@ export default function VendorsPage() {
       }
 
       toast('Vendor updated');
-      setEditOpen(false);
-      setEditRow(null);
-      setEditSourceId(null);
-      setEditVendorId(null);
-      setContactEmails({});
-      setContactPhones({});
-      setContactEmailMap(new Map());
-      setContactPhoneMap(new Map());
-      setEditTab(0);
+      handleEditClose();
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -628,8 +631,6 @@ export default function VendorsPage() {
   /* ── Contact Edit handler ───────────────────────────────────── */
   const handleContactEdit = useCallback(async () => {
     try {
-      // When toggling is_app_user on, include the selected login email in the
-      // contact update payload so the backend can provision before email mutations run
       const changes = {
         first_name: contactEditForm.first_name, last_name: contactEditForm.last_name,
         position: contactEditForm.position, department: contactEditForm.department,
@@ -770,7 +771,6 @@ export default function VendorsPage() {
       color: 'primary',
       onClick: () => {
         resetCreateForm();
-        setCreateTab(0);
         setCreateOpen(true);
       },
     });
@@ -883,595 +883,111 @@ export default function VendorsPage() {
         onEdit={handleEdit}
       />
 
-      {/* ── View Details Dialog ──────────────────────────────────── */}
-      <Dialog
+      <VendorViewDialog
         open={viewOpen}
-        onClose={() => { setViewOpen(false); setViewSourceId(null); setViewTab(0); setViewContactEmails({}); setViewContactPhones({}); setViewContactEmailMap(new Map()); setViewContactPhoneMap(new Map()); }}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle sx={dialogHeaderSx}>
-          <Box>
-            <span>Vendor Details</span>
-            {viewVendor && (
-              <Typography variant="body2" color="text.secondary">
-                {viewVendor.name}
-              </Typography>
-            )}
-          </Box>
-          <Box sx={dialogActionBoxSx}>
-            <Button size="small" color="inherit" onClick={() => { setViewOpen(false); setViewSourceId(null); setViewTab(0); setViewContactEmails({}); setViewContactPhones({}); setViewContactEmailMap(new Map()); setViewContactPhoneMap(new Map()); }}>
-              Close
-            </Button>
-          </Box>
-        </DialogTitle>
-        <DialogContent dividers>
-          {viewVendor && (
-            <>
-              <Tabs value={viewTab} onChange={(_, v) => setViewTab(v)} sx={{ borderBottom: 1, borderColor: 'divider' }}>
-                <Tab label="Vendor" />
-                <Tab label="Contacts" />
-              </Tabs>
+        onClose={handleViewClose}
+        vendor={viewVendor}
+        ptMap={ptMap}
+        viewEmails={viewEmails}
+        viewPhones={viewPhones}
+        viewAddresses={viewAddresses}
+        viewTaxIds={viewTaxIds}
+        viewContacts={viewContacts}
+        contactColumns={contactColumns}
+        contactSelection={viewContactSelection}
+        onViewContact={handleViewContact}
+      />
 
-              {viewTab === 0 && (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
-                  <Box sx={detailGridSx}>
-                    <FieldRow label="Code" value={viewVendor.code || '\u2014'} />
-                    <FieldRow label="Vendor Name" value={viewVendor.name} />
-                    <FieldRow label="Payment Terms" value={ptMap.get(viewVendor.payment_term_id) || '\u2014'} />
-                    <FieldRow label="Active" value={viewVendor.is_active ? 'Yes' : 'No'} />
-                    <FieldRow label="Status">
-                      <StatusBadge status={viewVendor.deactivated_at ? 'archived' : 'active'} />
-                    </FieldRow>
-                    <FieldRow label="Created" value={fmtDate(viewVendor.created_at)} />
-                    <FieldRow label="Updated" value={fmtDate(viewVendor.updated_at)} />
-                  </Box>
-                  {viewVendor.notes && (
-                    <>
-                      <Divider />
-                      <FieldRow label="Notes" value={viewVendor.notes} />
-                    </>
-                  )}
-
-                  <EmailsSection emails={viewEmails} />
-                  <PhoneNumbersSection phones={viewPhones} />
-                  <AddressesSection addresses={viewAddresses} />
-                  <TaxIdentifiersSection taxIds={viewTaxIds} />
-                </Box>
-              )}
-
-              {viewTab === 1 && (
-                <Box sx={{ pt: 2 }}>
-                  <DataTable
-                    rows={viewContacts}
-                    columns={contactColumns}
-                    selection={viewContactSelection}
-                    onView={(row) => { setContactViewRow(row); setContactViewOpen(true); }}
-                    dataGridProps={{ autoHeight: true, checkboxSelection: false, pageSizeOptions: [10, 25] }}
-                  />
-                </Box>
-              )}
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Create Vendor Dialog ─────────────────────────────────── */}
-      <Dialog
+      <VendorCreateDialog
         open={createOpen}
-        onClose={() => { setCreateOpen(false); setCreateTab(0); }}
-        maxWidth="md"
-        fullWidth
-        disableRestoreFocus
-        sx={dialogSx}
-      >
-        <form onSubmit={(e) => { e.preventDefault(); handleCreate(); }}>
-          <DialogTitle sx={{ display: 'flex', alignItems: 'center' }}>
-            <span>Create Vendor</span>
-            <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
-              <Button size="small" onClick={() => { setCreateOpen(false); setCreateTab(0); }} disabled={createMut.isPending}>
-                Cancel
-              </Button>
-              <Button
-                size="small"
-                type="submit"
-                variant="contained"
-                disabled={createMut.isPending}
-                startIcon={createMut.isPending ? <CircularProgress size={16} color="inherit" /> : null}
-              >
-                Create
-              </Button>
-            </Box>
-          </DialogTitle>
-          <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <Tabs value={createTab} onChange={(_, v) => setCreateTab(v)} sx={{ borderBottom: 1, borderColor: 'divider' }}>
-              <Tab label="Vendor" />
-              <Tab label="Contacts" />
-            </Tabs>
+        onClose={() => { setCreateOpen(false); }}
+        createForm={createForm}
+        onCreateField={onCreateField}
+        setCreateForm={setCreateForm}
+        paymentTermsList={paymentTermsList}
+        onSubmit={handleCreate}
+        loading={createMut.isPending}
+      />
 
-            {createTab === 0 && (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-                <TextField label="Vendor Name" required value={createForm.name} onChange={onCreateField('name')} />
-                <TextField label="Code" value={createForm.code} onChange={onCreateField('code')} inputProps={{ maxLength: 16 }} />
-                <TextField
-                  label="Payment Terms"
-                  select
-                  value={createForm.payment_term_id}
-                  onChange={onCreateField('payment_term_id')}
-                >
-                  <MenuItem value="">
-                    <em>None</em>
-                  </MenuItem>
-                  {paymentTermsList.map((pt) => (
-                    <MenuItem key={pt.id} value={pt.id}>{pt.label}</MenuItem>
-                  ))}
-                </TextField>
-                <TextField label="Notes" multiline minRows={2} value={createForm.notes} onChange={onCreateField('notes')} />
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={createForm.is_active}
-                      onChange={(e) => setCreateForm((p) => ({ ...p, is_active: e.target.checked }))}
-                      size="small"
-                    />
-                  }
-                  label="Active"
-                />
-              </Box>
-            )}
-
-            {createTab === 1 && (
-              <Box sx={{ pt: 2 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Save the vendor first, then edit it to add contacts.
-                </Typography>
-              </Box>
-            )}
-          </DialogContent>
-        </form>
-      </Dialog>
-
-      {/* ── Edit Vendor Dialog ──────────────────────────────────── */}
-      <Dialog
+      <VendorEditDialog
         open={editOpen}
-        onClose={() => { setEditOpen(false); setEditRow(null); setEditSourceId(null); setEditVendorId(null); setContactEmails({}); setContactPhones({}); setContactEmailMap(new Map()); setContactPhoneMap(new Map()); setContactViewFilter('active'); setEditTab(0); }}
-        maxWidth="md"
-        fullWidth
-        disableRestoreFocus
-        sx={dialogSx}
-      >
-        <form onSubmit={(e) => { e.preventDefault(); handleUpdate(); }}>
-          <DialogTitle sx={{ display: 'flex', alignItems: 'center' }}>
-            <span>Edit Vendor</span>
-            <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
-              <Button
-                size="small"
-                onClick={() => { setEditOpen(false); setEditRow(null); setEditSourceId(null); setEditVendorId(null); setContactEmails({}); setContactPhones({}); setContactEmailMap(new Map()); setContactPhoneMap(new Map()); setContactViewFilter('active'); setEditTab(0); }}
-                disabled={updateMut.isPending}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="small"
-                type="submit"
-                variant="contained"
-                disabled={updateMut.isPending || !hasEditChanges}
-                startIcon={updateMut.isPending ? <CircularProgress size={16} color="inherit" /> : null}
-              >
-                Save Changes
-              </Button>
-            </Box>
-          </DialogTitle>
-          <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <Tabs value={editTab} onChange={(_, v) => setEditTab(v)} sx={{ borderBottom: 1, borderColor: 'divider' }}>
-              <Tab label="Vendor" />
-              <Tab label="Contacts" />
-            </Tabs>
+        onClose={handleEditClose}
+        editForm={editForm}
+        onEditField={onEditField}
+        setEditForm={setEditForm}
+        emails={emails}
+        phones={phones}
+        addresses={addresses}
+        taxIds={taxIds}
+        paymentTermsList={paymentTermsList}
+        hasEditChanges={hasEditChanges}
+        onSubmit={handleUpdate}
+        loading={updateMut.isPending}
+        renderEmailRow={renderEmailRow}
+        renderPhoneRow={renderPhoneRow}
+        filteredContacts={filteredContacts}
+        contactColumns={contactColumns}
+        contactSelection={contactSelection}
+        contactViewFilter={contactViewFilter}
+        setContactViewFilter={setContactViewFilter}
+        onContactArchive={() => setContactArchiveOpen(true)}
+        onContactRestore={() => setContactRestoreOpen(true)}
+        contactArchiveProps={contactArchiveProps}
+        contactRestoreProps={contactRestoreProps}
+        onCreateContact={handleOpenContactCreate}
+        onViewContact={handleViewContact}
+        onEditContact={openContactEdit}
+      />
 
-            {editTab === 0 && (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-                <Box sx={formGridSx}>
-                  <TextField label="Vendor Name" required value={editForm.name} onChange={onEditField('name')} />
-                  <TextField label="Code" value={editForm.code} onChange={onEditField('code')} inputProps={{ maxLength: 16 }} />
-                  <TextField
-                    label="Payment Terms"
-                    select
-                    value={editForm.payment_term_id}
-                    onChange={onEditField('payment_term_id')}
-                  >
-                    <MenuItem value="">
-                      <em>None</em>
-                    </MenuItem>
-                    {paymentTermsList.map((pt) => (
-                      <MenuItem key={pt.id} value={pt.id}>{pt.label}</MenuItem>
-                    ))}
-                  </TextField>
-                  <TextField label="Notes" multiline minRows={2} value={editForm.notes} onChange={onEditField('notes')} />
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={editForm.is_active}
-                        onChange={(e) => setEditForm((p) => ({ ...p, is_active: e.target.checked }))}
-                        size="small"
-                      />
-                    }
-                    label="Active"
-                  />
-                </Box>
-
-                {/* ── Emails ──────────────────────────────────────────── */}
-                <Divider />
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Typography variant="subtitle2">Emails</Typography>
-                  <Button size="small" startIcon={<AddIcon />} onClick={emails.add}>Add Email</Button>
-                </Box>
-                {emails.visibleItems.length === 0 && (
-                  <Typography variant="body2" color="text.secondary">No emails</Typography>
-                )}
-                {emails.visibleItems.map((em) => {
-                  const idx = emails.items.indexOf(em);
-                  return renderEmailRow(
-                    em,
-                    idx,
-                    emails.update,
-                    emails.remove,
-                  );
-                })}
-
-                {/* ── Phone Numbers ──────────────────────────────────── */}
-                <Divider />
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Typography variant="subtitle2">Phone Numbers</Typography>
-                  <Button size="small" startIcon={<AddIcon />} onClick={phones.add}>Add Phone</Button>
-                </Box>
-                {phones.visibleItems.length === 0 && (
-                  <Typography variant="body2" color="text.secondary">No phone numbers</Typography>
-                )}
-                {phones.visibleItems.map((phone) => {
-                  const idx = phones.items.indexOf(phone);
-                  return renderPhoneRow(
-                    phone,
-                    idx,
-                    phones.update,
-                    phones.remove,
-                  );
-                })}
-
-                {/* ── Addresses ──────────────────────────────────────── */}
-                <Divider />
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Typography variant="subtitle2">Addresses</Typography>
-                  <Button size="small" startIcon={<AddIcon />} onClick={addresses.add}>Add Address</Button>
-                </Box>
-                {addresses.visibleItems.length === 0 && (
-                  <Typography variant="body2" color="text.secondary">No addresses</Typography>
-                )}
-                {addresses.visibleItems.map((addr) => {
-                  const idx = addresses.items.indexOf(addr);
-                  return (
-                    <Box key={addr.id || idx} sx={{ ...formGroupCardSx, gridColumn: undefined }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                        <TextField
-                          label="Label"
-                          value={addr.label}
-                          onChange={(e) => addresses.update(idx, 'label', e.target.value)}
-                          size="small"
-                          sx={{ width: 200 }}
-                        />
-                        <IconButton size="small" onClick={() => addresses.remove(idx)} color="error">
-                          <DeleteOutlineIcon fontSize="small" />
-                        </IconButton>
-                      </Box>
-                      <Box sx={formGridSx}>
-                        <TextField label="Address Line 1" value={addr.address_line_1} onChange={(e) => addresses.update(idx, 'address_line_1', e.target.value)} size="small" sx={formFullSpanSx} />
-                        <TextField label="Address Line 2" value={addr.address_line_2} onChange={(e) => addresses.update(idx, 'address_line_2', e.target.value)} size="small" sx={formFullSpanSx} />
-                        <TextField label="Address Line 3" value={addr.address_line_3 || ''} onChange={(e) => addresses.update(idx, 'address_line_3', e.target.value)} size="small" sx={formFullSpanSx} />
-                        <TextField label="City" value={addr.city} onChange={(e) => addresses.update(idx, 'city', e.target.value)} size="small" />
-                        <TextField label="State / Province" value={addr.state_province} onChange={(e) => addresses.update(idx, 'state_province', e.target.value)} size="small" />
-                        <TextField label="Postal Code" value={addr.postal_code} onChange={(e) => addresses.update(idx, 'postal_code', e.target.value)} size="small" />
-                        <TextField label="Country Code" value={addr.country_code} onChange={(e) => addresses.update(idx, 'country_code', e.target.value)} size="small" inputProps={{ maxLength: 2 }} />
-                      </Box>
-                    </Box>
-                  );
-                })}
-
-                {/* ── Tax Identifiers ──────────────────────────────────── */}
-                <Divider />
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Typography variant="subtitle2">Tax Identifiers</Typography>
-                  <Button size="small" startIcon={<AddIcon />} onClick={taxIds.add}>Add Tax ID</Button>
-                </Box>
-                {taxIds.visibleItems.length === 0 && (
-                  <Typography variant="body2" color="text.secondary">No tax identifiers</Typography>
-                )}
-                {taxIds.visibleItems.map((taxId) => {
-                  const idx = taxIds.items.indexOf(taxId);
-                  const countryCode = taxId.country_code?.trim() || '';
-                  const taxTypes = TAX_TYPES[countryCode] || TAX_TYPES._OTHER;
-                  return (
-                    <Box key={taxId.id || idx} sx={{ ...formGroupCardSx, gridColumn: undefined }}>
-                      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-                        <TextField
-                          select
-                          label="Country"
-                          value={countryCode}
-                          onChange={(e) => {
-                            taxIds.update(idx, 'country_code', e.target.value);
-                            const newTypes = TAX_TYPES[e.target.value] || TAX_TYPES._OTHER;
-                            taxIds.update(idx, 'tax_type', newTypes[0]?.code || 'TIN');
-                          }}
-                          SelectProps={{ renderValue: (val) => val }}
-                          size="small"
-                          sx={{ minWidth: 80 }}
-                        >
-                          {COUNTRIES.map((c) => (
-                            <MenuItem key={c.code} value={c.code}>{c.code} - {c.name}</MenuItem>
-                          ))}
-                        </TextField>
-                        <TextField
-                          select
-                          label="Type"
-                          value={taxId.tax_type}
-                          onChange={(e) => taxIds.update(idx, 'tax_type', e.target.value)}
-                          SelectProps={{ renderValue: (val) => val }}
-                          size="small"
-                          sx={{ minWidth: 80 }}
-                        >
-                          {taxTypes.map((t) => (
-                            <MenuItem key={t.code} value={t.code}>{t.label}</MenuItem>
-                          ))}
-                        </TextField>
-                        <PatternTextField
-                          label="Tax ID Value"
-                          value={taxId.tax_value}
-                          onChange={(raw) => taxIds.update(idx, 'tax_value', raw)}
-                          pattern={taxTypes.find((t) => t.code === taxId.tax_type)?.placeholder}
-                          size="small"
-                          sx={{ flex: 1, minWidth: 160 }}
-                        />
-                        <IconButton size="small" onClick={() => taxIds.remove(idx)} color="error">
-                          <DeleteOutlineIcon fontSize="small" />
-                        </IconButton>
-                      </Box>
-                    </Box>
-                  );
-                })}
-              </Box>
-            )}
-
-            {editTab === 1 && (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-                <Tabs value={contactViewFilter} onChange={(_, v) => { setContactViewFilter(v); contactSelection.clearSelection(); }} sx={{ minHeight: 32 }}>
-                  <Tab value="active" label="Active" sx={{ minHeight: 32, py: 0 }} />
-                  <Tab value="all" label="All" sx={{ minHeight: 32, py: 0 }} />
-                  <Tab value="archived" label="Archived" sx={{ minHeight: 32, py: 0 }} />
-                </Tabs>
-                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-                  {(contactViewFilter === 'active' || contactViewFilter === 'all') && (
-                    <Button
-                      size="small" variant="outlined" color="error"
-                      disabled={contactSelection.selectedRows.length === 0 || !contactSelection.allActive}
-                      onClick={() => setContactArchiveOpen(true)}
-                    >
-                      {contactSelection.selectedRows.length > 1 ? `Archive (${contactSelection.selectedRows.length})` : 'Archive'}
-                    </Button>
-                  )}
-                  {(contactViewFilter === 'archived' || contactViewFilter === 'all') && (
-                    <Button
-                      size="small" variant="outlined" color="success"
-                      disabled={contactSelection.selectedRows.length === 0 || !contactSelection.allArchived}
-                      onClick={() => setContactRestoreOpen(true)}
-                    >
-                      {contactSelection.selectedRows.length > 1 ? `Restore (${contactSelection.selectedRows.length})` : 'Restore'}
-                    </Button>
-                  )}
-                  {contactViewFilter !== 'archived' && (
-                    <Button size="small" startIcon={<AddIcon />} onClick={() => { resetContactCreateForm(); setContactCreateEmails([]); setContactCreatePhones([]); setContactCreateOpen(true); }}>
-                      Create Contact
-                    </Button>
-                  )}
-                </Box>
-                <DataTable
-                  rows={filteredContacts}
-                  columns={contactColumns}
-                  selection={contactSelection}
-                  onView={(row) => { setContactViewRow(row); setContactViewOpen(true); }}
-                  onEdit={(row) => { openContactEdit(row); }}
-                  dataGridProps={{ autoHeight: true, checkboxSelection: true, pageSizeOptions: [10, 25] }}
-                />
-                <ConfirmDialog {...contactArchiveProps} />
-                {contactRestoreProps && <ConfirmDialog {...contactRestoreProps} />}
-              </Box>
-            )}
-          </DialogContent>
-        </form>
-      </Dialog>
-
-      {/* ── Contact View Sub-Dialog ───────────────────────────────── */}
-      <Dialog
+      <ContactViewDialog
         open={contactViewOpen}
         onClose={() => { setContactViewOpen(false); setContactViewRow(null); }}
-        maxWidth="sm"
-        fullWidth
-        disableRestoreFocus
-      >
-        <DialogTitle sx={dialogHeaderSx}>
-          <span>{contactViewRow ? `${contactViewRow.first_name} ${contactViewRow.last_name}` : 'Contact Details'}</span>
-          <Box sx={dialogActionBoxSx}>
-            <Button size="small" onClick={() => { setContactViewOpen(false); setContactViewRow(null); }}>Close</Button>
-          </Box>
-        </DialogTitle>
-        <DialogContent dividers>
-          {contactViewRow && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Box sx={detailGridSx}>
-                <FieldRow label="First Name" value={contactViewRow.first_name} />
-                <FieldRow label="Last Name" value={contactViewRow.last_name} />
-                <FieldRow label="Position" value={contactViewRow.position || '\u2014'} />
-                <FieldRow label="Department" value={contactViewRow.department || '\u2014'} />
-                <FieldRow label="App User" value={contactViewRow.is_app_user ? 'Yes' : 'No'} />
-                <FieldRow label="Roles" value={contactViewRow.roles?.length ? contactViewRow.roles.join(', ') : '\u2014'} />
-              </Box>
-              <Divider />
-              <EmailsSection emails={contactEmails[contactViewRow.id] || viewContactEmails[contactViewRow.id] || []} />
-              <PhoneNumbersSection phones={contactPhones[contactViewRow.id] || viewContactPhones[contactViewRow.id] || []} />
-            </Box>
-          )}
-        </DialogContent>
-      </Dialog>
+        contact={contactViewRow}
+        emails={contactEmails[contactViewRow?.id] || viewContactEmails[contactViewRow?.id] || []}
+        phones={contactPhones[contactViewRow?.id] || viewContactPhones[contactViewRow?.id] || []}
+      />
 
-      {/* ── Contact Create Sub-Dialog ─────────────────────────────── */}
-      <FormDialog
+      {/* Contact Create */}
+      <ContactFormDialog
         open={contactCreateOpen}
         title="Create Contact"
-        maxWidth="sm"
         onCancel={() => setContactCreateOpen(false)}
         onSubmit={handleContactCreate}
         loading={createContactMut.isPending}
-      >
-        <Box sx={formGridSx}>
-          <TextField label="First Name" required value={contactCreateForm.first_name} onChange={onContactCreateField('first_name')} />
-          <TextField label="Last Name" required value={contactCreateForm.last_name} onChange={onContactCreateField('last_name')} />
-          <TextField label="Position" value={contactCreateForm.position} onChange={onContactCreateField('position')} />
-          <TextField label="Department" value={contactCreateForm.department} onChange={onContactCreateField('department')} />
-        </Box>
-        <FormControlLabel
-          control={<Checkbox checked={contactCreateForm.is_app_user} onChange={handleContactAppUserToggle('create')} size="small" />}
-          label="App User (creates login account)"
-        />
-        {contactCreateForm.is_app_user && (
-          <Autocomplete
-            multiple
-            options={roleOptions}
-            getOptionLabel={(opt) => opt.name}
-            isOptionEqualToValue={(opt, val) => opt.code === val.code}
-            value={roleOptions.filter((r) => contactCreateForm.roles.includes(r.code))}
-            onChange={(_, v) => setContactCreateForm((p) => ({ ...p, roles: v.map((r) => r.code) }))}
-            renderInput={(params) => <TextField {...params} label="Roles" />}
-          />
-        )}
-        {/* Emails */}
-        <Divider />
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Typography variant="subtitle2">Emails</Typography>
-          <Button size="small" startIcon={<AddIcon />} onClick={() => setContactCreateEmails((p) => [...p, { ...BLANK_EMAIL, is_primary: !p.length }])}>Add Email</Button>
-        </Box>
-        {contactCreateEmails.filter((e) => !e._deleted).length === 0 && (
-          <Typography variant="body2" color="text.secondary">No emails</Typography>
-        )}
-        {contactCreateEmails.map((em, idx) => !em._deleted && (
-          <Box key={idx} sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-            <TextField label="Email" type="email" value={em.email} onChange={(e) => setContactCreateEmails((p) => p.map((x, i) => i === idx ? { ...x, email: e.target.value } : x))} size="small" sx={{ flex: 1, minWidth: 200 }} />
-            <TextField select label="Label" value={em.label} onChange={(e) => setContactCreateEmails((p) => p.map((x, i) => i === idx ? { ...x, label: e.target.value } : x))} size="small" sx={{ minWidth: 120 }}>
-              {EMAIL_LABELS.map((l) => <MenuItem key={l} value={l}>{cap(l)}</MenuItem>)}
-            </TextField>
-            <FormControlLabel control={<Checkbox checked={em.is_primary} onChange={(e) => setContactCreateEmails((p) => p.map((x, i) => i === idx ? { ...x, is_primary: e.target.checked } : e.target.checked ? { ...x, is_primary: false } : x))} size="small" />} label="Primary" sx={{ mr: 0 }} />
-            <IconButton size="small" onClick={() => setContactCreateEmails((p) => p.filter((_, i) => i !== idx))} color="error"><DeleteOutlineIcon fontSize="small" /></IconButton>
-          </Box>
-        ))}
+        form={contactCreateForm}
+        setForm={setContactCreateForm}
+        field={onContactCreateField}
+        roleOptions={roleOptions}
+        contactEmails={contactCreateEmails}
+        setContactEmails={setContactCreateEmails}
+        contactPhones={contactCreatePhones}
+        setContactPhones={setContactCreatePhones}
+        onAppUserToggle={handleContactAppUserToggle('create')}
+      />
 
-        {/* Phones */}
-        <Divider />
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Typography variant="subtitle2">Phone Numbers</Typography>
-          <Button size="small" startIcon={<AddIcon />} onClick={() => setContactCreatePhones((p) => [...p, { ...BLANK_PHONE, is_primary: !p.length }])}>Add Phone</Button>
-        </Box>
-        {contactCreatePhones.filter((p) => !p._deleted).length === 0 && (
-          <Typography variant="body2" color="text.secondary">No phone numbers</Typography>
-        )}
-        {contactCreatePhones.map((ph, idx) => !ph._deleted && (
-          <Box key={idx} sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-            <TextField select label="Country" value={ph.country_code} onChange={(e) => setContactCreatePhones((p) => p.map((x, i) => i === idx ? { ...x, country_code: e.target.value } : x))} size="small" sx={{ minWidth: 80 }}>
-              {COUNTRIES.map((c) => <MenuItem key={c.code} value={c.code}>{c.code}</MenuItem>)}
-            </TextField>
-            <TextField select label="Type" value={ph.phone_type} onChange={(e) => setContactCreatePhones((p) => p.map((x, i) => i === idx ? { ...x, phone_type: e.target.value } : x))} size="small" sx={{ minWidth: 100 }}>
-              {PHONE_TYPES.map((t) => <MenuItem key={t} value={t}>{cap(t)}</MenuItem>)}
-            </TextField>
-            <PatternTextField label="Number" value={ph.phone_number} onChange={(val) => setContactCreatePhones((p) => p.map((x, i) => i === idx ? { ...x, phone_number: val } : x))} pattern={COUNTRIES.find((c) => c.code === ph.country_code)?.placeholder} size="small" sx={{ flex: 1, minWidth: 140 }} />
-            <FormControlLabel control={<Checkbox checked={ph.is_primary} onChange={(e) => setContactCreatePhones((p) => p.map((x, i) => i === idx ? { ...x, is_primary: e.target.checked } : e.target.checked ? { ...x, is_primary: false } : x))} size="small" />} label="Primary" sx={{ mr: 0 }} />
-            <IconButton size="small" onClick={() => setContactCreatePhones((p) => p.filter((_, i) => i !== idx))} color="error"><DeleteOutlineIcon fontSize="small" /></IconButton>
-          </Box>
-        ))}
-      </FormDialog>
-
-      {/* ── Contact Edit Sub-Dialog ───────────────────────────────── */}
-      <FormDialog
+      {/* Contact Edit */}
+      <ContactFormDialog
         open={contactEditOpen}
         title="Edit Contact"
-        maxWidth="sm"
         onCancel={() => { setContactEditOpen(false); setContactEditRow(null); }}
         onSubmit={handleContactEdit}
         loading={updateContactMut.isPending}
+        form={contactEditForm}
+        setForm={setContactEditForm}
+        field={onContactEditField}
+        roleOptions={roleOptions}
+        contactEmails={contactEditEmails}
+        setContactEmails={setContactEditEmails}
+        contactPhones={contactEditPhones}
+        setContactPhones={setContactEditPhones}
+        onAppUserToggle={handleContactAppUserToggle('edit')}
       >
-        <Box sx={formGridSx}>
-          <TextField label="First Name" required value={contactEditForm.first_name} onChange={onContactEditField('first_name')} />
-          <TextField label="Last Name" required value={contactEditForm.last_name} onChange={onContactEditField('last_name')} />
-          <TextField label="Position" value={contactEditForm.position} onChange={onContactEditField('position')} />
-          <TextField label="Department" value={contactEditForm.department} onChange={onContactEditField('department')} />
-        </Box>
-        <FormControlLabel
-          control={<Checkbox checked={contactEditForm.is_app_user} onChange={handleContactAppUserToggle('edit')} size="small" />}
-          label="App User (creates login account)"
-        />
         {contactEditForm.is_app_user && contactEditRow?.id && (
           <IconButton size="small" title="Reset Password" onClick={() => { setResetPwTarget(contactEditRow); setResetPwOpen(true); }}>
             <LockResetIcon fontSize="small" />
           </IconButton>
         )}
-        {contactEditForm.is_app_user && (
-          <Autocomplete
-            multiple
-            options={roleOptions}
-            getOptionLabel={(opt) => opt.name}
-            isOptionEqualToValue={(opt, val) => opt.code === val.code}
-            value={roleOptions.filter((r) => contactEditForm.roles.includes(r.code))}
-            onChange={(_, v) => setContactEditForm((p) => ({ ...p, roles: v.map((r) => r.code) }))}
-            renderInput={(params) => <TextField {...params} label="Roles" />}
-          />
-        )}
-        {/* Emails */}
-        <Divider />
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Typography variant="subtitle2">Emails</Typography>
-          <Button size="small" startIcon={<AddIcon />} onClick={() => setContactEditEmails((p) => [...p, { ...BLANK_EMAIL, is_primary: !p.filter((e) => !e._deleted).length }])}>Add Email</Button>
-        </Box>
-        {contactEditEmails.filter((e) => !e._deleted).length === 0 && (
-          <Typography variant="body2" color="text.secondary">No emails</Typography>
-        )}
-        {contactEditEmails.map((em, idx) => !em._deleted && (
-          <Box key={em.id || idx} sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-            <TextField label="Email" type="email" value={em.email} onChange={(e) => setContactEditEmails((p) => p.map((x, i) => i === idx ? { ...x, email: e.target.value } : x))} size="small" sx={{ flex: 1, minWidth: 200 }} />
-            <TextField select label="Label" value={em.label} onChange={(e) => setContactEditEmails((p) => p.map((x, i) => i === idx ? { ...x, label: e.target.value } : x))} size="small" sx={{ minWidth: 120 }}>
-              {EMAIL_LABELS.map((l) => <MenuItem key={l} value={l}>{cap(l)}</MenuItem>)}
-            </TextField>
-            <FormControlLabel control={<Checkbox checked={em.is_primary} onChange={(e) => setContactEditEmails((p) => p.map((x, i) => i === idx ? { ...x, is_primary: e.target.checked } : e.target.checked ? { ...x, is_primary: false } : x))} size="small" />} label="Primary" sx={{ mr: 0 }} />
-            <IconButton size="small" onClick={() => setContactEditEmails((p) => p.map((x, i) => i === idx ? { ...x, _deleted: true } : x))} color="error"><DeleteOutlineIcon fontSize="small" /></IconButton>
-          </Box>
-        ))}
-
-        {/* Phones */}
-        <Divider />
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Typography variant="subtitle2">Phone Numbers</Typography>
-          <Button size="small" startIcon={<AddIcon />} onClick={() => setContactEditPhones((p) => [...p, { ...BLANK_PHONE, is_primary: !p.filter((ph) => !ph._deleted).length }])}>Add Phone</Button>
-        </Box>
-        {contactEditPhones.filter((p) => !p._deleted).length === 0 && (
-          <Typography variant="body2" color="text.secondary">No phone numbers</Typography>
-        )}
-        {contactEditPhones.map((ph, idx) => !ph._deleted && (
-          <Box key={ph.id || idx} sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-            <TextField select label="Country" value={ph.country_code} onChange={(e) => setContactEditPhones((p) => p.map((x, i) => i === idx ? { ...x, country_code: e.target.value } : x))} size="small" sx={{ minWidth: 80 }}>
-              {COUNTRIES.map((c) => <MenuItem key={c.code} value={c.code}>{c.code}</MenuItem>)}
-            </TextField>
-            <TextField select label="Type" value={ph.phone_type} onChange={(e) => setContactEditPhones((p) => p.map((x, i) => i === idx ? { ...x, phone_type: e.target.value } : x))} size="small" sx={{ minWidth: 100 }}>
-              {PHONE_TYPES.map((t) => <MenuItem key={t} value={t}>{cap(t)}</MenuItem>)}
-            </TextField>
-            <PatternTextField label="Number" value={ph.phone_number} onChange={(val) => setContactEditPhones((p) => p.map((x, i) => i === idx ? { ...x, phone_number: val } : x))} pattern={COUNTRIES.find((c) => c.code === ph.country_code)?.placeholder} size="small" sx={{ flex: 1, minWidth: 140 }} />
-            <FormControlLabel control={<Checkbox checked={ph.is_primary} onChange={(e) => setContactEditPhones((p) => p.map((x, i) => i === idx ? { ...x, is_primary: e.target.checked } : e.target.checked ? { ...x, is_primary: false } : x))} size="small" />} label="Primary" sx={{ mr: 0 }} />
-            <IconButton size="small" onClick={() => setContactEditPhones((p) => p.map((x, i) => i === idx ? { ...x, _deleted: true } : x))} color="error"><DeleteOutlineIcon fontSize="small" /></IconButton>
-          </Box>
-        ))}
-      </FormDialog>
+      </ContactFormDialog>
 
       <ImportDialog
         open={importOpen}
