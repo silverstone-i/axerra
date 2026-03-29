@@ -23,18 +23,25 @@ async function fetchChildrenForContacts(contacts) {
   const phones = {};
   const emailMap = new Map();
   const phoneMap = new Map();
-  for (const c of contacts) {
-    if (c.source_id) {
-      const emailRes = await emailApi.list({ source_id: c.source_id, includeDeactivated: 'false' });
-      emails[c.id] = emailRes?.rows ?? [];
-      const phoneRes = await phoneNumberApi.list({ source_id: c.source_id, includeDeactivated: 'false' });
-      phones[c.id] = phoneRes?.rows ?? [];
-      const primaryEmail = emails[c.id].find((e) => e.is_primary) || emails[c.id][0];
-      if (primaryEmail) emailMap.set(c.id, primaryEmail.email);
-      const primaryPhone = phones[c.id].find((p) => p.is_primary) || phones[c.id][0];
-      if (primaryPhone) phoneMap.set(c.id, fmtPhone(primaryPhone));
-    }
-  }
+  await Promise.all(contacts.map(async (c) => {
+    if (!c.source_id) return;
+
+    const [emailRes, phoneRes] = await Promise.all([
+      emailApi.list({ source_id: c.source_id, includeDeactivated: 'false' }),
+      phoneNumberApi.list({ source_id: c.source_id, includeDeactivated: 'false' }),
+    ]);
+
+    const emailRows = emailRes?.rows ?? [];
+    const phoneRows = phoneRes?.rows ?? [];
+    emails[c.id] = emailRows;
+    phones[c.id] = phoneRows;
+
+    const primaryEmail = emailRows.find((e) => e.is_primary) || emailRows[0];
+    if (primaryEmail) emailMap.set(c.id, primaryEmail.email);
+
+    const primaryPhone = phoneRows.find((p) => p.is_primary) || phoneRows[0];
+    if (primaryPhone) phoneMap.set(c.id, fmtPhone(primaryPhone));
+  }));
   return { emails, phones, emailMap, phoneMap };
 }
 
@@ -85,13 +92,14 @@ export function useContactChildrenData({ editOpen, viewOpen, editContacts, viewC
 
   /* ── Refresh helper (after contact create/edit) ────────────── */
   const refreshContactChildren = useCallback(async (overrideContacts) => {
+    if (!editOpen) return; // guard against late responses after dialog close
     const contacts = (overrideContacts || editContacts).filter((c) => !c._deleted);
     const { emails, phones, emailMap, phoneMap } = await fetchChildrenForContacts(contacts);
     setContactEmails(emails);
     setContactPhones(phones);
     setContactEmailMap(emailMap);
     setContactPhoneMap(phoneMap);
-  }, [editContacts]);
+  }, [editOpen, editContacts]);
 
   /* ── Contact DataTable columns ─────────────────────────────── */
   const contactColumns = useMemo(() => [
