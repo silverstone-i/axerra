@@ -27,6 +27,8 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import ConfirmDialog from '../../../components/shared/ConfirmDialog.jsx';
 import DataTable from '../../../components/shared/DataTable.jsx';
 import PatternTextField from '../../../components/shared/PatternTextField.jsx';
+import EmailRow from './EmailRow.jsx';
+import PhoneRow from './PhoneRow.jsx';
 import { formGridSx, formGroupCardSx, formFullSpanSx } from '../../../config/layoutTokens.js';
 import { TAX_TYPES, COUNTRIES } from '@nap/shared';
 
@@ -46,8 +48,6 @@ export default function VendorEditDialog({
   hasEditChanges,
   onSubmit,
   loading,
-  renderEmailRow,
-  renderPhoneRow,
   filteredContacts,
   contactColumns,
   contactSelection,
@@ -136,12 +136,7 @@ export default function VendorEditDialog({
               )}
               {emails.visibleItems.map((em) => {
                 const idx = emails.items.indexOf(em);
-                return renderEmailRow(
-                  em,
-                  idx,
-                  emails.update,
-                  emails.remove,
-                );
+                return <EmailRow key={em.id || idx} item={em} index={idx} onUpdate={emails.update} onRemove={emails.remove} />;
               })}
 
               {/* ── Phone Numbers ──────────────────────────────────── */}
@@ -155,12 +150,7 @@ export default function VendorEditDialog({
               )}
               {phones.visibleItems.map((phone) => {
                 const idx = phones.items.indexOf(phone);
-                return renderPhoneRow(
-                  phone,
-                  idx,
-                  phones.update,
-                  phones.remove,
-                );
+                return <PhoneRow key={phone.id || idx} item={phone} index={idx} onUpdate={phones.update} onRemove={phones.remove} />;
               })}
 
               {/* ── Addresses ──────────────────────────────────────── */}

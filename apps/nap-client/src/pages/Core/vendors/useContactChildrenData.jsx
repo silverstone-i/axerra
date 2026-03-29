@@ -53,28 +53,34 @@ export function useContactChildrenData({ editOpen, viewOpen, editContacts, viewC
 
   /* ── Fetch edit contact children ───────────────────────────── */
   useEffect(() => {
+    let cancelled = false;
     if (editOpen && contactsRes?.rows) {
       const contacts = contactsRes.rows;
       setEditContacts(contacts);
       fetchChildrenForContacts(contacts).then(({ emails, phones, emailMap, phoneMap }) => {
+        if (cancelled) return;
         setContactEmails(emails);
         setContactPhones(phones);
         setContactEmailMap(emailMap);
         setContactPhoneMap(phoneMap);
       });
     }
+    return () => { cancelled = true; };
   }, [editOpen, contactsRes]);
 
   /* ── Fetch view contact children ───────────────────────────── */
   useEffect(() => {
+    let cancelled = false;
     if (viewOpen && viewContacts.length) {
       fetchChildrenForContacts(viewContacts).then(({ emails, phones, emailMap, phoneMap }) => {
+        if (cancelled) return;
         setViewContactEmails(emails);
         setViewContactPhones(phones);
         setViewContactEmailMap(emailMap);
         setViewContactPhoneMap(phoneMap);
       });
     }
+    return () => { cancelled = true; };
   }, [viewOpen, viewContacts]);
 
   /* ── Refresh helper (after contact create/edit) ────────────── */

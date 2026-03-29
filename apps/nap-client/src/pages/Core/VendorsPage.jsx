@@ -8,7 +8,7 @@
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
 
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useDialogState } from '../../hooks/useDialogState.js';
 import { useVendorContactDialogs } from './vendors/useVendorContactDialogs.js';
@@ -165,20 +165,17 @@ export default function VendorsPage() {
 
   const { toast, snackProps } = useToast();
 
-  const editCloseRef = useRef(null);
   const {
     emails, phones, addresses, taxIds,
     editContacts, setEditContacts,
     setEditSourceId, setEditVendorId,
     editInitial, hasEditChanges, handleUpdate, contactsRes,
-    renderEmailRow, renderPhoneRow,
   } = useVendorEditCollections({
     editOpen: editDialog.isOpen,
     editRow: editDialog.data,
     editForm,
     updateMut,
     toast,
-    onEditClose: () => editCloseRef.current?.(),
     emailMuts: { create: createEmailMut, update: updateEmailMut, archive: archiveEmailMut },
     phoneMuts: { create: createPhoneMut, update: updatePhoneMut, archive: archivePhoneMut },
     addressMuts: { create: createAddrMut, update: updateAddrMut, archive: archiveAddrMut },
@@ -240,8 +237,6 @@ export default function VendorsPage() {
     resetEditMaps();
     setContactViewFilter('active');
   }, [editDialog.close, resetEditMaps, setEditSourceId, setEditVendorId]);
-  editCloseRef.current = handleEditClose;
-
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {
     resetViewMaps();
@@ -439,10 +434,8 @@ export default function VendorsPage() {
         taxIds={taxIds}
         paymentTermsList={paymentTermsList}
         hasEditChanges={hasEditChanges}
-        onSubmit={handleUpdate}
+        onSubmit={async () => { if (await handleUpdate()) handleEditClose(); }}
         loading={updateMut.isPending}
-        renderEmailRow={renderEmailRow}
-        renderPhoneRow={renderPhoneRow}
         filteredContacts={filteredContacts}
         contactColumns={contactColumns}
         contactSelection={contactSelection}

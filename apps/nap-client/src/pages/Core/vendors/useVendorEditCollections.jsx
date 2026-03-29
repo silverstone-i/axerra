@@ -6,15 +6,7 @@
  */
 
 import { useState, useMemo, useEffect, useRef } from 'react';
-import Box from '@mui/material/Box';
-import Checkbox from '@mui/material/Checkbox';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import IconButton from '@mui/material/IconButton';
-import MenuItem from '@mui/material/MenuItem';
-import TextField from '@mui/material/TextField';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 
-import PatternTextField from '../../../components/shared/PatternTextField.jsx';
 import { useEmails } from '../../../hooks/useEmails.js';
 import { usePhoneNumbers } from '../../../hooks/usePhoneNumbers.js';
 import { useAddresses } from '../../../hooks/useAddresses.js';
@@ -22,94 +14,8 @@ import { useTaxIdentifiers } from '../../../hooks/useTaxIdentifiers.js';
 import { useVendorContacts } from '../../../hooks/useVendorContacts.js';
 import { useCollectionState } from '../../../hooks/useCollectionState.js';
 import { saveCollection } from '../../../utils/saveCollection.js';
-import { cap, errMsg } from '../../../utils/format.js';
-import { BLANK_EMAIL, BLANK_PHONE, BLANK_ADDRESS, BLANK_TAX_ID, PHONE_TYPES, EMAIL_LABELS } from '../../../utils/formConstants.js';
-import { COUNTRIES } from '@nap/shared';
-
-/* ── Module-level render helpers (no hook state needed) ────────── */
-
-const renderEmailRow = (em, emailIdx, onUpdate, onRemove) => (
-  <Box key={em.id || emailIdx} sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-    <TextField
-      label="Email"
-      type="email"
-      value={em.email}
-      onChange={(e) => onUpdate(emailIdx, 'email', e.target.value)}
-      size="small"
-      sx={{ flex: 1, minWidth: 200 }}
-    />
-    <TextField
-      select
-      label="Label"
-      value={em.label}
-      onChange={(e) => onUpdate(emailIdx, 'label', e.target.value)}
-      size="small"
-      sx={{ minWidth: 120 }}
-    >
-      {EMAIL_LABELS.map((l) => (
-        <MenuItem key={l} value={l}>{cap(l)}</MenuItem>
-      ))}
-    </TextField>
-    <FormControlLabel
-      control={<Checkbox checked={em.is_primary} onChange={(e) => onUpdate(emailIdx, 'is_primary', e.target.checked)} size="small" />}
-      label="Primary"
-      sx={{ mr: 0 }}
-    />
-    <IconButton size="small" onClick={() => onRemove(emailIdx)} color="error">
-      <DeleteOutlineIcon fontSize="small" />
-    </IconButton>
-  </Box>
-);
-
-const renderPhoneRow = (phone, phoneIdx, onUpdate, onRemove) => {
-  const countryCode = phone.country_code?.trim() || 'US';
-  const country = COUNTRIES.find((c) => c.code === countryCode);
-  return (
-    <Box key={phone.id || phoneIdx} sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-      <TextField
-        select
-        label="Type"
-        value={phone.phone_type}
-        onChange={(e) => onUpdate(phoneIdx, 'phone_type', e.target.value)}
-        sx={{ minWidth: 120 }}
-        size="small"
-      >
-        {PHONE_TYPES.map((t) => (
-          <MenuItem key={t} value={t}>{cap(t)}</MenuItem>
-        ))}
-      </TextField>
-      <TextField
-        select
-        label="Country"
-        value={countryCode}
-        onChange={(e) => onUpdate(phoneIdx, 'country_code', e.target.value)}
-        SelectProps={{ renderValue: (val) => COUNTRIES.find((c) => c.code === val)?.dial_code || val }}
-        sx={{ minWidth: 80 }}
-        size="small"
-      >
-        {COUNTRIES.map((c) => (
-          <MenuItem key={c.code} value={c.code}>{c.dial_code} {c.code} - {c.name}</MenuItem>
-        ))}
-      </TextField>
-      <PatternTextField
-        label="Number"
-        value={phone.phone_number}
-        onChange={(raw) => onUpdate(phoneIdx, 'phone_number', raw)}
-        pattern={country?.placeholder}
-        size="small"
-        sx={{ flex: 1, minWidth: 160 }}
-      />
-      <FormControlLabel
-        control={<Checkbox checked={phone.is_primary} onChange={(e) => onUpdate(phoneIdx, 'is_primary', e.target.checked)} size="small" />}
-        label="Primary"
-        sx={{ mr: 0 }}
-      />
-      <IconButton size="small" onClick={() => onRemove(phoneIdx)} color="error">
-        <DeleteOutlineIcon fontSize="small" />
-      </IconButton>
-    </Box>
-  );
-};
+import { errMsg } from '../../../utils/format.js';
+import { BLANK_EMAIL, BLANK_PHONE, BLANK_ADDRESS, BLANK_TAX_ID } from '../../../utils/formConstants.js';
 
 /* ── Hook ──────────────────────────────────────────────────────── */
 
@@ -119,7 +25,6 @@ export function useVendorEditCollections({
   editForm,
   updateMut,
   toast,
-  onEditClose,
   emailMuts,
   phoneMuts,
   addressMuts,
@@ -226,9 +131,10 @@ export function useVendorEditCollections({
       }
 
       toast('Vendor updated');
-      onEditClose();
+      return true;
     } catch (err) {
       toast(errMsg(err), 'error');
+      return false;
     }
   };
 
@@ -247,7 +153,5 @@ export function useVendorEditCollections({
     hasEditChanges,
     handleUpdate,
     contactsRes,
-    renderEmailRow,
-    renderPhoneRow,
   };
 }

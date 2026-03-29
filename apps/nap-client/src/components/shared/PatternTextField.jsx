@@ -14,7 +14,7 @@
 
 import { useMemo } from 'react';
 import TextField from '@mui/material/TextField';
-import { formatByPattern, stripFormatting } from '../../utils/formatByPattern.js';
+import { formatByPattern, stripFormatting } from '@nap/shared';
 
 /**
  * A TextField that formats its display value using a placeholder pattern.
