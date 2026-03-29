@@ -33,13 +33,12 @@ import { changeOrderApi } from '../../services/changeOrderApi.js';
 import { pageContainerSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
+import { fmtDate, errMsg } from '../../utils/format.js';
 
 const BLANK_CREATE = { unit_id: '', co_number: '', title: '', reason: '', total_amount: '' };
 const BLANK_EDIT = { co_number: '', title: '', reason: '', total_amount: '' };
 
 const STATUS_MAP = { draft: 'active', submitted: 'active', approved: 'active', rejected: 'suspended' };
-
-const fmtDate = (v) => (v ? new Date(v).toLocaleDateString() : '\u2014');
 
 const columns = [
   { field: 'co_number', headerName: 'CO #', width: 120 },
@@ -94,7 +93,6 @@ export default function ChangeOrdersPage() {
 
   const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
   const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
-  const errMsg = (err) => err.payload?.error || err.payload?.message || err.message;
 
   const onCreateField = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.value }));
   const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));

@@ -12,8 +12,7 @@ import { DataGrid } from '@mui/x-data-grid';
 import CurrencyCell from '../../components/shared/CurrencyCell.jsx';
 import { useLedgerBalances } from '../../hooks/useAccounting.js';
 import { pageContainerSx } from '../../config/layoutTokens.js';
-
-const fmtDate = (v) => (v ? new Date(v).toLocaleDateString() : '\u2014');
+import { fmtDate } from '../../utils/format.js';
 
 const columns = [
   { field: 'account_id', headerName: 'Account', width: 140, valueGetter: (params) => params.row.account_id?.slice(0, 8) ?? '\u2014' },

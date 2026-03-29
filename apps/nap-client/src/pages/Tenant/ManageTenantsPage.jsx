@@ -53,6 +53,7 @@ import {
 } from '../../hooks/useTenants.js';
 import { pageContainerSx, dialogHeaderSx, dialogActionBoxSx, formFullSpanSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
+import { cap, fmtDate, errMsg } from '../../utils/format.js';
 
 /* ── Enums ────────────────────────────────────────────────────── */
 
@@ -69,11 +70,6 @@ const BLANK_EDIT = {
   max_users: 5,
   notes: '',
 };
-
-/* ── Helpers ──────────────────────────────────────────────────── */
-
-const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
-const fmtDate = (v) => (v ? new Date(v).toLocaleDateString() : '\u2014');
 
 /* ── Column definitions ───────────────────────────────────────── */
 
@@ -186,7 +182,6 @@ export default function ManageTenantsPage() {
   /* ── snackbar ────────────────────────────────────────────── */
   const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
   const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
-  const errMsg = (err) => err.payload?.error || err.payload?.message || err.message;
 
   /* ── field change factories ──────────────────────────────── */
   const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));

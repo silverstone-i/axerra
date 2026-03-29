@@ -40,6 +40,7 @@ import {
   useArchiveTaxIdentifier,
 } from '../../hooks/useCompanyInfo.js';
 import { pageContainerSx } from '../../config/layoutTokens.js';
+import { cap, errMsg } from '../../utils/format.js';
 
 /* ── Constants ──────────────────────────────────────────────────── */
 
@@ -58,8 +59,6 @@ const BLANK_ADDRESS = {
 };
 
 const BLANK_TAX = { country_code: 'US', tax_type: 'EIN', tax_value: '' };
-
-const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
 
 /* ── SetupCompanyForm (legacy tenants without a self-company) ── */
 
@@ -433,10 +432,7 @@ export default function CompanyInfoPage() {
   /* ── snackbar ─────────────────────────────────────────────── */
   const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
   const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
-  const errToast = useCallback(
-    (err) => toast(err.payload?.error || err.payload?.message || err.message, 'error'),
-    [toast],
-  );
+  const errToast = useCallback((err) => toast(errMsg(err), 'error'), [toast]);
 
   /* ── toolbar (empty — settings pages have no toolbar actions) */
   const toolbar = useMemo(() => ({ tabs: [], filters: [], primaryActions: [] }), []);

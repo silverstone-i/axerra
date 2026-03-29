@@ -34,10 +34,9 @@ import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import ImportDialog from '../../components/shared/ImportDialog.jsx';
 import { resolveLevel } from '@nap/shared';
 import { apCreditMemoApi } from '../../services/apApi.js';
+import { capSnake, fmtDate, errMsg } from '../../utils/format.js';
 
 const STATUS_OPTS = ['open', 'applied', 'voided'];
-const cap = (s) => (s ? s.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : '');
-const fmtDate = (v) => (v ? new Date(v).toLocaleDateString() : '\u2014');
 
 const BLANK_CREATE = { vendor_id: '', ap_invoice_id: '', credit_number: '', credit_date: '', amount: '', reason: '', status: 'open' };
 const BLANK_EDIT = { credit_number: '', credit_date: '', amount: '', reason: '', status: 'open' };
@@ -93,7 +92,6 @@ export default function CreditMemosPage() {
 
   const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
   const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
-  const errMsg = (err) => err.payload?.error || err.payload?.message || err.message;
 
   const [importOpen, setImportOpen] = useState(false);
 
@@ -250,7 +248,7 @@ export default function CreditMemosPage() {
         <TextField label="Credit Date" type="date" required value={createForm.credit_date} onChange={onCreateField('credit_date')} InputLabelProps={{ shrink: true }} />
         <TextField label="Amount" type="number" required value={createForm.amount} onChange={onCreateField('amount')} />
         <TextField label="Status" select value={createForm.status} onChange={onCreateField('status')}>
-          {STATUS_OPTS.map((s) => <MenuItem key={s} value={s}>{cap(s)}</MenuItem>)}
+          {STATUS_OPTS.map((s) => <MenuItem key={s} value={s}>{capSnake(s)}</MenuItem>)}
         </TextField>
         <TextField label="Reason" multiline minRows={2} value={createForm.reason} onChange={onCreateField('reason')} />
       </FormDialog>
@@ -261,7 +259,7 @@ export default function CreditMemosPage() {
         <TextField label="Credit Date" type="date" value={editForm.credit_date} onChange={onEditField('credit_date')} InputLabelProps={{ shrink: true }} />
         <TextField label="Amount" type="number" value={editForm.amount} onChange={onEditField('amount')} />
         <TextField label="Status" select value={editForm.status} onChange={onEditField('status')}>
-          {STATUS_OPTS.map((s) => <MenuItem key={s} value={s}>{cap(s)}</MenuItem>)}
+          {STATUS_OPTS.map((s) => <MenuItem key={s} value={s}>{capSnake(s)}</MenuItem>)}
         </TextField>
         <TextField label="Reason" multiline minRows={2} value={editForm.reason} onChange={onEditField('reason')} />
       </FormDialog>

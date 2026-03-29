@@ -34,6 +34,7 @@ import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContex
 import { useUsers, useUpdateUser } from '../../hooks/useUsers.js';
 import { pageContainerSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
+import { capSnake, fmtDate, errMsg } from '../../utils/format.js';
 
 /* ── Enums ────────────────────────────────────────────────────── */
 
@@ -62,18 +63,6 @@ const PW_RULES = [
   { label: 'A special character', test: (p) => /[^A-Za-z0-9]/.test(p) },
 ];
 
-/* ── Helpers ──────────────────────────────────────────────────── */
-
-const cap = (s) =>
-  s
-    ? s
-        .split('_')
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(' ')
-    : '';
-
-const fmtDate = (v) => (v ? new Date(v).toLocaleDateString() : '\u2014');
-
 /* ── Column definitions ───────────────────────────────────────── */
 
 const columns = [
@@ -82,7 +71,7 @@ const columns = [
     field: 'entity_type',
     headerName: 'Entity Type',
     width: 140,
-    valueGetter: (params) => cap(params.row.entity_type) || '\u2014',
+    valueGetter: (params) => capSnake(params.row.entity_type) || '\u2014',
   },
   {
     field: 'status',
@@ -132,7 +121,6 @@ export default function ManageUsersPage() {
   /* ── snackbar ────────────────────────────────────────────── */
   const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
   const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
-  const errMsg = (err) => err.payload?.error || err.payload?.message || err.message;
 
   /* ── field change factories ──────────────────────────────── */
   const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));
@@ -218,7 +206,7 @@ export default function ManageUsersPage() {
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box sx={detailGridSx}>
                 <FieldRow label="Email" value={viewUser.email} />
-                <FieldRow label="Entity Type" value={cap(viewUser.entity_type) || '\u2014'} />
+                <FieldRow label="Entity Type" value={capSnake(viewUser.entity_type) || '\u2014'} />
                 <FieldRow label="Status">
                   <StatusBadge status={viewUser.status} />
                 </FieldRow>
@@ -244,7 +232,7 @@ export default function ManageUsersPage() {
         <TextField label="Status" select value={editForm.status} onChange={onEditField('status')}>
           {STATUS_OPTS.map((s) => (
             <MenuItem key={s} value={s}>
-              {cap(s)}
+              {capSnake(s)}
             </MenuItem>
           ))}
         </TextField>

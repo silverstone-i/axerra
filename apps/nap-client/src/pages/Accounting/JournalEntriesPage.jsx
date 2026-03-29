@@ -36,10 +36,9 @@ import { journalEntryApi } from '../../services/accountingApi.js';
 import { pageContainerSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
+import { capSnake, fmtDate, errMsg } from '../../utils/format.js';
 
 const STATUS_OPTS = ['pending', 'posted', 'reversed'];
-const cap = (s) => (s ? s.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : '');
-const fmtDate = (v) => (v ? new Date(v).toLocaleDateString() : '\u2014');
 
 const BLANK_CREATE = { entry_date: '', description: '', status: 'pending', source_type: '' };
 const BLANK_EDIT = { entry_date: '', description: '', status: 'pending', source_type: '' };
@@ -49,7 +48,7 @@ const columns = [
   { field: 'entry_date', headerName: 'Date', width: 120, valueGetter: (params) => fmtDate(params.row.entry_date) },
   { field: 'description', headerName: 'Description', flex: 1, minWidth: 200 },
   { field: 'status', headerName: 'Status', width: 120, renderCell: ({ value }) => <StatusBadge status={value} /> },
-  { field: 'source_type', headerName: 'Source', width: 140, valueGetter: (params) => cap(params.row.source_type || '') },
+  { field: 'source_type', headerName: 'Source', width: 140, valueGetter: (params) => capSnake(params.row.source_type || '') },
 ];
 
 export default function JournalEntriesPage() {
@@ -95,7 +94,6 @@ export default function JournalEntriesPage() {
 
   const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
   const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
-  const errMsg = (err) => err.payload?.error || err.payload?.message || err.message;
 
   const onCreateField = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.value }));
   const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));
@@ -288,7 +286,7 @@ export default function JournalEntriesPage() {
               <FieldRow label="Status">
                 <StatusBadge status={viewEntry.status} />
               </FieldRow>
-              <FieldRow label="Source Type" value={cap(viewEntry.source_type || '') || '\u2014'} />
+              <FieldRow label="Source Type" value={capSnake(viewEntry.source_type || '') || '\u2014'} />
               <FieldRow label="Created" value={fmtDate(viewEntry.created_at)} />
               <FieldRow label="Updated" value={fmtDate(viewEntry.updated_at)} />
             </Box>
@@ -301,7 +299,7 @@ export default function JournalEntriesPage() {
         <TextField label="Entry Date" type="date" required value={createForm.entry_date} onChange={onCreateField('entry_date')} InputLabelProps={{ shrink: true }} />
         <TextField label="Description" multiline minRows={2} value={createForm.description} onChange={onCreateField('description')} />
         <TextField label="Status" select value={createForm.status} onChange={onCreateField('status')}>
-          {STATUS_OPTS.map((s) => <MenuItem key={s} value={s}>{cap(s)}</MenuItem>)}
+          {STATUS_OPTS.map((s) => <MenuItem key={s} value={s}>{capSnake(s)}</MenuItem>)}
         </TextField>
         <TextField label="Source Type" value={createForm.source_type} onChange={onCreateField('source_type')} />
       </FormDialog>
@@ -311,7 +309,7 @@ export default function JournalEntriesPage() {
         <TextField label="Entry Date" type="date" value={editForm.entry_date} onChange={onEditField('entry_date')} InputLabelProps={{ shrink: true }} />
         <TextField label="Description" multiline minRows={2} value={editForm.description} onChange={onEditField('description')} />
         <TextField label="Status" select value={editForm.status} onChange={onEditField('status')}>
-          {STATUS_OPTS.map((s) => <MenuItem key={s} value={s}>{cap(s)}</MenuItem>)}
+          {STATUS_OPTS.map((s) => <MenuItem key={s} value={s}>{capSnake(s)}</MenuItem>)}
         </TextField>
         <TextField label="Source Type" value={editForm.source_type} onChange={onEditField('source_type')} />
       </FormDialog>

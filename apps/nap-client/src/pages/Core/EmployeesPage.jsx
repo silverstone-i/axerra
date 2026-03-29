@@ -61,6 +61,8 @@ import {
 } from '../../hooks/useTaxIdentifiers.js';
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import { TAX_TYPES, COUNTRIES } from '@nap/shared';
+import { cap, fmtDate, errMsg } from '../../utils/format.js';
+import { BLANK_PHONE, BLANK_ADDRESS, BLANK_TAX_ID, PHONE_TYPES, EMAIL_LABELS } from '../../utils/formConstants.js';
 import { employeeApi } from '../../services/employeeApi.js';
 import { pageContainerSx, formGridSx, formGroupCardSx, formFullSpanSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
@@ -77,18 +79,7 @@ const BLANK_EDIT = {
   is_app_user: false, password: '', roles: [], is_primary_contact: false, is_billing_contact: false,
 };
 
-const PHONE_TYPES = ['cell', 'work', 'home', 'fax', 'other'];
-const EMAIL_LABELS = ['work', 'personal', 'billing', 'other'];
-const BLANK_PHONE = { country_code: 'US', phone_type: 'cell', phone_number: '', is_primary: false };
 const BLANK_EMAIL = { email: '', label: 'work', is_primary: false, is_login: false };
-const BLANK_ADDRESS = {
-  label: '', address_line_1: '', address_line_2: '', address_line_3: '', city: '',
-  state_province: '', postal_code: '', country_code: 'US',
-};
-const BLANK_TAX_ID = { country_code: 'US', tax_type: 'TIN', tax_value: '' };
-
-const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
-const fmtDate = (v) => (v ? new Date(v).toLocaleDateString() : '\u2014');
 
 const columns = [
   { field: 'code', headerName: 'Code', width: 100 },
@@ -195,7 +186,7 @@ export default function EmployeesPage() {
 
   const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
   const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
-  const errMsg = (err) => err.payload?.error || err.payload?.message || err.message;
+
 
   const onCreateField = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.value }));
   const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));

@@ -26,6 +26,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import StepperFormDialog from '../../components/shared/StepperFormDialog.jsx';
 import PasswordField from '../../components/shared/PasswordField.jsx';
 import { useCreateTenant } from '../../hooks/useTenants.js';
+import { cap } from '../../utils/format.js';
 
 /* ── Constants ──────────────────────────────────────────────────── */
 
@@ -62,8 +63,6 @@ const BLANK_FORM = {
   admin_email: '',
   admin_password: '',
 };
-
-const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
 
 /* ── Component ──────────────────────────────────────────────────── */
 

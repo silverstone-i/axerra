@@ -28,6 +28,7 @@ import { useTasks, useCreateTask, useUpdateTask, useArchiveTask, useRestoreTask 
 import { useCostItems, useCreateCostItem, useUpdateCostItem, useArchiveCostItem, useRestoreCostItem } from '../../hooks/useCostItems.js';
 import { pageContainerSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
+import { errMsg } from '../../utils/format.js';
 
 /* ── column definitions ───────────────────────── */
 const unitCols = [
@@ -118,7 +119,6 @@ export default function ProjectDetailPage() {
   /* ── Toast ──────────────────────────────────── */
   const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
   const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
-  const errMsg = (err) => err.payload?.error || err.payload?.message || err.message;
 
   /* ── Toolbar ────────────────────────────────── */
   const toolbar = useMemo(() => ({ tabs: [], filters: [], primaryActions: [] }), []);

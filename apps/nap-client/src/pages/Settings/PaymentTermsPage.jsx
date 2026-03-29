@@ -33,6 +33,7 @@ import { paymentTermApi } from '../../services/paymentTermApi.js';
 import { pageContainerSx, formGridSx, dialogHeaderSx, dialogActionBoxSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
+import { fmtDate, errMsg } from '../../utils/format.js';
 
 const BLANK_CREATE = { label: '', term: 30, units: 'days' };
 const BLANK_EDIT = { label: '', term: 30, units: 'days', is_active: true };
@@ -40,9 +41,6 @@ const UNITS_OPTIONS = [
   { value: 'days', label: 'Days' },
   { value: 'months', label: 'Months' },
 ];
-
-const fmtDate = (v) => (v ? new Date(v).toLocaleDateString() : '\u2014');
-const errMsg = (err) => err.payload?.error || err.payload?.message || err.message;
 
 const columns = [
   { field: 'label', headerName: 'Label', flex: 1, minWidth: 180 },

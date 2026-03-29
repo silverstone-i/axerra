@@ -38,6 +38,7 @@ import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContex
 import { useRoles, useCreateRole, useUpdateRole } from '../../hooks/useRoles.js';
 import { masterDetailSx, masterPanelSx, detailPanelSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
+import { capSnake, fmtDate, errMsg } from '../../utils/format.js';
 
 import PolicyEditor from './PolicyEditor.jsx';
 import StateFilterEditor from './StateFilterEditor.jsx';
@@ -47,18 +48,6 @@ import FieldGroupDefinitionEditor from './FieldGroupDefinitionEditor.jsx';
 /* ── Enums ────────────────────────────────────────────────────── */
 
 const SCOPE_OPTS = ['all_projects', 'assigned_companies', 'assigned_projects', 'self'];
-
-/* ── Helpers ──────────────────────────────────────────────────── */
-
-const cap = (s) =>
-  s
-    ? s
-        .split('_')
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(' ')
-    : '';
-
-const fmtDate = (v) => (v ? new Date(v).toLocaleDateString() : '\u2014');
 
 /* ── Empty form shapes ────────────────────────────────────────── */
 
@@ -121,7 +110,6 @@ export default function ManageRolesPage() {
   /* ── snackbar ──────────────────────────────────────────────── */
   const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
   const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
-  const errMsg = (err) => err.payload?.error || err.payload?.message || err.message;
 
   /* ── field change factories ────────────────────────────────── */
   const onCreateField = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.value }));
@@ -219,7 +207,7 @@ export default function ManageRolesPage() {
               {selection.selected.is_immutable && <Chip label="Immutable" size="small" color="warning" />}
             </Box>
             <Typography variant="body2" color="text.secondary">
-              {selection.selected.code} &middot; Scope: {cap(selection.selected.scope)}
+              {selection.selected.code} &middot; Scope: {capSnake(selection.selected.scope)}
             </Typography>
             {selection.selected.description && (
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
@@ -309,7 +297,7 @@ export default function ManageRolesPage() {
         <TextField label="Scope" select value={createForm.scope} onChange={onCreateField('scope')}>
           {SCOPE_OPTS.map((s) => (
             <MenuItem key={s} value={s}>
-              {cap(s)}
+              {capSnake(s)}
             </MenuItem>
           ))}
         </TextField>
@@ -330,7 +318,7 @@ export default function ManageRolesPage() {
         <TextField label="Scope" select value={editForm.scope} onChange={onEditField('scope')}>
           {SCOPE_OPTS.map((s) => (
             <MenuItem key={s} value={s}>
-              {cap(s)}
+              {capSnake(s)}
             </MenuItem>
           ))}
         </TextField>
