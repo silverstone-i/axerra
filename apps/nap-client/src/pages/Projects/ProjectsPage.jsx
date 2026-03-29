@@ -35,13 +35,12 @@ import { projectApi } from '../../services/projectApi.js';
 import { pageContainerSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
+import { fmtDate, errMsg } from '../../utils/format.js';
 
 const BLANK_CREATE = { project_code: '', name: '', description: '', notes: '', contract_amount: '' };
 const BLANK_EDIT = { project_code: '', name: '', description: '', notes: '', contract_amount: '' };
 
 const STATUS_MAP = { planning: 'active', budgeting: 'active', released: 'active', complete: 'suspended' };
-
-const fmtDate = (v) => (v ? new Date(v).toLocaleDateString() : '\u2014');
 
 const columns = [
   { field: 'project_code', headerName: 'Code', width: 130 },
@@ -97,7 +96,6 @@ export default function ProjectsPage() {
 
   const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
   const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
-  const errMsg = (err) => err.payload?.error || err.payload?.message || err.message;
 
   const onCreateField = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.value }));
   const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));

@@ -35,13 +35,12 @@ import { useActivities } from '../../hooks/useActivities.js';
 import { pageContainerSx, formGridSx, dialogHeaderSx, dialogActionBoxSx, formFullSpanSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
+import { fmtDate, errMsg } from '../../utils/format.js';
 
 const BLANK_CREATE = { activity_id: '', project_id: '', amount: '', currency: 'USD', reference: '', incurred_on: '' };
 const BLANK_EDIT = { amount: '', currency: '', reference: '', approval_status: '', incurred_on: '' };
 
 const APPROVAL_STATUSES = ['pending', 'approved', 'rejected'];
-
-const fmtDate = (v) => (v ? new Date(v).toLocaleDateString() : '\u2014');
 
 export default function CostTrackingPage() {
   const { user } = useAuth();
@@ -88,7 +87,6 @@ export default function CostTrackingPage() {
 
   const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
   const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
-  const errMsg = (err) => err.payload?.error || err.payload?.message || err.message;
 
   const onCreateField = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.value }));
   const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));

@@ -40,10 +40,9 @@ import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import ImportDialog from '../../components/shared/ImportDialog.jsx';
 import { resolveLevel } from '@nap/shared';
 import { arInvoiceApi } from '../../services/arApi.js';
+import { capSnake, fmtDate, errMsg } from '../../utils/format.js';
 
 const STATUS_OPTS = ['open', 'sent', 'paid', 'voided'];
-const cap = (s) => (s ? s.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : '');
-const fmtDate = (v) => (v ? new Date(v).toLocaleDateString() : '\u2014');
 
 const BLANK_CREATE = { client_id: '', invoice_number: '', invoice_date: '', due_date: '', total_amount: '', status: 'open', notes: '' };
 const BLANK_EDIT = { invoice_number: '', invoice_date: '', due_date: '', total_amount: '', status: 'open', notes: '' };
@@ -100,7 +99,6 @@ export default function ArInvoicesPage() {
 
   const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
   const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
-  const errMsg = (err) => err.payload?.error || err.payload?.message || err.message;
 
   const [importOpen, setImportOpen] = useState(false);
 
@@ -275,7 +273,7 @@ export default function ArInvoicesPage() {
         <TextField label="Due Date" type="date" value={createForm.due_date} onChange={onCreateField('due_date')} InputLabelProps={{ shrink: true }} />
         <TextField label="Total Amount" type="number" required value={createForm.total_amount} onChange={onCreateField('total_amount')} />
         <TextField label="Status" select value={createForm.status} onChange={onCreateField('status')}>
-          {STATUS_OPTS.map((s) => <MenuItem key={s} value={s}>{cap(s)}</MenuItem>)}
+          {STATUS_OPTS.map((s) => <MenuItem key={s} value={s}>{capSnake(s)}</MenuItem>)}
         </TextField>
         <TextField label="Notes" multiline minRows={2} value={createForm.notes} onChange={onCreateField('notes')} />
       </FormDialog>
@@ -287,7 +285,7 @@ export default function ArInvoicesPage() {
         <TextField label="Due Date" type="date" value={editForm.due_date} onChange={onEditField('due_date')} InputLabelProps={{ shrink: true }} />
         <TextField label="Total Amount" type="number" value={editForm.total_amount} onChange={onEditField('total_amount')} />
         <TextField label="Status" select value={editForm.status} onChange={onEditField('status')}>
-          {STATUS_OPTS.map((s) => <MenuItem key={s} value={s}>{cap(s)}</MenuItem>)}
+          {STATUS_OPTS.map((s) => <MenuItem key={s} value={s}>{capSnake(s)}</MenuItem>)}
         </TextField>
         <TextField label="Notes" multiline minRows={2} value={editForm.notes} onChange={onEditField('notes')} />
       </FormDialog>

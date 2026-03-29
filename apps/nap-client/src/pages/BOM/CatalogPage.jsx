@@ -39,11 +39,10 @@ import { catalogSkuApi } from '../../services/bomApi.js';
 import { pageContainerSx, formGridSx, dialogHeaderSx, dialogActionBoxSx, formFullSpanSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
+import { fmtDate, errMsg } from '../../utils/format.js';
 
 const BLANK_CREATE = { catalog_sku: '', description: '', category: '', sub_category: '' };
 const BLANK_EDIT = { catalog_sku: '', description: '', category: '', sub_category: '' };
-
-const fmtDate = (v) => (v ? new Date(v).toLocaleDateString() : '\u2014');
 
 const columns = [
   { field: 'catalog_sku', headerName: 'SKU', width: 160 },
@@ -101,7 +100,6 @@ export default function CatalogPage() {
 
   const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
   const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
-  const errMsg = (err) => err.payload?.error || err.payload?.message || err.message;
 
   const onCreateField = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.value }));
   const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));

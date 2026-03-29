@@ -14,8 +14,7 @@ import Typography from '@mui/material/Typography';
 
 import FieldRow from './FieldRow.jsx';
 import { detailGridSx } from '../../config/layoutTokens.js';
-
-const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
+import { cap } from '../../utils/format.js';
 
 export default function EmailsSection({ emails, showLogin = false }) {
   if (!emails?.length) return null;

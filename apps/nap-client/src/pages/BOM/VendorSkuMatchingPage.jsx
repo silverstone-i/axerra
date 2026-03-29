@@ -28,6 +28,7 @@ import {
 } from '../../hooks/useBom.js';
 import { pageContainerSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
+import { errMsg } from '../../utils/format.js';
 
 const confidenceColor = (val) => {
   if (val >= 0.85) return 'success';
@@ -83,7 +84,6 @@ export default function VendorSkuMatchingPage() {
 
   const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
   const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
-  const errMsg = (err) => err.payload?.error || err.payload?.message || err.message;
 
   const handleFindMatches = async () => {
     if (!selection.selected) return;

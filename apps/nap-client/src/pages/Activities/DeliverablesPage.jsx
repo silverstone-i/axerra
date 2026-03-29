@@ -43,13 +43,12 @@ import { deliverableApi } from '../../services/deliverableApi.js';
 import { pageContainerSx, formGridSx, dialogHeaderSx, dialogActionBoxSx, formFullSpanSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
+import { fmtDate, errMsg } from '../../utils/format.js';
 
 const BLANK_CREATE = { name: '', description: '', status: 'pending', start_date: '', end_date: '' };
 const BLANK_EDIT = { name: '', description: '', status: '', start_date: '', end_date: '' };
 
 const STATUSES = ['pending', 'released', 'finished', 'canceled'];
-
-const fmtDate = (v) => (v ? new Date(v).toLocaleDateString() : '\u2014');
 
 const columns = [
   { field: 'name', headerName: 'Name', flex: 1, minWidth: 200 },
@@ -105,7 +104,6 @@ export default function DeliverablesPage() {
 
   const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
   const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
-  const errMsg = (err) => err.payload?.error || err.payload?.message || err.message;
 
   const onCreateField = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.value }));
   const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));

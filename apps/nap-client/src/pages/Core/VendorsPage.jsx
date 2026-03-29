@@ -69,7 +69,8 @@ import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import { useActivePaymentTerms } from '../../hooks/usePaymentTerms.js';
 import { useRoles } from '../../hooks/useRoles.js';
 import { TAX_TYPES, COUNTRIES, resolveLevel } from '@nap/shared';
-import { formatByPattern } from '../../utils/formatByPattern.js';
+import { cap, fmtDate, fmtPhone, errMsg } from '../../utils/format.js';
+import { BLANK_EMAIL, BLANK_PHONE, BLANK_ADDRESS, BLANK_TAX_ID, PHONE_TYPES, EMAIL_LABELS } from '../../utils/formConstants.js';
 import { vendorApi } from '../../services/vendorApi.js';
 import { emailApi } from '../../services/emailApi.js';
 import { phoneNumberApi } from '../../services/phoneNumberApi.js';
@@ -81,25 +82,10 @@ import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
 
 const BLANK_CREATE = { name: '', code: '', payment_term_id: '', notes: '', is_active: true };
 const BLANK_EDIT = { name: '', code: '', payment_term_id: '', notes: '', is_active: true };
-const BLANK_EMAIL = { email: '', label: 'work', is_primary: false };
-const BLANK_PHONE = { country_code: 'US', phone_type: 'cell', phone_number: '', is_primary: false };
-const BLANK_ADDRESS = {
-  label: '', address_line_1: '', address_line_2: '', address_line_3: '', city: '',
-  state_province: '', postal_code: '', country_code: 'US',
-};
-const BLANK_TAX_ID = { country_code: 'US', tax_type: 'TIN', tax_value: '' };
-const fmtPhone = (p) => formatByPattern(p.phone_number, COUNTRIES.find((c) => c.code === p.country_code)?.placeholder);
-
 const BLANK_CONTACT_FORM = {
   first_name: '', last_name: '', position: '', department: '',
   is_app_user: false, roles: [], password: '',
 };
-
-const PHONE_TYPES = ['cell', 'work', 'home', 'fax', 'other'];
-const EMAIL_LABELS = ['work', 'personal', 'billing', 'other'];
-
-const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
-const fmtDate = (v) => (v ? new Date(v).toLocaleDateString() : '\u2014');
 
 const dialogSx = {
   '& .MuiDialogTitle-root + .MuiDialogContent-root': { paddingTop: '16px' },
@@ -267,7 +253,6 @@ export default function VendorsPage() {
 
   const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
   const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
-  const errMsg = (err) => err.payload?.error || err.payload?.message || err.message;
 
   const onCreateField = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.value }));
   const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));

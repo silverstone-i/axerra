@@ -36,10 +36,9 @@ import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import ImportDialog from '../../components/shared/ImportDialog.jsx';
 import { resolveLevel } from '@nap/shared';
 import { receiptApi } from '../../services/arApi.js';
+import { capSnake, fmtDate, errMsg } from '../../utils/format.js';
 
 const METHOD_OPTS = ['check', 'ach', 'wire'];
-const cap = (s) => (s ? s.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : '');
-const fmtDate = (v) => (v ? new Date(v).toLocaleDateString() : '\u2014');
 
 const BLANK_CREATE = { client_id: '', ar_invoice_id: '', receipt_date: '', amount: '', method: 'check', reference: '', notes: '' };
 const BLANK_EDIT = { receipt_date: '', amount: '', method: 'check', reference: '', notes: '' };
@@ -49,7 +48,7 @@ const columns = [
   { field: 'client_id', headerName: 'Client', width: 120, valueGetter: (params) => params.row.client_id?.slice(0, 8) ?? '\u2014' },
   { field: 'receipt_date', headerName: 'Date', width: 120, valueGetter: (params) => fmtDate(params.row.receipt_date) },
   { field: 'amount', headerName: 'Amount', width: 140, renderCell: (params) => <CurrencyCell value={params.value} /> },
-  { field: 'method', headerName: 'Method', width: 120, valueGetter: (params) => cap(params.row.method) },
+  { field: 'method', headerName: 'Method', width: 120, valueGetter: (params) => capSnake(params.row.method) },
   { field: 'reference', headerName: 'Reference', flex: 1, minWidth: 160 },
 ];
 
@@ -95,7 +94,6 @@ export default function ReceiptsPage() {
 
   const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
   const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
-  const errMsg = (err) => err.payload?.error || err.payload?.message || err.message;
 
   const [importOpen, setImportOpen] = useState(false);
 
@@ -230,7 +228,7 @@ export default function ReceiptsPage() {
               <FieldRow label="Receipt Date" value={fmtDate(viewReceipt.receipt_date)} />
               <FieldRow label="Client" value={viewReceipt.client_id?.slice(0, 8) || '\u2014'} />
               <FieldRow label="Amount" value={viewReceipt.amount != null ? Number(viewReceipt.amount).toLocaleString(undefined, { style: 'currency', currency: 'USD' }) : '\u2014'} />
-              <FieldRow label="Method" value={cap(viewReceipt.method)} />
+              <FieldRow label="Method" value={capSnake(viewReceipt.method)} />
               <FieldRow label="Reference" value={viewReceipt.reference || '\u2014'} />
               <FieldRow label="Created" value={fmtDate(viewReceipt.created_at)} />
               <FieldRow label="Updated" value={fmtDate(viewReceipt.updated_at)} />
@@ -248,7 +246,7 @@ export default function ReceiptsPage() {
         <TextField label="Receipt Date" type="date" required value={createForm.receipt_date} onChange={onCreateField('receipt_date')} InputLabelProps={{ shrink: true }} />
         <TextField label="Amount" type="number" required value={createForm.amount} onChange={onCreateField('amount')} />
         <TextField label="Method" select value={createForm.method} onChange={onCreateField('method')}>
-          {METHOD_OPTS.map((m) => <MenuItem key={m} value={m}>{cap(m)}</MenuItem>)}
+          {METHOD_OPTS.map((m) => <MenuItem key={m} value={m}>{capSnake(m)}</MenuItem>)}
         </TextField>
         <TextField label="Reference" value={createForm.reference} onChange={onCreateField('reference')} />
         <TextField label="Notes" multiline minRows={2} value={createForm.notes} onChange={onCreateField('notes')} />
@@ -259,7 +257,7 @@ export default function ReceiptsPage() {
         <TextField label="Receipt Date" type="date" value={editForm.receipt_date} onChange={onEditField('receipt_date')} InputLabelProps={{ shrink: true }} />
         <TextField label="Amount" type="number" value={editForm.amount} onChange={onEditField('amount')} />
         <TextField label="Method" select value={editForm.method} onChange={onEditField('method')}>
-          {METHOD_OPTS.map((m) => <MenuItem key={m} value={m}>{cap(m)}</MenuItem>)}
+          {METHOD_OPTS.map((m) => <MenuItem key={m} value={m}>{capSnake(m)}</MenuItem>)}
         </TextField>
         <TextField label="Reference" value={editForm.reference} onChange={onEditField('reference')} />
         <TextField label="Notes" multiline minRows={2} value={editForm.notes} onChange={onEditField('notes')} />

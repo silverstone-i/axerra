@@ -11,8 +11,7 @@
 
 import { useState } from 'react';
 
-const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
-const defaultErrMsg = (err) => err.payload?.error || err.payload?.message || err.message;
+import { cap, errMsg as defaultErrMsg } from '../utils/format.js';
 
 /**
  * @param {Object}   opts

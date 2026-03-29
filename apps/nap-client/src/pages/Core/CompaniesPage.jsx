@@ -45,6 +45,8 @@ import {
 } from '../../hooks/useTaxIdentifiers.js';
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import { TAX_TYPES, COUNTRIES, resolveLevel } from '@nap/shared';
+import { fmtDate, errMsg } from '../../utils/format.js';
+import { BLANK_ADDRESS, BLANK_TAX_ID } from '../../utils/formConstants.js';
 import { companyApi } from '../../services/companyApi.js';
 import {
   pageContainerSx, formGridSx, formGroupCardSx, formFullSpanSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx,
@@ -54,14 +56,6 @@ import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
 
 const BLANK_CREATE = { name: '', code: '', is_active: true };
 const BLANK_EDIT = { name: '', code: '', is_active: true };
-const BLANK_ADDRESS = {
-  label: '', address_line_1: '', address_line_2: '', address_line_3: '',
-  city: '', state_province: '', postal_code: '', country_code: 'US',
-};
-const BLANK_TAX_ID = { country_code: 'US', tax_type: 'TIN', tax_value: '' };
-
-const fmtDate = (v) => (v ? new Date(v).toLocaleDateString() : '\u2014');
-
 const columns = [
   { field: 'code', headerName: 'Code', width: 120 },
   { field: 'name', headerName: 'Company Name', flex: 1, minWidth: 200 },
@@ -150,7 +144,6 @@ export default function CompaniesPage() {
 
   const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
   const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
-  const errMsg = (err) => err.payload?.error || err.payload?.message || err.message;
 
   const onCreateField = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.value }));
   const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));
