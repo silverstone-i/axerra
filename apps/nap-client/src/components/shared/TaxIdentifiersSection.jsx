@@ -12,9 +12,8 @@ import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import Typography from '@mui/material/Typography';
 
-import { TAX_TYPES } from '@nap/shared';
+import { TAX_TYPES, formatByPattern } from '@nap/shared';
 import FieldRow from './FieldRow.jsx';
-import { formatByPattern } from '../../utils/formatByPattern.js';
 import { detailGridSx } from '../../config/layoutTokens.js';
 
 export default function TaxIdentifiersSection({ taxIds }) {

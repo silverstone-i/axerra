@@ -21,6 +21,10 @@ export function useCollectionState(initial, { blank, autoPrimary, exclusive = []
   const [items, setItems] = useState(initial);
 
   const visibleItems = useMemo(() => items.filter((it) => !it._deleted), [items]);
+  const indexedItems = useMemo(
+    () => items.reduce((acc, it, i) => { if (!it._deleted) acc.push({ item: it, index: i }); return acc; }, []),
+    [items],
+  );
 
   const update = useCallback((idx, field, value) => {
     setItems((prev) => prev.map((it, i) => {
@@ -48,5 +52,5 @@ export function useCollectionState(initial, { blank, autoPrimary, exclusive = []
 
   const reset = useCallback((next) => setItems(next ?? initial), [initial]);
 
-  return { items, visibleItems, setItems, update, add, remove, reset };
+  return { items, visibleItems, indexedItems, setItems, update, add, remove, reset };
 }

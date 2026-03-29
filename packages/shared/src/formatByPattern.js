@@ -1,6 +1,6 @@
 /**
  * @file Pattern-based display formatter for phone numbers and tax identifiers
- * @module nap-client/utils/formatByPattern
+ * @module @nap/shared/formatByPattern
  *
  * Formats a raw value using a placeholder pattern where `X` represents an input
  * character and all other characters are literal separators inserted automatically.

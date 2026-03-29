@@ -22,6 +22,7 @@ import {
   coerceRow,
   coerceChildRow,
   buildFlatRows,
+  formatExportRow,
   groupFlatRows,
   provisionAppUser,
   batchHashPasswords,
@@ -256,6 +257,7 @@ export default class Vendors extends TableModel {
         return { cols: cfg.cols, flatCols: cfg.flatCols, rows: children[key] };
       });
       const flatRows = buildFlatRows(parent, childArrays);
+      for (const row of flatRows) formatExportRow(row, 'phone_number', 'phone_country_code', 'tax_value', 'tax_country_code', 'tax_type');
       vendorSheet.addObjects(flatRows);
     }
 
@@ -304,6 +306,7 @@ export default class Vendors extends TableModel {
           return { cols: cfg.cols, flatCols: cfg.flatCols, rows: children[key] };
         });
         const flatRows = buildFlatRows(parent, childArrays);
+        for (const row of flatRows) formatExportRow(row, 'phone_number', 'phone_country_code');
         contactSheet.addObjects(flatRows);
       }
     }

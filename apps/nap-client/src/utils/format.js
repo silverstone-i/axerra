@@ -8,7 +8,7 @@
  */
 
 import { COUNTRIES } from '@nap/shared';
-import { formatByPattern } from './formatByPattern.js';
+import { formatByPattern } from '@nap/shared';
 
 /**
  * Capitalise the first letter of a string.
