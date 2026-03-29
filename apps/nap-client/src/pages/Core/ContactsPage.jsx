@@ -65,6 +65,8 @@ import { cap, fmtDate, errMsg } from '../../utils/format.js';
 import { BLANK_EMAIL, BLANK_PHONE, BLANK_ADDRESS, BLANK_TAX_ID, PHONE_TYPES, EMAIL_LABELS } from '../../utils/formConstants.js';
 import { contactApi } from '../../services/contactApi.js';
 import { pageContainerSx, formGridSx, formGroupCardSx, formFullSpanSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
+import { useCollectionState } from '../../hooks/useCollectionState.js';
+import { saveCollection } from '../../utils/saveCollection.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
 
@@ -150,81 +152,41 @@ export default function ContactsPage() {
 
   const { form: createForm, setForm: setCreateForm, field: onCreateField, reset: resetCreateForm } = useFormState(BLANK_CREATE);
   const { form: editForm, setForm: setEditForm, field: onEditField } = useFormState(BLANK_EDIT);
-  const [editEmails, setEditEmails] = useState([]);
-  const [editPhones, setEditPhones] = useState([]);
-  const [editAddresses, setEditAddresses] = useState([]);
-  const [editTaxIds, setEditTaxIds] = useState([]);
+  const emails = useCollectionState([], { blank: BLANK_EMAIL, autoPrimary: 'is_primary', exclusive: ['is_primary'] });
+  const phones = useCollectionState([], { blank: BLANK_PHONE, autoPrimary: 'is_primary', exclusive: ['is_primary'] });
+  const addresses = useCollectionState([], { blank: BLANK_ADDRESS });
+  const taxIds = useCollectionState([], { blank: BLANK_TAX_ID });
   const editInitial = useRef({ form: null, emails: null, phones: null, addresses: null, taxIds: null });
 
   const { toast, snackProps } = useToast();
 
 
 
-  /* ── Email edit helpers ──────────────────────────────────────── */
-  const updateEmail = (idx, field, value) =>
-    setEditEmails((prev) => prev.map((e, i) => {
-      if (i !== idx) {
-        if (field === 'is_primary' && value) return { ...e, is_primary: false };
-        return e;
-      }
-      return { ...e, [field]: value };
-    }));
-  const addEmail = () => setEditEmails((prev) => [...prev, { ...BLANK_EMAIL, is_primary: !prev.filter((e) => !e._deleted).length }]);
-  const removeEmail = (idx) =>
-    setEditEmails((prev) => prev.map((e, i) => (i === idx ? { ...e, _deleted: true } : e)));
-
-  /* ── Phone edit helpers ──────────────────────────────────────── */
-  const updatePhone = (idx, field, value) =>
-    setEditPhones((prev) => prev.map((p, i) => {
-      if (i !== idx) {
-        if (field === 'is_primary' && value) return { ...p, is_primary: false };
-        return p;
-      }
-      return { ...p, [field]: value };
-    }));
-  const addPhone = () => setEditPhones((prev) => [...prev, { ...BLANK_PHONE, is_primary: !prev.filter((p) => !p._deleted).length }]);
-  const removePhone = (idx) =>
-    setEditPhones((prev) => prev.map((p, i) => (i === idx ? { ...p, _deleted: true } : p)));
-
-  /* ── Address edit helpers ────────────────────────────────────── */
-  const updateAddress = (idx, field, value) =>
-    setEditAddresses((prev) => prev.map((a, i) => (i === idx ? { ...a, [field]: value } : a)));
-  const addAddress = () => setEditAddresses((prev) => [...prev, { ...BLANK_ADDRESS }]);
-  const removeAddress = (idx) =>
-    setEditAddresses((prev) => prev.map((a, i) => (i === idx ? { ...a, _deleted: true } : a)));
-
-  /* ── Tax ID edit helpers ─────────────────────────────────────── */
-  const updateTaxId = (idx, field, value) =>
-    setEditTaxIds((prev) => prev.map((t, i) => (i === idx ? { ...t, [field]: value } : t)));
-  const addTaxId = () => setEditTaxIds((prev) => [...prev, { ...BLANK_TAX_ID }]);
-  const removeTaxId = (idx) =>
-    setEditTaxIds((prev) => prev.map((t, i) => (i === idx ? { ...t, _deleted: true } : t)));
-
   /* ── Sync query-fetched child data into edit state ──────────── */
   useEffect(() => {
     if (editDialog.isOpen && emailsRes?.rows) {
-      setEditEmails(emailsRes.rows);
+      emails.reset(emailsRes.rows);
       editInitial.current.emails = emailsRes.rows;
     }
   }, [editDialog.isOpen, emailsRes]);
 
   useEffect(() => {
     if (editDialog.isOpen && phonesRes?.rows) {
-      setEditPhones(phonesRes.rows);
+      phones.reset(phonesRes.rows);
       editInitial.current.phones = phonesRes.rows;
     }
   }, [editDialog.isOpen, phonesRes]);
 
   useEffect(() => {
     if (editDialog.isOpen && addressesRes?.rows) {
-      setEditAddresses(addressesRes.rows);
+      addresses.reset(addressesRes.rows);
       editInitial.current.addresses = addressesRes.rows;
     }
   }, [editDialog.isOpen, addressesRes]);
 
   useEffect(() => {
     if (editDialog.isOpen && taxIdsRes?.rows) {
-      setEditTaxIds(taxIdsRes.rows);
+      taxIds.reset(taxIdsRes.rows);
       editInitial.current.taxIds = taxIdsRes.rows;
     }
   }, [editDialog.isOpen, taxIdsRes]);
@@ -246,10 +208,10 @@ export default function ContactsPage() {
 
     setEditSourceId(row.source_id || null);
     if (!row.source_id) {
-      setEditEmails([]);
-      setEditPhones([]);
-      setEditAddresses([]);
-      setEditTaxIds([]);
+      emails.reset([]);
+      phones.reset([]);
+      addresses.reset([]);
+      taxIds.reset([]);
       editInitial.current.emails = [];
       editInitial.current.phones = [];
       editInitial.current.addresses = [];
@@ -274,12 +236,12 @@ export default function ContactsPage() {
         return !orig || fields.some((f) => c[f] !== orig[f]);
       });
     };
-    if (collectionChanged(editEmails, init.emails, ['email', 'label', 'is_primary'])) return true;
-    if (collectionChanged(editPhones, init.phones, ['country_code', 'phone_type', 'phone_number', 'is_primary'])) return true;
-    if (collectionChanged(editAddresses, init.addresses, ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'])) return true;
-    if (collectionChanged(editTaxIds, init.taxIds, ['country_code', 'tax_type', 'tax_value'])) return true;
+    if (collectionChanged(emails.items, init.emails, ['email', 'label', 'is_primary'])) return true;
+    if (collectionChanged(phones.items, init.phones, ['country_code', 'phone_type', 'phone_number', 'is_primary'])) return true;
+    if (collectionChanged(addresses.items, init.addresses, ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'])) return true;
+    if (collectionChanged(taxIds.items, init.taxIds, ['country_code', 'tax_type', 'tax_value'])) return true;
     return false;
-  }, [editForm, editEmails, editPhones, editAddresses, editTaxIds]);
+  }, [editForm, emails.items, phones.items, addresses.items, taxIds.items]);
 
   const handleCreate = async () => {
     try {
@@ -297,50 +259,23 @@ export default function ContactsPage() {
       await updateMut.mutateAsync({ filter: { id: editDialog.data.id }, changes: editForm });
 
       if (editDialog.data.source_id) {
-        for (const em of editEmails) {
-          if (em._deleted && em.id) {
-            await archiveEmailMut.mutateAsync({ id: em.id });
-          } else if (!em.id && !em._deleted) {
-            await createEmailMut.mutateAsync({ source_id: editDialog.data.source_id, email: em.email, label: em.label, is_primary: em.is_primary });
-          } else if (em.id && !em._deleted) {
-            await updateEmailMut.mutateAsync({ filter: { id: em.id }, changes: { email: em.email, label: em.label, is_primary: em.is_primary } });
-          }
-        }
-        for (const p of editPhones) {
-          if (p._deleted && p.id) {
-            await archivePhoneMut.mutateAsync({ id: p.id });
-          } else if (!p.id && !p._deleted) {
-            await createPhoneMut.mutateAsync({ source_id: editDialog.data.source_id, country_code: p.country_code, phone_type: p.phone_type, phone_number: p.phone_number, is_primary: p.is_primary });
-          } else if (p.id && !p._deleted) {
-            await updatePhoneMut.mutateAsync({ filter: { id: p.id }, changes: { country_code: p.country_code, phone_type: p.phone_type, phone_number: p.phone_number, is_primary: p.is_primary } });
-          }
-        }
-        for (const a of editAddresses) {
-          if (a._deleted && a.id) {
-            await archiveAddrMut.mutateAsync({ id: a.id });
-          } else if (!a.id && !a._deleted) {
-            const { _deleted, is_primary: _ip, ...rest } = a;
-            await createAddrMut.mutateAsync({ ...rest, source_id: editDialog.data.source_id });
-          } else if (a.id && !a._deleted) {
-            const { id, source_id: _sid, created_at: _ca, updated_at: _ua, created_by: _cb, updated_by: _ub, deactivated_at: _da, is_primary: _ip, ...changes } = a;
-            await updateAddrMut.mutateAsync({ filter: { id }, changes });
-          }
-        }
-        for (const t of editTaxIds) {
-          if (t._deleted && t.id) {
-            await archiveTaxIdMut.mutateAsync({ id: t.id });
-          } else if (!t.id && !t._deleted) {
-            await createTaxIdMut.mutateAsync({
-              source_id: editDialog.data.source_id, country_code: t.country_code,
-              tax_type: t.tax_type, tax_value: t.tax_value,
-            });
-          } else if (t.id && !t._deleted) {
-            await updateTaxIdMut.mutateAsync({
-              filter: { id: t.id },
-              changes: { country_code: t.country_code, tax_type: t.tax_type, tax_value: t.tax_value },
-            });
-          }
-        }
+        const sid = editDialog.data.source_id;
+        await saveCollection(emails.items, {
+          sourceId: sid, fields: ['email', 'label', 'is_primary'],
+          createMut: createEmailMut.mutateAsync, updateMut: updateEmailMut.mutateAsync, archiveMut: archiveEmailMut.mutateAsync,
+        });
+        await saveCollection(phones.items, {
+          sourceId: sid, fields: ['country_code', 'phone_type', 'phone_number', 'is_primary'],
+          createMut: createPhoneMut.mutateAsync, updateMut: updatePhoneMut.mutateAsync, archiveMut: archivePhoneMut.mutateAsync,
+        });
+        await saveCollection(addresses.items, {
+          sourceId: sid, fields: ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'],
+          createMut: createAddrMut.mutateAsync, updateMut: updateAddrMut.mutateAsync, archiveMut: archiveAddrMut.mutateAsync,
+        });
+        await saveCollection(taxIds.items, {
+          sourceId: sid, fields: ['country_code', 'tax_type', 'tax_value'],
+          createMut: createTaxIdMut.mutateAsync, updateMut: updateTaxIdMut.mutateAsync, archiveMut: archiveTaxIdMut.mutateAsync,
+        });
       }
 
       toast('Contact updated');
@@ -444,12 +379,6 @@ export default function ContactsPage() {
   }, [viewFilter, selectedRows.length, allActive, allArchived, selection.clearSelection, setArchiveOpen, setRestoreOpen, canImport, canExport, exportMut.isPending, handleExport]);
   useModuleToolbarRegistration(toolbar);
 
-  /* ── Visible (non-deleted) sub-collections for the form ─────── */
-  const visibleEmails = editEmails.filter((e) => !e._deleted);
-  const visiblePhones = editPhones.filter((p) => !p._deleted);
-  const visibleAddresses = editAddresses.filter((a) => !a._deleted);
-  const visibleTaxIds = editTaxIds.filter((t) => !t._deleted);
-
   return (
     <Box sx={pageContainerSx}>
       <DataTable
@@ -537,20 +466,20 @@ export default function ContactsPage() {
         <Divider />
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Typography variant="subtitle2">Emails</Typography>
-          <Button size="small" startIcon={<AddIcon />} onClick={addEmail}>Add Email</Button>
+          <Button size="small" startIcon={<AddIcon />} onClick={emails.add}>Add Email</Button>
         </Box>
-        {visibleEmails.length === 0 && (
+        {emails.visibleItems.length === 0 && (
           <Typography variant="body2" color="text.secondary">No emails</Typography>
         )}
-        {visibleEmails.map((em) => {
-          const idx = editEmails.indexOf(em);
+        {emails.visibleItems.map((em) => {
+          const idx = emails.items.indexOf(em);
           return (
             <Box key={em.id || idx} sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
               <TextField
                 label="Email"
                 type="email"
                 value={em.email}
-                onChange={(e) => updateEmail(idx, 'email', e.target.value)}
+                onChange={(e) => emails.update(idx, 'email', e.target.value)}
                 size="small"
                 sx={{ flex: 1, minWidth: 200 }}
               />
@@ -558,7 +487,7 @@ export default function ContactsPage() {
                 select
                 label="Label"
                 value={em.label}
-                onChange={(e) => updateEmail(idx, 'label', e.target.value)}
+                onChange={(e) => emails.update(idx, 'label', e.target.value)}
                 sx={{ minWidth: 120 }}
                 size="small"
               >
@@ -567,11 +496,11 @@ export default function ContactsPage() {
                 ))}
               </TextField>
               <FormControlLabel
-                control={<Checkbox checked={em.is_primary} onChange={(e) => updateEmail(idx, 'is_primary', e.target.checked)} size="small" />}
+                control={<Checkbox checked={em.is_primary} onChange={(e) => emails.update(idx, 'is_primary', e.target.checked)} size="small" />}
                 label="Primary"
                 sx={{ mr: 0 }}
               />
-              <IconButton size="small" onClick={() => removeEmail(idx)} color="error">
+              <IconButton size="small" onClick={() => emails.remove(idx)} color="error">
                 <DeleteOutlineIcon fontSize="small" />
               </IconButton>
             </Box>
@@ -582,13 +511,13 @@ export default function ContactsPage() {
         <Divider />
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Typography variant="subtitle2">Phone Numbers</Typography>
-          <Button size="small" startIcon={<AddIcon />} onClick={addPhone}>Add Phone</Button>
+          <Button size="small" startIcon={<AddIcon />} onClick={phones.add}>Add Phone</Button>
         </Box>
-        {visiblePhones.length === 0 && (
+        {phones.visibleItems.length === 0 && (
           <Typography variant="body2" color="text.secondary">No phone numbers</Typography>
         )}
-        {visiblePhones.map((phone) => {
-          const idx = editPhones.indexOf(phone);
+        {phones.visibleItems.map((phone) => {
+          const idx = phones.items.indexOf(phone);
           const countryCode = phone.country_code?.trim() || 'US';
           const country = COUNTRIES.find((c) => c.code === countryCode);
           return (
@@ -597,7 +526,7 @@ export default function ContactsPage() {
                 select
                 label="Type"
                 value={phone.phone_type}
-                onChange={(e) => updatePhone(idx, 'phone_type', e.target.value)}
+                onChange={(e) => phones.update(idx, 'phone_type', e.target.value)}
                 sx={{ minWidth: 120 }}
                 size="small"
               >
@@ -609,7 +538,7 @@ export default function ContactsPage() {
                 select
                 label="Country"
                 value={countryCode}
-                onChange={(e) => updatePhone(idx, 'country_code', e.target.value)}
+                onChange={(e) => phones.update(idx, 'country_code', e.target.value)}
                 SelectProps={{ renderValue: (val) => COUNTRIES.find((c) => c.code === val)?.dial_code || val }}
                 sx={{ minWidth: 80 }}
                 size="small"
@@ -621,17 +550,17 @@ export default function ContactsPage() {
               <PatternTextField
                 label="Number"
                 value={phone.phone_number}
-                onChange={(raw) => updatePhone(idx, 'phone_number', raw)}
+                onChange={(raw) => phones.update(idx, 'phone_number', raw)}
                 pattern={country?.placeholder}
                 size="small"
                 sx={{ flex: 1, minWidth: 160 }}
               />
               <FormControlLabel
-                control={<Checkbox checked={phone.is_primary} onChange={(e) => updatePhone(idx, 'is_primary', e.target.checked)} size="small" />}
+                control={<Checkbox checked={phone.is_primary} onChange={(e) => phones.update(idx, 'is_primary', e.target.checked)} size="small" />}
                 label="Primary"
                 sx={{ mr: 0 }}
               />
-              <IconButton size="small" onClick={() => removePhone(idx)} color="error">
+              <IconButton size="small" onClick={() => phones.remove(idx)} color="error">
                 <DeleteOutlineIcon fontSize="small" />
               </IconButton>
             </Box>
@@ -642,35 +571,35 @@ export default function ContactsPage() {
         <Divider />
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Typography variant="subtitle2">Addresses</Typography>
-          <Button size="small" startIcon={<AddIcon />} onClick={addAddress}>Add Address</Button>
+          <Button size="small" startIcon={<AddIcon />} onClick={addresses.add}>Add Address</Button>
         </Box>
-        {visibleAddresses.length === 0 && (
+        {addresses.visibleItems.length === 0 && (
           <Typography variant="body2" color="text.secondary">No addresses</Typography>
         )}
-        {visibleAddresses.map((addr) => {
-          const idx = editAddresses.indexOf(addr);
+        {addresses.visibleItems.map((addr) => {
+          const idx = addresses.items.indexOf(addr);
           return (
             <Box key={addr.id || idx} sx={{ ...formGroupCardSx, gridColumn: undefined }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                 <TextField
                   label="Label"
                   value={addr.label}
-                  onChange={(e) => updateAddress(idx, 'label', e.target.value)}
+                  onChange={(e) => addresses.update(idx, 'label', e.target.value)}
                   size="small"
                   sx={{ width: 200 }}
                 />
-                <IconButton size="small" onClick={() => removeAddress(idx)} color="error">
+                <IconButton size="small" onClick={() => addresses.remove(idx)} color="error">
                   <DeleteOutlineIcon fontSize="small" />
                 </IconButton>
               </Box>
               <Box sx={formGridSx}>
-                <TextField label="Address Line 1" value={addr.address_line_1} onChange={(e) => updateAddress(idx, 'address_line_1', e.target.value)} size="small" sx={formFullSpanSx} />
-                <TextField label="Address Line 2" value={addr.address_line_2} onChange={(e) => updateAddress(idx, 'address_line_2', e.target.value)} size="small" sx={formFullSpanSx} />
-                <TextField label="Address Line 3" value={addr.address_line_3 || ''} onChange={(e) => updateAddress(idx, 'address_line_3', e.target.value)} size="small" sx={formFullSpanSx} />
-                <TextField label="City" value={addr.city} onChange={(e) => updateAddress(idx, 'city', e.target.value)} size="small" />
-                <TextField label="State / Province" value={addr.state_province} onChange={(e) => updateAddress(idx, 'state_province', e.target.value)} size="small" />
-                <TextField label="Postal Code" value={addr.postal_code} onChange={(e) => updateAddress(idx, 'postal_code', e.target.value)} size="small" />
-                <TextField label="Country Code" value={addr.country_code} onChange={(e) => updateAddress(idx, 'country_code', e.target.value)} size="small" inputProps={{ maxLength: 2 }} />
+                <TextField label="Address Line 1" value={addr.address_line_1} onChange={(e) => addresses.update(idx, 'address_line_1', e.target.value)} size="small" sx={formFullSpanSx} />
+                <TextField label="Address Line 2" value={addr.address_line_2} onChange={(e) => addresses.update(idx, 'address_line_2', e.target.value)} size="small" sx={formFullSpanSx} />
+                <TextField label="Address Line 3" value={addr.address_line_3 || ''} onChange={(e) => addresses.update(idx, 'address_line_3', e.target.value)} size="small" sx={formFullSpanSx} />
+                <TextField label="City" value={addr.city} onChange={(e) => addresses.update(idx, 'city', e.target.value)} size="small" />
+                <TextField label="State / Province" value={addr.state_province} onChange={(e) => addresses.update(idx, 'state_province', e.target.value)} size="small" />
+                <TextField label="Postal Code" value={addr.postal_code} onChange={(e) => addresses.update(idx, 'postal_code', e.target.value)} size="small" />
+                <TextField label="Country Code" value={addr.country_code} onChange={(e) => addresses.update(idx, 'country_code', e.target.value)} size="small" inputProps={{ maxLength: 2 }} />
               </Box>
             </Box>
           );
@@ -680,13 +609,13 @@ export default function ContactsPage() {
         <Divider />
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Typography variant="subtitle2">Tax Identifiers</Typography>
-          <Button size="small" startIcon={<AddIcon />} onClick={addTaxId}>Add Tax ID</Button>
+          <Button size="small" startIcon={<AddIcon />} onClick={taxIds.add}>Add Tax ID</Button>
         </Box>
-        {visibleTaxIds.length === 0 && (
+        {taxIds.visibleItems.length === 0 && (
           <Typography variant="body2" color="text.secondary">No tax identifiers</Typography>
         )}
-        {visibleTaxIds.map((taxId) => {
-          const idx = editTaxIds.indexOf(taxId);
+        {taxIds.visibleItems.map((taxId) => {
+          const idx = taxIds.items.indexOf(taxId);
           const countryCode = taxId.country_code?.trim() || '';
           const taxTypes = TAX_TYPES[countryCode] || TAX_TYPES._OTHER;
           return (
@@ -697,9 +626,9 @@ export default function ContactsPage() {
                   label="Country"
                   value={countryCode}
                   onChange={(e) => {
-                    updateTaxId(idx, 'country_code', e.target.value);
+                    taxIds.update(idx, 'country_code', e.target.value);
                     const newTypes = TAX_TYPES[e.target.value] || TAX_TYPES._OTHER;
-                    updateTaxId(idx, 'tax_type', newTypes[0]?.code || 'TIN');
+                    taxIds.update(idx, 'tax_type', newTypes[0]?.code || 'TIN');
                   }}
                   SelectProps={{ renderValue: (val) => val }}
                   size="small"
@@ -713,7 +642,7 @@ export default function ContactsPage() {
                   select
                   label="Type"
                   value={taxId.tax_type}
-                  onChange={(e) => updateTaxId(idx, 'tax_type', e.target.value)}
+                  onChange={(e) => taxIds.update(idx, 'tax_type', e.target.value)}
                   SelectProps={{ renderValue: (val) => val }}
                   size="small"
                   sx={{ minWidth: 80 }}
@@ -725,12 +654,12 @@ export default function ContactsPage() {
                 <PatternTextField
                   label="Tax ID Value"
                   value={taxId.tax_value}
-                  onChange={(raw) => updateTaxId(idx, 'tax_value', raw)}
+                  onChange={(raw) => taxIds.update(idx, 'tax_value', raw)}
                   pattern={taxTypes.find((t) => t.code === taxId.tax_type)?.placeholder}
                   size="small"
                   sx={{ flex: 1, minWidth: 160 }}
                 />
-                <IconButton size="small" onClick={() => removeTaxId(idx)} color="error">
+                <IconButton size="small" onClick={() => taxIds.remove(idx)} color="error">
                   <DeleteOutlineIcon fontSize="small" />
                 </IconButton>
               </Box>
