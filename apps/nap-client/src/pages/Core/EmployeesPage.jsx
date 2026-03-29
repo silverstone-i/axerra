@@ -9,6 +9,7 @@
  */
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useDialogState } from '../../hooks/useDialogState.js';
 import { useFormState } from '../../hooks/useFormState.js';
 import { useQueryClient } from '@tanstack/react-query';
 import Autocomplete from '@mui/material/Autocomplete';
@@ -150,16 +151,13 @@ export default function EmployeesPage() {
   const { selectedRows, allActive, allArchived } = selection;
 
   /* ── Dialog state ───────────────────────────────────────────── */
-  const [importOpen, setImportOpen] = useState(false);
+  const importDialog = useDialogState();
   const [importErrors, setImportErrors] = useState(null);
-  const [viewOpen, setViewOpen] = useState(false);
-  const [viewEmployee, setViewEmployee] = useState(null);
+  const viewDialog = useDialogState();
   const [viewSourceId, setViewSourceId] = useState(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [editRow, setEditRow] = useState(null);
-  const [resetPwOpen, setResetPwOpen] = useState(false);
-  const [resetPwTarget, setResetPwTarget] = useState(null);
+  const createDialog = useDialogState();
+  const editDialog = useDialogState();
+  const resetPwDialog = useDialogState();
 
   const [editSourceId, setEditSourceId] = useState(null);
   const { data: phonesRes } = usePhoneNumbers({ source_id: editSourceId, includeDeactivated: 'false' }, { enabled: !!editSourceId });
@@ -260,42 +258,40 @@ export default function EmployeesPage() {
 
   /* ── Sync query-fetched phones/addresses/taxIds into edit state */
   useEffect(() => {
-    if (editOpen && phonesRes?.rows) {
+    if (editDialog.isOpen && phonesRes?.rows) {
       setEditPhones(phonesRes.rows);
       editInitial.current.phones = phonesRes.rows;
     }
-  }, [editOpen, phonesRes]);
+  }, [editDialog.isOpen, phonesRes]);
 
   useEffect(() => {
-    if (editOpen && emailsRes?.rows) {
+    if (editDialog.isOpen && emailsRes?.rows) {
       setEditEmails(emailsRes.rows);
       editInitial.current.emails = emailsRes.rows;
     }
-  }, [editOpen, emailsRes]);
+  }, [editDialog.isOpen, emailsRes]);
 
   useEffect(() => {
-    if (editOpen && addressesRes?.rows) {
+    if (editDialog.isOpen && addressesRes?.rows) {
       setEditAddresses(addressesRes.rows);
       editInitial.current.addresses = addressesRes.rows;
     }
-  }, [editOpen, addressesRes]);
+  }, [editDialog.isOpen, addressesRes]);
 
   useEffect(() => {
-    if (editOpen && taxIdsRes?.rows) {
+    if (editDialog.isOpen && taxIdsRes?.rows) {
       setEditTaxIds(taxIdsRes.rows);
       editInitial.current.taxIds = taxIdsRes.rows;
     }
-  }, [editOpen, taxIdsRes]);
+  }, [editDialog.isOpen, taxIdsRes]);
 
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {
-    setViewEmployee(row);
+    viewDialog.open(row);
     setViewSourceId(row.source_id || null);
-    setViewOpen(true);
   }, []);
 
   const handleEdit = useCallback((row) => {
-    setEditRow(row);
     const form = {
       first_name: row.first_name ?? '',
       last_name: row.last_name ?? '',
@@ -322,7 +318,7 @@ export default function EmployeesPage() {
       editInitial.current.taxIds = [];
     }
 
-    setEditOpen(true);
+    editDialog.open(row);
   }, []);
 
   /** Per-row kebab actions — Reset Password shown for app users when permitted */
@@ -333,10 +329,7 @@ export default function EmployeesPage() {
         actions.push({
           label: 'Reset Password',
           icon: <LockResetIcon fontSize="small" />,
-          onClick: (r) => {
-            setResetPwTarget(r);
-            setResetPwOpen(true);
-          },
+          onClick: (r) => resetPwDialog.open(r),
         });
       }
       return actions;
@@ -372,7 +365,7 @@ export default function EmployeesPage() {
     try {
       await createMut.mutateAsync(createForm);
       toast('Employee created');
-      setCreateOpen(false);
+      createDialog.close();
       resetCreateForm();
     } catch (err) {
       toast(errMsg(err), 'error');
@@ -384,18 +377,18 @@ export default function EmployeesPage() {
       // When toggling is_app_user on, include the selected login email in the
       // employee update payload so the backend can provision before email mutations run
       const changes = { ...editForm };
-      if (changes.is_app_user && !editRow.is_app_user) {
+      if (changes.is_app_user && !editDialog.data.is_app_user) {
         const loginEm = editEmails.find((em) => em.is_login && !em._deleted);
         if (loginEm) changes.email = loginEm.email;
       }
-      await updateMut.mutateAsync({ filter: { id: editRow.id }, changes });
+      await updateMut.mutateAsync({ filter: { id: editDialog.data.id }, changes });
 
-      if (editRow.source_id) {
+      if (editDialog.data.source_id) {
         for (const p of editPhones) {
           if (p._deleted && p.id) {
             await archivePhoneMut.mutateAsync({ id: p.id });
           } else if (!p.id && !p._deleted) {
-            await createPhoneMut.mutateAsync({ source_id: editRow.source_id, country_code: p.country_code, phone_type: p.phone_type, phone_number: p.phone_number, is_primary: p.is_primary });
+            await createPhoneMut.mutateAsync({ source_id: editDialog.data.source_id, country_code: p.country_code, phone_type: p.phone_type, phone_number: p.phone_number, is_primary: p.is_primary });
           } else if (p.id && !p._deleted) {
             await updatePhoneMut.mutateAsync({ filter: { id: p.id }, changes: { country_code: p.country_code, phone_type: p.phone_type, phone_number: p.phone_number, is_primary: p.is_primary } });
           }
@@ -405,7 +398,7 @@ export default function EmployeesPage() {
             await archiveEmailMut.mutateAsync({ id: em.id });
           } else if (!em.id && !em._deleted) {
             await createEmailMut.mutateAsync({
-              source_id: editRow.source_id, email: em.email, label: em.label,
+              source_id: editDialog.data.source_id, email: em.email, label: em.label,
               is_primary: em.is_primary, is_login: em.is_login,
             });
           } else if (em.id && !em._deleted) {
@@ -420,7 +413,7 @@ export default function EmployeesPage() {
             await archiveAddrMut.mutateAsync({ id: a.id });
           } else if (!a.id && !a._deleted) {
             const { _deleted, ...rest } = a;
-            await createAddrMut.mutateAsync({ ...rest, source_id: editRow.source_id });
+            await createAddrMut.mutateAsync({ ...rest, source_id: editDialog.data.source_id });
           } else if (a.id && !a._deleted) {
             const { id, source_id: _sid, created_at: _ca, updated_at: _ua, created_by: _cb, updated_by: _ub, deactivated_at: _da, ...changes } = a;
             await updateAddrMut.mutateAsync({ filter: { id }, changes });
@@ -431,7 +424,7 @@ export default function EmployeesPage() {
             await archiveTaxIdMut.mutateAsync({ id: t.id });
           } else if (!t.id && !t._deleted) {
             await createTaxIdMut.mutateAsync({
-              source_id: editRow.source_id, country_code: t.country_code,
+              source_id: editDialog.data.source_id, country_code: t.country_code,
               tax_type: t.tax_type, tax_value: t.tax_value,
             });
           } else if (t.id && !t._deleted) {
@@ -443,12 +436,11 @@ export default function EmployeesPage() {
         }
       }
 
-      if (editForm.is_app_user !== editRow.is_app_user) {
+      if (editForm.is_app_user !== editDialog.data.is_app_user) {
         qc.invalidateQueries({ queryKey: ['nap-users'] });
       }
       toast('Employee updated');
-      setEditOpen(false);
-      setEditRow(null);
+      editDialog.close();
       setEditSourceId(null);
     } catch (err) {
       toast(errMsg(err), 'error');
@@ -460,7 +452,7 @@ export default function EmployeesPage() {
     try {
       const result = await importMut.mutateAsync(formData);
       toast(`Imported ${result.inserted} records`);
-      setImportOpen(false);
+      importDialog.close();
     } catch (err) {
       const validationErrors = err.payload?.errors;
       if (validationErrors?.length) {
@@ -526,7 +518,7 @@ export default function EmployeesPage() {
       primary.push({
         label: 'Import',
         variant: 'outlined',
-        onClick: () => setImportOpen(true),
+        onClick: () => importDialog.open(),
       });
     }
 
@@ -534,7 +526,7 @@ export default function EmployeesPage() {
       label: 'Create Employee',
       variant: 'contained',
       color: 'primary',
-      onClick: () => { resetCreateForm(); setCreateOpen(true); },
+      onClick: () => { resetCreateForm(); createDialog.open(); },
     });
 
     return {
@@ -568,40 +560,40 @@ export default function EmployeesPage() {
       />
 
       {/* ── View Details Dialog ──────────────────────────────────── */}
-      <Dialog open={viewOpen} onClose={() => { setViewOpen(false); setViewSourceId(null); }} maxWidth="sm" fullWidth>
+      <Dialog open={viewDialog.isOpen} onClose={() => { viewDialog.close(); setViewSourceId(null); }} maxWidth="sm" fullWidth>
         <DialogTitle sx={dialogHeaderSx}>
           <Box>
             <span>Employee Details</span>
-            {viewEmployee && (
+            {viewDialog.data && (
               <Typography variant="body2" color="text.secondary">
-                {viewEmployee.first_name} {viewEmployee.last_name}
+                {viewDialog.data.first_name} {viewDialog.data.last_name}
               </Typography>
             )}
           </Box>
           <Box sx={dialogActionBoxSx}>
-            <Button size="small" color="inherit" onClick={() => { setViewOpen(false); setViewSourceId(null); }}>
+            <Button size="small" color="inherit" onClick={() => { viewDialog.close(); setViewSourceId(null); }}>
               Close
             </Button>
           </Box>
         </DialogTitle>
         <DialogContent dividers>
-          {viewEmployee && (
+          {viewDialog.data && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box sx={detailGridSx}>
-                <FieldRow label="Code" value={viewEmployee.code || '\u2014'} />
-                <FieldRow label="First Name" value={viewEmployee.first_name} />
-                <FieldRow label="Last Name" value={viewEmployee.last_name} />
-                <FieldRow label="Position" value={viewEmployee.position || '\u2014'} />
-                <FieldRow label="Department" value={viewEmployee.department || '\u2014'} />
-                <FieldRow label="App User" value={viewEmployee.is_app_user ? 'Yes' : 'No'} />
-                <FieldRow label="Roles" value={(viewEmployee.roles ?? []).join(', ') || '\u2014'} />
+                <FieldRow label="Code" value={viewDialog.data.code || '\u2014'} />
+                <FieldRow label="First Name" value={viewDialog.data.first_name} />
+                <FieldRow label="Last Name" value={viewDialog.data.last_name} />
+                <FieldRow label="Position" value={viewDialog.data.position || '\u2014'} />
+                <FieldRow label="Department" value={viewDialog.data.department || '\u2014'} />
+                <FieldRow label="App User" value={viewDialog.data.is_app_user ? 'Yes' : 'No'} />
+                <FieldRow label="Roles" value={(viewDialog.data.roles ?? []).join(', ') || '\u2014'} />
                 <FieldRow label="Status">
-                  <StatusBadge status={viewEmployee.deactivated_at ? 'archived' : 'active'} />
+                  <StatusBadge status={viewDialog.data.deactivated_at ? 'archived' : 'active'} />
                 </FieldRow>
-                <FieldRow label="Primary Contact" value={viewEmployee.is_primary_contact ? 'Yes' : 'No'} />
-                <FieldRow label="Billing Contact" value={viewEmployee.is_billing_contact ? 'Yes' : 'No'} />
-                <FieldRow label="Created" value={fmtDate(viewEmployee.created_at)} />
-                <FieldRow label="Updated" value={fmtDate(viewEmployee.updated_at)} />
+                <FieldRow label="Primary Contact" value={viewDialog.data.is_primary_contact ? 'Yes' : 'No'} />
+                <FieldRow label="Billing Contact" value={viewDialog.data.is_billing_contact ? 'Yes' : 'No'} />
+                <FieldRow label="Created" value={fmtDate(viewDialog.data.created_at)} />
+                <FieldRow label="Updated" value={fmtDate(viewDialog.data.updated_at)} />
               </Box>
 
               <PhoneNumbersSection phones={viewPhones} />
@@ -614,7 +606,7 @@ export default function EmployeesPage() {
       </Dialog>
 
       {/* ── Create Employee Dialog ───────────────────────────────── */}
-      <FormDialog open={createOpen} title="Create Employee" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={() => setCreateOpen(false)}>
+      <FormDialog open={createDialog.isOpen} title="Create Employee" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={createDialog.close}>
         <TextField label="First Name" required value={createForm.first_name} onChange={onCreateField('first_name')} />
         <TextField label="Last Name" required value={createForm.last_name} onChange={onCreateField('last_name')} />
         <TextField label="Code" value={createForm.code} onChange={onCreateField('code')} inputProps={{ maxLength: 16 }} />
@@ -636,7 +628,7 @@ export default function EmployeesPage() {
       </FormDialog>
 
       {/* ── Edit Employee Dialog ─────────────────────────────── */}
-      <FormDialog open={editOpen} title="Edit Employee" submitLabel="Save Changes" maxWidth="md" loading={updateMut.isPending} submitDisabled={!hasEditChanges} onSubmit={handleUpdate} onCancel={() => { setEditOpen(false); setEditRow(null); setEditSourceId(null); }}>
+      <FormDialog open={editDialog.isOpen} title="Edit Employee" submitLabel="Save Changes" maxWidth="md" loading={updateMut.isPending} submitDisabled={!hasEditChanges} onSubmit={handleUpdate} onCancel={() => { editDialog.close(); setEditSourceId(null); }}>
         <Box sx={formGridSx}>
           <TextField label="First Name" required value={editForm.first_name} onChange={onEditField('first_name')} />
           <TextField label="Last Name" required value={editForm.last_name} onChange={onEditField('last_name')} />
@@ -658,7 +650,7 @@ export default function EmployeesPage() {
         </Box>
 
         {editForm.is_app_user && canResetPassword && (
-          <Button variant="outlined" size="small" onClick={() => { setResetPwTarget(editRow); setResetPwOpen(true); }}>
+          <Button variant="outlined" size="small" onClick={() => resetPwDialog.open(editDialog.data)}>
             Reset Password
           </Button>
         )}
@@ -764,7 +756,7 @@ export default function EmployeesPage() {
               />
               {editForm.is_app_user && (
                 <FormControlLabel
-                  control={<Checkbox checked={em.is_login} onChange={(e) => updateEmail(idx, 'is_login', e.target.checked)} size="small" disabled={editRow?.is_app_user} />}
+                  control={<Checkbox checked={em.is_login} onChange={(e) => updateEmail(idx, 'is_login', e.target.checked)} size="small" disabled={editDialog.data?.is_app_user} />}
                   label="Login"
                   sx={{ mr: 0 }}
                 />
@@ -878,24 +870,24 @@ export default function EmployeesPage() {
       </FormDialog>
 
       <ImportDialog
-        open={importOpen}
+        open={importDialog.isOpen}
         title="Import Employees"
         loading={importMut.isPending}
         errors={importErrors}
         onSubmit={handleImport}
-        onCancel={() => { setImportOpen(false); setImportErrors(null); }}
+        onCancel={() => { importDialog.close(); setImportErrors(null); }}
       />
 
       <ConfirmDialog {...archiveConfirmProps} />
       <ConfirmDialog {...restoreConfirmProps} />
 
       <ResetPasswordDialog
-        open={resetPwOpen}
-        onClose={() => { setResetPwOpen(false); setResetPwTarget(null); }}
-        onSuccess={() => { setResetPwOpen(false); setResetPwTarget(null); toast('Password reset successfully'); }}
+        open={resetPwDialog.isOpen}
+        onClose={resetPwDialog.close}
+        onSuccess={() => { resetPwDialog.close(); toast('Password reset successfully'); }}
         onReset={(id, password) => resetPwMut.mutateAsync({ id, password })}
-        entityId={resetPwTarget?.id}
-        entityName={resetPwTarget ? `${resetPwTarget.first_name} ${resetPwTarget.last_name}` : ''}
+        entityId={resetPwDialog.data?.id}
+        entityName={resetPwDialog.data ? `${resetPwDialog.data.first_name} ${resetPwDialog.data.last_name}` : ''}
       />
 
       <SetPasswordPopover anchorEl={pwAnchor} onConfirm={handlePwConfirm} onCancel={handlePwCancel} />

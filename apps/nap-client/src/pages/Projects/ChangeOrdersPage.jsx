@@ -7,6 +7,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useFormState } from '../../hooks/useFormState.js';
+import { useDialogState } from '../../hooks/useDialogState.js';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -82,12 +83,10 @@ export default function ChangeOrdersPage() {
   const { selectedRows, allActive, allArchived } = selection;
 
   /* ── Dialog state ───────────────────────────────────────────── */
-  const [importOpen, setImportOpen] = useState(false);
-  const [viewOpen, setViewOpen] = useState(false);
-  const [viewCO, setViewCO] = useState(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [editRow, setEditRow] = useState(null);
+  const importDialog = useDialogState();
+  const viewDialog = useDialogState();
+  const createDialog = useDialogState();
+  const editDialog = useDialogState();
 
   const { form: createForm, field: onCreateField, reset: resetCreateForm } = useFormState(BLANK_CREATE);
   const { form: editForm, setForm: setEditForm, field: onEditField } = useFormState(BLANK_EDIT);
@@ -96,26 +95,24 @@ export default function ChangeOrdersPage() {
 
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {
-    setViewCO(row);
-    setViewOpen(true);
+    viewDialog.open(row);
   }, []);
 
   const handleEdit = useCallback((row) => {
-    setEditRow(row);
     setEditForm({
       co_number: row.co_number ?? '',
       title: row.title ?? '',
       reason: row.reason ?? '',
       total_amount: row.total_amount ?? '',
     });
-    setEditOpen(true);
+    editDialog.open(row);
   }, []);
 
   const handleCreate = async () => {
     try {
       await createMut.mutateAsync(createForm);
       toast('Change order created');
-      setCreateOpen(false);
+      createDialog.close();
       resetCreateForm();
     } catch (err) {
       toast(errMsg(err), 'error');
@@ -124,10 +121,9 @@ export default function ChangeOrdersPage() {
 
   const handleUpdate = async () => {
     try {
-      await updateMut.mutateAsync({ filter: { id: editRow.id }, changes: editForm });
+      await updateMut.mutateAsync({ filter: { id: editDialog.data.id }, changes: editForm });
       toast('Change order updated');
-      setEditOpen(false);
-      setEditRow(null);
+      editDialog.close();
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -137,7 +133,7 @@ export default function ChangeOrdersPage() {
     try {
       const result = await importMut.mutateAsync(formData);
       toast(`Imported ${result.inserted} records`);
-      setImportOpen(false);
+      importDialog.close();
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -191,14 +187,14 @@ export default function ChangeOrdersPage() {
       primary.push({ label: 'Export', variant: 'outlined', disabled: exportMut.isPending, onClick: handleExport });
     }
     if (canImport) {
-      primary.push({ label: 'Import', variant: 'outlined', onClick: () => setImportOpen(true) });
+      primary.push({ label: 'Import', variant: 'outlined', onClick: () => importDialog.open() });
     }
 
     primary.push({
       label: 'Create CO',
       variant: 'contained',
       color: 'primary',
-      onClick: () => { resetCreateForm(); setCreateOpen(true); },
+      onClick: () => { resetCreateForm(); createDialog.open(); },
     });
 
     return {
@@ -225,40 +221,40 @@ export default function ChangeOrdersPage() {
       />
 
       {/* ── View Details Dialog ──────────────────────────────────── */}
-      <Dialog open={viewOpen} onClose={() => setViewOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={viewDialog.isOpen} onClose={viewDialog.close} maxWidth="sm" fullWidth>
         <DialogTitle sx={dialogHeaderSx}>
           <Box>
             <span>Change Order Details</span>
-            {viewCO && (
+            {viewDialog.data && (
               <Typography variant="body2" color="text.secondary">
-                {viewCO.title}
+                {viewDialog.data.title}
               </Typography>
             )}
           </Box>
           <Box sx={dialogActionBoxSx}>
-            <Button size="small" color="inherit" onClick={() => setViewOpen(false)}>
+            <Button size="small" color="inherit" onClick={viewDialog.close}>
               Close
             </Button>
           </Box>
         </DialogTitle>
         <DialogContent dividers>
-          {viewCO && (
+          {viewDialog.data && (
             <Box sx={detailGridSx}>
-              <FieldRow label="CO Number" value={viewCO.co_number || '\u2014'} />
-              <FieldRow label="Title" value={viewCO.title} />
+              <FieldRow label="CO Number" value={viewDialog.data.co_number || '\u2014'} />
+              <FieldRow label="Title" value={viewDialog.data.title} />
               <FieldRow label="Status">
-                <StatusBadge status={STATUS_MAP[viewCO.status] || 'active'} label={viewCO.status} />
+                <StatusBadge status={STATUS_MAP[viewDialog.data.status] || 'active'} label={viewDialog.data.status} />
               </FieldRow>
-              <FieldRow label="Total Amount" value={viewCO.total_amount ?? '\u2014'} />
-              <FieldRow label="Created" value={fmtDate(viewCO.created_at)} />
-              <FieldRow label="Updated" value={fmtDate(viewCO.updated_at)} />
+              <FieldRow label="Total Amount" value={viewDialog.data.total_amount ?? '\u2014'} />
+              <FieldRow label="Created" value={fmtDate(viewDialog.data.created_at)} />
+              <FieldRow label="Updated" value={fmtDate(viewDialog.data.updated_at)} />
             </Box>
           )}
         </DialogContent>
       </Dialog>
 
       {/* ── Create Change Order Dialog ────────────────────────────── */}
-      <FormDialog open={createOpen} title="Create Change Order" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={() => setCreateOpen(false)}>
+      <FormDialog open={createDialog.isOpen} title="Create Change Order" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={createDialog.close}>
         <TextField label="Unit ID" required value={createForm.unit_id} onChange={onCreateField('unit_id')} helperText="UUID of the unit" />
         <TextField label="CO Number" required value={createForm.co_number} onChange={onCreateField('co_number')} inputProps={{ maxLength: 16 }} />
         <TextField label="Title" required value={createForm.title} onChange={onCreateField('title')} />
@@ -267,14 +263,14 @@ export default function ChangeOrdersPage() {
       </FormDialog>
 
       {/* ── Edit Change Order Dialog ──────────────────────────────── */}
-      <FormDialog open={editOpen} title="Edit Change Order" submitLabel="Save Changes" loading={updateMut.isPending} onSubmit={handleUpdate} onCancel={() => { setEditOpen(false); setEditRow(null); }}>
+      <FormDialog open={editDialog.isOpen} title="Edit Change Order" submitLabel="Save Changes" loading={updateMut.isPending} onSubmit={handleUpdate} onCancel={editDialog.close}>
         <TextField label="CO Number" required value={editForm.co_number} onChange={onEditField('co_number')} inputProps={{ maxLength: 16 }} />
         <TextField label="Title" required value={editForm.title} onChange={onEditField('title')} />
         <TextField label="Reason" multiline minRows={2} value={editForm.reason} onChange={onEditField('reason')} />
         <TextField label="Total Amount" type="number" value={editForm.total_amount} onChange={onEditField('total_amount')} />
       </FormDialog>
 
-      <ImportDialog open={importOpen} title="Import Change Orders" loading={importMut.isPending} onSubmit={handleImport} onCancel={() => setImportOpen(false)} />
+      <ImportDialog open={importDialog.isOpen} title="Import Change Orders" loading={importMut.isPending} onSubmit={handleImport} onCancel={importDialog.close} />
 
       <ConfirmDialog {...archiveConfirmProps} />
       <ConfirmDialog {...restoreConfirmProps} />

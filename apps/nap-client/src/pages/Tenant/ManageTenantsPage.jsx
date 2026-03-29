@@ -16,6 +16,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useFormState } from '../../hooks/useFormState.js';
+import { useDialogState } from '../../hooks/useDialogState.js';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -143,11 +144,10 @@ export default function ManageTenantsPage() {
   const { data: tenantRes, isLoading } = useTenants();
   const allRows = tenantRes?.rows ?? [];
 
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [detailTenantId, setDetailTenantId] = useState(null);
-  const detailTenant = allRows.find((r) => r.id === detailTenantId) ?? null;
-  const { data: contactsData } = useTenantContacts(detailTenantId);
-  const { data: companyData } = useTenantCompany(detailTenantId);
+  const detailDialog = useDialogState();
+  const detailTenant = allRows.find((r) => r.id === detailDialog.data) ?? null;
+  const { data: contactsData } = useTenantContacts(detailDialog.data);
+  const { data: companyData } = useTenantCompany(detailDialog.data);
 
   /* ── view filter (Active / All / Archived) ───────────────── */
   const [viewFilter, setViewFilter] = useState('active');
@@ -169,12 +169,11 @@ export default function ManageTenantsPage() {
   const { selectedRows, allActive, allArchived } = selection;
 
   /* ── dialog state ────────────────────────────────────────── */
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [editRow, setEditRow] = useState(null);
+  const createDialog = useDialogState();
+  const editDialog = useDialogState();
+  const importDialog = useDialogState();
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [restoreOpen, setRestoreOpen] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
   const [importErrors, setImportErrors] = useState(null);
 
   /* ── form state ──────────────────────────────────────────── */
@@ -187,12 +186,10 @@ export default function ManageTenantsPage() {
   const handleView = useCallback((row) => {
     qc.invalidateQueries({ queryKey: [...TENANTS_KEY, row.id, 'contacts'] });
     qc.invalidateQueries({ queryKey: [...TENANTS_KEY, row.id, 'company'] });
-    setDetailTenantId(row.id);
-    setDetailOpen(true);
+    detailDialog.open(row.id);
   }, [qc]);
 
   const handleEdit = useCallback((row) => {
-    setEditRow(row);
     setEditForm({
       company: row.company ?? '',
       status: row.status ?? 'active',
@@ -201,19 +198,18 @@ export default function ManageTenantsPage() {
       max_users: row.max_users ?? 5,
       notes: row.notes ?? '',
     });
-    setEditOpen(true);
+    editDialog.open(row);
   }, []);
 
   /* ── CRUD handlers ───────────────────────────────────────── */
   const handleUpdate = async () => {
     try {
       await updateMut.mutateAsync({
-        filter: { id: editRow.id },
+        filter: { id: editDialog.data.id },
         changes: { ...editForm, max_users: Number(editForm.max_users) || 5 },
       });
       toast('Tenant updated');
-      setEditOpen(false);
-      setEditRow(null);
+      editDialog.close();
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -264,7 +260,7 @@ export default function ManageTenantsPage() {
       if (result.inserted) parts.push(`${result.inserted} created`);
       if (result.updated) parts.push(`${result.updated} updated`);
       toast(parts.join(', ') || 'Import complete');
-      setImportOpen(false);
+      importDialog.close();
     } catch (err) {
       const validationErrors = err.payload?.errors;
       if (validationErrors?.length) {
@@ -303,7 +299,7 @@ export default function ManageTenantsPage() {
     primary.push({
       label: 'Import',
       variant: 'outlined',
-      onClick: () => setImportOpen(true),
+      onClick: () => importDialog.open(),
     });
 
     if (viewFilter === 'active' || viewFilter === 'all') {
@@ -329,7 +325,7 @@ export default function ManageTenantsPage() {
       label: 'Create Tenant',
       variant: 'contained',
       color: 'primary',
-      onClick: () => setCreateOpen(true),
+      onClick: () => createDialog.open(),
     });
 
     return {
@@ -357,7 +353,7 @@ export default function ManageTenantsPage() {
       />
 
       {/* ── View Details ───────────────────────────────────── */}
-      <Dialog open={detailOpen} onClose={() => setDetailOpen(false)} maxWidth="md" fullWidth>
+      <Dialog open={detailDialog.isOpen} onClose={detailDialog.close} maxWidth="md" fullWidth>
         <DialogTitle sx={dialogHeaderSx}>
           <Box>
             <span>Tenant Details</span>
@@ -368,7 +364,7 @@ export default function ManageTenantsPage() {
             )}
           </Box>
           <Box sx={dialogActionBoxSx}>
-            <Button size="small" color="inherit" onClick={() => setDetailOpen(false)}>
+            <Button size="small" color="inherit" onClick={detailDialog.close}>
               Close
             </Button>
           </Box>
@@ -476,26 +472,26 @@ export default function ManageTenantsPage() {
       </Dialog>
 
       {/* ── Create Wizard ──────────────────────────────────── */}
-      <CreateTenantWizard open={createOpen} onClose={() => setCreateOpen(false)} onSuccess={toast} />
+      <CreateTenantWizard open={createDialog.isOpen} onClose={createDialog.close} onSuccess={toast} />
 
       {/* ── Edit Dialog ────────────────────────────────────── */}
       <FormDialog
-        open={editOpen}
+        open={editDialog.isOpen}
         title="Edit Tenant"
         submitLabel="Save Changes"
         loading={updateMut.isPending}
         onSubmit={handleUpdate}
-        onCancel={() => { setEditOpen(false); setEditRow(null); }}
+        onCancel={editDialog.close}
       >
-        {editRow && (
+        {editDialog.data && (
           <>
             <TextField
               label="Tenant Code"
-              value={editRow.tenant_code}
+              value={editDialog.data.tenant_code}
               disabled
               helperText="Cannot be changed after creation"
             />
-            <TextField label="Schema Name" value={editRow.schema_name ?? ''} disabled />
+            <TextField label="Schema Name" value={editDialog.data.schema_name ?? ''} disabled />
           </>
         )}
         <TextField
@@ -572,12 +568,12 @@ export default function ManageTenantsPage() {
 
       {/* ── Import Dialog ──────────────────────────────────── */}
       <ImportDialog
-        open={importOpen}
+        open={importDialog.isOpen}
         title="Import Tenants"
         loading={importMut.isPending}
         errors={importErrors}
         onSubmit={handleImport}
-        onCancel={() => { setImportOpen(false); setImportErrors(null); }}
+        onCancel={() => { importDialog.close(); setImportErrors(null); }}
       />
 
       {/* ── Snackbar ───────────────────────────────────────── */}

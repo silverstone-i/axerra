@@ -13,6 +13,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useFormState } from '../../hooks/useFormState.js';
+import { useDialogState } from '../../hooks/useDialogState.js';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -105,12 +106,10 @@ export default function ActivitiesPage() {
   const { selectedRows, allActive, allArchived } = selection;
 
   /* ── Dialog state ───────────────────────────────────────────── */
-  const [importOpen, setImportOpen] = useState(false);
-  const [viewOpen, setViewOpen] = useState(false);
-  const [viewActivity, setViewActivity] = useState(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [editRow, setEditRow] = useState(null);
+  const importDialog = useDialogState();
+  const viewDialog = useDialogState();
+  const createDialog = useDialogState();
+  const editDialog = useDialogState();
 
   const { form: createForm, setForm: setCreateForm, field: onCreateField, reset: resetCreateForm } = useFormState(BLANK_CREATE);
   const { form: editForm, setForm: setEditForm, field: onEditField } = useFormState(BLANK_EDIT);
@@ -119,26 +118,24 @@ export default function ActivitiesPage() {
 
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {
-    setViewActivity(row);
-    setViewOpen(true);
+    viewDialog.open(row);
   }, []);
 
   const handleEdit = useCallback((row) => {
-    setEditRow(row);
     setEditForm({
       code: row.code || '',
       name: row.name || '',
       category_id: row.category_id || '',
       is_active: row.is_active ?? true,
     });
-    setEditOpen(true);
+    editDialog.open(row);
   }, []);
 
   const handleCreate = async () => {
     try {
       await createMut.mutateAsync(createForm);
       toast('Activity created');
-      setCreateOpen(false);
+      createDialog.close();
       resetCreateForm();
     } catch (err) {
       toast(errMsg(err), 'error');
@@ -147,10 +144,9 @@ export default function ActivitiesPage() {
 
   const handleUpdate = async () => {
     try {
-      await updateMut.mutateAsync({ filter: { id: editRow.id }, changes: editForm });
+      await updateMut.mutateAsync({ filter: { id: editDialog.data.id }, changes: editForm });
       toast('Activity updated');
-      setEditOpen(false);
-      setEditRow(null);
+      editDialog.close();
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -160,7 +156,7 @@ export default function ActivitiesPage() {
     try {
       const result = await importMut.mutateAsync(formData);
       toast(`Imported ${result.inserted} records`);
-      setImportOpen(false);
+      importDialog.close();
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -213,14 +209,14 @@ export default function ActivitiesPage() {
       primary.push({ label: 'Export', variant: 'outlined', disabled: exportMut.isPending, onClick: handleExport });
     }
     if (canImport) {
-      primary.push({ label: 'Import', variant: 'outlined', onClick: () => setImportOpen(true) });
+      primary.push({ label: 'Import', variant: 'outlined', onClick: () => importDialog.open() });
     }
 
     primary.push({
       label: 'Create',
       variant: 'contained',
       color: 'primary',
-      onClick: () => { resetCreateForm(); setCreateOpen(true); },
+      onClick: () => { resetCreateForm(); createDialog.open(); },
     });
 
     return {
@@ -247,34 +243,34 @@ export default function ActivitiesPage() {
       />
 
       {/* ── View Details Dialog ──────────────────────────────────── */}
-      <Dialog open={viewOpen} onClose={() => setViewOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={viewDialog.isOpen} onClose={viewDialog.close} maxWidth="sm" fullWidth>
         <DialogTitle sx={dialogHeaderSx}>
           <Box>
             <span>Activity Details</span>
-            {viewActivity && (
+            {viewDialog.data && (
               <Typography variant="body2" color="text.secondary">
-                {viewActivity.name}
+                {viewDialog.data.name}
               </Typography>
             )}
           </Box>
           <Box sx={dialogActionBoxSx}>
-            <Button size="small" color="inherit" onClick={() => setViewOpen(false)}>
+            <Button size="small" color="inherit" onClick={viewDialog.close}>
               Close
             </Button>
           </Box>
         </DialogTitle>
         <DialogContent dividers>
-          {viewActivity && (
+          {viewDialog.data && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box sx={detailGridSx}>
-                <FieldRow label="Code" value={viewActivity.code || '\u2014'} />
-                <FieldRow label="Name" value={viewActivity.name} />
-                <FieldRow label="Category" value={catMap[viewActivity.category_id]?.name || '\u2014'} />
+                <FieldRow label="Code" value={viewDialog.data.code || '\u2014'} />
+                <FieldRow label="Name" value={viewDialog.data.name} />
+                <FieldRow label="Category" value={catMap[viewDialog.data.category_id]?.name || '\u2014'} />
                 <FieldRow label="Status">
-                  <StatusBadge status={viewActivity.deactivated_at ? 'archived' : 'active'} />
+                  <StatusBadge status={viewDialog.data.deactivated_at ? 'archived' : 'active'} />
                 </FieldRow>
-                <FieldRow label="Created" value={fmtDate(viewActivity.created_at)} />
-                <FieldRow label="Updated" value={fmtDate(viewActivity.updated_at)} />
+                <FieldRow label="Created" value={fmtDate(viewDialog.data.created_at)} />
+                <FieldRow label="Updated" value={fmtDate(viewDialog.data.updated_at)} />
               </Box>
             </Box>
           )}
@@ -282,7 +278,7 @@ export default function ActivitiesPage() {
       </Dialog>
 
       {/* Create Dialog */}
-      <FormDialog open={createOpen} title="Create Activity" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={() => setCreateOpen(false)}>
+      <FormDialog open={createDialog.isOpen} title="Create Activity" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={createDialog.close}>
         <Box sx={formGridSx}>
           <TextField label="Code" required value={createForm.code} onChange={onCreateField('code')} inputProps={{ maxLength: 16 }} />
           <TextField label="Name" required value={createForm.name} onChange={onCreateField('name')} inputProps={{ maxLength: 64 }} />
@@ -297,7 +293,7 @@ export default function ActivitiesPage() {
       </FormDialog>
 
       {/* Edit Dialog */}
-      <FormDialog open={editOpen} title="Edit Activity" submitLabel="Save" loading={updateMut.isPending} onSubmit={handleUpdate} onCancel={() => { setEditOpen(false); setEditRow(null); }}>
+      <FormDialog open={editDialog.isOpen} title="Edit Activity" submitLabel="Save" loading={updateMut.isPending} onSubmit={handleUpdate} onCancel={editDialog.close}>
         <Box sx={formGridSx}>
           <TextField label="Code" required value={editForm.code} onChange={onEditField('code')} inputProps={{ maxLength: 16 }} />
           <TextField label="Name" required value={editForm.name} onChange={onEditField('name')} inputProps={{ maxLength: 64 }} />
@@ -312,11 +308,11 @@ export default function ActivitiesPage() {
       </FormDialog>
 
       <ImportDialog
-        open={importOpen}
+        open={importDialog.isOpen}
         title="Import Activities"
         loading={importMut.isPending}
         onSubmit={handleImport}
-        onCancel={() => setImportOpen(false)}
+        onCancel={importDialog.close}
       />
 
       <ConfirmDialog {...archiveConfirmProps} />

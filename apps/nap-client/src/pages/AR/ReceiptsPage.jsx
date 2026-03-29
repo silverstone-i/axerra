@@ -10,6 +10,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useFormState } from '../../hooks/useFormState.js';
+import { useDialogState } from '../../hooks/useDialogState.js';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -84,24 +85,22 @@ export default function ReceiptsPage() {
   const { selectedRows, allActive, allArchived } = selection;
 
   /* ── Dialog state ───────────────────────────────────────────── */
-  const [viewOpen, setViewOpen] = useState(false);
-  const [viewReceipt, setViewReceipt] = useState(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [editRow, setEditRow] = useState(null);
+  const viewDialog = useDialogState();
+  const createDialog = useDialogState();
+  const editDialog = useDialogState();
 
   const { form: createForm, field: onCreateField, reset: resetCreateForm } = useFormState(BLANK_CREATE);
   const { form: editForm, setForm: setEditForm, field: onEditField } = useFormState(BLANK_EDIT);
 
   const { toast, snackProps } = useToast();
 
-  const [importOpen, setImportOpen] = useState(false);
+  const importDialog = useDialogState();
 
   const handleImport = useCallback(async (formData) => {
     try {
       const result = await importMut.mutateAsync(formData);
       toast(`Imported ${result.inserted} records`);
-      setImportOpen(false);
+      importDialog.close();
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -118,24 +117,22 @@ export default function ReceiptsPage() {
 
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {
-    setViewReceipt(row);
-    setViewOpen(true);
+    viewDialog.open(row);
   }, []);
 
   const handleEdit = useCallback((row) => {
-    setEditRow(row);
     setEditForm({
       receipt_date: row.receipt_date?.slice(0, 10) ?? '', amount: row.amount ?? '',
       method: row.method ?? 'check', reference: row.reference ?? '', notes: row.notes ?? '',
     });
-    setEditOpen(true);
+    editDialog.open(row);
   }, []);
 
   const handleCreate = async () => {
-    try { await createMut.mutateAsync({ ...createForm, amount: Number(createForm.amount) || 0 }); toast('Receipt created'); setCreateOpen(false); resetCreateForm(); } catch (err) { toast(errMsg(err), 'error'); }
+    try { await createMut.mutateAsync({ ...createForm, amount: Number(createForm.amount) || 0 }); toast('Receipt created'); createDialog.close(); resetCreateForm(); } catch (err) { toast(errMsg(err), 'error'); }
   };
   const handleUpdate = async () => {
-    try { await updateMut.mutateAsync({ filter: { id: editRow.id }, changes: { ...editForm, amount: Number(editForm.amount) || 0 } }); toast('Receipt updated'); setEditOpen(false); setEditRow(null); } catch (err) { toast(errMsg(err), 'error'); }
+    try { await updateMut.mutateAsync({ filter: { id: editDialog.data.id }, changes: { ...editForm, amount: Number(editForm.amount) || 0 } }); toast('Receipt updated'); editDialog.close(); } catch (err) { toast(errMsg(err), 'error'); }
   };
 
   const { setArchiveOpen, setRestoreOpen, archiveConfirmProps, restoreConfirmProps } = useArchiveRestore({
@@ -169,14 +166,14 @@ export default function ReceiptsPage() {
       primary.push({ label: 'Export', variant: 'outlined', disabled: exportMut.isPending, onClick: handleExport });
     }
     if (canImport) {
-      primary.push({ label: 'Import', variant: 'outlined', onClick: () => setImportOpen(true) });
+      primary.push({ label: 'Import', variant: 'outlined', onClick: () => importDialog.open() });
     }
 
     primary.push({
       label: 'Record Receipt',
       variant: 'contained',
       color: 'primary',
-      onClick: () => { resetCreateForm(); setCreateOpen(true); },
+      onClick: () => { resetCreateForm(); createDialog.open(); },
     });
 
     return {
@@ -203,39 +200,39 @@ export default function ReceiptsPage() {
       />
 
       {/* ── View Details Dialog ──────────────────────────────────── */}
-      <Dialog open={viewOpen} onClose={() => setViewOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={viewDialog.isOpen} onClose={viewDialog.close} maxWidth="sm" fullWidth>
         <DialogTitle sx={dialogHeaderSx}>
           <Box>
             <span>Receipt Details</span>
-            {viewReceipt && (
+            {viewDialog.data && (
               <Typography variant="body2" color="text.secondary">
-                {viewReceipt.reference || viewReceipt.id?.slice(0, 8)}
+                {viewDialog.data.reference || viewDialog.data.id?.slice(0, 8)}
               </Typography>
             )}
           </Box>
           <Box sx={dialogActionBoxSx}>
-            <Button size="small" color="inherit" onClick={() => setViewOpen(false)}>
+            <Button size="small" color="inherit" onClick={viewDialog.close}>
               Close
             </Button>
           </Box>
         </DialogTitle>
         <DialogContent dividers>
-          {viewReceipt && (
+          {viewDialog.data && (
             <Box sx={detailGridSx}>
-              <FieldRow label="Receipt Date" value={fmtDate(viewReceipt.receipt_date)} />
-              <FieldRow label="Client" value={viewReceipt.client_id?.slice(0, 8) || '\u2014'} />
-              <FieldRow label="Amount" value={viewReceipt.amount != null ? Number(viewReceipt.amount).toLocaleString(undefined, { style: 'currency', currency: 'USD' }) : '\u2014'} />
-              <FieldRow label="Method" value={capSnake(viewReceipt.method)} />
-              <FieldRow label="Reference" value={viewReceipt.reference || '\u2014'} />
-              <FieldRow label="Created" value={fmtDate(viewReceipt.created_at)} />
-              <FieldRow label="Updated" value={fmtDate(viewReceipt.updated_at)} />
+              <FieldRow label="Receipt Date" value={fmtDate(viewDialog.data.receipt_date)} />
+              <FieldRow label="Client" value={viewDialog.data.client_id?.slice(0, 8) || '\u2014'} />
+              <FieldRow label="Amount" value={viewDialog.data.amount != null ? Number(viewDialog.data.amount).toLocaleString(undefined, { style: 'currency', currency: 'USD' }) : '\u2014'} />
+              <FieldRow label="Method" value={capSnake(viewDialog.data.method)} />
+              <FieldRow label="Reference" value={viewDialog.data.reference || '\u2014'} />
+              <FieldRow label="Created" value={fmtDate(viewDialog.data.created_at)} />
+              <FieldRow label="Updated" value={fmtDate(viewDialog.data.updated_at)} />
             </Box>
           )}
         </DialogContent>
       </Dialog>
 
       {/* ── Record Receipt Dialog ────────────────────────────────── */}
-      <FormDialog open={createOpen} title="Record Receipt" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={() => setCreateOpen(false)}>
+      <FormDialog open={createDialog.isOpen} title="Record Receipt" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={createDialog.close}>
         <TextField label="Client" select required value={createForm.client_id} onChange={onCreateField('client_id')}>
           {clients.map((c) => <MenuItem key={c.id} value={c.id}>{c.client_code ? `${c.client_code} \u2014 ${c.name}` : c.name}</MenuItem>)}
         </TextField>
@@ -250,7 +247,7 @@ export default function ReceiptsPage() {
       </FormDialog>
 
       {/* ── Edit Receipt Dialog ──────────────────────────────────── */}
-      <FormDialog open={editOpen} title="Edit Receipt" submitLabel="Save Changes" loading={updateMut.isPending} onSubmit={handleUpdate} onCancel={() => { setEditOpen(false); setEditRow(null); }}>
+      <FormDialog open={editDialog.isOpen} title="Edit Receipt" submitLabel="Save Changes" loading={updateMut.isPending} onSubmit={handleUpdate} onCancel={editDialog.close}>
         <TextField label="Receipt Date" type="date" value={editForm.receipt_date} onChange={onEditField('receipt_date')} InputLabelProps={{ shrink: true }} />
         <TextField label="Amount" type="number" value={editForm.amount} onChange={onEditField('amount')} />
         <TextField label="Method" select value={editForm.method} onChange={onEditField('method')}>
@@ -263,7 +260,7 @@ export default function ReceiptsPage() {
       <ConfirmDialog {...archiveConfirmProps} />
       <ConfirmDialog {...restoreConfirmProps} />
 
-      <ImportDialog open={importOpen} title="Import Receipts" loading={importMut.isPending} onSubmit={handleImport} onCancel={() => setImportOpen(false)} />
+      <ImportDialog open={importDialog.isOpen} title="Import Receipts" loading={importMut.isPending} onSubmit={handleImport} onCancel={importDialog.close} />
 
       <ToastSnackbar {...snackProps} />
     </Box>

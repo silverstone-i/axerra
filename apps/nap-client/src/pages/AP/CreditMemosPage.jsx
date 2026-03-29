@@ -7,6 +7,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useFormState } from '../../hooks/useFormState.js';
+import { useDialogState } from '../../hooks/useDialogState.js';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -82,24 +83,22 @@ export default function CreditMemosPage() {
   const { selectedRows, allActive, allArchived } = selection;
 
   /* ── Dialog state ───────────────────────────────────────────── */
-  const [viewOpen, setViewOpen] = useState(false);
-  const [viewMemo, setViewMemo] = useState(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [editRow, setEditRow] = useState(null);
+  const viewDialog = useDialogState();
+  const createDialog = useDialogState();
+  const editDialog = useDialogState();
 
   const { form: createForm, field: onCreateField, reset: resetCreateForm } = useFormState(BLANK_CREATE);
   const { form: editForm, setForm: setEditForm, field: onEditField } = useFormState(BLANK_EDIT);
 
   const { toast, snackProps } = useToast();
 
-  const [importOpen, setImportOpen] = useState(false);
+  const importDialog = useDialogState();
 
   const handleImport = useCallback(async (formData) => {
     try {
       const result = await importMut.mutateAsync(formData);
       toast(`Imported ${result.inserted} records`);
-      setImportOpen(false);
+      importDialog.close();
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -116,24 +115,22 @@ export default function CreditMemosPage() {
 
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {
-    setViewMemo(row);
-    setViewOpen(true);
+    viewDialog.open(row);
   }, []);
 
   const handleEdit = useCallback((row) => {
-    setEditRow(row);
     setEditForm({
       credit_number: row.credit_number ?? '', credit_date: row.credit_date?.slice(0, 10) ?? '',
       amount: row.amount ?? '', reason: row.reason ?? '', status: row.status ?? 'open',
     });
-    setEditOpen(true);
+    editDialog.open(row);
   }, []);
 
   const handleCreate = async () => {
-    try { await createMut.mutateAsync({ ...createForm, amount: Number(createForm.amount) || 0 }); toast('Credit memo created'); setCreateOpen(false); resetCreateForm(); } catch (err) { toast(errMsg(err), 'error'); }
+    try { await createMut.mutateAsync({ ...createForm, amount: Number(createForm.amount) || 0 }); toast('Credit memo created'); createDialog.close(); resetCreateForm(); } catch (err) { toast(errMsg(err), 'error'); }
   };
   const handleUpdate = async () => {
-    try { await updateMut.mutateAsync({ filter: { id: editRow.id }, changes: { ...editForm, amount: Number(editForm.amount) || 0 } }); toast('Credit memo updated'); setEditOpen(false); setEditRow(null); } catch (err) { toast(errMsg(err), 'error'); }
+    try { await updateMut.mutateAsync({ filter: { id: editDialog.data.id }, changes: { ...editForm, amount: Number(editForm.amount) || 0 } }); toast('Credit memo updated'); editDialog.close(); } catch (err) { toast(errMsg(err), 'error'); }
   };
 
   const { setArchiveOpen, setRestoreOpen, archiveConfirmProps, restoreConfirmProps } = useArchiveRestore({
@@ -167,14 +164,14 @@ export default function CreditMemosPage() {
       primary.push({ label: 'Export', variant: 'outlined', disabled: exportMut.isPending, onClick: handleExport });
     }
     if (canImport) {
-      primary.push({ label: 'Import', variant: 'outlined', onClick: () => setImportOpen(true) });
+      primary.push({ label: 'Import', variant: 'outlined', onClick: () => importDialog.open() });
     }
 
     primary.push({
       label: 'Create Memo',
       variant: 'contained',
       color: 'primary',
-      onClick: () => { resetCreateForm(); setCreateOpen(true); },
+      onClick: () => { resetCreateForm(); createDialog.open(); },
     });
 
     return {
@@ -201,42 +198,42 @@ export default function CreditMemosPage() {
       />
 
       {/* ── View Details Dialog ──────────────────────────────────── */}
-      <Dialog open={viewOpen} onClose={() => setViewOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={viewDialog.isOpen} onClose={viewDialog.close} maxWidth="sm" fullWidth>
         <DialogTitle sx={dialogHeaderSx}>
           <Box>
             <span>Credit Memo Details</span>
-            {viewMemo && (
+            {viewDialog.data && (
               <Typography variant="body2" color="text.secondary">
-                {viewMemo.credit_number}
+                {viewDialog.data.credit_number}
               </Typography>
             )}
           </Box>
           <Box sx={dialogActionBoxSx}>
-            <Button size="small" color="inherit" onClick={() => setViewOpen(false)}>
+            <Button size="small" color="inherit" onClick={viewDialog.close}>
               Close
             </Button>
           </Box>
         </DialogTitle>
         <DialogContent dividers>
-          {viewMemo && (
+          {viewDialog.data && (
             <Box sx={detailGridSx}>
-              <FieldRow label="Credit Number" value={viewMemo.credit_number || '\u2014'} />
-              <FieldRow label="Vendor" value={viewMemo.vendor_id?.slice(0, 8) || '\u2014'} />
-              <FieldRow label="Credit Date" value={fmtDate(viewMemo.credit_date)} />
-              <FieldRow label="Amount" value={viewMemo.amount != null ? Number(viewMemo.amount).toLocaleString(undefined, { style: 'currency', currency: 'USD' }) : '\u2014'} />
+              <FieldRow label="Credit Number" value={viewDialog.data.credit_number || '\u2014'} />
+              <FieldRow label="Vendor" value={viewDialog.data.vendor_id?.slice(0, 8) || '\u2014'} />
+              <FieldRow label="Credit Date" value={fmtDate(viewDialog.data.credit_date)} />
+              <FieldRow label="Amount" value={viewDialog.data.amount != null ? Number(viewDialog.data.amount).toLocaleString(undefined, { style: 'currency', currency: 'USD' }) : '\u2014'} />
               <FieldRow label="Status">
-                <StatusBadge status={viewMemo.status} />
+                <StatusBadge status={viewDialog.data.status} />
               </FieldRow>
-              <FieldRow label="Reason" value={viewMemo.reason || '\u2014'} />
-              <FieldRow label="Created" value={fmtDate(viewMemo.created_at)} />
-              <FieldRow label="Updated" value={fmtDate(viewMemo.updated_at)} />
+              <FieldRow label="Reason" value={viewDialog.data.reason || '\u2014'} />
+              <FieldRow label="Created" value={fmtDate(viewDialog.data.created_at)} />
+              <FieldRow label="Updated" value={fmtDate(viewDialog.data.updated_at)} />
             </Box>
           )}
         </DialogContent>
       </Dialog>
 
       {/* ── Create Credit Memo Dialog ────────────────────────────── */}
-      <FormDialog open={createOpen} title="Create Credit Memo" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={() => setCreateOpen(false)}>
+      <FormDialog open={createDialog.isOpen} title="Create Credit Memo" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={createDialog.close}>
         <TextField label="Vendor" select required value={createForm.vendor_id} onChange={onCreateField('vendor_id')}>
           {vendors.map((v) => <MenuItem key={v.id} value={v.id}>{v.code ? `${v.code} \u2014 ${v.name}` : v.name}</MenuItem>)}
         </TextField>
@@ -251,7 +248,7 @@ export default function CreditMemosPage() {
       </FormDialog>
 
       {/* ── Edit Credit Memo Dialog ──────────────────────────────── */}
-      <FormDialog open={editOpen} title="Edit Credit Memo" submitLabel="Save Changes" loading={updateMut.isPending} onSubmit={handleUpdate} onCancel={() => { setEditOpen(false); setEditRow(null); }}>
+      <FormDialog open={editDialog.isOpen} title="Edit Credit Memo" submitLabel="Save Changes" loading={updateMut.isPending} onSubmit={handleUpdate} onCancel={editDialog.close}>
         <TextField label="Credit Number" value={editForm.credit_number} onChange={onEditField('credit_number')} />
         <TextField label="Credit Date" type="date" value={editForm.credit_date} onChange={onEditField('credit_date')} InputLabelProps={{ shrink: true }} />
         <TextField label="Amount" type="number" value={editForm.amount} onChange={onEditField('amount')} />
@@ -264,7 +261,7 @@ export default function CreditMemosPage() {
       <ConfirmDialog {...archiveConfirmProps} />
       <ConfirmDialog {...restoreConfirmProps} />
 
-      <ImportDialog open={importOpen} title="Import Credit Memos" loading={importMut.isPending} onSubmit={handleImport} onCancel={() => setImportOpen(false)} />
+      <ImportDialog open={importDialog.isOpen} title="Import Credit Memos" loading={importMut.isPending} onSubmit={handleImport} onCancel={importDialog.close} />
 
       <ToastSnackbar {...snackProps} />
     </Box>

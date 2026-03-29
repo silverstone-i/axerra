@@ -9,6 +9,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useFormState } from '../../hooks/useFormState.js';
+import { useDialogState } from '../../hooks/useDialogState.js';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -76,12 +77,10 @@ export default function CostTrackingPage() {
   const { selectedRows, allActive } = selection;
 
   /* ── Dialog state ───────────────────────────────────────────── */
-  const [importOpen, setImportOpen] = useState(false);
-  const [viewOpen, setViewOpen] = useState(false);
-  const [viewCost, setViewCost] = useState(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [editRow, setEditRow] = useState(null);
+  const importDialog = useDialogState();
+  const viewDialog = useDialogState();
+  const createDialog = useDialogState();
+  const editDialog = useDialogState();
 
   const { form: createForm, field: onCreateField, reset: resetCreateForm } = useFormState(BLANK_CREATE);
   const { form: editForm, setForm: setEditForm, field: onEditField } = useFormState(BLANK_EDIT);
@@ -90,12 +89,10 @@ export default function CostTrackingPage() {
 
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {
-    setViewCost(row);
-    setViewOpen(true);
+    viewDialog.open(row);
   }, []);
 
   const handleEdit = useCallback((row) => {
-    setEditRow(row);
     setEditForm({
       amount: row.amount || '',
       currency: row.currency || 'USD',
@@ -103,14 +100,14 @@ export default function CostTrackingPage() {
       approval_status: row.approval_status || '',
       incurred_on: row.incurred_on || '',
     });
-    setEditOpen(true);
+    editDialog.open(row);
   }, []);
 
   const handleCreate = async () => {
     try {
       await createMut.mutateAsync(createForm);
       toast('Actual cost created');
-      setCreateOpen(false);
+      createDialog.close();
       resetCreateForm();
     } catch (err) {
       toast(errMsg(err), 'error');
@@ -119,10 +116,9 @@ export default function CostTrackingPage() {
 
   const handleUpdate = async () => {
     try {
-      await updateMut.mutateAsync({ filter: { id: editRow.id }, changes: editForm });
+      await updateMut.mutateAsync({ filter: { id: editDialog.data.id }, changes: editForm });
       toast('Actual cost updated');
-      setEditOpen(false);
-      setEditRow(null);
+      editDialog.close();
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -132,7 +128,7 @@ export default function CostTrackingPage() {
     try {
       const result = await importMut.mutateAsync(formData);
       toast(`Imported ${result.inserted} records`);
-      setImportOpen(false);
+      importDialog.close();
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -199,14 +195,14 @@ export default function CostTrackingPage() {
       primary.push({ label: 'Export', variant: 'outlined', disabled: exportMut.isPending, onClick: handleExport });
     }
     if (canImport) {
-      primary.push({ label: 'Import', variant: 'outlined', onClick: () => setImportOpen(true) });
+      primary.push({ label: 'Import', variant: 'outlined', onClick: () => importDialog.open() });
     }
 
     primary.push({
       label: 'Record Actual Cost',
       variant: 'contained',
       color: 'primary',
-      onClick: () => { resetCreateForm(); setCreateOpen(true); },
+      onClick: () => { resetCreateForm(); createDialog.open(); },
     });
 
     return {
@@ -234,42 +230,42 @@ export default function CostTrackingPage() {
       />
 
       {/* ── View Details Dialog ──────────────────────────────────── */}
-      <Dialog open={viewOpen} onClose={() => setViewOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={viewDialog.isOpen} onClose={viewDialog.close} maxWidth="sm" fullWidth>
         <DialogTitle sx={dialogHeaderSx}>
           <Box>
             <span>Actual Cost Details</span>
-            {viewCost && (
+            {viewDialog.data && (
               <Typography variant="body2" color="text.secondary">
-                {viewCost.reference || viewCost.amount}
+                {viewDialog.data.reference || viewDialog.data.amount}
               </Typography>
             )}
           </Box>
           <Box sx={dialogActionBoxSx}>
-            <Button size="small" color="inherit" onClick={() => setViewOpen(false)}>
+            <Button size="small" color="inherit" onClick={viewDialog.close}>
               Close
             </Button>
           </Box>
         </DialogTitle>
         <DialogContent dividers>
-          {viewCost && (
+          {viewDialog.data && (
             <Box sx={detailGridSx}>
-              <FieldRow label="Activity" value={activityMap[viewCost.activity_id] || viewCost.activity_id || '\u2014'} />
-              <FieldRow label="Amount" value={viewCost.amount ?? '\u2014'} />
-              <FieldRow label="Currency" value={viewCost.currency || '\u2014'} />
+              <FieldRow label="Activity" value={activityMap[viewDialog.data.activity_id] || viewDialog.data.activity_id || '\u2014'} />
+              <FieldRow label="Amount" value={viewDialog.data.amount ?? '\u2014'} />
+              <FieldRow label="Currency" value={viewDialog.data.currency || '\u2014'} />
               <FieldRow label="Approval Status">
-                <StatusBadge status={viewCost.approval_status} />
+                <StatusBadge status={viewDialog.data.approval_status} />
               </FieldRow>
-              <FieldRow label="Incurred On" value={viewCost.incurred_on || '\u2014'} />
-              <FieldRow label="Reference" value={viewCost.reference || '\u2014'} />
-              <FieldRow label="Created" value={fmtDate(viewCost.created_at)} />
-              <FieldRow label="Updated" value={fmtDate(viewCost.updated_at)} />
+              <FieldRow label="Incurred On" value={viewDialog.data.incurred_on || '\u2014'} />
+              <FieldRow label="Reference" value={viewDialog.data.reference || '\u2014'} />
+              <FieldRow label="Created" value={fmtDate(viewDialog.data.created_at)} />
+              <FieldRow label="Updated" value={fmtDate(viewDialog.data.updated_at)} />
             </Box>
           )}
         </DialogContent>
       </Dialog>
 
       {/* ── Create Dialog ─────────────────────────────────────────── */}
-      <FormDialog open={createOpen} title="Record Actual Cost" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={() => setCreateOpen(false)}>
+      <FormDialog open={createDialog.isOpen} title="Record Actual Cost" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={createDialog.close}>
         <Box sx={formGridSx}>
           <TextField label="Activity" required select value={createForm.activity_id} onChange={onCreateField('activity_id')}>
             {activities.map((a) => <MenuItem key={a.id} value={a.id}>{a.code} — {a.name}</MenuItem>)}
@@ -282,7 +278,7 @@ export default function CostTrackingPage() {
       </FormDialog>
 
       {/* ── Edit Dialog ───────────────────────────────────────────── */}
-      <FormDialog open={editOpen} title="Edit Actual Cost" submitLabel="Save" loading={updateMut.isPending} onSubmit={handleUpdate} onCancel={() => { setEditOpen(false); setEditRow(null); }}>
+      <FormDialog open={editDialog.isOpen} title="Edit Actual Cost" submitLabel="Save" loading={updateMut.isPending} onSubmit={handleUpdate} onCancel={editDialog.close}>
         <Box sx={formGridSx}>
           <TextField label="Amount" type="number" value={editForm.amount} onChange={onEditField('amount')} />
           <TextField label="Currency" value={editForm.currency} onChange={onEditField('currency')} inputProps={{ maxLength: 3 }} />
@@ -294,7 +290,7 @@ export default function CostTrackingPage() {
         </Box>
       </FormDialog>
 
-      <ImportDialog open={importOpen} title="Import Actual Costs" loading={importMut.isPending} onSubmit={handleImport} onCancel={() => setImportOpen(false)} />
+      <ImportDialog open={importDialog.isOpen} title="Import Actual Costs" loading={importMut.isPending} onSubmit={handleImport} onCancel={importDialog.close} />
 
       <ConfirmDialog {...archiveConfirmProps} />
 

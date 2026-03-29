@@ -7,6 +7,7 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useFormState } from '../../hooks/useFormState.js';
+import { useDialogState } from '../../hooks/useDialogState.js';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Checkbox from '@mui/material/Checkbox';
@@ -104,13 +105,11 @@ export default function CompaniesPage() {
   const { selectedRows, allActive, allArchived } = selection;
 
   /* ── Dialog state ───────────────────────────────────────────── */
-  const [importOpen, setImportOpen] = useState(false);
+  const importDialog = useDialogState();
   const [importErrors, setImportErrors] = useState(null);
-  const [viewOpen, setViewOpen] = useState(false);
-  const [viewCompany, setViewCompany] = useState(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [editRow, setEditRow] = useState(null);
+  const viewDialog = useDialogState();
+  const createDialog = useDialogState();
+  const editDialog = useDialogState();
 
   const { form: createForm, setForm: setCreateForm, field: onCreateField, reset: resetCreateForm } = useFormState(BLANK_CREATE);
   const { form: editForm, setForm: setEditForm, field: onEditField } = useFormState(BLANK_EDIT);
@@ -161,28 +160,26 @@ export default function CompaniesPage() {
 
   /* ── Sync query → local state ───────────────────────────────── */
   useEffect(() => {
-    if (editOpen && addressesRes?.rows) {
+    if (editDialog.isOpen && addressesRes?.rows) {
       setEditAddresses(addressesRes.rows);
       editInitial.current.addresses = addressesRes.rows;
     }
-  }, [editOpen, addressesRes]);
+  }, [editDialog.isOpen, addressesRes]);
 
   useEffect(() => {
-    if (editOpen && taxIdsRes?.rows) {
+    if (editDialog.isOpen && taxIdsRes?.rows) {
       setEditTaxIds(taxIdsRes.rows);
       editInitial.current.taxIds = taxIdsRes.rows;
     }
-  }, [editOpen, taxIdsRes]);
+  }, [editDialog.isOpen, taxIdsRes]);
 
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {
-    setViewCompany(row);
     setViewSourceId(row.source_id || null);
-    setViewOpen(true);
+    viewDialog.open(row);
   }, []);
 
   const handleEdit = useCallback((row) => {
-    setEditRow(row);
     setEditForm({ name: row.name ?? '', code: row.code ?? '', is_active: row.is_active ?? true });
     setEditSourceId(row.source_id || null);
     if (!row.source_id) {
@@ -192,14 +189,14 @@ export default function CompaniesPage() {
       editInitial.current.taxIds = [];
     }
     editInitial.current.form = { name: row.name ?? '', code: row.code ?? '', is_active: row.is_active ?? true };
-    setEditOpen(true);
+    editDialog.open(row);
   }, []);
 
   const handleCreate = async () => {
     try {
       await createMut.mutateAsync(createForm);
       toast('Company created');
-      setCreateOpen(false);
+      createDialog.close();
       resetCreateForm();
     } catch (err) {
       toast(errMsg(err), 'error');
@@ -208,7 +205,7 @@ export default function CompaniesPage() {
 
   const handleUpdate = async () => {
     try {
-      await updateMut.mutateAsync({ filter: { id: editRow.id }, changes: editForm });
+      await updateMut.mutateAsync({ filter: { id: editDialog.data.id }, changes: editForm });
 
       /* ── Save addresses ──────────────────────────────────────── */
       for (const a of editAddresses) {
@@ -216,7 +213,7 @@ export default function CompaniesPage() {
           await archiveAddrMut.mutateAsync({ id: a.id });
         } else if (!a.id && !a._deleted) {
           const { _deleted, ...rest } = a;
-          await createAddrMut.mutateAsync({ ...rest, source_id: editRow.source_id });
+          await createAddrMut.mutateAsync({ ...rest, source_id: editDialog.data.source_id });
         } else if (a.id && !a._deleted) {
           const { id, source_id: _sid, created_at: _ca, updated_at: _ua, created_by: _cb, updated_by: _ub, deactivated_at: _da, ...changes } = a;
           await updateAddrMut.mutateAsync({ filter: { id }, changes });
@@ -229,7 +226,7 @@ export default function CompaniesPage() {
           await archiveTaxIdMut.mutateAsync({ id: t.id });
         } else if (!t.id && !t._deleted) {
           await createTaxIdMut.mutateAsync({
-            source_id: editRow.source_id,
+            source_id: editDialog.data.source_id,
             country_code: t.country_code,
             tax_type: t.tax_type,
             tax_value: t.tax_value,
@@ -243,8 +240,7 @@ export default function CompaniesPage() {
       }
 
       toast('Company updated');
-      setEditOpen(false);
-      setEditRow(null);
+      editDialog.close();
       setEditSourceId(null);
       setEditAddresses([]);
       setEditTaxIds([]);
@@ -258,7 +254,7 @@ export default function CompaniesPage() {
     try {
       const result = await importMut.mutateAsync(formData);
       toast(`Imported ${result.inserted} records`);
-      setImportOpen(false);
+      importDialog.close();
     } catch (err) {
       const validationErrors = err.payload?.errors;
       if (validationErrors?.length) {
@@ -328,7 +324,7 @@ export default function CompaniesPage() {
       primary.push({
         label: 'Import',
         variant: 'outlined',
-        onClick: () => setImportOpen(true),
+        onClick: () => importDialog.open(),
       });
     }
 
@@ -336,7 +332,7 @@ export default function CompaniesPage() {
       label: 'Create Company',
       variant: 'contained',
       color: 'primary',
-      onClick: () => { resetCreateForm(); setCreateOpen(true); },
+      onClick: () => { resetCreateForm(); createDialog.open(); },
     });
 
     return {
@@ -364,38 +360,38 @@ export default function CompaniesPage() {
 
       {/* ── View Details Dialog ──────────────────────────────────── */}
       <Dialog
-        open={viewOpen}
-        onClose={() => { setViewOpen(false); setViewSourceId(null); }}
+        open={viewDialog.isOpen}
+        onClose={() => { viewDialog.close(); setViewSourceId(null); }}
         maxWidth="sm"
         fullWidth
       >
         <DialogTitle sx={dialogHeaderSx}>
           <Box>
             <span>Company Details</span>
-            {viewCompany && (
+            {viewDialog.data && (
               <Typography variant="body2" color="text.secondary">
-                {viewCompany.name}
+                {viewDialog.data.name}
               </Typography>
             )}
           </Box>
           <Box sx={dialogActionBoxSx}>
-            <Button size="small" color="inherit" onClick={() => { setViewOpen(false); setViewSourceId(null); }}>
+            <Button size="small" color="inherit" onClick={() => { viewDialog.close(); setViewSourceId(null); }}>
               Close
             </Button>
           </Box>
         </DialogTitle>
         <DialogContent dividers>
-          {viewCompany && (
+          {viewDialog.data && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box sx={detailGridSx}>
-                <FieldRow label="Code" value={viewCompany.code || '\u2014'} />
-                <FieldRow label="Name" value={viewCompany.name} />
-                <FieldRow label="Active" value={viewCompany.is_active ? 'Yes' : 'No'} />
+                <FieldRow label="Code" value={viewDialog.data.code || '\u2014'} />
+                <FieldRow label="Name" value={viewDialog.data.name} />
+                <FieldRow label="Active" value={viewDialog.data.is_active ? 'Yes' : 'No'} />
                 <FieldRow label="Status">
-                  <StatusBadge status={viewCompany.deactivated_at ? 'archived' : 'active'} />
+                  <StatusBadge status={viewDialog.data.deactivated_at ? 'archived' : 'active'} />
                 </FieldRow>
-                <FieldRow label="Created" value={fmtDate(viewCompany.created_at)} />
-                <FieldRow label="Updated" value={fmtDate(viewCompany.updated_at)} />
+                <FieldRow label="Created" value={fmtDate(viewDialog.data.created_at)} />
+                <FieldRow label="Updated" value={fmtDate(viewDialog.data.updated_at)} />
               </Box>
               <AddressesSection addresses={viewAddresses} />
               <TaxIdentifiersSection taxIds={viewTaxIds} />
@@ -405,7 +401,7 @@ export default function CompaniesPage() {
       </Dialog>
 
       {/* ── Create Dialog ─────────────────────────────────────────── */}
-      <FormDialog open={createOpen} title="Create Company" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={() => setCreateOpen(false)}>
+      <FormDialog open={createDialog.isOpen} title="Create Company" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={createDialog.close}>
         <TextField label="Company Name" required value={createForm.name} onChange={onCreateField('name')} />
         <TextField label="Code" value={createForm.code} onChange={onCreateField('code')} inputProps={{ maxLength: 16 }} />
         <FormControlLabel
@@ -422,12 +418,12 @@ export default function CompaniesPage() {
 
       {/* ── Edit Dialog ───────────────────────────────────────────── */}
       <FormDialog
-        open={editOpen}
+        open={editDialog.isOpen}
         title="Edit Company"
         submitLabel="Save Changes"
         loading={updateMut.isPending}
         onSubmit={handleUpdate}
-        onCancel={() => { setEditOpen(false); setEditRow(null); setEditSourceId(null); setEditAddresses([]); setEditTaxIds([]); }}
+        onCancel={() => { editDialog.close(); setEditSourceId(null); setEditAddresses([]); setEditTaxIds([]); }}
       >
         <TextField label="Company Name" required value={editForm.name} onChange={onEditField('name')} />
         <TextField label="Code" value={editForm.code} onChange={onEditField('code')} inputProps={{ maxLength: 16 }} />
@@ -446,12 +442,12 @@ export default function CompaniesPage() {
         <Divider />
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Typography variant="subtitle2">Addresses</Typography>
-          <Button size="small" startIcon={<AddIcon />} onClick={addAddress} disabled={!editRow?.source_id}>Add Address</Button>
+          <Button size="small" startIcon={<AddIcon />} onClick={addAddress} disabled={!editDialog.data?.source_id}>Add Address</Button>
         </Box>
-        {!editRow?.source_id && (
+        {!editDialog.data?.source_id && (
           <Typography variant="body2" color="text.secondary">Save company first to manage addresses</Typography>
         )}
-        {visibleAddresses.length === 0 && editRow?.source_id && (
+        {visibleAddresses.length === 0 && editDialog.data?.source_id && (
           <Typography variant="body2" color="text.secondary">No addresses</Typography>
         )}
         {visibleAddresses.map((addr) => {
@@ -487,12 +483,12 @@ export default function CompaniesPage() {
         <Divider />
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Typography variant="subtitle2">Tax Identifiers</Typography>
-          <Button size="small" startIcon={<AddIcon />} onClick={addTaxId} disabled={!editRow?.source_id}>Add Tax ID</Button>
+          <Button size="small" startIcon={<AddIcon />} onClick={addTaxId} disabled={!editDialog.data?.source_id}>Add Tax ID</Button>
         </Box>
-        {!editRow?.source_id && (
+        {!editDialog.data?.source_id && (
           <Typography variant="body2" color="text.secondary">Save company first to manage tax identifiers</Typography>
         )}
-        {visibleTaxIds.length === 0 && editRow?.source_id && (
+        {visibleTaxIds.length === 0 && editDialog.data?.source_id && (
           <Typography variant="body2" color="text.secondary">No tax identifiers</Typography>
         )}
         {visibleTaxIds.map((taxId) => {
@@ -550,12 +546,12 @@ export default function CompaniesPage() {
       </FormDialog>
 
       <ImportDialog
-        open={importOpen}
+        open={importDialog.isOpen}
         title="Import Companies"
         loading={importMut.isPending}
         errors={importErrors}
         onSubmit={handleImport}
-        onCancel={() => { setImportOpen(false); setImportErrors(null); }}
+        onCancel={() => { importDialog.close(); setImportErrors(null); }}
       />
 
       <ConfirmDialog {...archiveConfirmProps} />

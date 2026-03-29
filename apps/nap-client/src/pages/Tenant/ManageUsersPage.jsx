@@ -15,6 +15,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useFormState } from '../../hooks/useFormState.js';
+import { useDialogState } from '../../hooks/useDialogState.js';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -111,10 +112,8 @@ export default function ManageUsersPage() {
   const { selectedRows } = selection;
 
   /* ── dialog state ────────────────────────────────────────── */
-  const [viewOpen, setViewOpen] = useState(false);
-  const [viewUser, setViewUser] = useState(null);
-  const [editOpen, setEditOpen] = useState(false);
-  const [editRow, setEditRow] = useState(null);
+  const viewDialog = useDialogState();
+  const editDialog = useDialogState();
 
   /* ── form state ──────────────────────────────────────────── */
   const { form: editForm, setForm: setEditForm, field: onEditField } = useFormState(BLANK_EDIT);
@@ -124,18 +123,16 @@ export default function ManageUsersPage() {
 
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {
-    setViewUser(row);
-    setViewOpen(true);
+    viewDialog.open(row);
   }, []);
 
   const handleEdit = useCallback((row) => {
-    setEditRow(row);
     setEditForm({
       email: row.email ?? '',
       status: row.status ?? 'active',
       password: '',
     });
-    setEditOpen(true);
+    editDialog.open(row);
   }, []);
 
   /* ── CRUD handlers ───────────────────────────────────────── */
@@ -146,10 +143,9 @@ export default function ManageUsersPage() {
         ...fields,
         ...(password ? { password } : {}),
       };
-      await updateMut.mutateAsync({ filter: { id: editRow.id }, changes });
+      await updateMut.mutateAsync({ filter: { id: editDialog.data.id }, changes });
       toast('User updated');
-      setEditOpen(false);
-      setEditRow(null);
+      editDialog.close();
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -182,33 +178,33 @@ export default function ManageUsersPage() {
       />
 
       {/* ── View Details Dialog ──────────────────────────────── */}
-      <Dialog open={viewOpen} onClose={() => setViewOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={viewDialog.isOpen} onClose={viewDialog.close} maxWidth="sm" fullWidth>
         <DialogTitle sx={dialogHeaderSx}>
           <Box>
             <span>User Details</span>
-            {viewUser && (
+            {viewDialog.data && (
               <Typography variant="body2" color="text.secondary">
-                {viewUser.email}
+                {viewDialog.data.email}
               </Typography>
             )}
           </Box>
           <Box sx={dialogActionBoxSx}>
-            <Button size="small" color="inherit" onClick={() => setViewOpen(false)}>
+            <Button size="small" color="inherit" onClick={viewDialog.close}>
               Close
             </Button>
           </Box>
         </DialogTitle>
         <DialogContent dividers>
-          {viewUser && (
+          {viewDialog.data && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box sx={detailGridSx}>
-                <FieldRow label="Email" value={viewUser.email} />
-                <FieldRow label="Entity Type" value={capSnake(viewUser.entity_type) || '\u2014'} />
+                <FieldRow label="Email" value={viewDialog.data.email} />
+                <FieldRow label="Entity Type" value={capSnake(viewDialog.data.entity_type) || '\u2014'} />
                 <FieldRow label="Status">
-                  <StatusBadge status={viewUser.status} />
+                  <StatusBadge status={viewDialog.data.status} />
                 </FieldRow>
-                <FieldRow label="Created" value={fmtDate(viewUser.created_at)} />
-                <FieldRow label="Updated" value={fmtDate(viewUser.updated_at)} />
+                <FieldRow label="Created" value={fmtDate(viewDialog.data.created_at)} />
+                <FieldRow label="Updated" value={fmtDate(viewDialog.data.updated_at)} />
               </Box>
             </Box>
           )}
@@ -217,15 +213,15 @@ export default function ManageUsersPage() {
 
       {/* ── Edit Dialog ────────────────────────────────────── */}
       <FormDialog
-        open={editOpen}
+        open={editDialog.isOpen}
         title="Edit User"
         submitLabel="Save Changes"
         loading={updateMut.isPending}
         submitDisabled={!!editForm.password && !PW_RULES.every((r) => r.test(editForm.password))}
         onSubmit={handleUpdate}
-        onCancel={() => { setEditOpen(false); setEditRow(null); }}
+        onCancel={editDialog.close}
       >
-        {editRow && <TextField label="Email" value={editRow.email} disabled />}
+        {editDialog.data && <TextField label="Email" value={editDialog.data.email} disabled />}
         <TextField label="Status" select value={editForm.status} onChange={onEditField('status')}>
           {STATUS_OPTS.map((s) => (
             <MenuItem key={s} value={s}>
