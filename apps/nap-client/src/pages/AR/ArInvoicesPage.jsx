@@ -9,6 +9,7 @@
  */
 
 import { useState, useMemo, useCallback } from 'react';
+import { useFormState } from '../../hooks/useFormState.js';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -94,15 +95,12 @@ export default function ArInvoicesPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [editRow, setEditRow] = useState(null);
 
-  const [createForm, setCreateForm] = useState(BLANK_CREATE);
-  const [editForm, setEditForm] = useState(BLANK_EDIT);
+  const { form: createForm, field: onCreateField, reset: resetCreateForm } = useFormState(BLANK_CREATE);
+  const { form: editForm, setForm: setEditForm, field: onEditField } = useFormState(BLANK_EDIT);
 
   const { toast, snackProps } = useToast();
 
   const [importOpen, setImportOpen] = useState(false);
-
-  const onCreateField = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.value }));
-  const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));
 
   const handleImport = useCallback(async (formData) => {
     try {
@@ -142,7 +140,7 @@ export default function ArInvoicesPage() {
   const handleCreate = async () => {
     try {
       await createMut.mutateAsync({ ...createForm, total_amount: Number(createForm.total_amount) || 0 });
-      toast('Invoice created'); setCreateOpen(false); setCreateForm(BLANK_CREATE);
+      toast('Invoice created'); setCreateOpen(false); resetCreateForm();
     } catch (err) { toast(errMsg(err), 'error'); }
   };
   const handleUpdate = async () => {
@@ -201,7 +199,7 @@ export default function ArInvoicesPage() {
       label: 'Create Invoice',
       variant: 'contained',
       color: 'primary',
-      onClick: () => { setCreateForm(BLANK_CREATE); setCreateOpen(true); },
+      onClick: () => { resetCreateForm(); setCreateOpen(true); },
     });
 
     return {

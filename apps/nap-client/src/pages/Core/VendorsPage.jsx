@@ -70,6 +70,7 @@ import { useRoles } from '../../hooks/useRoles.js';
 import { TAX_TYPES, COUNTRIES, resolveLevel } from '@nap/shared';
 import { useToast } from '../../hooks/useToast.js';
 import { cap, fmtDate, fmtPhone, errMsg } from '../../utils/format.js';
+import { useFormState } from '../../hooks/useFormState.js';
 import { BLANK_EMAIL, BLANK_PHONE, BLANK_ADDRESS, BLANK_TAX_ID, PHONE_TYPES, EMAIL_LABELS } from '../../utils/formConstants.js';
 import { vendorApi } from '../../services/vendorApi.js';
 import { emailApi } from '../../services/emailApi.js';
@@ -196,12 +197,12 @@ export default function VendorsPage() {
   const [contactEditRow, setContactEditRow] = useState(null);
 
   /* ── Contact create form ────────────────────────────────────── */
-  const [contactCreateForm, setContactCreateForm] = useState({ ...BLANK_CONTACT_FORM });
+  const { form: contactCreateForm, setForm: setContactCreateForm, field: onContactCreateField, reset: resetContactCreateForm } = useFormState(BLANK_CONTACT_FORM);
   const [contactCreateEmails, setContactCreateEmails] = useState([]);
   const [contactCreatePhones, setContactCreatePhones] = useState([]);
 
   /* ── Contact edit form ──────────────────────────────────────── */
-  const [contactEditForm, setContactEditForm] = useState({ ...BLANK_CONTACT_FORM });
+  const { form: contactEditForm, setForm: setContactEditForm, field: onContactEditField } = useFormState(BLANK_CONTACT_FORM);
   const [contactEditEmails, setContactEditEmails] = useState([]);
   const [contactEditPhones, setContactEditPhones] = useState([]);
 
@@ -242,8 +243,8 @@ export default function VendorsPage() {
   const viewTaxIds = viewTaxIdsRes?.rows ?? [];
   const viewContacts = viewContactsRes?.rows ?? [];
 
-  const [createForm, setCreateForm] = useState(BLANK_CREATE);
-  const [editForm, setEditForm] = useState(BLANK_EDIT);
+  const { form: createForm, setForm: setCreateForm, field: onCreateField, reset: resetCreateForm } = useFormState(BLANK_CREATE);
+  const { form: editForm, setForm: setEditForm, field: onEditField } = useFormState(BLANK_EDIT);
   const [editEmails, setEditEmails] = useState([]);
   const [editPhones, setEditPhones] = useState([]);
   const [editAddresses, setEditAddresses] = useState([]);
@@ -253,8 +254,6 @@ export default function VendorsPage() {
 
   const { toast, snackProps } = useToast();
 
-  const onCreateField = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.value }));
-  const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));
 
   /* ── Email edit helpers ─────────────────────────────────────── */
   const updateEmail = (idx, field, value) =>
@@ -567,7 +566,7 @@ export default function VendorsPage() {
 
       toast('Vendor created');
       setCreateOpen(false);
-      setCreateForm(BLANK_CREATE);
+      resetCreateForm();
       setCreateTab(0);
     } catch (err) {
       toast(errMsg(err), 'error');
@@ -681,7 +680,7 @@ export default function VendorsPage() {
       setEditContacts(updatedContacts);
       await refreshContactChildren(updatedContacts);
       setContactCreateOpen(false);
-      setContactCreateForm({ ...BLANK_CONTACT_FORM });
+      resetContactCreateForm();
       setContactCreateEmails([]);
       setContactCreatePhones([]);
       toast('Contact created');
@@ -834,7 +833,7 @@ export default function VendorsPage() {
       variant: 'contained',
       color: 'primary',
       onClick: () => {
-        setCreateForm(BLANK_CREATE);
+        resetCreateForm();
         setCreateTab(0);
         setCreateOpen(true);
       },
@@ -1337,7 +1336,7 @@ export default function VendorsPage() {
                     </Button>
                   )}
                   {contactViewFilter !== 'archived' && (
-                    <Button size="small" startIcon={<AddIcon />} onClick={() => { setContactCreateForm({ ...BLANK_CONTACT_FORM }); setContactCreateEmails([]); setContactCreatePhones([]); setContactCreateOpen(true); }}>
+                    <Button size="small" startIcon={<AddIcon />} onClick={() => { resetContactCreateForm(); setContactCreateEmails([]); setContactCreatePhones([]); setContactCreateOpen(true); }}>
                       Create Contact
                     </Button>
                   )}
@@ -1401,10 +1400,10 @@ export default function VendorsPage() {
         loading={createContactMut.isPending}
       >
         <Box sx={formGridSx}>
-          <TextField label="First Name" required value={contactCreateForm.first_name} onChange={(e) => setContactCreateForm((p) => ({ ...p, first_name: e.target.value }))} />
-          <TextField label="Last Name" required value={contactCreateForm.last_name} onChange={(e) => setContactCreateForm((p) => ({ ...p, last_name: e.target.value }))} />
-          <TextField label="Position" value={contactCreateForm.position} onChange={(e) => setContactCreateForm((p) => ({ ...p, position: e.target.value }))} />
-          <TextField label="Department" value={contactCreateForm.department} onChange={(e) => setContactCreateForm((p) => ({ ...p, department: e.target.value }))} />
+          <TextField label="First Name" required value={contactCreateForm.first_name} onChange={onContactCreateField('first_name')} />
+          <TextField label="Last Name" required value={contactCreateForm.last_name} onChange={onContactCreateField('last_name')} />
+          <TextField label="Position" value={contactCreateForm.position} onChange={onContactCreateField('position')} />
+          <TextField label="Department" value={contactCreateForm.department} onChange={onContactCreateField('department')} />
         </Box>
         <FormControlLabel
           control={<Checkbox checked={contactCreateForm.is_app_user} onChange={handleContactAppUserToggle('create')} size="small" />}
@@ -1475,10 +1474,10 @@ export default function VendorsPage() {
         loading={updateContactMut.isPending}
       >
         <Box sx={formGridSx}>
-          <TextField label="First Name" required value={contactEditForm.first_name} onChange={(e) => setContactEditForm((p) => ({ ...p, first_name: e.target.value }))} />
-          <TextField label="Last Name" required value={contactEditForm.last_name} onChange={(e) => setContactEditForm((p) => ({ ...p, last_name: e.target.value }))} />
-          <TextField label="Position" value={contactEditForm.position} onChange={(e) => setContactEditForm((p) => ({ ...p, position: e.target.value }))} />
-          <TextField label="Department" value={contactEditForm.department} onChange={(e) => setContactEditForm((p) => ({ ...p, department: e.target.value }))} />
+          <TextField label="First Name" required value={contactEditForm.first_name} onChange={onContactEditField('first_name')} />
+          <TextField label="Last Name" required value={contactEditForm.last_name} onChange={onContactEditField('last_name')} />
+          <TextField label="Position" value={contactEditForm.position} onChange={onContactEditField('position')} />
+          <TextField label="Department" value={contactEditForm.department} onChange={onContactEditField('department')} />
         </Box>
         <FormControlLabel
           control={<Checkbox checked={contactEditForm.is_app_user} onChange={handleContactAppUserToggle('edit')} size="small" />}

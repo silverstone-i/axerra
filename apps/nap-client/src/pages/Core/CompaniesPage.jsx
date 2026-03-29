@@ -6,6 +6,7 @@
  */
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useFormState } from '../../hooks/useFormState.js';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Checkbox from '@mui/material/Checkbox';
@@ -111,8 +112,8 @@ export default function CompaniesPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [editRow, setEditRow] = useState(null);
 
-  const [createForm, setCreateForm] = useState(BLANK_CREATE);
-  const [editForm, setEditForm] = useState(BLANK_EDIT);
+  const { form: createForm, setForm: setCreateForm, field: onCreateField, reset: resetCreateForm } = useFormState(BLANK_CREATE);
+  const { form: editForm, setForm: setEditForm, field: onEditField } = useFormState(BLANK_EDIT);
 
   /* ── Edit: source-linked collections ────────────────────────── */
   const [editSourceId, setEditSourceId] = useState(null);
@@ -144,8 +145,6 @@ export default function CompaniesPage() {
 
   const { toast, snackProps } = useToast();
 
-  const onCreateField = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.value }));
-  const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));
 
   /* ── Address / TaxId helpers ────────────────────────────────── */
   const updateAddress = (idx, field, value) =>
@@ -201,7 +200,7 @@ export default function CompaniesPage() {
       await createMut.mutateAsync(createForm);
       toast('Company created');
       setCreateOpen(false);
-      setCreateForm(BLANK_CREATE);
+      resetCreateForm();
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -337,7 +336,7 @@ export default function CompaniesPage() {
       label: 'Create Company',
       variant: 'contained',
       color: 'primary',
-      onClick: () => { setCreateForm(BLANK_CREATE); setCreateOpen(true); },
+      onClick: () => { resetCreateForm(); setCreateOpen(true); },
     });
 
     return {

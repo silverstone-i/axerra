@@ -15,6 +15,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useFormState } from '../../hooks/useFormState.js';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -177,13 +178,10 @@ export default function ManageTenantsPage() {
   const [importErrors, setImportErrors] = useState(null);
 
   /* ── form state ──────────────────────────────────────────── */
-  const [editForm, setEditForm] = useState(BLANK_EDIT);
+  const { form: editForm, setForm: setEditForm, field: onEditField } = useFormState(BLANK_EDIT);
 
   /* ── snackbar ────────────────────────────────────────────── */
   const { toast, snackProps } = useToast();
-
-  /* ── field change factories ──────────────────────────────── */
-  const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));
 
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {

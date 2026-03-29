@@ -15,6 +15,7 @@
  */
 
 import { useState, useMemo, useCallback } from 'react';
+import { useFormState } from '../../hooks/useFormState.js';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
@@ -104,15 +105,11 @@ export default function ManageRolesPage() {
   const [editRow, setEditRow] = useState(null);
 
   /* ── form state ────────────────────────────────────────────── */
-  const [createForm, setCreateForm] = useState(BLANK_CREATE);
-  const [editForm, setEditForm] = useState(BLANK_EDIT);
+  const { form: createForm, field: onCreateField, reset: resetCreateForm } = useFormState(BLANK_CREATE);
+  const { form: editForm, setForm: setEditForm, field: onEditField } = useFormState(BLANK_EDIT);
 
   /* ── snackbar ──────────────────────────────────────────────── */
   const { toast, snackProps } = useToast();
-
-  /* ── field change factories ────────────────────────────────── */
-  const onCreateField = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.value }));
-  const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));
 
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {
@@ -142,7 +139,7 @@ export default function ManageRolesPage() {
       await createMut.mutateAsync(createForm);
       toast('Role created');
       setCreateOpen(false);
-      setCreateForm(BLANK_CREATE);
+      resetCreateForm();
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -170,7 +167,7 @@ export default function ManageRolesPage() {
           variant: 'contained',
           color: 'primary',
           onClick: () => {
-            setCreateForm(BLANK_CREATE);
+            resetCreateForm();
             setCreateOpen(true);
           },
         },
