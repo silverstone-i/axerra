@@ -11,6 +11,7 @@
 
 import { writeFileSync, readFileSync } from 'node:fs';
 import { allocateNumber, allocateNumbers } from '../system/core/services/numberingService.js';
+import { stripFormatting, formatByPattern, COUNTRIES, TAX_TYPES } from '@nap/shared';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -104,11 +105,12 @@ export async function buildChildSheet(wb, sheetName, model, sourceIds, parentIdB
     return;
   }
 
-  // Prepend linkage column (parent id/ref)
-  const linked = curated.map((row, i) => ({
-    [linkColName]: parentIdBySourceId.get(rows[i].source_id) || '',
-    ...row,
-  }));
+  // Prepend linkage column (parent id/ref) and format phone/tax values for display
+  const linked = curated.map((row, i) => {
+    const out = { [linkColName]: parentIdBySourceId.get(rows[i].source_id) || '', ...row };
+    formatExportRow(out, 'phone_number', 'country_code', 'tax_value', 'country_code', 'tax_type');
+    return out;
+  });
 
   sheet.setHeaders(Object.keys(linked[0]));
   sheet.addObjects(linked);
@@ -209,8 +211,37 @@ export function coerceChildRow(row, model) {
     if (col.type === 'boolean' && typeof val === 'string') {
       row[col.name] = val.toLowerCase() === 'true';
     }
+    // Strip formatting from phone numbers and tax identifiers so DB always stores raw values
+    if ((col.name === 'phone_number' || col.name === 'tax_value') && typeof val === 'string') {
+      row[col.name] = stripFormatting(val);
+    }
   }
   return row;
+}
+
+/**
+ * Format phone_number and tax_value fields in an export row using country/type patterns.
+ * Mutates the row in place for performance (export rows are ephemeral).
+ * @param {Object} row         Flat row object (may contain phone_number, tax_value, etc.)
+ * @param {string} phoneCol    Column name for phone number (e.g. 'phone_number')
+ * @param {string} phoneCtryCol Column name for phone country code (e.g. 'country_code' or 'phone_country_code')
+ * @param {string} [taxCol]    Column name for tax value (e.g. 'tax_value')
+ * @param {string} [taxCtryCol] Column name for tax country code (e.g. 'country_code' or 'tax_country_code')
+ * @param {string} [taxTypeCol] Column name for tax type (e.g. 'tax_type')
+ */
+export function formatExportRow(row, phoneCol, phoneCtryCol, taxCol, taxCtryCol, taxTypeCol) {
+  if (row[phoneCol]) {
+    const cc = (row[phoneCtryCol] || '').trim().toUpperCase();
+    const country = COUNTRIES.find((c) => c.code === cc)
+      || COUNTRIES.find((c) => c.dial_code === `+${cc}` && c.placeholder);
+    if (country?.placeholder) row[phoneCol] = formatByPattern(String(row[phoneCol]), country.placeholder);
+  }
+  if (taxCol && row[taxCol]) {
+    const tc = (row[taxCtryCol] || '').trim().toUpperCase();
+    const types = TAX_TYPES[tc] || TAX_TYPES._OTHER || [];
+    const taxType = types.find((t) => t.code === row[taxTypeCol]);
+    if (taxType?.placeholder) row[taxCol] = formatByPattern(String(row[taxCol]), taxType.placeholder);
+  }
 }
 
 /**

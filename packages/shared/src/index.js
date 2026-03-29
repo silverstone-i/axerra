@@ -8,3 +8,4 @@
 export { resolveLevel } from './resolveLevel.js';
 export { TAX_TYPES } from './taxTypes.js';
 export { COUNTRIES } from './countries.js';
+export { formatByPattern, stripFormatting } from './formatByPattern.js';
