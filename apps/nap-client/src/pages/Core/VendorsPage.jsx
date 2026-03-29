@@ -8,15 +8,12 @@
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
 
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useDialogState } from '../../hooks/useDialogState.js';
+import { useVendorContactDialogs } from './vendors/useVendorContactDialogs.js';
 import Box from '@mui/material/Box';
-import Checkbox from '@mui/material/Checkbox';
-import FormControlLabel from '@mui/material/FormControlLabel';
 import IconButton from '@mui/material/IconButton';
-import MenuItem from '@mui/material/MenuItem';
-import TextField from '@mui/material/TextField';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import LockResetIcon from '@mui/icons-material/LockReset';
 
 import StatusBadge from '../../components/shared/StatusBadge.jsx';
@@ -26,7 +23,6 @@ import ResetPasswordDialog from '../../components/shared/ResetPasswordDialog.jsx
 import SetPasswordPopover from '../../components/shared/SetPasswordPopover.jsx';
 import DataTable from '../../components/shared/DataTable.jsx';
 import ImportDialog from '../../components/shared/ImportDialog.jsx';
-import PatternTextField from '../../components/shared/PatternTextField.jsx';
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import {
@@ -50,16 +46,11 @@ import {
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import { useActivePaymentTerms } from '../../hooks/usePaymentTerms.js';
 import { useRoles } from '../../hooks/useRoles.js';
-import { COUNTRIES, resolveLevel } from '@nap/shared';
+import { resolveLevel } from '@nap/shared';
 import { useToast } from '../../hooks/useToast.js';
-import { cap, fmtPhone, errMsg } from '../../utils/format.js';
+import { errMsg } from '../../utils/format.js';
 import { useFormState } from '../../hooks/useFormState.js';
-import { useCollectionState } from '../../hooks/useCollectionState.js';
-import { saveCollection } from '../../utils/saveCollection.js';
-import { BLANK_EMAIL, BLANK_PHONE, BLANK_ADDRESS, BLANK_TAX_ID, PHONE_TYPES, EMAIL_LABELS } from '../../utils/formConstants.js';
 import { vendorApi } from '../../services/vendorApi.js';
-import { emailApi } from '../../services/emailApi.js';
-import { phoneNumberApi } from '../../services/phoneNumberApi.js';
 import { pageContainerSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
@@ -69,14 +60,11 @@ import VendorCreateDialog from './vendors/VendorCreateDialog.jsx';
 import VendorEditDialog from './vendors/VendorEditDialog.jsx';
 import ContactViewDialog from './vendors/ContactViewDialog.jsx';
 import ContactFormDialog from './vendors/ContactFormDialog.jsx';
+import { useContactChildrenData } from './vendors/useContactChildrenData.jsx';
+import { useVendorEditCollections } from './vendors/useVendorEditCollections.jsx';
 
 const BLANK_CREATE = { name: '', code: '', payment_term_id: '', notes: '', is_active: true };
 const BLANK_EDIT = { name: '', code: '', payment_term_id: '', notes: '', is_active: true };
-const BLANK_CONTACT_FORM = {
-  first_name: '', last_name: '', position: '', department: '',
-  is_app_user: false, roles: [], password: '',
-};
-
 const baseColumns = [
   { field: 'code', headerName: 'Code', width: 120 },
   { field: 'name', headerName: 'Vendor Name', flex: 1, minWidth: 200 },
@@ -149,75 +137,22 @@ export default function VendorsPage() {
   const { selectedRows, allActive, allArchived } = selection;
 
   /* ── Dialog state ───────────────────────────────────────────── */
-  const [importOpen, setImportOpen] = useState(false);
+  const importDialog = useDialogState();
   const [importErrors, setImportErrors] = useState(null);
-  const [viewOpen, setViewOpen] = useState(false);
-  const [viewVendor, setViewVendor] = useState(null);
-  const [viewSourceId, setViewSourceId] = useState(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [editRow, setEditRow] = useState(null);
-  const [resetPwOpen, setResetPwOpen] = useState(false);
-  const [resetPwTarget, setResetPwTarget] = useState(null);
-
-  /* ── Tab state ──────────────────────────────────────────────── */
-  const [contactViewFilter, setContactViewFilter] = useState('active');
-
-  /* ── Edit contact sub-collection state ──────────────────────── */
-  const [contactEmails, setContactEmails] = useState({});
-  const [contactPhones, setContactPhones] = useState({});
-
-  /* ── View contact sub-collection state ──────────────────────── */
-  const [viewContactEmails, setViewContactEmails] = useState({});
-  const [viewContactPhones, setViewContactPhones] = useState({});
-
-  /* ── Contact sub-dialog state ───────────────────────────────── */
-  const [contactViewOpen, setContactViewOpen] = useState(false);
-  const [contactViewRow, setContactViewRow] = useState(null);
-  const [contactCreateOpen, setContactCreateOpen] = useState(false);
-  const [contactEditOpen, setContactEditOpen] = useState(false);
-  const [contactEditRow, setContactEditRow] = useState(null);
-
-  /* ── Contact create form ────────────────────────────────────── */
-  const { form: contactCreateForm, setForm: setContactCreateForm, field: onContactCreateField, reset: resetContactCreateForm } = useFormState(BLANK_CONTACT_FORM);
-  const [contactCreateEmails, setContactCreateEmails] = useState([]);
-  const [contactCreatePhones, setContactCreatePhones] = useState([]);
-
-  /* ── Contact edit form ──────────────────────────────────────── */
-  const { form: contactEditForm, setForm: setContactEditForm, field: onContactEditField } = useFormState(BLANK_CONTACT_FORM);
-  const [contactEditEmails, setContactEditEmails] = useState([]);
-  const [contactEditPhones, setContactEditPhones] = useState([]);
-
-  /* ── Contact password popover (for sub-dialogs) ─────────────── */
-  const [contactPwAnchor, setContactPwAnchor] = useState(null);
-  const [contactPwTarget, setContactPwTarget] = useState(null); // 'create' | 'edit'
-
-  /* ── Lookup maps for DataTable virtual columns ──────────────── */
-  const [contactPhoneMap, setContactPhoneMap] = useState(new Map());
-  const [contactEmailMap, setContactEmailMap] = useState(new Map());
-  const [viewContactPhoneMap, setViewContactPhoneMap] = useState(new Map());
-  const [viewContactEmailMap, setViewContactEmailMap] = useState(new Map());
-
-  const [editSourceId, setEditSourceId] = useState(null);
-  const { data: emailsRes } = useEmails({ source_id: editSourceId, includeDeactivated: 'false' }, { enabled: !!editSourceId });
-  const { data: phonesRes } = usePhoneNumbers({ source_id: editSourceId, includeDeactivated: 'false' }, { enabled: !!editSourceId });
-  const { data: addressesRes } = useAddresses({ source_id: editSourceId, includeDeactivated: 'false' }, { enabled: !!editSourceId });
-  const { data: taxIdsRes } = useTaxIdentifiers({ source_id: editSourceId, includeDeactivated: 'false' }, { enabled: !!editSourceId });
-
-  const [editVendorId, setEditVendorId] = useState(null);
-  const { data: contactsRes } = useVendorContacts(
-    { vendor_id: editVendorId, includeDeactivated: 'true' },
-    { enabled: !!editVendorId },
-  );
+  const viewDialog = useDialogState();
+  const createDialog = useDialogState();
+  const editDialog = useDialogState();
+  const resetPwDialog = useDialogState();
 
   // View dialog child data
+  const viewSourceId = viewDialog.data?.source_id;
   const { data: viewEmailsRes } = useEmails({ source_id: viewSourceId, includeDeactivated: 'false' }, { enabled: !!viewSourceId });
   const { data: viewPhonesRes } = usePhoneNumbers({ source_id: viewSourceId, includeDeactivated: 'false' }, { enabled: !!viewSourceId });
   const { data: viewAddressesRes } = useAddresses({ source_id: viewSourceId, includeDeactivated: 'false' }, { enabled: !!viewSourceId });
   const { data: viewTaxIdsRes } = useTaxIdentifiers({ source_id: viewSourceId, includeDeactivated: 'false' }, { enabled: !!viewSourceId });
   const { data: viewContactsRes } = useVendorContacts(
-    { vendor_id: viewVendor?.id, includeDeactivated: 'false' },
-    { enabled: !!viewVendor?.id },
+    { vendor_id: viewDialog.data?.id, includeDeactivated: 'false' },
+    { enabled: !!viewDialog.data?.id },
   );
   const viewEmails = viewEmailsRes?.rows ?? [];
   const viewPhones = viewPhonesRes?.rows ?? [];
@@ -227,243 +162,93 @@ export default function VendorsPage() {
 
   const { form: createForm, setForm: setCreateForm, field: onCreateField, reset: resetCreateForm } = useFormState(BLANK_CREATE);
   const { form: editForm, setForm: setEditForm, field: onEditField } = useFormState(BLANK_EDIT);
-  const emails = useCollectionState([], { blank: BLANK_EMAIL, autoPrimary: 'is_primary', exclusive: ['is_primary'] });
-  const phones = useCollectionState([], { blank: BLANK_PHONE, autoPrimary: 'is_primary', exclusive: ['is_primary'] });
-  const addresses = useCollectionState([], { blank: BLANK_ADDRESS });
-  const taxIds = useCollectionState([], { blank: BLANK_TAX_ID });
-  const [editContacts, setEditContacts] = useState([]);
-  const editInitial = useRef({ form: null, emails: null, phones: null, addresses: null, taxIds: null });
 
   const { toast, snackProps } = useToast();
 
-  /* ── Contact DataTable columns ──────────────────────────────── */
-  const contactColumns = useMemo(() => [
-    { field: 'first_name', headerName: 'First Name', flex: 1, minWidth: 120 },
-    { field: 'last_name', headerName: 'Last Name', flex: 1, minWidth: 120 },
-    {
-      field: '_phone', headerName: 'Phone', flex: 1, minWidth: 130,
-      valueGetter: (params) => contactPhoneMap.get(params.row.id) || viewContactPhoneMap.get(params.row.id) || '\u2014',
-    },
-    {
-      field: '_email', headerName: 'Email', flex: 1, minWidth: 180,
-      valueGetter: (params) => contactEmailMap.get(params.row.id) || viewContactEmailMap.get(params.row.id) || '\u2014',
-    },
-    {
-      field: '_status', headerName: 'Status', width: 100,
-      renderCell: ({ row }) => <StatusBadge status={row.deactivated_at ? 'archived' : 'active'} />,
-    },
-  ], [contactPhoneMap, contactEmailMap, viewContactPhoneMap, viewContactEmailMap]);
-
-  /* ── Contact view filter + selection ──────────────────────────── */
-  const filteredContacts = useMemo(() => {
-    const live = editContacts.filter((c) => !c._deleted);
-    if (contactViewFilter === 'active') return live.filter((c) => !c.deactivated_at);
-    if (contactViewFilter === 'archived') return live.filter((c) => !!c.deactivated_at);
-    return live;
-  }, [editContacts, contactViewFilter]);
-
-  const contactSelection = useListSelection(filteredContacts);
-  const viewContactSelection = useListSelection(viewContacts || []);
-
+  const editCloseRef = useRef(null);
   const {
-    setArchiveOpen: setContactArchiveOpen, setRestoreOpen: setContactRestoreOpen,
-    archiveConfirmProps: contactArchiveProps, restoreConfirmProps: contactRestoreProps,
-  } = useArchiveRestore({
-    selectedRows: contactSelection.selectedRows,
-    archiveMut: archiveContactMut,
-    restoreMut: restoreContactMut,
-    entityName: 'contact',
-    setSelectionModel: () => contactSelection.clearSelection(),
+    emails, phones, addresses, taxIds,
+    editContacts, setEditContacts,
+    setEditSourceId, setEditVendorId,
+    editInitial, hasEditChanges, handleUpdate, contactsRes,
+    renderEmailRow, renderPhoneRow,
+  } = useVendorEditCollections({
+    editOpen: editDialog.isOpen,
+    editRow: editDialog.data,
+    editForm,
+    updateMut,
     toast,
-    errMsg,
-    getLabel: (r) => `${r.first_name} ${r.last_name}`,
+    onEditClose: () => editCloseRef.current?.(),
+    emailMuts: { create: createEmailMut, update: updateEmailMut, archive: archiveEmailMut },
+    phoneMuts: { create: createPhoneMut, update: updatePhoneMut, archive: archivePhoneMut },
+    addressMuts: { create: createAddrMut, update: updateAddrMut, archive: archiveAddrMut },
+    taxIdMuts: { create: createTaxIdMut, update: updateTaxIdMut, archive: archiveTaxIdMut },
   });
 
-  /* ── Contact password popover handlers ──────────────────────── */
-  const handleContactAppUserToggle = (target) => (e) => {
-    if (e.target.checked) {
-      setContactPwTarget(target);
-      setContactPwAnchor(e.currentTarget);
-    } else {
-      const setForm = target === 'create' ? setContactCreateForm : setContactEditForm;
-      setForm((p) => ({ ...p, is_app_user: false, password: '' }));
-    }
-  };
+  const {
+    contactEmails, contactPhones, contactColumns, refreshContactChildren,
+    viewContactEmails, viewContactPhones, resetEditMaps, resetViewMaps,
+  } = useContactChildrenData({ editOpen: editDialog.isOpen, viewOpen: viewDialog.isOpen, editContacts, viewContacts, contactsRes, setEditContacts });
 
-  const handleContactPwConfirm = (password) => {
-    const setForm = contactPwTarget === 'create' ? setContactCreateForm : setContactEditForm;
-    setForm((p) => ({ ...p, is_app_user: true, password }));
-    setContactPwAnchor(null);
-    setContactPwTarget(null);
-  };
 
-  const handleContactPwCancel = () => {
-    setContactPwAnchor(null);
-    setContactPwTarget(null);
-  };
-
-  /* ── Sync query-fetched sub-collections into edit state ────── */
-  useEffect(() => {
-    if (editOpen && emailsRes?.rows) {
-      emails.reset(emailsRes.rows);
-      editInitial.current.emails = emailsRes.rows;
-    }
-  }, [editOpen, emailsRes]);
-
-  useEffect(() => {
-    if (editOpen && phonesRes?.rows) {
-      phones.reset(phonesRes.rows);
-      editInitial.current.phones = phonesRes.rows;
-    }
-  }, [editOpen, phonesRes]);
-
-  useEffect(() => {
-    if (editOpen && addressesRes?.rows) {
-      addresses.reset(addressesRes.rows);
-      editInitial.current.addresses = addressesRes.rows;
-    }
-  }, [editOpen, addressesRes]);
-
-  useEffect(() => {
-    if (editOpen && taxIdsRes?.rows) {
-      taxIds.reset(taxIdsRes.rows);
-      editInitial.current.taxIds = taxIdsRes.rows;
-    }
-  }, [editOpen, taxIdsRes]);
-
-  useEffect(() => {
-    if (editOpen && contactsRes?.rows) {
-      const contacts = contactsRes.rows;
-      setEditContacts(contacts);
-
-      // Fetch emails and phones for each contact + build lookup maps
-      const fetchContactChildren = async () => {
-        const em = {};
-        const ph = {};
-        const eMap = new Map();
-        const pMap = new Map();
-        for (const c of contacts) {
-          if (c.source_id) {
-            const emailRes = await emailApi.list({ source_id: c.source_id, includeDeactivated: 'false' });
-            em[c.id] = emailRes?.rows ?? [];
-            const phoneRes = await phoneNumberApi.list({ source_id: c.source_id, includeDeactivated: 'false' });
-            ph[c.id] = phoneRes?.rows ?? [];
-            const primaryEmail = em[c.id].find((e) => e.is_primary) || em[c.id][0];
-            if (primaryEmail) eMap.set(c.id, primaryEmail.email);
-            const primaryPhone = ph[c.id].find((p) => p.is_primary) || ph[c.id][0];
-            if (primaryPhone) pMap.set(c.id, fmtPhone(primaryPhone));
-          }
-        }
-        setContactEmails(em);
-        setContactPhones(ph);
-        setContactEmailMap(eMap);
-        setContactPhoneMap(pMap);
-      };
-      fetchContactChildren();
-    }
-  }, [editOpen, contactsRes]);
-
-  /* ── Fetch view contact emails/phones ───────────────────────── */
-  useEffect(() => {
-    if (viewOpen && viewContacts.length) {
-      const fetchViewContactChildren = async () => {
-        const em = {};
-        const ph = {};
-        const eMap = new Map();
-        const pMap = new Map();
-        for (const c of viewContacts) {
-          if (c.source_id) {
-            const emailRes = await emailApi.list({ source_id: c.source_id, includeDeactivated: 'false' });
-            em[c.id] = emailRes?.rows ?? [];
-            const phoneRes = await phoneNumberApi.list({ source_id: c.source_id, includeDeactivated: 'false' });
-            ph[c.id] = phoneRes?.rows ?? [];
-            const primaryEmail = em[c.id].find((e) => e.is_primary) || em[c.id][0];
-            if (primaryEmail) eMap.set(c.id, primaryEmail.email);
-            const primaryPhone = ph[c.id].find((p) => p.is_primary) || ph[c.id][0];
-            if (primaryPhone) pMap.set(c.id, fmtPhone(primaryPhone));
-          }
-        }
-        setViewContactEmails(em);
-        setViewContactPhones(ph);
-        setViewContactEmailMap(eMap);
-        setViewContactPhoneMap(pMap);
-      };
-      fetchViewContactChildren();
-    }
-  }, [viewOpen, viewContacts]);
-
-  /* ── refreshContactChildren helper ──────────────────────────── */
-  const refreshContactChildren = useCallback(async (overrideContacts) => {
-    const contacts = (overrideContacts || editContacts).filter((c) => !c._deleted);
-    const em = {};
-    const ph = {};
-    const eMap = new Map();
-    const pMap = new Map();
-    for (const c of contacts) {
-      if (c.source_id) {
-        const emailRes = await emailApi.list({ source_id: c.source_id, includeDeactivated: 'false' });
-        em[c.id] = emailRes?.rows ?? [];
-        const phoneRes = await phoneNumberApi.list({ source_id: c.source_id, includeDeactivated: 'false' });
-        ph[c.id] = phoneRes?.rows ?? [];
-        const primaryEmail = em[c.id].find((e) => e.is_primary) || em[c.id][0];
-        if (primaryEmail) eMap.set(c.id, primaryEmail.email);
-        const primaryPhone = ph[c.id].find((p) => p.is_primary) || ph[c.id][0];
-        if (primaryPhone) pMap.set(c.id, fmtPhone(primaryPhone));
-      }
-    }
-    setContactEmails(em);
-    setContactPhones(ph);
-    setContactEmailMap(eMap);
-    setContactPhoneMap(pMap);
-  }, [editContacts]);
+  /* ── Contact sub-dialog orchestration ────────────────────────── */
+  const {
+    contactViewOpen, contactViewRow, handleViewContact, closeContactView,
+    contactCreateOpen, contactCreateForm, setContactCreateForm, onContactCreateField,
+    contactCreateEmails, setContactCreateEmails, contactCreatePhones, setContactCreatePhones,
+    handleOpenContactCreate, handleContactCreate, closeContactCreate, createContactLoading,
+    contactEditOpen, contactEditForm, setContactEditForm, onContactEditField,
+    contactEditEmails, setContactEditEmails, contactEditPhones, setContactEditPhones,
+    contactEditRow, openContactEdit, handleContactEdit, closeContactEdit, updateContactLoading,
+    contactPwAnchor, handleContactAppUserToggle, handleContactPwConfirm, handleContactPwCancel,
+    contactViewFilter, setContactViewFilter, filteredContacts,
+    contactSelection, viewContactSelection,
+    setContactArchiveOpen, setContactRestoreOpen,
+    contactArchiveProps, contactRestoreProps,
+  } = useVendorContactDialogs({
+    editRow: editDialog.data,
+    editContacts,
+    setEditContacts,
+    contactEmails,
+    contactPhones,
+    viewContacts,
+    refreshContactChildren,
+    toast,
+    qc,
+    createContactMut,
+    updateContactMut,
+    archiveContactMut,
+    restoreContactMut,
+    createEmailMut,
+    updateEmailMut,
+    archiveEmailMut,
+    createPhoneMut,
+    updatePhoneMut,
+    archivePhoneMut,
+  });
 
   /* ── Bundled close handlers ─────────────────────────────────── */
   const handleViewClose = useCallback(() => {
-    setViewOpen(false);
-    setViewSourceId(null);
-    setViewContactEmails({});
-    setViewContactPhones({});
-    setViewContactEmailMap(new Map());
-    setViewContactPhoneMap(new Map());
-  }, []);
+    viewDialog.close();
+    resetViewMaps();
+  }, [viewDialog.close, resetViewMaps]);
 
   const handleEditClose = useCallback(() => {
-    setEditOpen(false);
-    setEditRow(null);
+    editDialog.close();
     setEditSourceId(null);
     setEditVendorId(null);
-    setContactEmails({});
-    setContactPhones({});
-    setContactEmailMap(new Map());
-    setContactPhoneMap(new Map());
+    resetEditMaps();
     setContactViewFilter('active');
-  }, []);
-
-  const handleViewContact = useCallback((row) => {
-    setContactViewRow(row);
-    setContactViewOpen(true);
-  }, []);
-
-  const handleOpenContactCreate = useCallback(() => {
-    resetContactCreateForm();
-    setContactCreateEmails([]);
-    setContactCreatePhones([]);
-    setContactCreateOpen(true);
-  }, [resetContactCreateForm]);
+  }, [editDialog.close, resetEditMaps, setEditSourceId, setEditVendorId]);
+  editCloseRef.current = handleEditClose;
 
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {
-    setViewVendor(row);
-    setViewSourceId(row.source_id || null);
-    setViewContactEmails({});
-    setViewContactPhones({});
-    setViewContactEmailMap(new Map());
-    setViewContactPhoneMap(new Map());
-    setViewOpen(true);
-  }, []);
+    resetViewMaps();
+    viewDialog.open(row);
+  }, [viewDialog.open, resetViewMaps]);
 
   const handleEdit = useCallback((row) => {
-    setEditRow(row);
     const form = {
       name: row.name ?? '',
       code: row.code ?? '',
@@ -490,49 +275,10 @@ export default function VendorsPage() {
       setEditContacts([]);
     }
 
-    setContactEmails({});
-    setContactPhones({});
-    setContactEmailMap(new Map());
-    setContactPhoneMap(new Map());
+    resetEditMaps();
     setContactViewFilter('active');
-    setEditOpen(true);
-  }, []);
-
-  /* ── Contact sub-dialog openers ─────────────────────────────── */
-  const openContactEdit = useCallback((row) => {
-    setContactEditRow(row);
-    setContactEditForm({
-      first_name: row.first_name, last_name: row.last_name,
-      position: row.position || '', department: row.department || '',
-      is_app_user: row.is_app_user || false, roles: row.roles || [],
-      password: '',
-    });
-    setContactEditEmails([...(contactEmails[row.id] || [])]);
-    setContactEditPhones([...(contactPhones[row.id] || [])]);
-    setContactEditOpen(true);
-  }, [contactEmails, contactPhones]);
-
-  /* ── Dirty-check: disable Save when nothing changed ──────── */
-  const hasEditChanges = useMemo(() => {
-    const init = editInitial.current;
-    if (!init.form) return false;
-    if (JSON.stringify(editForm) !== JSON.stringify(init.form)) return true;
-    const collectionChanged = (current, initial, fields) => {
-      if (!initial) return false;
-      if (current.some((c) => c._deleted)) return true;
-      if (current.some((c) => !c.id && !c._deleted)) return true;
-      const initMap = new Map(initial.map((r) => [r.id, r]));
-      return current.filter((c) => c.id && !c._deleted).some((c) => {
-        const orig = initMap.get(c.id);
-        return !orig || fields.some((f) => c[f] !== orig[f]);
-      });
-    };
-    if (collectionChanged(emails.items, init.emails, ['email', 'label', 'is_primary'])) return true;
-    if (collectionChanged(phones.items, init.phones, ['country_code', 'phone_type', 'phone_number', 'is_primary'])) return true;
-    if (collectionChanged(addresses.items, init.addresses, ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'])) return true;
-    if (collectionChanged(taxIds.items, init.taxIds, ['country_code', 'tax_type', 'tax_value'])) return true;
-    return false;
-  }, [editForm, emails.items, phones.items, addresses.items, taxIds.items]);
+    editDialog.open(row);
+  }, [editDialog.open, resetEditMaps]);
 
   const handleCreate = async () => {
     try {
@@ -540,162 +286,19 @@ export default function VendorsPage() {
       await createMut.mutateAsync(payload);
 
       toast('Vendor created');
-      setCreateOpen(false);
+      createDialog.close();
       resetCreateForm();
     } catch (err) {
       toast(errMsg(err), 'error');
     }
   };
 
-  const handleUpdate = async () => {
-    try {
-      const changes = { ...editForm, payment_term_id: editForm.payment_term_id || null };
-      await updateMut.mutateAsync({ filter: { id: editRow.id }, changes });
-
-      if (editRow.source_id) {
-        const sid = editRow.source_id;
-        await saveCollection(emails.items, {
-          sourceId: sid, fields: ['email', 'label', 'is_primary'],
-          createMut: createEmailMut.mutateAsync, updateMut: updateEmailMut.mutateAsync, archiveMut: archiveEmailMut.mutateAsync,
-        });
-        await saveCollection(phones.items, {
-          sourceId: sid, fields: ['country_code', 'phone_type', 'phone_number', 'is_primary'],
-          createMut: createPhoneMut.mutateAsync, updateMut: updatePhoneMut.mutateAsync, archiveMut: archivePhoneMut.mutateAsync,
-        });
-        await saveCollection(addresses.items, {
-          sourceId: sid, fields: ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'],
-          createMut: createAddrMut.mutateAsync, updateMut: updateAddrMut.mutateAsync, archiveMut: archiveAddrMut.mutateAsync,
-        });
-        await saveCollection(taxIds.items, {
-          sourceId: sid, fields: ['country_code', 'tax_type', 'tax_value'],
-          createMut: createTaxIdMut.mutateAsync, updateMut: updateTaxIdMut.mutateAsync, archiveMut: archiveTaxIdMut.mutateAsync,
-        });
-      }
-
-      toast('Vendor updated');
-      handleEditClose();
-    } catch (err) {
-      toast(errMsg(err), 'error');
-    }
-  };
-
-  /* ── Contact Create handler ─────────────────────────────────── */
-  const handleContactCreate = useCallback(async () => {
-    try {
-      const primaryEmail = contactCreateEmails.find((e) => e.is_primary)?.email || contactCreateEmails[0]?.email || null;
-      const contactRecord = await createContactMut.mutateAsync({
-        vendor_id: editRow.id,
-        first_name: contactCreateForm.first_name,
-        last_name: contactCreateForm.last_name,
-        position: contactCreateForm.position,
-        department: contactCreateForm.department,
-        is_app_user: contactCreateForm.is_app_user,
-        roles: contactCreateForm.roles,
-        email: primaryEmail,
-        password: contactCreateForm.password,
-      });
-
-      // Create additional emails (beyond the one passed to createContact)
-      for (const em of contactCreateEmails) {
-        if (em.email && em.email !== primaryEmail) {
-          await createEmailMut.mutateAsync({
-            source_id: contactRecord.source_id, email: em.email, label: em.label,
-            is_primary: em.is_primary, is_login: false,
-          });
-        }
-      }
-      // Create phones
-      for (const ph of contactCreatePhones) {
-        if (ph.phone_number) {
-          await createPhoneMut.mutateAsync({
-            source_id: contactRecord.source_id, country_code: ph.country_code,
-            phone_type: ph.phone_type, phone_number: ph.phone_number, is_primary: ph.is_primary,
-          });
-        }
-      }
-
-      // Add the new contact to local state and refresh children with it included
-      const updatedContacts = [...editContacts, contactRecord];
-      setEditContacts(updatedContacts);
-      await refreshContactChildren(updatedContacts);
-      setContactCreateOpen(false);
-      resetContactCreateForm();
-      setContactCreateEmails([]);
-      setContactCreatePhones([]);
-      toast('Contact created');
-    } catch (err) {
-      toast(errMsg(err), 'error');
-    }
-  }, [contactCreateForm, contactCreateEmails, contactCreatePhones, editRow, editContacts, createContactMut, createEmailMut, createPhoneMut, toast, errMsg, refreshContactChildren]);
-
-  /* ── Contact Edit handler ───────────────────────────────────── */
-  const handleContactEdit = useCallback(async () => {
-    try {
-      const changes = {
-        first_name: contactEditForm.first_name, last_name: contactEditForm.last_name,
-        position: contactEditForm.position, department: contactEditForm.department,
-        is_app_user: contactEditForm.is_app_user, roles: contactEditForm.roles,
-        ...(contactEditForm.password && { password: contactEditForm.password }),
-      };
-      if (changes.is_app_user && !contactEditRow?.is_app_user) {
-        const loginEm = contactEditEmails.find((em) => em.is_login && !em._deleted)
-          || contactEditEmails.find((em) => em.is_primary && !em._deleted)
-          || contactEditEmails.find((em) => !em._deleted);
-        if (loginEm) changes.email = loginEm.email;
-      }
-      await updateContactMut.mutateAsync({ filter: { id: contactEditRow.id }, changes });
-
-      // CRUD emails
-      for (const em of contactEditEmails) {
-        if (em._deleted && em.id) {
-          await archiveEmailMut.mutateAsync({ id: em.id });
-        } else if (!em.id && !em._deleted && em.email) {
-          await createEmailMut.mutateAsync({
-            source_id: contactEditRow.source_id, email: em.email, label: em.label,
-            is_primary: em.is_primary, is_login: em.is_login || false,
-          });
-        } else if (em.id && !em._deleted) {
-          await updateEmailMut.mutateAsync({
-            filter: { id: em.id },
-            changes: { email: em.email, label: em.label, is_primary: em.is_primary, is_login: em.is_login || false },
-          });
-        }
-      }
-      // CRUD phones
-      for (const ph of contactEditPhones) {
-        if (ph._deleted && ph.id) {
-          await archivePhoneMut.mutateAsync({ id: ph.id });
-        } else if (!ph.id && !ph._deleted && ph.phone_number) {
-          await createPhoneMut.mutateAsync({
-            source_id: contactEditRow.source_id, country_code: ph.country_code,
-            phone_type: ph.phone_type, phone_number: ph.phone_number, is_primary: ph.is_primary,
-          });
-        } else if (ph.id && !ph._deleted) {
-          await updatePhoneMut.mutateAsync({
-            filter: { id: ph.id },
-            changes: { country_code: ph.country_code, phone_type: ph.phone_type, phone_number: ph.phone_number, is_primary: ph.is_primary },
-          });
-        }
-      }
-
-      await refreshContactChildren();
-      if (contactEditForm.is_app_user !== contactEditRow?.is_app_user) {
-        qc.invalidateQueries({ queryKey: ['nap-users'] });
-      }
-      setContactEditOpen(false);
-      setContactEditRow(null);
-      toast('Contact updated');
-    } catch (err) {
-      toast(errMsg(err), 'error');
-    }
-  }, [contactEditRow, contactEditForm, contactEditEmails, contactEditPhones, updateContactMut, createEmailMut, updateEmailMut, archiveEmailMut, createPhoneMut, updatePhoneMut, archivePhoneMut, qc, toast, errMsg, refreshContactChildren]);
-
   const handleImport = useCallback(async (formData) => {
     setImportErrors(null);
     try {
       const result = await importMut.mutateAsync(formData);
       toast(`Imported ${result.inserted} records`);
-      setImportOpen(false);
+      importDialog.close();
     } catch (err) {
       const validationErrors = err.payload?.errors;
       if (validationErrors?.length) {
@@ -761,7 +364,7 @@ export default function VendorsPage() {
       primary.push({
         label: 'Import',
         variant: 'outlined',
-        onClick: () => setImportOpen(true),
+        onClick: () => importDialog.open(),
       });
     }
 
@@ -771,7 +374,7 @@ export default function VendorsPage() {
       color: 'primary',
       onClick: () => {
         resetCreateForm();
-        setCreateOpen(true);
+        createDialog.open();
       },
     });
 
@@ -787,91 +390,6 @@ export default function VendorsPage() {
   }, [viewFilter, selectedRows.length, allActive, allArchived, selection.clearSelection, setArchiveOpen, setRestoreOpen, canImport, canExport, exportMut.isPending, handleExport]);
   useModuleToolbarRegistration(toolbar);
 
-  /* ── Inline email row renderer (edit mode) ──────────────────── */
-  const renderEmailRow = (em, emailIdx, onUpdate, onRemove) => (
-    <Box key={em.id || emailIdx} sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-      <TextField
-        label="Email"
-        type="email"
-        value={em.email}
-        onChange={(e) => onUpdate(emailIdx, 'email', e.target.value)}
-        size="small"
-        sx={{ flex: 1, minWidth: 200 }}
-      />
-      <TextField
-        select
-        label="Label"
-        value={em.label}
-        onChange={(e) => onUpdate(emailIdx, 'label', e.target.value)}
-        size="small"
-        sx={{ minWidth: 120 }}
-      >
-        {EMAIL_LABELS.map((l) => (
-          <MenuItem key={l} value={l}>{cap(l)}</MenuItem>
-        ))}
-      </TextField>
-      <FormControlLabel
-        control={<Checkbox checked={em.is_primary} onChange={(e) => onUpdate(emailIdx, 'is_primary', e.target.checked)} size="small" />}
-        label="Primary"
-        sx={{ mr: 0 }}
-      />
-      <IconButton size="small" onClick={() => onRemove(emailIdx)} color="error">
-        <DeleteOutlineIcon fontSize="small" />
-      </IconButton>
-    </Box>
-  );
-
-  /* ── Inline phone row renderer (edit mode) ──────────────────── */
-  const renderPhoneRow = (phone, phoneIdx, onUpdate, onRemove) => {
-    const countryCode = phone.country_code?.trim() || 'US';
-    const country = COUNTRIES.find((c) => c.code === countryCode);
-    return (
-      <Box key={phone.id || phoneIdx} sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-        <TextField
-          select
-          label="Type"
-          value={phone.phone_type}
-          onChange={(e) => onUpdate(phoneIdx, 'phone_type', e.target.value)}
-          sx={{ minWidth: 120 }}
-          size="small"
-        >
-          {PHONE_TYPES.map((t) => (
-            <MenuItem key={t} value={t}>{cap(t)}</MenuItem>
-          ))}
-        </TextField>
-        <TextField
-          select
-          label="Country"
-          value={countryCode}
-          onChange={(e) => onUpdate(phoneIdx, 'country_code', e.target.value)}
-          SelectProps={{ renderValue: (val) => COUNTRIES.find((c) => c.code === val)?.dial_code || val }}
-          sx={{ minWidth: 80 }}
-          size="small"
-        >
-          {COUNTRIES.map((c) => (
-            <MenuItem key={c.code} value={c.code}>{c.dial_code} {c.code} - {c.name}</MenuItem>
-          ))}
-        </TextField>
-        <PatternTextField
-          label="Number"
-          value={phone.phone_number}
-          onChange={(raw) => onUpdate(phoneIdx, 'phone_number', raw)}
-          pattern={country?.placeholder}
-          size="small"
-          sx={{ flex: 1, minWidth: 160 }}
-        />
-        <FormControlLabel
-          control={<Checkbox checked={phone.is_primary} onChange={(e) => onUpdate(phoneIdx, 'is_primary', e.target.checked)} size="small" />}
-          label="Primary"
-          sx={{ mr: 0 }}
-        />
-        <IconButton size="small" onClick={() => onRemove(phoneIdx)} color="error">
-          <DeleteOutlineIcon fontSize="small" />
-        </IconButton>
-      </Box>
-    );
-  };
-
   return (
     <Box sx={pageContainerSx}>
       <DataTable
@@ -884,9 +402,9 @@ export default function VendorsPage() {
       />
 
       <VendorViewDialog
-        open={viewOpen}
+        open={viewDialog.isOpen}
         onClose={handleViewClose}
-        vendor={viewVendor}
+        vendor={viewDialog.data}
         ptMap={ptMap}
         viewEmails={viewEmails}
         viewPhones={viewPhones}
@@ -899,8 +417,8 @@ export default function VendorsPage() {
       />
 
       <VendorCreateDialog
-        open={createOpen}
-        onClose={() => { setCreateOpen(false); }}
+        open={createDialog.isOpen}
+        onClose={createDialog.close}
         createForm={createForm}
         onCreateField={onCreateField}
         setCreateForm={setCreateForm}
@@ -910,7 +428,7 @@ export default function VendorsPage() {
       />
 
       <VendorEditDialog
-        open={editOpen}
+        open={editDialog.isOpen}
         onClose={handleEditClose}
         editForm={editForm}
         onEditField={onEditField}
@@ -941,7 +459,7 @@ export default function VendorsPage() {
 
       <ContactViewDialog
         open={contactViewOpen}
-        onClose={() => { setContactViewOpen(false); setContactViewRow(null); }}
+        onClose={closeContactView}
         contact={contactViewRow}
         emails={contactEmails[contactViewRow?.id] || viewContactEmails[contactViewRow?.id] || []}
         phones={contactPhones[contactViewRow?.id] || viewContactPhones[contactViewRow?.id] || []}
@@ -951,9 +469,9 @@ export default function VendorsPage() {
       <ContactFormDialog
         open={contactCreateOpen}
         title="Create Contact"
-        onCancel={() => setContactCreateOpen(false)}
+        onCancel={closeContactCreate}
         onSubmit={handleContactCreate}
-        loading={createContactMut.isPending}
+        loading={createContactLoading}
         form={contactCreateForm}
         setForm={setContactCreateForm}
         field={onContactCreateField}
@@ -969,9 +487,9 @@ export default function VendorsPage() {
       <ContactFormDialog
         open={contactEditOpen}
         title="Edit Contact"
-        onCancel={() => { setContactEditOpen(false); setContactEditRow(null); }}
+        onCancel={closeContactEdit}
         onSubmit={handleContactEdit}
-        loading={updateContactMut.isPending}
+        loading={updateContactLoading}
         form={contactEditForm}
         setForm={setContactEditForm}
         field={onContactEditField}
@@ -983,31 +501,31 @@ export default function VendorsPage() {
         onAppUserToggle={handleContactAppUserToggle('edit')}
       >
         {contactEditForm.is_app_user && contactEditRow?.id && (
-          <IconButton size="small" title="Reset Password" onClick={() => { setResetPwTarget(contactEditRow); setResetPwOpen(true); }}>
+          <IconButton size="small" title="Reset Password" onClick={() => resetPwDialog.open(contactEditRow)}>
             <LockResetIcon fontSize="small" />
           </IconButton>
         )}
       </ContactFormDialog>
 
       <ImportDialog
-        open={importOpen}
+        open={importDialog.isOpen}
         title="Import Vendors"
         loading={importMut.isPending}
         errors={importErrors}
         onSubmit={handleImport}
-        onCancel={() => { setImportOpen(false); setImportErrors(null); }}
+        onCancel={() => { importDialog.close(); setImportErrors(null); }}
       />
 
       <ConfirmDialog {...archiveConfirmProps} />
       <ConfirmDialog {...restoreConfirmProps} />
 
       <ResetPasswordDialog
-        open={resetPwOpen}
-        onClose={() => { setResetPwOpen(false); setResetPwTarget(null); }}
-        onSuccess={() => { setResetPwOpen(false); setResetPwTarget(null); toast('Password reset successfully'); }}
+        open={resetPwDialog.isOpen}
+        onClose={resetPwDialog.close}
+        onSuccess={() => { resetPwDialog.close(); toast('Password reset successfully'); }}
         onReset={(id, password) => resetContactPwMut.mutateAsync({ id, password })}
-        entityId={resetPwTarget?.id}
-        entityName={resetPwTarget ? `${resetPwTarget.first_name} ${resetPwTarget.last_name}` : ''}
+        entityId={resetPwDialog.data?.id}
+        entityName={resetPwDialog.data ? `${resetPwDialog.data.first_name} ${resetPwDialog.data.last_name}` : ''}
       />
 
       <SetPasswordPopover anchorEl={contactPwAnchor} onConfirm={handleContactPwConfirm} onCancel={handleContactPwCancel} />
