@@ -131,13 +131,12 @@ export default function VendorEditDialog({
                 <Typography variant="subtitle2">Emails</Typography>
                 <Button size="small" startIcon={<AddIcon />} onClick={emails.add}>Add Email</Button>
               </Box>
-              {emails.visibleItems.length === 0 && (
+              {emails.indexedItems.length === 0 && (
                 <Typography variant="body2" color="text.secondary">No emails</Typography>
               )}
-              {emails.visibleItems.map((em) => {
-                const idx = emails.items.indexOf(em);
-                return <EmailRow key={em.id || idx} item={em} index={idx} onUpdate={emails.update} onRemove={emails.remove} />;
-              })}
+              {emails.indexedItems.map(({ item: em, index: idx }) => (
+                <EmailRow key={em.id || idx} item={em} index={idx} onUpdate={emails.update} onRemove={emails.remove} />
+              ))}
 
               {/* ── Phone Numbers ──────────────────────────────────── */}
               <Divider />
@@ -145,13 +144,12 @@ export default function VendorEditDialog({
                 <Typography variant="subtitle2">Phone Numbers</Typography>
                 <Button size="small" startIcon={<AddIcon />} onClick={phones.add}>Add Phone</Button>
               </Box>
-              {phones.visibleItems.length === 0 && (
+              {phones.indexedItems.length === 0 && (
                 <Typography variant="body2" color="text.secondary">No phone numbers</Typography>
               )}
-              {phones.visibleItems.map((phone) => {
-                const idx = phones.items.indexOf(phone);
-                return <PhoneRow key={phone.id || idx} item={phone} index={idx} onUpdate={phones.update} onRemove={phones.remove} />;
-              })}
+              {phones.indexedItems.map(({ item: phone, index: idx }) => (
+                <PhoneRow key={phone.id || idx} item={phone} index={idx} onUpdate={phones.update} onRemove={phones.remove} />
+              ))}
 
               {/* ── Addresses ──────────────────────────────────────── */}
               <Divider />
@@ -159,37 +157,34 @@ export default function VendorEditDialog({
                 <Typography variant="subtitle2">Addresses</Typography>
                 <Button size="small" startIcon={<AddIcon />} onClick={addresses.add}>Add Address</Button>
               </Box>
-              {addresses.visibleItems.length === 0 && (
+              {addresses.indexedItems.length === 0 && (
                 <Typography variant="body2" color="text.secondary">No addresses</Typography>
               )}
-              {addresses.visibleItems.map((addr) => {
-                const idx = addresses.items.indexOf(addr);
-                return (
-                  <Box key={addr.id || idx} sx={{ ...formGroupCardSx, gridColumn: undefined }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                      <TextField
-                        label="Label"
-                        value={addr.label}
-                        onChange={(e) => addresses.update(idx, 'label', e.target.value)}
-                        size="small"
-                        sx={{ width: 200 }}
-                      />
-                      <IconButton size="small" onClick={() => addresses.remove(idx)} color="error">
-                        <DeleteOutlineIcon fontSize="small" />
-                      </IconButton>
-                    </Box>
-                    <Box sx={formGridSx}>
-                      <TextField label="Address Line 1" value={addr.address_line_1} onChange={(e) => addresses.update(idx, 'address_line_1', e.target.value)} size="small" sx={formFullSpanSx} />
-                      <TextField label="Address Line 2" value={addr.address_line_2} onChange={(e) => addresses.update(idx, 'address_line_2', e.target.value)} size="small" sx={formFullSpanSx} />
-                      <TextField label="Address Line 3" value={addr.address_line_3 || ''} onChange={(e) => addresses.update(idx, 'address_line_3', e.target.value)} size="small" sx={formFullSpanSx} />
-                      <TextField label="City" value={addr.city} onChange={(e) => addresses.update(idx, 'city', e.target.value)} size="small" />
-                      <TextField label="State / Province" value={addr.state_province} onChange={(e) => addresses.update(idx, 'state_province', e.target.value)} size="small" />
-                      <TextField label="Postal Code" value={addr.postal_code} onChange={(e) => addresses.update(idx, 'postal_code', e.target.value)} size="small" />
-                      <TextField label="Country Code" value={addr.country_code} onChange={(e) => addresses.update(idx, 'country_code', e.target.value)} size="small" inputProps={{ maxLength: 2 }} />
-                    </Box>
+              {addresses.indexedItems.map(({ item: addr, index: idx }) => (
+                <Box key={addr.id || idx} sx={{ ...formGroupCardSx, gridColumn: undefined }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                    <TextField
+                      label="Label"
+                      value={addr.label}
+                      onChange={(e) => addresses.update(idx, 'label', e.target.value)}
+                      size="small"
+                      sx={{ width: 200 }}
+                    />
+                    <IconButton size="small" onClick={() => addresses.remove(idx)} color="error">
+                      <DeleteOutlineIcon fontSize="small" />
+                    </IconButton>
                   </Box>
-                );
-              })}
+                  <Box sx={formGridSx}>
+                    <TextField label="Address Line 1" value={addr.address_line_1} onChange={(e) => addresses.update(idx, 'address_line_1', e.target.value)} size="small" sx={formFullSpanSx} />
+                    <TextField label="Address Line 2" value={addr.address_line_2} onChange={(e) => addresses.update(idx, 'address_line_2', e.target.value)} size="small" sx={formFullSpanSx} />
+                    <TextField label="Address Line 3" value={addr.address_line_3 || ''} onChange={(e) => addresses.update(idx, 'address_line_3', e.target.value)} size="small" sx={formFullSpanSx} />
+                    <TextField label="City" value={addr.city} onChange={(e) => addresses.update(idx, 'city', e.target.value)} size="small" />
+                    <TextField label="State / Province" value={addr.state_province} onChange={(e) => addresses.update(idx, 'state_province', e.target.value)} size="small" />
+                    <TextField label="Postal Code" value={addr.postal_code} onChange={(e) => addresses.update(idx, 'postal_code', e.target.value)} size="small" />
+                    <TextField label="Country Code" value={addr.country_code} onChange={(e) => addresses.update(idx, 'country_code', e.target.value)} size="small" inputProps={{ maxLength: 2 }} />
+                  </Box>
+                </Box>
+              ))}
 
               {/* ── Tax Identifiers ──────────────────────────────────── */}
               <Divider />
@@ -197,11 +192,10 @@ export default function VendorEditDialog({
                 <Typography variant="subtitle2">Tax Identifiers</Typography>
                 <Button size="small" startIcon={<AddIcon />} onClick={taxIds.add}>Add Tax ID</Button>
               </Box>
-              {taxIds.visibleItems.length === 0 && (
+              {taxIds.indexedItems.length === 0 && (
                 <Typography variant="body2" color="text.secondary">No tax identifiers</Typography>
               )}
-              {taxIds.visibleItems.map((taxId) => {
-                const idx = taxIds.items.indexOf(taxId);
+              {taxIds.indexedItems.map(({ item: taxId, index: idx }) => {
                 const countryCode = taxId.country_code?.trim() || '';
                 const taxTypes = TAX_TYPES[countryCode] || TAX_TYPES._OTHER;
                 return (

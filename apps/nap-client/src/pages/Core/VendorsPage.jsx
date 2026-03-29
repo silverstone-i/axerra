@@ -168,8 +168,8 @@ export default function VendorsPage() {
   const {
     emails, phones, addresses, taxIds,
     editContacts, setEditContacts,
-    setEditSourceId, setEditVendorId,
-    editInitial, hasEditChanges, handleUpdate, contactsRes,
+    hasEditChanges, handleUpdate, contactsRes,
+    openEditSession, closeEditSession,
   } = useVendorEditCollections({
     editOpen: editDialog.isOpen,
     editRow: editDialog.data,
@@ -232,11 +232,10 @@ export default function VendorsPage() {
 
   const handleEditClose = useCallback(() => {
     editDialog.close();
-    setEditSourceId(null);
-    setEditVendorId(null);
+    closeEditSession();
     resetEditMaps();
     setContactViewFilter('active');
-  }, [editDialog.close, resetEditMaps, setEditSourceId, setEditVendorId]);
+  }, [editDialog.close, closeEditSession, resetEditMaps]);
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {
     resetViewMaps();
@@ -244,36 +243,11 @@ export default function VendorsPage() {
   }, [viewDialog.open, resetViewMaps]);
 
   const handleEdit = useCallback((row) => {
-    const form = {
-      name: row.name ?? '',
-      code: row.code ?? '',
-      payment_term_id: row.payment_term_id ?? '',
-      notes: row.notes ?? '',
-      is_active: row.is_active ?? true,
-    };
-    setEditForm(form);
-    editInitial.current.form = form;
-
-    setEditSourceId(row.source_id || null);
-    setEditVendorId(row.id || null);
-    if (!row.source_id) {
-      emails.reset([]);
-      phones.reset([]);
-      addresses.reset([]);
-      taxIds.reset([]);
-      editInitial.current.emails = [];
-      editInitial.current.phones = [];
-      editInitial.current.addresses = [];
-      editInitial.current.taxIds = [];
-    }
-    if (!row.id) {
-      setEditContacts([]);
-    }
-
+    openEditSession(row, setEditForm);
     resetEditMaps();
     setContactViewFilter('active');
     editDialog.open(row);
-  }, [editDialog.open, resetEditMaps]);
+  }, [openEditSession, editDialog.open, resetEditMaps]);
 
   const handleCreate = async () => {
     try {

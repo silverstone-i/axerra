@@ -13,6 +13,7 @@ import { useFormState } from '../../../hooks/useFormState.js';
 import { useListSelection } from '../../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../../hooks/useArchiveRestore.js';
 import { errMsg } from '../../../utils/format.js';
+import { saveCollection } from '../../../utils/saveCollection.js';
 
 const BLANK_CONTACT_FORM = {
   first_name: '', last_name: '', position: '', department: '',
@@ -233,38 +234,15 @@ export function useVendorContactDialogs({
       }
       await updateContactMut.mutateAsync({ filter: { id: contactEditRow.id }, changes });
 
-      // CRUD emails
-      for (const em of contactEditEmails) {
-        if (em._deleted && em.id) {
-          await archiveEmailMut.mutateAsync({ id: em.id });
-        } else if (!em.id && !em._deleted && em.email) {
-          await createEmailMut.mutateAsync({
-            source_id: contactEditRow.source_id, email: em.email, label: em.label,
-            is_primary: em.is_primary, is_login: em.is_login || false,
-          });
-        } else if (em.id && !em._deleted) {
-          await updateEmailMut.mutateAsync({
-            filter: { id: em.id },
-            changes: { email: em.email, label: em.label, is_primary: em.is_primary, is_login: em.is_login || false },
-          });
-        }
-      }
-      // CRUD phones
-      for (const ph of contactEditPhones) {
-        if (ph._deleted && ph.id) {
-          await archivePhoneMut.mutateAsync({ id: ph.id });
-        } else if (!ph.id && !ph._deleted && ph.phone_number) {
-          await createPhoneMut.mutateAsync({
-            source_id: contactEditRow.source_id, country_code: ph.country_code,
-            phone_type: ph.phone_type, phone_number: ph.phone_number, is_primary: ph.is_primary,
-          });
-        } else if (ph.id && !ph._deleted) {
-          await updatePhoneMut.mutateAsync({
-            filter: { id: ph.id },
-            changes: { country_code: ph.country_code, phone_type: ph.phone_type, phone_number: ph.phone_number, is_primary: ph.is_primary },
-          });
-        }
-      }
+      const sid = contactEditRow.source_id;
+      await saveCollection(contactEditEmails, {
+        sourceId: sid, fields: ['email', 'label', 'is_primary', 'is_login'],
+        createMut: createEmailMut.mutateAsync, updateMut: updateEmailMut.mutateAsync, archiveMut: archiveEmailMut.mutateAsync,
+      });
+      await saveCollection(contactEditPhones, {
+        sourceId: sid, fields: ['country_code', 'phone_type', 'phone_number', 'is_primary'],
+        createMut: createPhoneMut.mutateAsync, updateMut: updatePhoneMut.mutateAsync, archiveMut: archivePhoneMut.mutateAsync,
+      });
 
       await refreshContactChildren();
       if (contactEditForm.is_app_user !== contactEditRow?.is_app_user) {

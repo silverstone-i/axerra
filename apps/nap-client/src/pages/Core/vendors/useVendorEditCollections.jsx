@@ -5,7 +5,7 @@
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 
 import { useEmails } from '../../../hooks/useEmails.js';
 import { usePhoneNumbers } from '../../../hooks/usePhoneNumbers.js';
@@ -138,6 +138,34 @@ export function useVendorEditCollections({
     }
   };
 
+  /** Seed all edit state from a vendor row. Called by the coordinator's handleEdit. */
+  const openEditSession = useCallback((row, setEditForm) => {
+    const form = {
+      name: row.name ?? '', code: row.code ?? '',
+      payment_term_id: row.payment_term_id ?? '', notes: row.notes ?? '',
+      is_active: row.is_active ?? true,
+    };
+    setEditForm(form);
+    editInitial.current.form = form;
+
+    setEditSourceId(row.source_id || null);
+    setEditVendorId(row.id || null);
+    if (!row.source_id) {
+      emails.reset([]); phones.reset([]); addresses.reset([]); taxIds.reset([]);
+      editInitial.current.emails = [];
+      editInitial.current.phones = [];
+      editInitial.current.addresses = [];
+      editInitial.current.taxIds = [];
+    }
+    if (!row.id) setEditContacts([]);
+  }, []);
+
+  /** Reset all edit state. Called by the coordinator's handleEditClose. */
+  const closeEditSession = useCallback(() => {
+    setEditSourceId(null);
+    setEditVendorId(null);
+  }, []);
+
   return {
     emails,
     phones,
@@ -145,13 +173,10 @@ export function useVendorEditCollections({
     taxIds,
     editContacts,
     setEditContacts,
-    editSourceId,
-    setEditSourceId,
-    editVendorId,
-    setEditVendorId,
-    editInitial,
     hasEditChanges,
     handleUpdate,
     contactsRes,
+    openEditSession,
+    closeEditSession,
   };
 }
