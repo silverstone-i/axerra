@@ -8,6 +8,8 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useFormState } from '../../hooks/useFormState.js';
 import { useDialogState } from '../../hooks/useDialogState.js';
+import { useCollectionState } from '../../hooks/useCollectionState.js';
+import { saveCollection } from '../../utils/saveCollection.js';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Checkbox from '@mui/material/Checkbox';
@@ -125,8 +127,8 @@ export default function CompaniesPage() {
     { enabled: !!editSourceId },
   );
 
-  const [editAddresses, setEditAddresses] = useState([]);
-  const [editTaxIds, setEditTaxIds] = useState([]);
+  const addresses = useCollectionState([], { blank: BLANK_ADDRESS });
+  const taxIds = useCollectionState([], { blank: BLANK_TAX_ID });
   const editInitial = useRef({ form: null, addresses: null, taxIds: null });
 
   /* ── View: source-linked collections ────────────────────────── */
@@ -145,30 +147,17 @@ export default function CompaniesPage() {
   const { toast, snackProps } = useToast();
 
 
-  /* ── Address / TaxId helpers ────────────────────────────────── */
-  const updateAddress = (idx, field, value) =>
-    setEditAddresses((prev) => prev.map((a, i) => (i === idx ? { ...a, [field]: value } : a)));
-  const addAddress = () => setEditAddresses((prev) => [...prev, { ...BLANK_ADDRESS }]);
-  const removeAddress = (idx) =>
-    setEditAddresses((prev) => prev.map((a, i) => (i === idx ? { ...a, _deleted: true } : a)));
-
-  const updateTaxId = (idx, field, value) =>
-    setEditTaxIds((prev) => prev.map((t, i) => (i === idx ? { ...t, [field]: value } : t)));
-  const addTaxId = () => setEditTaxIds((prev) => [...prev, { ...BLANK_TAX_ID }]);
-  const removeTaxId = (idx) =>
-    setEditTaxIds((prev) => prev.map((t, i) => (i === idx ? { ...t, _deleted: true } : t)));
-
   /* ── Sync query → local state ───────────────────────────────── */
   useEffect(() => {
     if (editDialog.isOpen && addressesRes?.rows) {
-      setEditAddresses(addressesRes.rows);
+      addresses.reset(addressesRes.rows);
       editInitial.current.addresses = addressesRes.rows;
     }
   }, [editDialog.isOpen, addressesRes]);
 
   useEffect(() => {
     if (editDialog.isOpen && taxIdsRes?.rows) {
-      setEditTaxIds(taxIdsRes.rows);
+      taxIds.reset(taxIdsRes.rows);
       editInitial.current.taxIds = taxIdsRes.rows;
     }
   }, [editDialog.isOpen, taxIdsRes]);
@@ -183,8 +172,8 @@ export default function CompaniesPage() {
     setEditForm({ name: row.name ?? '', code: row.code ?? '', is_active: row.is_active ?? true });
     setEditSourceId(row.source_id || null);
     if (!row.source_id) {
-      setEditAddresses([]);
-      setEditTaxIds([]);
+      addresses.reset([]);
+      taxIds.reset([]);
       editInitial.current.addresses = [];
       editInitial.current.taxIds = [];
     }
@@ -208,42 +197,28 @@ export default function CompaniesPage() {
       await updateMut.mutateAsync({ filter: { id: editDialog.data.id }, changes: editForm });
 
       /* ── Save addresses ──────────────────────────────────────── */
-      for (const a of editAddresses) {
-        if (a._deleted && a.id) {
-          await archiveAddrMut.mutateAsync({ id: a.id });
-        } else if (!a.id && !a._deleted) {
-          const { _deleted, ...rest } = a;
-          await createAddrMut.mutateAsync({ ...rest, source_id: editDialog.data.source_id });
-        } else if (a.id && !a._deleted) {
-          const { id, source_id: _sid, created_at: _ca, updated_at: _ua, created_by: _cb, updated_by: _ub, deactivated_at: _da, ...changes } = a;
-          await updateAddrMut.mutateAsync({ filter: { id }, changes });
-        }
-      }
+      await saveCollection(addresses.items, {
+        sourceId: editDialog.data.source_id,
+        fields: ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'],
+        createMut: createAddrMut.mutateAsync,
+        updateMut: updateAddrMut.mutateAsync,
+        archiveMut: archiveAddrMut.mutateAsync,
+      });
 
       /* ── Save tax identifiers ────────────────────────────────── */
-      for (const t of editTaxIds) {
-        if (t._deleted && t.id) {
-          await archiveTaxIdMut.mutateAsync({ id: t.id });
-        } else if (!t.id && !t._deleted) {
-          await createTaxIdMut.mutateAsync({
-            source_id: editDialog.data.source_id,
-            country_code: t.country_code,
-            tax_type: t.tax_type,
-            tax_value: t.tax_value,
-          });
-        } else if (t.id && !t._deleted) {
-          await updateTaxIdMut.mutateAsync({
-            filter: { id: t.id },
-            changes: { country_code: t.country_code, tax_type: t.tax_type, tax_value: t.tax_value },
-          });
-        }
-      }
+      await saveCollection(taxIds.items, {
+        sourceId: editDialog.data.source_id,
+        fields: ['country_code', 'tax_type', 'tax_value'],
+        createMut: createTaxIdMut.mutateAsync,
+        updateMut: updateTaxIdMut.mutateAsync,
+        archiveMut: archiveTaxIdMut.mutateAsync,
+      });
 
       toast('Company updated');
       editDialog.close();
       setEditSourceId(null);
-      setEditAddresses([]);
-      setEditTaxIds([]);
+      addresses.reset([]);
+      taxIds.reset([]);
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -284,10 +259,6 @@ export default function CompaniesPage() {
     errMsg,
     getLabel: (r) => r.name,
   });
-
-  /* ── Visible (non-deleted) collections for rendering ────────── */
-  const visibleAddresses = editAddresses.filter((a) => !a._deleted);
-  const visibleTaxIds = editTaxIds.filter((t) => !t._deleted);
 
   /* ── ModuleBar: tabs + Create + Archive/Restore ────────────── */
   const toolbar = useMemo(() => {
@@ -423,7 +394,7 @@ export default function CompaniesPage() {
         submitLabel="Save Changes"
         loading={updateMut.isPending}
         onSubmit={handleUpdate}
-        onCancel={() => { editDialog.close(); setEditSourceId(null); setEditAddresses([]); setEditTaxIds([]); }}
+        onCancel={() => { editDialog.close(); setEditSourceId(null); addresses.reset([]); taxIds.reset([]); }}
       >
         <TextField label="Company Name" required value={editForm.name} onChange={onEditField('name')} />
         <TextField label="Code" value={editForm.code} onChange={onEditField('code')} inputProps={{ maxLength: 16 }} />
@@ -442,38 +413,38 @@ export default function CompaniesPage() {
         <Divider />
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Typography variant="subtitle2">Addresses</Typography>
-          <Button size="small" startIcon={<AddIcon />} onClick={addAddress} disabled={!editDialog.data?.source_id}>Add Address</Button>
+          <Button size="small" startIcon={<AddIcon />} onClick={addresses.add} disabled={!editDialog.data?.source_id}>Add Address</Button>
         </Box>
         {!editDialog.data?.source_id && (
           <Typography variant="body2" color="text.secondary">Save company first to manage addresses</Typography>
         )}
-        {visibleAddresses.length === 0 && editDialog.data?.source_id && (
+        {addresses.visibleItems.length === 0 && editDialog.data?.source_id && (
           <Typography variant="body2" color="text.secondary">No addresses</Typography>
         )}
-        {visibleAddresses.map((addr) => {
-          const idx = editAddresses.indexOf(addr);
+        {addresses.visibleItems.map((addr) => {
+          const idx = addresses.items.indexOf(addr);
           return (
             <Box key={addr.id || idx} sx={{ ...formGroupCardSx, gridColumn: undefined }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                 <TextField
                   label="Label"
                   value={addr.label}
-                  onChange={(e) => updateAddress(idx, 'label', e.target.value)}
+                  onChange={(e) => addresses.update(idx, 'label', e.target.value)}
                   size="small"
                   sx={{ width: 200 }}
                 />
-                <IconButton size="small" onClick={() => removeAddress(idx)} color="error">
+                <IconButton size="small" onClick={() => addresses.remove(idx)} color="error">
                   <DeleteOutlineIcon fontSize="small" />
                 </IconButton>
               </Box>
               <Box sx={formGridSx}>
-                <TextField label="Address Line 1" value={addr.address_line_1} onChange={(e) => updateAddress(idx, 'address_line_1', e.target.value)} size="small" sx={formFullSpanSx} />
-                <TextField label="Address Line 2" value={addr.address_line_2} onChange={(e) => updateAddress(idx, 'address_line_2', e.target.value)} size="small" sx={formFullSpanSx} />
-                <TextField label="Address Line 3" value={addr.address_line_3 || ''} onChange={(e) => updateAddress(idx, 'address_line_3', e.target.value)} size="small" sx={formFullSpanSx} />
-                <TextField label="City" value={addr.city} onChange={(e) => updateAddress(idx, 'city', e.target.value)} size="small" />
-                <TextField label="State / Province" value={addr.state_province} onChange={(e) => updateAddress(idx, 'state_province', e.target.value)} size="small" />
-                <TextField label="Postal Code" value={addr.postal_code} onChange={(e) => updateAddress(idx, 'postal_code', e.target.value)} size="small" />
-                <TextField label="Country Code" value={addr.country_code} onChange={(e) => updateAddress(idx, 'country_code', e.target.value)} size="small" inputProps={{ maxLength: 2 }} />
+                <TextField label="Address Line 1" value={addr.address_line_1} onChange={(e) => addresses.update(idx, 'address_line_1', e.target.value)} size="small" sx={formFullSpanSx} />
+                <TextField label="Address Line 2" value={addr.address_line_2} onChange={(e) => addresses.update(idx, 'address_line_2', e.target.value)} size="small" sx={formFullSpanSx} />
+                <TextField label="Address Line 3" value={addr.address_line_3 || ''} onChange={(e) => addresses.update(idx, 'address_line_3', e.target.value)} size="small" sx={formFullSpanSx} />
+                <TextField label="City" value={addr.city} onChange={(e) => addresses.update(idx, 'city', e.target.value)} size="small" />
+                <TextField label="State / Province" value={addr.state_province} onChange={(e) => addresses.update(idx, 'state_province', e.target.value)} size="small" />
+                <TextField label="Postal Code" value={addr.postal_code} onChange={(e) => addresses.update(idx, 'postal_code', e.target.value)} size="small" />
+                <TextField label="Country Code" value={addr.country_code} onChange={(e) => addresses.update(idx, 'country_code', e.target.value)} size="small" inputProps={{ maxLength: 2 }} />
               </Box>
             </Box>
           );
@@ -483,16 +454,16 @@ export default function CompaniesPage() {
         <Divider />
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Typography variant="subtitle2">Tax Identifiers</Typography>
-          <Button size="small" startIcon={<AddIcon />} onClick={addTaxId} disabled={!editDialog.data?.source_id}>Add Tax ID</Button>
+          <Button size="small" startIcon={<AddIcon />} onClick={taxIds.add} disabled={!editDialog.data?.source_id}>Add Tax ID</Button>
         </Box>
         {!editDialog.data?.source_id && (
           <Typography variant="body2" color="text.secondary">Save company first to manage tax identifiers</Typography>
         )}
-        {visibleTaxIds.length === 0 && editDialog.data?.source_id && (
+        {taxIds.visibleItems.length === 0 && editDialog.data?.source_id && (
           <Typography variant="body2" color="text.secondary">No tax identifiers</Typography>
         )}
-        {visibleTaxIds.map((taxId) => {
-          const idx = editTaxIds.indexOf(taxId);
+        {taxIds.visibleItems.map((taxId) => {
+          const idx = taxIds.items.indexOf(taxId);
           const countryCode = taxId.country_code?.trim() || '';
           const taxTypes = TAX_TYPES[countryCode] || TAX_TYPES._OTHER;
           return (
@@ -503,9 +474,9 @@ export default function CompaniesPage() {
                   label="Country"
                   value={countryCode}
                   onChange={(e) => {
-                    updateTaxId(idx, 'country_code', e.target.value);
+                    taxIds.update(idx, 'country_code', e.target.value);
                     const newTypes = TAX_TYPES[e.target.value] || TAX_TYPES._OTHER;
-                    updateTaxId(idx, 'tax_type', newTypes[0]?.code || 'TIN');
+                    taxIds.update(idx, 'tax_type', newTypes[0]?.code || 'TIN');
                   }}
                   SelectProps={{ renderValue: (val) => val }}
                   size="small"
@@ -519,7 +490,7 @@ export default function CompaniesPage() {
                   select
                   label="Type"
                   value={taxId.tax_type}
-                  onChange={(e) => updateTaxId(idx, 'tax_type', e.target.value)}
+                  onChange={(e) => taxIds.update(idx, 'tax_type', e.target.value)}
                   SelectProps={{ renderValue: (val) => val }}
                   size="small"
                   sx={{ minWidth: 80 }}
@@ -531,12 +502,12 @@ export default function CompaniesPage() {
                 <PatternTextField
                   label="Tax ID Value"
                   value={taxId.tax_value}
-                  onChange={(raw) => updateTaxId(idx, 'tax_value', raw)}
+                  onChange={(raw) => taxIds.update(idx, 'tax_value', raw)}
                   pattern={taxTypes.find((t) => t.code === taxId.tax_type)?.placeholder}
                   size="small"
                   sx={{ flex: 1, minWidth: 160 }}
                 />
-                <IconButton size="small" onClick={() => removeTaxId(idx)} color="error">
+                <IconButton size="small" onClick={() => taxIds.remove(idx)} color="error">
                   <DeleteOutlineIcon fontSize="small" />
                 </IconButton>
               </Box>
