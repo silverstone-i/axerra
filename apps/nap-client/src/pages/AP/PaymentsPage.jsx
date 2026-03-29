@@ -7,6 +7,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useFormState } from '../../hooks/useFormState.js';
+import { useDialogState } from '../../hooks/useDialogState.js';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -81,25 +82,23 @@ export default function PaymentsPage() {
   const { selectedRows, allActive, allArchived } = selection;
 
   /* ── Dialog state ───────────────────────────────────────────── */
-  const [viewOpen, setViewOpen] = useState(false);
-  const [viewPayment, setViewPayment] = useState(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [editRow, setEditRow] = useState(null);
+  const viewDialog = useDialogState();
+  const createDialog = useDialogState();
+  const editDialog = useDialogState();
 
   const { form: createForm, field: onCreateField, reset: resetCreateForm } = useFormState(BLANK_CREATE);
   const { form: editForm, setForm: setEditForm, field: onEditField } = useFormState(BLANK_EDIT);
 
   const { toast, snackProps } = useToast();
 
-  const [importOpen, setImportOpen] = useState(false);
+  const importDialog = useDialogState();
 
 
   const handleImport = useCallback(async (formData) => {
     try {
       const result = await importMut.mutateAsync(formData);
       toast(`Imported ${result.inserted} records`);
-      setImportOpen(false);
+      importDialog.close();
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -116,24 +115,22 @@ export default function PaymentsPage() {
 
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {
-    setViewPayment(row);
-    setViewOpen(true);
+    viewDialog.open(row);
   }, []);
 
   const handleEdit = useCallback((row) => {
-    setEditRow(row);
     setEditForm({
       payment_date: row.payment_date?.slice(0, 10) ?? '', amount: row.amount ?? '',
       method: row.method ?? 'check', reference: row.reference ?? '', notes: row.notes ?? '',
     });
-    setEditOpen(true);
+    editDialog.open(row);
   }, []);
 
   const handleCreate = async () => {
-    try { await createMut.mutateAsync({ ...createForm, amount: Number(createForm.amount) || 0 }); toast('Payment created'); setCreateOpen(false); resetCreateForm(); } catch (err) { toast(errMsg(err), 'error'); }
+    try { await createMut.mutateAsync({ ...createForm, amount: Number(createForm.amount) || 0 }); toast('Payment created'); createDialog.close(); resetCreateForm(); } catch (err) { toast(errMsg(err), 'error'); }
   };
   const handleUpdate = async () => {
-    try { await updateMut.mutateAsync({ filter: { id: editRow.id }, changes: { ...editForm, amount: Number(editForm.amount) || 0 } }); toast('Payment updated'); setEditOpen(false); setEditRow(null); } catch (err) { toast(errMsg(err), 'error'); }
+    try { await updateMut.mutateAsync({ filter: { id: editDialog.data.id }, changes: { ...editForm, amount: Number(editForm.amount) || 0 } }); toast('Payment updated'); editDialog.close(); } catch (err) { toast(errMsg(err), 'error'); }
   };
 
   const { setArchiveOpen, setRestoreOpen, archiveConfirmProps, restoreConfirmProps } = useArchiveRestore({
@@ -167,14 +164,14 @@ export default function PaymentsPage() {
       primary.push({ label: 'Export', variant: 'outlined', disabled: exportMut.isPending, onClick: handleExport });
     }
     if (canImport) {
-      primary.push({ label: 'Import', variant: 'outlined', onClick: () => setImportOpen(true) });
+      primary.push({ label: 'Import', variant: 'outlined', onClick: () => importDialog.open() });
     }
 
     primary.push({
       label: 'Record Payment',
       variant: 'contained',
       color: 'primary',
-      onClick: () => { resetCreateForm(); setCreateOpen(true); },
+      onClick: () => { resetCreateForm(); createDialog.open(); },
     });
 
     return {
@@ -201,39 +198,39 @@ export default function PaymentsPage() {
       />
 
       {/* ── View Details Dialog ──────────────────────────────────── */}
-      <Dialog open={viewOpen} onClose={() => setViewOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={viewDialog.isOpen} onClose={viewDialog.close} maxWidth="sm" fullWidth>
         <DialogTitle sx={dialogHeaderSx}>
           <Box>
             <span>Payment Details</span>
-            {viewPayment && (
+            {viewDialog.data && (
               <Typography variant="body2" color="text.secondary">
-                {viewPayment.reference || viewPayment.id?.slice(0, 8)}
+                {viewDialog.data.reference || viewDialog.data.id?.slice(0, 8)}
               </Typography>
             )}
           </Box>
           <Box sx={dialogActionBoxSx}>
-            <Button size="small" color="inherit" onClick={() => setViewOpen(false)}>
+            <Button size="small" color="inherit" onClick={viewDialog.close}>
               Close
             </Button>
           </Box>
         </DialogTitle>
         <DialogContent dividers>
-          {viewPayment && (
+          {viewDialog.data && (
             <Box sx={detailGridSx}>
-              <FieldRow label="Payment Date" value={fmtDate(viewPayment.payment_date)} />
-              <FieldRow label="Vendor" value={viewPayment.vendor_id?.slice(0, 8) || '\u2014'} />
-              <FieldRow label="Amount" value={viewPayment.amount != null ? Number(viewPayment.amount).toLocaleString(undefined, { style: 'currency', currency: 'USD' }) : '\u2014'} />
-              <FieldRow label="Method" value={capSnake(viewPayment.method)} />
-              <FieldRow label="Reference" value={viewPayment.reference || '\u2014'} />
-              <FieldRow label="Created" value={fmtDate(viewPayment.created_at)} />
-              <FieldRow label="Updated" value={fmtDate(viewPayment.updated_at)} />
+              <FieldRow label="Payment Date" value={fmtDate(viewDialog.data.payment_date)} />
+              <FieldRow label="Vendor" value={viewDialog.data.vendor_id?.slice(0, 8) || '\u2014'} />
+              <FieldRow label="Amount" value={viewDialog.data.amount != null ? Number(viewDialog.data.amount).toLocaleString(undefined, { style: 'currency', currency: 'USD' }) : '\u2014'} />
+              <FieldRow label="Method" value={capSnake(viewDialog.data.method)} />
+              <FieldRow label="Reference" value={viewDialog.data.reference || '\u2014'} />
+              <FieldRow label="Created" value={fmtDate(viewDialog.data.created_at)} />
+              <FieldRow label="Updated" value={fmtDate(viewDialog.data.updated_at)} />
             </Box>
           )}
         </DialogContent>
       </Dialog>
 
       {/* ── Record Payment Dialog ────────────────────────────────── */}
-      <FormDialog open={createOpen} title="Record Payment" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={() => setCreateOpen(false)}>
+      <FormDialog open={createDialog.isOpen} title="Record Payment" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={createDialog.close}>
         <TextField label="Vendor" select required value={createForm.vendor_id} onChange={onCreateField('vendor_id')}>
           {vendors.map((v) => <MenuItem key={v.id} value={v.id}>{v.code ? `${v.code} \u2014 ${v.name}` : v.name}</MenuItem>)}
         </TextField>
@@ -248,7 +245,7 @@ export default function PaymentsPage() {
       </FormDialog>
 
       {/* ── Edit Payment Dialog ──────────────────────────────────── */}
-      <FormDialog open={editOpen} title="Edit Payment" submitLabel="Save Changes" loading={updateMut.isPending} onSubmit={handleUpdate} onCancel={() => { setEditOpen(false); setEditRow(null); }}>
+      <FormDialog open={editDialog.isOpen} title="Edit Payment" submitLabel="Save Changes" loading={updateMut.isPending} onSubmit={handleUpdate} onCancel={editDialog.close}>
         <TextField label="Payment Date" type="date" value={editForm.payment_date} onChange={onEditField('payment_date')} InputLabelProps={{ shrink: true }} />
         <TextField label="Amount" type="number" value={editForm.amount} onChange={onEditField('amount')} />
         <TextField label="Method" select value={editForm.method} onChange={onEditField('method')}>
@@ -261,7 +258,7 @@ export default function PaymentsPage() {
       <ConfirmDialog {...archiveConfirmProps} />
       <ConfirmDialog {...restoreConfirmProps} />
 
-      <ImportDialog open={importOpen} title="Import Payments" loading={importMut.isPending} onSubmit={handleImport} onCancel={() => setImportOpen(false)} />
+      <ImportDialog open={importDialog.isOpen} title="Import Payments" loading={importMut.isPending} onSubmit={handleImport} onCancel={importDialog.close} />
 
       <ToastSnackbar {...snackProps} />
     </Box>

@@ -13,6 +13,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useFormState } from '../../hooks/useFormState.js';
+import { useDialogState } from '../../hooks/useDialogState.js';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -85,13 +86,11 @@ export default function BudgetManagementPage() {
   const { selectedRows, allActive } = selection;
 
   /* ── Dialog state ───────────────────────────────────────────── */
-  const [importOpen, setImportOpen] = useState(false);
-  const [viewOpen, setViewOpen] = useState(false);
-  const [viewBudget, setViewBudget] = useState(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [editRow, setEditRow] = useState(null);
-  const [versionOpen, setVersionOpen] = useState(false);
+  const importDialog = useDialogState();
+  const viewDialog = useDialogState();
+  const createDialog = useDialogState();
+  const editDialog = useDialogState();
+  const versionDialog = useDialogState();
 
   const { form: createForm, field: onCreateField, reset: resetCreateForm } = useFormState(BLANK_CREATE);
   const { form: editForm, setForm: setEditForm, field: onEditField } = useFormState(BLANK_EDIT);
@@ -100,21 +99,19 @@ export default function BudgetManagementPage() {
 
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {
-    setViewBudget(row);
-    setViewOpen(true);
+    viewDialog.open(row);
   }, []);
 
   const handleEdit = useCallback((row) => {
-    setEditRow(row);
     setEditForm({ budgeted_amount: row.budgeted_amount || '', status: row.status || '' });
-    setEditOpen(true);
+    editDialog.open(row);
   }, []);
 
   const handleCreate = async () => {
     try {
       await createMut.mutateAsync(createForm);
       toast('Budget created');
-      setCreateOpen(false);
+      createDialog.close();
       resetCreateForm();
     } catch (err) {
       toast(errMsg(err), 'error');
@@ -123,10 +120,9 @@ export default function BudgetManagementPage() {
 
   const handleUpdate = async () => {
     try {
-      await updateMut.mutateAsync({ filter: { id: editRow.id }, changes: editForm });
+      await updateMut.mutateAsync({ filter: { id: editDialog.data.id }, changes: editForm });
       toast('Budget updated');
-      setEditOpen(false);
-      setEditRow(null);
+      editDialog.close();
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -136,7 +132,7 @@ export default function BudgetManagementPage() {
     try {
       await newVersionMut.mutateAsync({ budget_id: selection.selected.id });
       toast('New budget version created');
-      setVersionOpen(false);
+      versionDialog.close();
       selection.clearSelection();
     } catch (err) {
       toast(errMsg(err), 'error');
@@ -147,7 +143,7 @@ export default function BudgetManagementPage() {
     try {
       const result = await importMut.mutateAsync(formData);
       toast(`Imported ${result.inserted} records`);
-      setImportOpen(false);
+      importDialog.close();
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -227,21 +223,21 @@ export default function BudgetManagementPage() {
       label: 'New Version',
       variant: 'outlined',
       disabled: !canNewVersion,
-      onClick: () => setVersionOpen(true),
+      onClick: () => versionDialog.open(),
     });
 
     if (canExport) {
       primary.push({ label: 'Export', variant: 'outlined', disabled: exportMut.isPending, onClick: handleExport });
     }
     if (canImport) {
-      primary.push({ label: 'Import', variant: 'outlined', onClick: () => setImportOpen(true) });
+      primary.push({ label: 'Import', variant: 'outlined', onClick: () => importDialog.open() });
     }
 
     primary.push({
       label: 'Create Budget',
       variant: 'contained',
       color: 'primary',
-      onClick: () => { resetCreateForm(); setCreateOpen(true); },
+      onClick: () => { resetCreateForm(); createDialog.open(); },
     });
 
     return {
@@ -269,39 +265,39 @@ export default function BudgetManagementPage() {
       />
 
       {/* ── View Details Dialog ──────────────────────────────────── */}
-      <Dialog open={viewOpen} onClose={() => setViewOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={viewDialog.isOpen} onClose={viewDialog.close} maxWidth="sm" fullWidth>
         <DialogTitle sx={dialogHeaderSx}>
           <Box>
             <span>Budget Details</span>
-            {viewBudget && (
+            {viewDialog.data && (
               <Typography variant="body2" color="text.secondary">
-                {deliverableMap[viewBudget.deliverable_id] || viewBudget.deliverable_id}
+                {deliverableMap[viewDialog.data.deliverable_id] || viewDialog.data.deliverable_id}
                 {' / '}
-                {activityMap[viewBudget.activity_id] || viewBudget.activity_id}
+                {activityMap[viewDialog.data.activity_id] || viewDialog.data.activity_id}
               </Typography>
             )}
           </Box>
           <Box sx={dialogActionBoxSx}>
-            <Button size="small" color="inherit" onClick={() => setViewOpen(false)}>
+            <Button size="small" color="inherit" onClick={viewDialog.close}>
               Close
             </Button>
           </Box>
         </DialogTitle>
         <DialogContent dividers>
-          {viewBudget && (
+          {viewDialog.data && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box sx={detailGridSx}>
-                <FieldRow label="Deliverable" value={deliverableMap[viewBudget.deliverable_id] || viewBudget.deliverable_id} />
-                <FieldRow label="Activity" value={activityMap[viewBudget.activity_id] || viewBudget.activity_id} />
-                <FieldRow label="Budgeted Amount" value={viewBudget.budgeted_amount} />
-                <FieldRow label="Version" value={viewBudget.version} />
-                <FieldRow label="Is Current" value={viewBudget.is_current ? 'Yes' : 'No'} />
+                <FieldRow label="Deliverable" value={deliverableMap[viewDialog.data.deliverable_id] || viewDialog.data.deliverable_id} />
+                <FieldRow label="Activity" value={activityMap[viewDialog.data.activity_id] || viewDialog.data.activity_id} />
+                <FieldRow label="Budgeted Amount" value={viewDialog.data.budgeted_amount} />
+                <FieldRow label="Version" value={viewDialog.data.version} />
+                <FieldRow label="Is Current" value={viewDialog.data.is_current ? 'Yes' : 'No'} />
                 <FieldRow label="Status">
-                  <StatusBadge status={viewBudget.status} />
+                  <StatusBadge status={viewDialog.data.status} />
                 </FieldRow>
-                <FieldRow label="Approved At" value={fmtDate(viewBudget.approved_at)} />
-                <FieldRow label="Created" value={fmtDate(viewBudget.created_at)} />
-                <FieldRow label="Updated" value={fmtDate(viewBudget.updated_at)} />
+                <FieldRow label="Approved At" value={fmtDate(viewDialog.data.approved_at)} />
+                <FieldRow label="Created" value={fmtDate(viewDialog.data.created_at)} />
+                <FieldRow label="Updated" value={fmtDate(viewDialog.data.updated_at)} />
               </Box>
             </Box>
           )}
@@ -309,7 +305,7 @@ export default function BudgetManagementPage() {
       </Dialog>
 
       {/* Create Dialog */}
-      <FormDialog open={createOpen} title="Create Budget" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={() => setCreateOpen(false)}>
+      <FormDialog open={createDialog.isOpen} title="Create Budget" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={createDialog.close}>
         <Box sx={formGridSx}>
           <TextField label="Deliverable" required select value={createForm.deliverable_id} onChange={onCreateField('deliverable_id')}>
             {deliverables.map((d) => <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>)}
@@ -322,7 +318,7 @@ export default function BudgetManagementPage() {
       </FormDialog>
 
       {/* Edit Dialog */}
-      <FormDialog open={editOpen} title="Edit Budget" submitLabel="Save" loading={updateMut.isPending} onSubmit={handleUpdate} onCancel={() => { setEditOpen(false); setEditRow(null); }}>
+      <FormDialog open={editDialog.isOpen} title="Edit Budget" submitLabel="Save" loading={updateMut.isPending} onSubmit={handleUpdate} onCancel={editDialog.close}>
         <Box sx={formGridSx}>
           <TextField label="Budgeted Amount" type="number" value={editForm.budgeted_amount} onChange={onEditField('budgeted_amount')} />
           <TextField label="Status" select value={editForm.status} onChange={onEditField('status')}>
@@ -333,16 +329,16 @@ export default function BudgetManagementPage() {
 
       {/* New Version Confirm */}
       <ConfirmDialog
-        open={versionOpen}
+        open={versionDialog.isOpen}
         title="Create New Budget Version"
         message={selection.selected ? `Create a new draft version from budget v${selection.selected.version}? The current version will be marked as superseded.` : ''}
         confirmLabel="Create Version"
         loading={newVersionMut.isPending}
         onConfirm={handleNewVersion}
-        onCancel={() => setVersionOpen(false)}
+        onCancel={versionDialog.close}
       />
 
-      <ImportDialog open={importOpen} title="Import Budgets" loading={importMut.isPending} onSubmit={handleImport} onCancel={() => setImportOpen(false)} />
+      <ImportDialog open={importDialog.isOpen} title="Import Budgets" loading={importMut.isPending} onSubmit={handleImport} onCancel={importDialog.close} />
 
       <ConfirmDialog {...archiveConfirmProps} />
 

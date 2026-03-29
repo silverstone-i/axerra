@@ -8,6 +8,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFormState } from '../../hooks/useFormState.js';
+import { useDialogState } from '../../hooks/useDialogState.js';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -85,12 +86,10 @@ export default function ProjectsPage() {
   const { selectedRows, allActive, allArchived } = selection;
 
   /* ── Dialog state ───────────────────────────────────────────── */
-  const [importOpen, setImportOpen] = useState(false);
-  const [viewOpen, setViewOpen] = useState(false);
-  const [viewProject, setViewProject] = useState(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [editRow, setEditRow] = useState(null);
+  const importDialog = useDialogState();
+  const viewDialog = useDialogState();
+  const createDialog = useDialogState();
+  const editDialog = useDialogState();
 
   const { form: createForm, field: onCreateField, reset: resetCreateForm } = useFormState(BLANK_CREATE);
   const { form: editForm, setForm: setEditForm, field: onEditField } = useFormState(BLANK_EDIT);
@@ -99,12 +98,10 @@ export default function ProjectsPage() {
 
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {
-    setViewProject(row);
-    setViewOpen(true);
+    viewDialog.open(row);
   }, []);
 
   const handleEdit = useCallback((row) => {
-    setEditRow(row);
     setEditForm({
       project_code: row.project_code ?? '',
       name: row.name ?? '',
@@ -112,14 +109,14 @@ export default function ProjectsPage() {
       notes: row.notes ?? '',
       contract_amount: row.contract_amount ?? '',
     });
-    setEditOpen(true);
+    editDialog.open(row);
   }, []);
 
   const handleCreate = async () => {
     try {
       await createMut.mutateAsync(createForm);
       toast('Project created');
-      setCreateOpen(false);
+      createDialog.close();
       resetCreateForm();
     } catch (err) {
       toast(errMsg(err), 'error');
@@ -128,10 +125,9 @@ export default function ProjectsPage() {
 
   const handleUpdate = async () => {
     try {
-      await updateMut.mutateAsync({ filter: { id: editRow.id }, changes: editForm });
+      await updateMut.mutateAsync({ filter: { id: editDialog.data.id }, changes: editForm });
       toast('Project updated');
-      setEditOpen(false);
-      setEditRow(null);
+      editDialog.close();
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -141,7 +137,7 @@ export default function ProjectsPage() {
     try {
       const result = await importMut.mutateAsync(formData);
       toast(`Imported ${result.inserted} records`);
-      setImportOpen(false);
+      importDialog.close();
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -199,14 +195,14 @@ export default function ProjectsPage() {
       primary.push({ label: 'Export', variant: 'outlined', disabled: exportMut.isPending, onClick: handleExport });
     }
     if (canImport) {
-      primary.push({ label: 'Import', variant: 'outlined', onClick: () => setImportOpen(true) });
+      primary.push({ label: 'Import', variant: 'outlined', onClick: () => importDialog.open() });
     }
 
     primary.push({
       label: 'Create Project',
       variant: 'contained',
       color: 'primary',
-      onClick: () => { resetCreateForm(); setCreateOpen(true); },
+      onClick: () => { resetCreateForm(); createDialog.open(); },
     });
 
     return {
@@ -235,40 +231,40 @@ export default function ProjectsPage() {
       />
 
       {/* ── View Details Dialog ──────────────────────────────────── */}
-      <Dialog open={viewOpen} onClose={() => setViewOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={viewDialog.isOpen} onClose={viewDialog.close} maxWidth="sm" fullWidth>
         <DialogTitle sx={dialogHeaderSx}>
           <Box>
             <span>Project Details</span>
-            {viewProject && (
+            {viewDialog.data && (
               <Typography variant="body2" color="text.secondary">
-                {viewProject.name}
+                {viewDialog.data.name}
               </Typography>
             )}
           </Box>
           <Box sx={dialogActionBoxSx}>
-            <Button size="small" color="inherit" onClick={() => setViewOpen(false)}>
+            <Button size="small" color="inherit" onClick={viewDialog.close}>
               Close
             </Button>
           </Box>
         </DialogTitle>
         <DialogContent dividers>
-          {viewProject && (
+          {viewDialog.data && (
             <Box sx={detailGridSx}>
-              <FieldRow label="Project Code" value={viewProject.project_code || '\u2014'} />
-              <FieldRow label="Name" value={viewProject.name} />
+              <FieldRow label="Project Code" value={viewDialog.data.project_code || '\u2014'} />
+              <FieldRow label="Name" value={viewDialog.data.name} />
               <FieldRow label="Status">
-                <StatusBadge status={STATUS_MAP[viewProject.status] || 'active'} label={viewProject.status} />
+                <StatusBadge status={STATUS_MAP[viewDialog.data.status] || 'active'} label={viewDialog.data.status} />
               </FieldRow>
-              <FieldRow label="Contract Amount" value={viewProject.contract_amount ?? '\u2014'} />
-              <FieldRow label="Created" value={fmtDate(viewProject.created_at)} />
-              <FieldRow label="Updated" value={fmtDate(viewProject.updated_at)} />
+              <FieldRow label="Contract Amount" value={viewDialog.data.contract_amount ?? '\u2014'} />
+              <FieldRow label="Created" value={fmtDate(viewDialog.data.created_at)} />
+              <FieldRow label="Updated" value={fmtDate(viewDialog.data.updated_at)} />
             </Box>
           )}
         </DialogContent>
       </Dialog>
 
       {/* ── Create Project Dialog ─────────────────────────────────── */}
-      <FormDialog open={createOpen} title="Create Project" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={() => setCreateOpen(false)}>
+      <FormDialog open={createDialog.isOpen} title="Create Project" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={createDialog.close}>
         <TextField label="Project Code" required value={createForm.project_code} onChange={onCreateField('project_code')} inputProps={{ maxLength: 32 }} />
         <TextField label="Project Name" required value={createForm.name} onChange={onCreateField('name')} />
         <TextField label="Description" multiline minRows={2} value={createForm.description} onChange={onCreateField('description')} />
@@ -277,7 +273,7 @@ export default function ProjectsPage() {
       </FormDialog>
 
       {/* ── Edit Project Dialog ──────────────────────────────────── */}
-      <FormDialog open={editOpen} title="Edit Project" submitLabel="Save Changes" loading={updateMut.isPending} onSubmit={handleUpdate} onCancel={() => { setEditOpen(false); setEditRow(null); }}>
+      <FormDialog open={editDialog.isOpen} title="Edit Project" submitLabel="Save Changes" loading={updateMut.isPending} onSubmit={handleUpdate} onCancel={editDialog.close}>
         <TextField label="Project Code" required value={editForm.project_code} onChange={onEditField('project_code')} inputProps={{ maxLength: 32 }} />
         <TextField label="Project Name" required value={editForm.name} onChange={onEditField('name')} />
         <TextField label="Description" multiline minRows={2} value={editForm.description} onChange={onEditField('description')} />
@@ -285,7 +281,7 @@ export default function ProjectsPage() {
         <TextField label="Notes" multiline minRows={2} value={editForm.notes} onChange={onEditField('notes')} />
       </FormDialog>
 
-      <ImportDialog open={importOpen} title="Import Projects" loading={importMut.isPending} onSubmit={handleImport} onCancel={() => setImportOpen(false)} />
+      <ImportDialog open={importDialog.isOpen} title="Import Projects" loading={importMut.isPending} onSubmit={handleImport} onCancel={importDialog.close} />
 
       <ConfirmDialog {...archiveConfirmProps} />
       <ConfirmDialog {...restoreConfirmProps} />

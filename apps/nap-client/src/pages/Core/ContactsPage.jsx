@@ -13,6 +13,7 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useFormState } from '../../hooks/useFormState.js';
+import { useDialogState } from '../../hooks/useDialogState.js';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -124,14 +125,12 @@ export default function ContactsPage() {
   const { selectedRows, allActive, allArchived } = selection;
 
   /* ── Dialog state ───────────────────────────────────────────── */
-  const [importOpen, setImportOpen] = useState(false);
+  const importDialog = useDialogState();
   const [importErrors, setImportErrors] = useState(null);
-  const [viewOpen, setViewOpen] = useState(false);
-  const [viewContact, setViewContact] = useState(null);
+  const viewDialog = useDialogState();
   const [viewSourceId, setViewSourceId] = useState(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [editRow, setEditRow] = useState(null);
+  const createDialog = useDialogState();
+  const editDialog = useDialogState();
 
   const [editSourceId, setEditSourceId] = useState(null);
   const { data: emailsRes } = useEmails({ source_id: editSourceId, includeDeactivated: 'false' }, { enabled: !!editSourceId });
@@ -203,42 +202,40 @@ export default function ContactsPage() {
 
   /* ── Sync query-fetched child data into edit state ──────────── */
   useEffect(() => {
-    if (editOpen && emailsRes?.rows) {
+    if (editDialog.isOpen && emailsRes?.rows) {
       setEditEmails(emailsRes.rows);
       editInitial.current.emails = emailsRes.rows;
     }
-  }, [editOpen, emailsRes]);
+  }, [editDialog.isOpen, emailsRes]);
 
   useEffect(() => {
-    if (editOpen && phonesRes?.rows) {
+    if (editDialog.isOpen && phonesRes?.rows) {
       setEditPhones(phonesRes.rows);
       editInitial.current.phones = phonesRes.rows;
     }
-  }, [editOpen, phonesRes]);
+  }, [editDialog.isOpen, phonesRes]);
 
   useEffect(() => {
-    if (editOpen && addressesRes?.rows) {
+    if (editDialog.isOpen && addressesRes?.rows) {
       setEditAddresses(addressesRes.rows);
       editInitial.current.addresses = addressesRes.rows;
     }
-  }, [editOpen, addressesRes]);
+  }, [editDialog.isOpen, addressesRes]);
 
   useEffect(() => {
-    if (editOpen && taxIdsRes?.rows) {
+    if (editDialog.isOpen && taxIdsRes?.rows) {
       setEditTaxIds(taxIdsRes.rows);
       editInitial.current.taxIds = taxIdsRes.rows;
     }
-  }, [editOpen, taxIdsRes]);
+  }, [editDialog.isOpen, taxIdsRes]);
 
   /* ── Row action callbacks ───────────────────────────────────── */
   const handleView = useCallback((row) => {
-    setViewContact(row);
     setViewSourceId(row.source_id || null);
-    setViewOpen(true);
+    viewDialog.open(row);
   }, []);
 
   const handleEdit = useCallback((row) => {
-    setEditRow(row);
     const form = {
       name: row.name ?? '',
       code: row.code ?? '',
@@ -259,7 +256,7 @@ export default function ContactsPage() {
       editInitial.current.taxIds = [];
     }
 
-    setEditOpen(true);
+    editDialog.open(row);
   }, []);
 
   /* ── Dirty-check: disable Save when nothing changed ─────────── */
@@ -288,7 +285,7 @@ export default function ContactsPage() {
     try {
       await createMut.mutateAsync(createForm);
       toast('Contact created');
-      setCreateOpen(false);
+      createDialog.close();
       resetCreateForm();
     } catch (err) {
       toast(errMsg(err), 'error');
@@ -297,14 +294,14 @@ export default function ContactsPage() {
 
   const handleUpdate = async () => {
     try {
-      await updateMut.mutateAsync({ filter: { id: editRow.id }, changes: editForm });
+      await updateMut.mutateAsync({ filter: { id: editDialog.data.id }, changes: editForm });
 
-      if (editRow.source_id) {
+      if (editDialog.data.source_id) {
         for (const em of editEmails) {
           if (em._deleted && em.id) {
             await archiveEmailMut.mutateAsync({ id: em.id });
           } else if (!em.id && !em._deleted) {
-            await createEmailMut.mutateAsync({ source_id: editRow.source_id, email: em.email, label: em.label, is_primary: em.is_primary });
+            await createEmailMut.mutateAsync({ source_id: editDialog.data.source_id, email: em.email, label: em.label, is_primary: em.is_primary });
           } else if (em.id && !em._deleted) {
             await updateEmailMut.mutateAsync({ filter: { id: em.id }, changes: { email: em.email, label: em.label, is_primary: em.is_primary } });
           }
@@ -313,7 +310,7 @@ export default function ContactsPage() {
           if (p._deleted && p.id) {
             await archivePhoneMut.mutateAsync({ id: p.id });
           } else if (!p.id && !p._deleted) {
-            await createPhoneMut.mutateAsync({ source_id: editRow.source_id, country_code: p.country_code, phone_type: p.phone_type, phone_number: p.phone_number, is_primary: p.is_primary });
+            await createPhoneMut.mutateAsync({ source_id: editDialog.data.source_id, country_code: p.country_code, phone_type: p.phone_type, phone_number: p.phone_number, is_primary: p.is_primary });
           } else if (p.id && !p._deleted) {
             await updatePhoneMut.mutateAsync({ filter: { id: p.id }, changes: { country_code: p.country_code, phone_type: p.phone_type, phone_number: p.phone_number, is_primary: p.is_primary } });
           }
@@ -323,7 +320,7 @@ export default function ContactsPage() {
             await archiveAddrMut.mutateAsync({ id: a.id });
           } else if (!a.id && !a._deleted) {
             const { _deleted, is_primary: _ip, ...rest } = a;
-            await createAddrMut.mutateAsync({ ...rest, source_id: editRow.source_id });
+            await createAddrMut.mutateAsync({ ...rest, source_id: editDialog.data.source_id });
           } else if (a.id && !a._deleted) {
             const { id, source_id: _sid, created_at: _ca, updated_at: _ua, created_by: _cb, updated_by: _ub, deactivated_at: _da, is_primary: _ip, ...changes } = a;
             await updateAddrMut.mutateAsync({ filter: { id }, changes });
@@ -334,7 +331,7 @@ export default function ContactsPage() {
             await archiveTaxIdMut.mutateAsync({ id: t.id });
           } else if (!t.id && !t._deleted) {
             await createTaxIdMut.mutateAsync({
-              source_id: editRow.source_id, country_code: t.country_code,
+              source_id: editDialog.data.source_id, country_code: t.country_code,
               tax_type: t.tax_type, tax_value: t.tax_value,
             });
           } else if (t.id && !t._deleted) {
@@ -347,8 +344,7 @@ export default function ContactsPage() {
       }
 
       toast('Contact updated');
-      setEditOpen(false);
-      setEditRow(null);
+      editDialog.close();
       setEditSourceId(null);
     } catch (err) {
       toast(errMsg(err), 'error');
@@ -360,7 +356,7 @@ export default function ContactsPage() {
     try {
       const result = await importMut.mutateAsync(formData);
       toast(`Imported ${result.inserted} records`);
-      setImportOpen(false);
+      importDialog.close();
     } catch (err) {
       const validationErrors = err.payload?.errors;
       if (validationErrors?.length) {
@@ -425,7 +421,7 @@ export default function ContactsPage() {
       primary.push({
         label: 'Import',
         variant: 'outlined',
-        onClick: () => setImportOpen(true),
+        onClick: () => importDialog.open(),
       });
     }
 
@@ -433,7 +429,7 @@ export default function ContactsPage() {
       label: 'Create Contact',
       variant: 'contained',
       color: 'primary',
-      onClick: () => { resetCreateForm(); setCreateOpen(true); },
+      onClick: () => { resetCreateForm(); createDialog.open(); },
     });
 
     return {
@@ -466,34 +462,34 @@ export default function ContactsPage() {
       />
 
       {/* ── View Details Dialog ──────────────────────────────────── */}
-      <Dialog open={viewOpen} onClose={() => { setViewOpen(false); setViewSourceId(null); }} maxWidth="sm" fullWidth>
+      <Dialog open={viewDialog.isOpen} onClose={() => { viewDialog.close(); setViewSourceId(null); }} maxWidth="sm" fullWidth>
         <DialogTitle sx={dialogHeaderSx}>
           <Box>
             <span>Contact Details</span>
-            {viewContact && (
+            {viewDialog.data && (
               <Typography variant="body2" color="text.secondary">
-                {viewContact.name}
+                {viewDialog.data.name}
               </Typography>
             )}
           </Box>
           <Box sx={dialogActionBoxSx}>
-            <Button size="small" color="inherit" onClick={() => { setViewOpen(false); setViewSourceId(null); }}>
+            <Button size="small" color="inherit" onClick={() => { viewDialog.close(); setViewSourceId(null); }}>
               Close
             </Button>
           </Box>
         </DialogTitle>
         <DialogContent dividers>
-          {viewContact && (
+          {viewDialog.data && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box sx={detailGridSx}>
-                <FieldRow label="Code" value={viewContact.code || '\u2014'} />
-                <FieldRow label="Name" value={viewContact.name} />
-                <FieldRow label="Active" value={viewContact.is_active ? 'Yes' : 'No'} />
+                <FieldRow label="Code" value={viewDialog.data.code || '\u2014'} />
+                <FieldRow label="Name" value={viewDialog.data.name} />
+                <FieldRow label="Active" value={viewDialog.data.is_active ? 'Yes' : 'No'} />
                 <FieldRow label="Status">
-                  <StatusBadge status={viewContact.deactivated_at ? 'archived' : 'active'} />
+                  <StatusBadge status={viewDialog.data.deactivated_at ? 'archived' : 'active'} />
                 </FieldRow>
-                <FieldRow label="Created" value={fmtDate(viewContact.created_at)} />
-                <FieldRow label="Updated" value={fmtDate(viewContact.updated_at)} />
+                <FieldRow label="Created" value={fmtDate(viewDialog.data.created_at)} />
+                <FieldRow label="Updated" value={fmtDate(viewDialog.data.updated_at)} />
               </Box>
 
               <EmailsSection emails={viewEmails} />
@@ -505,7 +501,7 @@ export default function ContactsPage() {
         </DialogContent>
       </Dialog>
 
-      <FormDialog open={createOpen} title="Create Contact" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={() => setCreateOpen(false)}>
+      <FormDialog open={createDialog.isOpen} title="Create Contact" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={createDialog.close}>
         <TextField label="Contact Name" required value={createForm.name} onChange={onCreateField('name')} />
         <TextField label="Code" value={createForm.code} onChange={onCreateField('code')} inputProps={{ maxLength: 16 }} />
         <FormControlLabel
@@ -521,7 +517,7 @@ export default function ContactsPage() {
       </FormDialog>
 
       {/* ── Edit Contact Dialog ──────────────────────────────────── */}
-      <FormDialog open={editOpen} title="Edit Contact" submitLabel="Save Changes" maxWidth="md" loading={updateMut.isPending} submitDisabled={!hasEditChanges} onSubmit={handleUpdate} onCancel={() => { setEditOpen(false); setEditRow(null); setEditSourceId(null); }}>
+      <FormDialog open={editDialog.isOpen} title="Edit Contact" submitLabel="Save Changes" maxWidth="md" loading={updateMut.isPending} submitDisabled={!hasEditChanges} onSubmit={handleUpdate} onCancel={() => { editDialog.close(); setEditSourceId(null); }}>
         <Box sx={formGridSx}>
           <TextField label="Contact Name" required value={editForm.name} onChange={onEditField('name')} />
           <TextField label="Code" value={editForm.code} onChange={onEditField('code')} inputProps={{ maxLength: 16 }} />
@@ -744,12 +740,12 @@ export default function ContactsPage() {
       </FormDialog>
 
       <ImportDialog
-        open={importOpen}
+        open={importDialog.isOpen}
         title="Import Contacts"
         loading={importMut.isPending}
         errors={importErrors}
         onSubmit={handleImport}
-        onCancel={() => { setImportOpen(false); setImportErrors(null); }}
+        onCancel={() => { importDialog.close(); setImportErrors(null); }}
       />
 
       <ConfirmDialog {...archiveConfirmProps} />

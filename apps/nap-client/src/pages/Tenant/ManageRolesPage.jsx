@@ -16,6 +16,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useFormState } from '../../hooks/useFormState.js';
+import { useDialogState } from '../../hooks/useDialogState.js';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
@@ -98,11 +99,9 @@ export default function ManageRolesPage() {
   const [actionsContainer, setActionsContainer] = useState(null);
 
   /* ── dialog state ──────────────────────────────────────────── */
-  const [viewOpen, setViewOpen] = useState(false);
-  const [viewRole, setViewRole] = useState(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [editRow, setEditRow] = useState(null);
+  const viewDialog = useDialogState();
+  const createDialog = useDialogState();
+  const editDialog = useDialogState();
 
   /* ── form state ────────────────────────────────────────────── */
   const { form: createForm, field: onCreateField, reset: resetCreateForm } = useFormState(BLANK_CREATE);
@@ -113,18 +112,16 @@ export default function ManageRolesPage() {
 
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {
-    setViewRole(row);
-    setViewOpen(true);
+    viewDialog.open(row);
   }, []);
 
   const handleEdit = useCallback((row) => {
-    setEditRow(row);
     setEditForm({
       name: row.name ?? '',
       description: row.description ?? '',
       scope: row.scope ?? 'all_projects',
     });
-    setEditOpen(true);
+    editDialog.open(row);
   }, []);
 
   /** Conditional row actions — immutable roles cannot be edited */
@@ -138,7 +135,7 @@ export default function ManageRolesPage() {
     try {
       await createMut.mutateAsync(createForm);
       toast('Role created');
-      setCreateOpen(false);
+      createDialog.close();
       resetCreateForm();
     } catch (err) {
       toast(errMsg(err), 'error');
@@ -147,10 +144,9 @@ export default function ManageRolesPage() {
 
   const handleUpdate = async () => {
     try {
-      await updateMut.mutateAsync({ filter: { id: editRow.id }, changes: editForm });
+      await updateMut.mutateAsync({ filter: { id: editDialog.data.id }, changes: editForm });
       toast('Role updated');
-      setEditOpen(false);
-      setEditRow(null);
+      editDialog.close();
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -168,7 +164,7 @@ export default function ManageRolesPage() {
           color: 'primary',
           onClick: () => {
             resetCreateForm();
-            setCreateOpen(true);
+            createDialog.open();
           },
         },
       ],
@@ -243,35 +239,35 @@ export default function ManageRolesPage() {
       )}
 
       {/* ── View Details Dialog ──────────────────────────────────── */}
-      <Dialog open={viewOpen} onClose={() => setViewOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={viewDialog.isOpen} onClose={viewDialog.close} maxWidth="sm" fullWidth>
         <DialogTitle sx={dialogHeaderSx}>
           <Box>
             <span>Role Details</span>
-            {viewRole && (
+            {viewDialog.data && (
               <Typography variant="body2" color="text.secondary">
-                {viewRole.name}
+                {viewDialog.data.name}
               </Typography>
             )}
           </Box>
           <Box sx={dialogActionBoxSx}>
-            <Button size="small" color="inherit" onClick={() => setViewOpen(false)}>
+            <Button size="small" color="inherit" onClick={viewDialog.close}>
               Close
             </Button>
           </Box>
         </DialogTitle>
         <DialogContent dividers>
-          {viewRole && (
+          {viewDialog.data && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box sx={detailGridSx}>
-                <FieldRow label="Code" value={viewRole.code} />
-                <FieldRow label="Name" value={viewRole.name} />
+                <FieldRow label="Code" value={viewDialog.data.code} />
+                <FieldRow label="Name" value={viewDialog.data.name} />
                 <FieldRow label="Scope">
-                  <StatusBadge status={viewRole.scope} />
+                  <StatusBadge status={viewDialog.data.scope} />
                 </FieldRow>
-                <FieldRow label="System" value={viewRole.is_system ? 'Yes' : 'No'} />
-                <FieldRow label="Immutable" value={viewRole.is_immutable ? 'Yes' : 'No'} />
-                <FieldRow label="Created" value={fmtDate(viewRole.created_at)} />
-                <FieldRow label="Updated" value={fmtDate(viewRole.updated_at)} />
+                <FieldRow label="System" value={viewDialog.data.is_system ? 'Yes' : 'No'} />
+                <FieldRow label="Immutable" value={viewDialog.data.is_immutable ? 'Yes' : 'No'} />
+                <FieldRow label="Created" value={fmtDate(viewDialog.data.created_at)} />
+                <FieldRow label="Updated" value={fmtDate(viewDialog.data.updated_at)} />
               </Box>
             </Box>
           )}
@@ -280,12 +276,12 @@ export default function ManageRolesPage() {
 
       {/* ── Create Dialog ──────────────────────────────────────── */}
       <FormDialog
-        open={createOpen}
+        open={createDialog.isOpen}
         title="Create Role"
         submitLabel="Create"
         loading={createMut.isPending}
         onSubmit={handleCreate}
-        onCancel={() => setCreateOpen(false)}
+        onCancel={createDialog.close}
       >
         <TextField label="Code" required value={createForm.code} onChange={onCreateField('code')} inputProps={{ maxLength: 64 }} />
         <TextField label="Name" required value={createForm.name} onChange={onCreateField('name')} inputProps={{ maxLength: 128 }} />
@@ -301,14 +297,14 @@ export default function ManageRolesPage() {
 
       {/* ── Edit Dialog ────────────────────────────────────────── */}
       <FormDialog
-        open={editOpen}
+        open={editDialog.isOpen}
         title="Edit Role"
         submitLabel="Save Changes"
         loading={updateMut.isPending}
         onSubmit={handleUpdate}
-        onCancel={() => { setEditOpen(false); setEditRow(null); }}
+        onCancel={editDialog.close}
       >
-        {editRow && <TextField label="Code" value={editRow.code} disabled />}
+        {editDialog.data && <TextField label="Code" value={editDialog.data.code} disabled />}
         <TextField label="Name" required value={editForm.name} onChange={onEditField('name')} inputProps={{ maxLength: 128 }} />
         <TextField label="Description" value={editForm.description} onChange={onEditField('description')} inputProps={{ maxLength: 255 }} />
         <TextField label="Scope" select value={editForm.scope} onChange={onEditField('scope')}>

@@ -7,6 +7,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useFormState } from '../../hooks/useFormState.js';
+import { useDialogState } from '../../hooks/useDialogState.js';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -89,12 +90,10 @@ export default function CatalogPage() {
   const { selectedRows, allActive, allArchived } = selection;
 
   /* ── Dialog state ───────────────────────────────────────────── */
-  const [importOpen, setImportOpen] = useState(false);
-  const [viewOpen, setViewOpen] = useState(false);
-  const [viewSku, setViewSku] = useState(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [editRow, setEditRow] = useState(null);
+  const importDialog = useDialogState();
+  const viewDialog = useDialogState();
+  const createDialog = useDialogState();
+  const editDialog = useDialogState();
 
   const { form: createForm, field: onCreateField, reset: resetCreateForm } = useFormState(BLANK_CREATE);
   const { form: editForm, setForm: setEditForm, field: onEditField } = useFormState(BLANK_EDIT);
@@ -105,26 +104,24 @@ export default function CatalogPage() {
 
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {
-    setViewSku(row);
-    setViewOpen(true);
+    viewDialog.open(row);
   }, []);
 
   const handleEdit = useCallback((row) => {
-    setEditRow(row);
     setEditForm({
       catalog_sku: row.catalog_sku || '',
       description: row.description || '',
       category: row.category || '',
       sub_category: row.sub_category || '',
     });
-    setEditOpen(true);
+    editDialog.open(row);
   }, []);
 
   const handleCreate = async () => {
     try {
       await createMut.mutateAsync(createForm);
       toast('Catalog SKU created');
-      setCreateOpen(false);
+      createDialog.close();
       resetCreateForm();
     } catch (err) {
       toast(errMsg(err), 'error');
@@ -133,10 +130,9 @@ export default function CatalogPage() {
 
   const handleUpdate = async () => {
     try {
-      await updateMut.mutateAsync({ filter: { id: editRow.id }, changes: editForm });
+      await updateMut.mutateAsync({ filter: { id: editDialog.data.id }, changes: editForm });
       toast('Catalog SKU updated');
-      setEditOpen(false);
-      setEditRow(null);
+      editDialog.close();
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -155,7 +151,7 @@ export default function CatalogPage() {
     try {
       const result = await importMut.mutateAsync(formData);
       toast(`Imported ${result.inserted} records`);
-      setImportOpen(false);
+      importDialog.close();
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -215,14 +211,14 @@ export default function CatalogPage() {
       primary.push({ label: 'Export', variant: 'outlined', disabled: exportMut.isPending, onClick: handleExport });
     }
     if (canImport) {
-      primary.push({ label: 'Import', variant: 'outlined', onClick: () => setImportOpen(true) });
+      primary.push({ label: 'Import', variant: 'outlined', onClick: () => importDialog.open() });
     }
 
     primary.push({
       label: 'Create',
       variant: 'contained',
       color: 'primary',
-      onClick: () => { resetCreateForm(); setCreateOpen(true); },
+      onClick: () => { resetCreateForm(); createDialog.open(); },
     });
 
     return {
@@ -249,42 +245,42 @@ export default function CatalogPage() {
       />
 
       {/* ── View Details Dialog ──────────────────────────────────── */}
-      <Dialog open={viewOpen} onClose={() => setViewOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={viewDialog.isOpen} onClose={viewDialog.close} maxWidth="sm" fullWidth>
         <DialogTitle sx={dialogHeaderSx}>
           <Box>
             <span>Catalog SKU Details</span>
-            {viewSku && (
+            {viewDialog.data && (
               <Typography variant="body2" color="text.secondary">
-                {viewSku.catalog_sku}
+                {viewDialog.data.catalog_sku}
               </Typography>
             )}
           </Box>
           <Box sx={dialogActionBoxSx}>
-            <Button size="small" color="inherit" onClick={() => setViewOpen(false)}>
+            <Button size="small" color="inherit" onClick={viewDialog.close}>
               Close
             </Button>
           </Box>
         </DialogTitle>
         <DialogContent dividers>
-          {viewSku && (
+          {viewDialog.data && (
             <Box sx={detailGridSx}>
-              <FieldRow label="Catalog SKU" value={viewSku.catalog_sku || '\u2014'} />
-              <FieldRow label="Description" value={viewSku.description || '\u2014'} />
-              <FieldRow label="Category" value={viewSku.category || '\u2014'} />
-              <FieldRow label="Sub-Category" value={viewSku.sub_category || '\u2014'} />
-              <FieldRow label="Embedded" value={viewSku.embedding ? 'Yes' : 'No'} />
+              <FieldRow label="Catalog SKU" value={viewDialog.data.catalog_sku || '\u2014'} />
+              <FieldRow label="Description" value={viewDialog.data.description || '\u2014'} />
+              <FieldRow label="Category" value={viewDialog.data.category || '\u2014'} />
+              <FieldRow label="Sub-Category" value={viewDialog.data.sub_category || '\u2014'} />
+              <FieldRow label="Embedded" value={viewDialog.data.embedding ? 'Yes' : 'No'} />
               <FieldRow label="Status">
-                <StatusBadge status={viewSku.deactivated_at ? 'archived' : 'active'} />
+                <StatusBadge status={viewDialog.data.deactivated_at ? 'archived' : 'active'} />
               </FieldRow>
-              <FieldRow label="Created" value={fmtDate(viewSku.created_at)} />
-              <FieldRow label="Updated" value={fmtDate(viewSku.updated_at)} />
+              <FieldRow label="Created" value={fmtDate(viewDialog.data.created_at)} />
+              <FieldRow label="Updated" value={fmtDate(viewDialog.data.updated_at)} />
             </Box>
           )}
         </DialogContent>
       </Dialog>
 
       {/* ── Create Dialog ─────────────────────────────────────────── */}
-      <FormDialog open={createOpen} title="Create Catalog SKU" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={() => setCreateOpen(false)}>
+      <FormDialog open={createDialog.isOpen} title="Create Catalog SKU" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={createDialog.close}>
         <Box sx={formGridSx}>
           <TextField label="SKU Code" required value={createForm.catalog_sku} onChange={onCreateField('catalog_sku')} inputProps={{ maxLength: 64 }} />
           <TextField label="Category" value={createForm.category} onChange={onCreateField('category')} select={categories.length > 0} inputProps={{ maxLength: 64 }}>
@@ -296,7 +292,7 @@ export default function CatalogPage() {
       </FormDialog>
 
       {/* ── Edit Dialog ───────────────────────────────────────────── */}
-      <FormDialog open={editOpen} title="Edit Catalog SKU" submitLabel="Save" loading={updateMut.isPending} onSubmit={handleUpdate} onCancel={() => { setEditOpen(false); setEditRow(null); }}>
+      <FormDialog open={editDialog.isOpen} title="Edit Catalog SKU" submitLabel="Save" loading={updateMut.isPending} onSubmit={handleUpdate} onCancel={editDialog.close}>
         <Box sx={formGridSx}>
           <TextField label="SKU Code" required value={editForm.catalog_sku} onChange={onEditField('catalog_sku')} inputProps={{ maxLength: 64 }} />
           <TextField label="Category" value={editForm.category} onChange={onEditField('category')} select={categories.length > 0} inputProps={{ maxLength: 64 }}>
@@ -307,7 +303,7 @@ export default function CatalogPage() {
         </Box>
       </FormDialog>
 
-      <ImportDialog open={importOpen} title="Import Catalog SKUs" loading={importMut.isPending} onSubmit={handleImport} onCancel={() => setImportOpen(false)} />
+      <ImportDialog open={importDialog.isOpen} title="Import Catalog SKUs" loading={importMut.isPending} onSubmit={handleImport} onCancel={importDialog.close} />
 
       <ConfirmDialog {...archiveConfirmProps} />
       <ConfirmDialog {...restoreConfirmProps} />

@@ -9,6 +9,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useFormState } from '../../hooks/useFormState.js';
+import { useDialogState } from '../../hooks/useDialogState.js';
 import Box from '@mui/material/Box';
 import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
@@ -93,7 +94,7 @@ export default function PaymentTermsPage() {
   });
 
   /* ── Import / Export ──────────────────────────────────── */
-  const [importOpen, setImportOpen] = useState(false);
+  const importDialog = useDialogState();
   const [importErrors, setImportErrors] = useState(null);
 
   const handleImport = useCallback(async (formData) => {
@@ -103,7 +104,7 @@ export default function PaymentTermsPage() {
         setImportErrors(result.errors);
         return;
       }
-      setImportOpen(false);
+      importDialog.close();
       setImportErrors(null);
       toast(`Imported ${(result?.inserted ?? 0) + (result?.updated ?? 0)} payment term(s)`);
     } catch (err) {
@@ -126,13 +127,13 @@ export default function PaymentTermsPage() {
   }, [exportMut.mutateAsync, toast]);
 
   /* ── Create dialog ─────────────────────────────────────── */
-  const [createOpen, setCreateOpen] = useState(false);
+  const createDialog = useDialogState();
   const { form: createForm, field: onCreateField, reset: resetCreateForm } = useFormState(BLANK_CREATE);
 
   const handleCreate = useCallback(async () => {
     try {
       await createMut.mutateAsync({ ...createForm, term: Number(createForm.term) });
-      setCreateOpen(false);
+      createDialog.close();
       resetCreateForm();
       toast('Payment term created');
     } catch (err) {
@@ -141,34 +142,30 @@ export default function PaymentTermsPage() {
   }, [createForm, createMut, toast]);
 
   /* ── View dialog ───────────────────────────────────────── */
-  const [viewOpen, setViewOpen] = useState(false);
-  const [viewRow, setViewRow] = useState(null);
+  const viewDialog = useDialogState();
 
   /* ── Edit dialog ───────────────────────────────────────── */
-  const [editOpen, setEditOpen] = useState(false);
-  const [editRow, setEditRow] = useState(null);
+  const editDialog = useDialogState();
   const { form: editForm, setForm: setEditForm, field: onEditField } = useFormState(BLANK_EDIT);
 
   const openEdit = useCallback((row) => {
-    setEditRow(row);
     setEditForm({ label: row.label, term: row.term, units: row.units, is_active: row.is_active });
-    setEditOpen(true);
+    editDialog.open(row);
   }, []);
 
   const handleUpdate = useCallback(async () => {
     try {
-      await updateMut.mutateAsync({ filter: { id: editRow.id }, changes: { ...editForm, term: Number(editForm.term) } });
-      setEditOpen(false);
+      await updateMut.mutateAsync({ filter: { id: editDialog.data.id }, changes: { ...editForm, term: Number(editForm.term) } });
+      editDialog.close();
       toast('Payment term updated');
     } catch (err) {
       toast(errMsg(err) || 'Update failed', 'error');
     }
-  }, [editRow, editForm, updateMut, toast]);
+  }, [editDialog.data, editForm, updateMut, toast]);
 
   /* ── Row action callbacks ───────────────────────────────── */
   const handleView = useCallback((row) => {
-    setViewRow(row);
-    setViewOpen(true);
+    viewDialog.open(row);
   }, []);
 
 
@@ -207,13 +204,13 @@ export default function PaymentTermsPage() {
       variant: 'outlined',
       color: 'primary',
       disabled: importMut.isPending,
-      onClick: () => { setImportErrors(null); setImportOpen(true); },
+      onClick: () => { setImportErrors(null); importDialog.open(); },
     });
     primary.push({
       label: 'Create Payment Term',
       variant: 'contained',
       color: 'primary',
-      onClick: () => { resetCreateForm(); setCreateOpen(true); },
+      onClick: () => { resetCreateForm(); createDialog.open(); },
     });
 
     return {
@@ -242,12 +239,12 @@ export default function PaymentTermsPage() {
 
       {/* ── Create Dialog ─────────────────────────────── */}
       <FormDialog
-        open={createOpen}
+        open={createDialog.isOpen}
         title="New Payment Term"
         submitLabel="Create"
         loading={createMut.isPending}
         onSubmit={handleCreate}
-        onCancel={() => { setCreateOpen(false); resetCreateForm(); }}
+        onCancel={() => { createDialog.close(); resetCreateForm(); }}
       >
         <Box sx={formGridSx}>
           <TextField
@@ -277,12 +274,12 @@ export default function PaymentTermsPage() {
 
       {/* ── Edit Dialog ───────────────────────────────── */}
       <FormDialog
-        open={editOpen}
+        open={editDialog.isOpen}
         title="Edit Payment Term"
         submitLabel="Save"
         loading={updateMut.isPending}
         onSubmit={handleUpdate}
-        onCancel={() => setEditOpen(false)}
+        onCancel={editDialog.close}
       >
         <Box sx={formGridSx}>
           <TextField
@@ -320,22 +317,22 @@ export default function PaymentTermsPage() {
       </FormDialog>
 
       {/* ── View Dialog ───────────────────────────────── */}
-      <Dialog open={viewOpen} onClose={() => setViewOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={viewDialog.isOpen} onClose={viewDialog.close} maxWidth="sm" fullWidth>
         <DialogTitle sx={dialogHeaderSx}>
           <Typography variant="h6">Payment Term Details</Typography>
           <Box sx={dialogActionBoxSx}>
-            <StatusBadge status={viewRow?.deactivated_at ? 'archived' : viewRow?.is_active ? 'active' : 'suspended'} />
+            <StatusBadge status={viewDialog.data?.deactivated_at ? 'archived' : viewDialog.data?.is_active ? 'active' : 'suspended'} />
           </Box>
         </DialogTitle>
         <DialogContent dividers>
-          {viewRow && (
+          {viewDialog.data && (
             <>
-              <FieldRow label="Label" value={viewRow.label} />
-              <FieldRow label="Term" value={viewRow.term} />
-              <FieldRow label="Units" value={viewRow.units} />
-              <FieldRow label="Active" value={viewRow.is_active ? 'Yes' : 'No'} />
-              <FieldRow label="Created" value={fmtDate(viewRow.created_at)} />
-              <FieldRow label="Updated" value={fmtDate(viewRow.updated_at)} />
+              <FieldRow label="Label" value={viewDialog.data.label} />
+              <FieldRow label="Term" value={viewDialog.data.term} />
+              <FieldRow label="Units" value={viewDialog.data.units} />
+              <FieldRow label="Active" value={viewDialog.data.is_active ? 'Yes' : 'No'} />
+              <FieldRow label="Created" value={fmtDate(viewDialog.data.created_at)} />
+              <FieldRow label="Updated" value={fmtDate(viewDialog.data.updated_at)} />
             </>
           )}
         </DialogContent>
@@ -343,12 +340,12 @@ export default function PaymentTermsPage() {
 
       {/* ── Import Dialog ──────────────────────────────── */}
       <ImportDialog
-        open={importOpen}
+        open={importDialog.isOpen}
         title="Import Payment Terms"
         loading={importMut.isPending}
         errors={importErrors}
         onSubmit={handleImport}
-        onCancel={() => { setImportOpen(false); setImportErrors(null); }}
+        onCancel={() => { importDialog.close(); setImportErrors(null); }}
       />
 
       {/* ── Confirm Dialogs ───────────────────────────── */}

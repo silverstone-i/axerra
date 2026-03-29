@@ -10,6 +10,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useFormState } from '../../hooks/useFormState.js';
+import { useDialogState } from '../../hooks/useDialogState.js';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -89,24 +90,22 @@ export default function ArInvoicesPage() {
   const { selectedRows, allActive, allArchived } = selection;
 
   /* ── Dialog state ───────────────────────────────────────────── */
-  const [viewOpen, setViewOpen] = useState(false);
-  const [viewInvoice, setViewInvoice] = useState(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [editRow, setEditRow] = useState(null);
+  const viewDialog = useDialogState();
+  const createDialog = useDialogState();
+  const editDialog = useDialogState();
 
   const { form: createForm, field: onCreateField, reset: resetCreateForm } = useFormState(BLANK_CREATE);
   const { form: editForm, setForm: setEditForm, field: onEditField } = useFormState(BLANK_EDIT);
 
   const { toast, snackProps } = useToast();
 
-  const [importOpen, setImportOpen] = useState(false);
+  const importDialog = useDialogState();
 
   const handleImport = useCallback(async (formData) => {
     try {
       const result = await importMut.mutateAsync(formData);
       toast(`Imported ${result.inserted} records`);
-      setImportOpen(false);
+      importDialog.close();
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -123,30 +122,28 @@ export default function ArInvoicesPage() {
 
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {
-    setViewInvoice(row);
-    setViewOpen(true);
+    viewDialog.open(row);
   }, []);
 
   const handleEdit = useCallback((row) => {
-    setEditRow(row);
     setEditForm({
       invoice_number: row.invoice_number ?? '', invoice_date: row.invoice_date?.slice(0, 10) ?? '',
       due_date: row.due_date?.slice(0, 10) ?? '', total_amount: row.total_amount ?? '',
       status: row.status ?? 'open', notes: row.notes ?? '',
     });
-    setEditOpen(true);
+    editDialog.open(row);
   }, []);
 
   const handleCreate = async () => {
     try {
       await createMut.mutateAsync({ ...createForm, total_amount: Number(createForm.total_amount) || 0 });
-      toast('Invoice created'); setCreateOpen(false); resetCreateForm();
+      toast('Invoice created'); createDialog.close(); resetCreateForm();
     } catch (err) { toast(errMsg(err), 'error'); }
   };
   const handleUpdate = async () => {
     try {
-      await updateMut.mutateAsync({ filter: { id: editRow.id }, changes: { ...editForm, total_amount: Number(editForm.total_amount) || 0 } });
-      toast('Invoice updated'); setEditOpen(false); setEditRow(null);
+      await updateMut.mutateAsync({ filter: { id: editDialog.data.id }, changes: { ...editForm, total_amount: Number(editForm.total_amount) || 0 } });
+      toast('Invoice updated'); editDialog.close();
     } catch (err) { toast(errMsg(err), 'error'); }
   };
   const handleApprove = async () => {
@@ -192,14 +189,14 @@ export default function ArInvoicesPage() {
       primary.push({ label: 'Export', variant: 'outlined', disabled: exportMut.isPending, onClick: handleExport });
     }
     if (canImport) {
-      primary.push({ label: 'Import', variant: 'outlined', onClick: () => setImportOpen(true) });
+      primary.push({ label: 'Import', variant: 'outlined', onClick: () => importDialog.open() });
     }
 
     primary.push({
       label: 'Create Invoice',
       variant: 'contained',
       color: 'primary',
-      onClick: () => { resetCreateForm(); setCreateOpen(true); },
+      onClick: () => { resetCreateForm(); createDialog.open(); },
     });
 
     return {
@@ -226,42 +223,42 @@ export default function ArInvoicesPage() {
       />
 
       {/* ── View Details Dialog ──────────────────────────────────── */}
-      <Dialog open={viewOpen} onClose={() => setViewOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={viewDialog.isOpen} onClose={viewDialog.close} maxWidth="sm" fullWidth>
         <DialogTitle sx={dialogHeaderSx}>
           <Box>
             <span>Invoice Details</span>
-            {viewInvoice && (
+            {viewDialog.data && (
               <Typography variant="body2" color="text.secondary">
-                {viewInvoice.invoice_number}
+                {viewDialog.data.invoice_number}
               </Typography>
             )}
           </Box>
           <Box sx={dialogActionBoxSx}>
-            <Button size="small" color="inherit" onClick={() => setViewOpen(false)}>
+            <Button size="small" color="inherit" onClick={viewDialog.close}>
               Close
             </Button>
           </Box>
         </DialogTitle>
         <DialogContent dividers>
-          {viewInvoice && (
+          {viewDialog.data && (
             <Box sx={detailGridSx}>
-              <FieldRow label="Invoice Number" value={viewInvoice.invoice_number || '\u2014'} />
-              <FieldRow label="Client" value={viewInvoice.client_id?.slice(0, 8) || '\u2014'} />
-              <FieldRow label="Invoice Date" value={fmtDate(viewInvoice.invoice_date)} />
-              <FieldRow label="Due Date" value={fmtDate(viewInvoice.due_date)} />
-              <FieldRow label="Total Amount" value={viewInvoice.total_amount != null ? Number(viewInvoice.total_amount).toLocaleString(undefined, { style: 'currency', currency: 'USD' }) : '\u2014'} />
+              <FieldRow label="Invoice Number" value={viewDialog.data.invoice_number || '\u2014'} />
+              <FieldRow label="Client" value={viewDialog.data.client_id?.slice(0, 8) || '\u2014'} />
+              <FieldRow label="Invoice Date" value={fmtDate(viewDialog.data.invoice_date)} />
+              <FieldRow label="Due Date" value={fmtDate(viewDialog.data.due_date)} />
+              <FieldRow label="Total Amount" value={viewDialog.data.total_amount != null ? Number(viewDialog.data.total_amount).toLocaleString(undefined, { style: 'currency', currency: 'USD' }) : '\u2014'} />
               <FieldRow label="Status">
-                <StatusBadge status={viewInvoice.status} />
+                <StatusBadge status={viewDialog.data.status} />
               </FieldRow>
-              <FieldRow label="Created" value={fmtDate(viewInvoice.created_at)} />
-              <FieldRow label="Updated" value={fmtDate(viewInvoice.updated_at)} />
+              <FieldRow label="Created" value={fmtDate(viewDialog.data.created_at)} />
+              <FieldRow label="Updated" value={fmtDate(viewDialog.data.updated_at)} />
             </Box>
           )}
         </DialogContent>
       </Dialog>
 
       {/* ── Create AR Invoice Dialog ─────────────────────────────── */}
-      <FormDialog open={createOpen} title="Create AR Invoice" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={() => setCreateOpen(false)}>
+      <FormDialog open={createDialog.isOpen} title="Create AR Invoice" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={createDialog.close}>
         <TextField label="Client" select required value={createForm.client_id} onChange={onCreateField('client_id')}>
           {clients.map((c) => <MenuItem key={c.id} value={c.id}>{c.client_code ? `${c.client_code} \u2014 ${c.name}` : c.name}</MenuItem>)}
         </TextField>
@@ -276,7 +273,7 @@ export default function ArInvoicesPage() {
       </FormDialog>
 
       {/* ── Edit AR Invoice Dialog ───────────────────────────────── */}
-      <FormDialog open={editOpen} title="Edit AR Invoice" submitLabel="Save Changes" loading={updateMut.isPending} onSubmit={handleUpdate} onCancel={() => { setEditOpen(false); setEditRow(null); }}>
+      <FormDialog open={editDialog.isOpen} title="Edit AR Invoice" submitLabel="Save Changes" loading={updateMut.isPending} onSubmit={handleUpdate} onCancel={editDialog.close}>
         <TextField label="Invoice Number" value={editForm.invoice_number} onChange={onEditField('invoice_number')} />
         <TextField label="Invoice Date" type="date" value={editForm.invoice_date} onChange={onEditField('invoice_date')} InputLabelProps={{ shrink: true }} />
         <TextField label="Due Date" type="date" value={editForm.due_date} onChange={onEditField('due_date')} InputLabelProps={{ shrink: true }} />
@@ -290,7 +287,7 @@ export default function ArInvoicesPage() {
       <ConfirmDialog {...archiveConfirmProps} />
       <ConfirmDialog {...restoreConfirmProps} />
 
-      <ImportDialog open={importOpen} title="Import AR Invoices" loading={importMut.isPending} onSubmit={handleImport} onCancel={() => setImportOpen(false)} />
+      <ImportDialog open={importDialog.isOpen} title="Import AR Invoices" loading={importMut.isPending} onSubmit={handleImport} onCancel={importDialog.close} />
 
       <ToastSnackbar {...snackProps} />
     </Box>

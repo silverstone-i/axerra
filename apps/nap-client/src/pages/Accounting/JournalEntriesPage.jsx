@@ -7,6 +7,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useFormState } from '../../hooks/useFormState.js';
+import { useDialogState } from '../../hooks/useDialogState.js';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -83,12 +84,10 @@ export default function JournalEntriesPage() {
   const { selectedRows, allActive, allArchived } = selection;
 
   /* ── Dialog state ───────────────────────────────────────────── */
-  const [importOpen, setImportOpen] = useState(false);
-  const [viewOpen, setViewOpen] = useState(false);
-  const [viewEntry, setViewEntry] = useState(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [editRow, setEditRow] = useState(null);
+  const importDialog = useDialogState();
+  const viewDialog = useDialogState();
+  const createDialog = useDialogState();
+  const editDialog = useDialogState();
 
   const { form: createForm, field: onCreateField, reset: resetCreateForm } = useFormState(BLANK_CREATE);
   const { form: editForm, setForm: setEditForm, field: onEditField } = useFormState(BLANK_EDIT);
@@ -98,26 +97,24 @@ export default function JournalEntriesPage() {
 
   /* ── Row action callbacks ──────────────────────────────────── */
   const handleView = useCallback((row) => {
-    setViewEntry(row);
-    setViewOpen(true);
+    viewDialog.open(row);
   }, []);
 
   const handleEdit = useCallback((row) => {
-    setEditRow(row);
     setEditForm({
       entry_date: row.entry_date?.slice(0, 10) ?? '',
       description: row.description ?? '',
       status: row.status ?? 'pending',
       source_type: row.source_type ?? '',
     });
-    setEditOpen(true);
+    editDialog.open(row);
   }, []);
 
   const handleCreate = async () => {
     try {
       await createMut.mutateAsync(createForm);
       toast('Journal entry created');
-      setCreateOpen(false);
+      createDialog.close();
       resetCreateForm();
     } catch (err) {
       toast(errMsg(err), 'error');
@@ -126,10 +123,9 @@ export default function JournalEntriesPage() {
 
   const handleUpdate = async () => {
     try {
-      await updateMut.mutateAsync({ filter: { id: editRow.id }, changes: editForm });
+      await updateMut.mutateAsync({ filter: { id: editDialog.data.id }, changes: editForm });
       toast('Entry updated');
-      setEditOpen(false);
-      setEditRow(null);
+      editDialog.close();
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -157,7 +153,7 @@ export default function JournalEntriesPage() {
     try {
       const result = await importMut.mutateAsync(formData);
       toast(`Imported ${result.inserted} records`);
-      setImportOpen(false);
+      importDialog.close();
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -210,7 +206,7 @@ export default function JournalEntriesPage() {
       primary.push({ label: 'Export', variant: 'outlined', disabled: exportMut.isPending, onClick: handleExport });
     }
     if (canImport) {
-      primary.push({ label: 'Import', variant: 'outlined', onClick: () => setImportOpen(true) });
+      primary.push({ label: 'Import', variant: 'outlined', onClick: () => importDialog.open() });
     }
 
     primary.push({
@@ -232,7 +228,7 @@ export default function JournalEntriesPage() {
       label: 'Create Entry',
       variant: 'contained',
       color: 'primary',
-      onClick: () => { resetCreateForm(); setCreateOpen(true); },
+      onClick: () => { resetCreateForm(); createDialog.open(); },
     });
 
     return {
@@ -259,41 +255,41 @@ export default function JournalEntriesPage() {
       />
 
       {/* ── View Details Dialog ──────────────────────────────────── */}
-      <Dialog open={viewOpen} onClose={() => setViewOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={viewDialog.isOpen} onClose={viewDialog.close} maxWidth="sm" fullWidth>
         <DialogTitle sx={dialogHeaderSx}>
           <Box>
             <span>Journal Entry Details</span>
-            {viewEntry && (
+            {viewDialog.data && (
               <Typography variant="body2" color="text.secondary">
-                {viewEntry.description}
+                {viewDialog.data.description}
               </Typography>
             )}
           </Box>
           <Box sx={dialogActionBoxSx}>
-            <Button size="small" color="inherit" onClick={() => setViewOpen(false)}>
+            <Button size="small" color="inherit" onClick={viewDialog.close}>
               Close
             </Button>
           </Box>
         </DialogTitle>
         <DialogContent dividers>
-          {viewEntry && (
+          {viewDialog.data && (
             <Box sx={detailGridSx}>
-              <FieldRow label="ID" value={viewEntry.id?.slice(0, 8) || '\u2014'} />
-              <FieldRow label="Entry Date" value={fmtDate(viewEntry.entry_date)} />
-              <FieldRow label="Description" value={viewEntry.description || '\u2014'} />
+              <FieldRow label="ID" value={viewDialog.data.id?.slice(0, 8) || '\u2014'} />
+              <FieldRow label="Entry Date" value={fmtDate(viewDialog.data.entry_date)} />
+              <FieldRow label="Description" value={viewDialog.data.description || '\u2014'} />
               <FieldRow label="Status">
-                <StatusBadge status={viewEntry.status} />
+                <StatusBadge status={viewDialog.data.status} />
               </FieldRow>
-              <FieldRow label="Source Type" value={capSnake(viewEntry.source_type || '') || '\u2014'} />
-              <FieldRow label="Created" value={fmtDate(viewEntry.created_at)} />
-              <FieldRow label="Updated" value={fmtDate(viewEntry.updated_at)} />
+              <FieldRow label="Source Type" value={capSnake(viewDialog.data.source_type || '') || '\u2014'} />
+              <FieldRow label="Created" value={fmtDate(viewDialog.data.created_at)} />
+              <FieldRow label="Updated" value={fmtDate(viewDialog.data.updated_at)} />
             </Box>
           )}
         </DialogContent>
       </Dialog>
 
       {/* ── Create Journal Entry Dialog ───────────────────────────── */}
-      <FormDialog open={createOpen} title="Create Journal Entry" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={() => setCreateOpen(false)}>
+      <FormDialog open={createDialog.isOpen} title="Create Journal Entry" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={createDialog.close}>
         <TextField label="Entry Date" type="date" required value={createForm.entry_date} onChange={onCreateField('entry_date')} InputLabelProps={{ shrink: true }} />
         <TextField label="Description" multiline minRows={2} value={createForm.description} onChange={onCreateField('description')} />
         <TextField label="Status" select value={createForm.status} onChange={onCreateField('status')}>
@@ -303,7 +299,7 @@ export default function JournalEntriesPage() {
       </FormDialog>
 
       {/* ── Edit Journal Entry Dialog ─────────────────────────────── */}
-      <FormDialog open={editOpen} title="Edit Journal Entry" submitLabel="Save Changes" loading={updateMut.isPending} onSubmit={handleUpdate} onCancel={() => { setEditOpen(false); setEditRow(null); }}>
+      <FormDialog open={editDialog.isOpen} title="Edit Journal Entry" submitLabel="Save Changes" loading={updateMut.isPending} onSubmit={handleUpdate} onCancel={editDialog.close}>
         <TextField label="Entry Date" type="date" value={editForm.entry_date} onChange={onEditField('entry_date')} InputLabelProps={{ shrink: true }} />
         <TextField label="Description" multiline minRows={2} value={editForm.description} onChange={onEditField('description')} />
         <TextField label="Status" select value={editForm.status} onChange={onEditField('status')}>
@@ -313,11 +309,11 @@ export default function JournalEntriesPage() {
       </FormDialog>
 
       <ImportDialog
-        open={importOpen}
+        open={importDialog.isOpen}
         title="Import Journal Entries"
         loading={importMut.isPending}
         onSubmit={handleImport}
-        onCancel={() => setImportOpen(false)}
+        onCancel={importDialog.close}
       />
 
       <ConfirmDialog {...archiveConfirmProps} />
