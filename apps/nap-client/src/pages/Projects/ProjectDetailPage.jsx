@@ -13,12 +13,11 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
-import Snackbar from '@mui/material/Snackbar';
-import Alert from '@mui/material/Alert';
 import TextField from '@mui/material/TextField';
 import Chip from '@mui/material/Chip';
 
 import DataTable from '../../components/shared/DataTable.jsx';
+import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
 import FormDialog from '../../components/shared/FormDialog.jsx';
 import ConfirmDialog from '../../components/shared/ConfirmDialog.jsx';
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
@@ -28,6 +27,7 @@ import { useTasks, useCreateTask, useUpdateTask, useArchiveTask, useRestoreTask 
 import { useCostItems, useCreateCostItem, useUpdateCostItem, useArchiveCostItem, useRestoreCostItem } from '../../hooks/useCostItems.js';
 import { pageContainerSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
+import { useToast } from '../../hooks/useToast.js';
 import { errMsg } from '../../utils/format.js';
 
 /* ── column definitions ───────────────────────── */
@@ -117,8 +117,7 @@ export default function ProjectDetailPage() {
   const [costEditForm, setCostEditForm] = useState(BLANK_COST);
 
   /* ── Toast ──────────────────────────────────── */
-  const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
-  const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
+  const { toast, snackProps } = useToast();
 
   /* ── Toolbar ────────────────────────────────── */
   const toolbar = useMemo(() => ({ tabs: [], filters: [], primaryActions: [] }), []);
@@ -354,9 +353,7 @@ export default function ProjectDetailPage() {
       </FormDialog>
       <ConfirmDialog open={costArchiveOpen} title="Archive Cost Item" message={costSelection.hasSelection ? (costSelection.selectedRows.length === 1 ? `Archive "${costSelection.selectedRows[0].description || costSelection.selectedRows[0].item_code}"?` : `Archive ${costSelection.selectedRows.length} cost items?`) : ''} confirmLabel="Archive" confirmColor="error" loading={archiveCostMut.isPending} onConfirm={handleArchiveCost} onCancel={() => setCostArchiveOpen(false)} />
 
-      <Snackbar open={snack.open} autoHideDuration={4000} onClose={() => setSnack((s) => ({ ...s, open: false }))} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-        <Alert severity={snack.sev} variant="filled" onClose={() => setSnack((s) => ({ ...s, open: false }))}>{snack.msg}</Alert>
-      </Snackbar>
+      <ToastSnackbar {...snackProps} />
     </Box>
   );
 }

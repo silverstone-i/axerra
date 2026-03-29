@@ -19,14 +19,13 @@ import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
-import Snackbar from '@mui/material/Snackbar';
-import Alert from '@mui/material/Alert';
 import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 
 import StatusBadge from '../../components/shared/StatusBadge.jsx';
 import DataTable from '../../components/shared/DataTable.jsx';
+import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
 import FieldRow from '../../components/shared/FieldRow.jsx';
 import FormDialog from '../../components/shared/FormDialog.jsx';
 import PasswordField from '../../components/shared/PasswordField.jsx';
@@ -34,6 +33,7 @@ import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContex
 import { useUsers, useUpdateUser } from '../../hooks/useUsers.js';
 import { pageContainerSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
+import { useToast } from '../../hooks/useToast.js';
 import { capSnake, fmtDate, errMsg } from '../../utils/format.js';
 
 /* ── Enums ────────────────────────────────────────────────────── */
@@ -119,8 +119,7 @@ export default function ManageUsersPage() {
   const [editForm, setEditForm] = useState(BLANK_EDIT);
 
   /* ── snackbar ────────────────────────────────────────────── */
-  const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
-  const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
+  const { toast, snackProps } = useToast();
 
   /* ── field change factories ──────────────────────────────── */
   const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));
@@ -267,20 +266,7 @@ export default function ManageUsersPage() {
       </FormDialog>
 
       {/* ── Snackbar ───────────────────────────────────────── */}
-      <Snackbar
-        open={snack.open}
-        autoHideDuration={4000}
-        onClose={() => setSnack((s) => ({ ...s, open: false }))}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert
-          severity={snack.sev}
-          variant="filled"
-          onClose={() => setSnack((s) => ({ ...s, open: false }))}
-        >
-          {snack.msg}
-        </Alert>
-      </Snackbar>
+      <ToastSnackbar {...snackProps} />
     </Box>
   );
 }

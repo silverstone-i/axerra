@@ -23,8 +23,6 @@ import DialogTitle from '@mui/material/DialogTitle';
 import Divider from '@mui/material/Divider';
 import Link from '@mui/material/Link';
 import MenuItem from '@mui/material/MenuItem';
-import Snackbar from '@mui/material/Snackbar';
-import Alert from '@mui/material/Alert';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { DataGrid } from '@mui/x-data-grid';
@@ -33,6 +31,7 @@ import FieldRow from '../../components/shared/FieldRow.jsx';
 import TaxIdentifiersSection from '../../components/shared/TaxIdentifiersSection.jsx';
 import ConfirmDialog from '../../components/shared/ConfirmDialog.jsx';
 import DataTable from '../../components/shared/DataTable.jsx';
+import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
 import FormDialog from '../../components/shared/FormDialog.jsx';
 import ImportDialog from '../../components/shared/ImportDialog.jsx';
 import CreateTenantWizard from './CreateTenantWizard.jsx';
@@ -53,6 +52,7 @@ import {
 } from '../../hooks/useTenants.js';
 import { pageContainerSx, dialogHeaderSx, dialogActionBoxSx, formFullSpanSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
+import { useToast } from '../../hooks/useToast.js';
 import { cap, fmtDate, errMsg } from '../../utils/format.js';
 
 /* ── Enums ────────────────────────────────────────────────────── */
@@ -180,8 +180,7 @@ export default function ManageTenantsPage() {
   const [editForm, setEditForm] = useState(BLANK_EDIT);
 
   /* ── snackbar ────────────────────────────────────────────── */
-  const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
-  const toast = useCallback((msg, sev = 'success') => setSnack({ open: true, msg, sev }), []);
+  const { toast, snackProps } = useToast();
 
   /* ── field change factories ──────────────────────────────── */
   const onEditField = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.value }));
@@ -584,20 +583,7 @@ export default function ManageTenantsPage() {
       />
 
       {/* ── Snackbar ───────────────────────────────────────── */}
-      <Snackbar
-        open={snack.open}
-        autoHideDuration={4000}
-        onClose={() => setSnack((s) => ({ ...s, open: false }))}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert
-          severity={snack.sev}
-          variant="filled"
-          onClose={() => setSnack((s) => ({ ...s, open: false }))}
-        >
-          {snack.msg}
-        </Alert>
-      </Snackbar>
+      <ToastSnackbar {...snackProps} />
     </Box>
   );
 }
