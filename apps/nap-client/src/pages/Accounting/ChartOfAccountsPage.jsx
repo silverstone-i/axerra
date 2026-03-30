@@ -22,7 +22,6 @@ import { useToast } from '../../hooks/useToast.js';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 
-import StatusBadge from '../../components/shared/StatusBadge.jsx';
 import ConfirmDialog from '../../components/shared/ConfirmDialog.jsx';
 import DataTable from '../../components/shared/DataTable.jsx';
 import FieldRow from '../../components/shared/FieldRow.jsx';
@@ -40,6 +39,7 @@ import { pageContainerSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
 import { cap, fmtDate, errMsg } from '../../utils/format.js';
+import { statusColumn, boolColumn, capColumn } from '../../utils/columnHelpers.jsx';
 
 const ACCT_TYPES = ['asset', 'liability', 'equity', 'income', 'expense', 'cash', 'bank'];
 
@@ -49,19 +49,9 @@ const BLANK_EDIT = { name: '', type: 'asset', is_active: true, cash_basis: false
 const columns = [
   { field: 'code', headerName: 'Code', width: 120 },
   { field: 'name', headerName: 'Account Name', flex: 1, minWidth: 200 },
-  { field: 'type', headerName: 'Type', width: 120, valueGetter: (params) => cap(params.row.type) },
-  {
-    field: 'is_active',
-    headerName: 'Active',
-    width: 100,
-    renderCell: ({ value }) => <StatusBadge status={value ? 'active' : 'suspended'} />,
-  },
-  {
-    field: 'cash_basis',
-    headerName: 'Cash Basis',
-    width: 110,
-    valueGetter: (params) => (params.row.cash_basis ? 'Yes' : 'No'),
-  },
+  capColumn('type', 'Type'),
+  statusColumn('is_active', 'Active', { width: 100, map: (v) => v ? 'active' : 'suspended' }),
+  boolColumn('cash_basis', 'Cash Basis', { width: 110 }),
 ];
 
 export default function ChartOfAccountsPage() {

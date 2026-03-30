@@ -55,6 +55,7 @@ import { pageContainerSx, dialogHeaderSx, dialogActionBoxSx, formFullSpanSx, det
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useToast } from '../../hooks/useToast.js';
 import { cap, fmtDate, errMsg } from '../../utils/format.js';
+import { statusColumn, capColumn } from '../../utils/columnHelpers.jsx';
 
 /* ── Enums ────────────────────────────────────────────────────── */
 
@@ -77,25 +78,10 @@ const BLANK_EDIT = {
 const columns = [
   { field: 'tenant_code', headerName: 'Code', width: 100 },
   { field: 'company', headerName: 'Tenant Name', flex: 1, minWidth: 180 },
-  {
-    field: 'status',
-    headerName: 'Status',
-    width: 120,
-    renderCell: ({ value }) => <StatusBadge status={value} />,
-  },
-  {
-    field: 'tier',
-    headerName: 'Tier',
-    width: 120,
-    valueGetter: (params) => cap(params.row.tier),
-  },
+  statusColumn(),
+  capColumn('tier', 'Tier'),
   { field: 'region', headerName: 'Region', width: 130 },
-  {
-    field: 'deactivated_at',
-    headerName: 'Active',
-    width: 90,
-    valueGetter: (params) => (params.row.deactivated_at ? 'No' : 'Yes'),
-  },
+  { field: 'deactivated_at', headerName: 'Active', width: 90, valueGetter: (params) => (params.row.deactivated_at ? 'No' : 'Yes') },
 ];
 
 /* ── Detail dialog helpers ────────────────────────────────────── */

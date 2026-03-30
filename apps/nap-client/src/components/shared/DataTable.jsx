@@ -15,7 +15,10 @@
  */
 
 import { useMemo } from 'react';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
 import { DataGrid } from '@mui/x-data-grid';
+import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import RowActionsMenu from './RowActionsMenu.jsx';
@@ -32,6 +35,7 @@ const PAGE_SIZE_OPTIONS = [25, 50, 100, 200, 500, 1000];
  * @param {Function} [props.onView]            - (row) => void; adds View to row actions
  * @param {Function} [props.onEdit]            - (row) => void; adds Edit to row actions
  * @param {Array|Function} [props.rowActions] - static [{ label, icon?, onClick(row) }] or (row) => actions[]
+ * @param {string}   [props.emptyMessage]      - message shown when no rows (default: 'No records found')
  * @param {Function} [props.getRowClassName]   - custom className builder (merged with archived default)
  * @param {Object}   [props.dataGridProps]     - pass-through props for DataGrid
  */
@@ -43,6 +47,7 @@ export default function DataTable({
   onView,
   onEdit,
   rowActions = [],
+  emptyMessage = 'No records found',
   getRowClassName,
   dataGridProps = {},
 }) {
@@ -90,6 +95,18 @@ export default function DataTable({
     };
   }, [getRowClassName]);
 
+  const NoRowsOverlay = useMemo(() => {
+    const msg = emptyMessage;
+    return function Overlay(props) {
+      return (
+        <Box {...props} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 1, py: 4, ...props?.sx }}>
+          <InboxOutlinedIcon sx={{ fontSize: 48, color: 'text.disabled' }} />
+          <Typography variant="body2" color="text.secondary">{msg}</Typography>
+        </Box>
+      );
+    };
+  }, [emptyMessage]);
+
   return (
     <DataGrid
       key={defaultPageSize}
@@ -106,6 +123,8 @@ export default function DataTable({
       initialState={{ pagination: { paginationModel: { pageSize: defaultPageSize } } }}
       getRowClassName={mergedGetRowClassName}
       {...dataGridProps}
+      slots={{ noRowsOverlay: NoRowsOverlay, ...(dataGridProps.slots || {}) }}
+      slotProps={{ ...dataGridProps.slotProps, noRowsOverlay: { ...(dataGridProps.slotProps?.noRowsOverlay || {}) } }}
     />
   );
 }

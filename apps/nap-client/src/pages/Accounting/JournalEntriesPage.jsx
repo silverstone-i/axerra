@@ -19,7 +19,6 @@ import { useToast } from '../../hooks/useToast.js';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 
-import StatusBadge from '../../components/shared/StatusBadge.jsx';
 import ConfirmDialog from '../../components/shared/ConfirmDialog.jsx';
 import DataTable from '../../components/shared/DataTable.jsx';
 import FieldRow from '../../components/shared/FieldRow.jsx';
@@ -39,6 +38,7 @@ import { pageContainerSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
 import { capSnake, fmtDate, errMsg } from '../../utils/format.js';
+import { statusColumn, dateColumn, capColumn } from '../../utils/columnHelpers.jsx';
 
 const STATUS_OPTS = ['pending', 'posted', 'reversed'];
 
@@ -47,10 +47,10 @@ const BLANK_EDIT = { entry_date: '', description: '', status: 'pending', source_
 
 const columns = [
   { field: 'id', headerName: 'ID', width: 100, valueGetter: (params) => params.row.id?.slice(0, 8) },
-  { field: 'entry_date', headerName: 'Date', width: 120, valueGetter: (params) => fmtDate(params.row.entry_date) },
+  dateColumn('entry_date', 'Date'),
   { field: 'description', headerName: 'Description', flex: 1, minWidth: 200 },
-  { field: 'status', headerName: 'Status', width: 120, renderCell: ({ value }) => <StatusBadge status={value} /> },
-  { field: 'source_type', headerName: 'Source', width: 140, valueGetter: (params) => capSnake(params.row.source_type || '') },
+  statusColumn(),
+  capColumn('source_type', 'Source', { snake: true, width: 140 }),
 ];
 
 export default function JournalEntriesPage() {

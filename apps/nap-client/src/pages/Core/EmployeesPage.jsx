@@ -41,6 +41,7 @@ import { useRoles } from '../../hooks/useRoles.js';
 import { resolveLevel } from '@nap/shared';
 import { useToast } from '../../hooks/useToast.js';
 import { errMsg } from '../../utils/format.js';
+import { boolColumn } from '../../utils/columnHelpers.jsx';
 import { employeeApi } from '../../services/employeeApi.js';
 import { pageContainerSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
@@ -66,7 +67,7 @@ const columns = [
   { field: 'position', headerName: 'Position', width: 140 },
   { field: 'department', headerName: 'Department', width: 140 },
   { field: 'roles', headerName: 'Roles', width: 160, valueGetter: (params) => (params.row.roles ?? []).join(', ') },
-  { field: 'is_app_user', headerName: 'App User', width: 100, valueGetter: (params) => (params.row.is_app_user ? 'Yes' : 'No') },
+  boolColumn('is_app_user', 'App User'),
 ];
 
 export default function EmployeesPage() {

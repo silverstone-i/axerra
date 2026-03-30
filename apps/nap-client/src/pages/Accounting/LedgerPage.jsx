@@ -9,15 +9,14 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { DataGrid } from '@mui/x-data-grid';
 
-import CurrencyCell from '../../components/shared/CurrencyCell.jsx';
 import { useLedgerBalances } from '../../hooks/useAccounting.js';
 import { pageContainerSx } from '../../config/layoutTokens.js';
-import { fmtDate } from '../../utils/format.js';
+import { dateColumn, currencyColumn } from '../../utils/columnHelpers.jsx';
 
 const columns = [
   { field: 'account_id', headerName: 'Account', width: 140, valueGetter: (params) => params.row.account_id?.slice(0, 8) ?? '\u2014' },
-  { field: 'as_of_date', headerName: 'As Of', width: 130, valueGetter: (params) => fmtDate(params.row.as_of_date) },
-  { field: 'balance', headerName: 'Balance', width: 160, renderCell: (params) => <CurrencyCell value={params.value} /> },
+  dateColumn('as_of_date', 'As Of', { width: 130 }),
+  currencyColumn('balance', 'Balance', { width: 160 }),
 ];
 
 export default function LedgerPage() {
