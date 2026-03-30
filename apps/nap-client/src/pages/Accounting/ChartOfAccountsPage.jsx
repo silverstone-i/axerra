@@ -35,7 +35,7 @@ import {
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import { resolveLevel } from '@nap/shared';
 import { chartOfAccountsApi } from '../../services/accountingApi.js';
-import { pageContainerSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
+import { pageContainerSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx, flexColumnSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
 import { cap, fmtDate, errMsg } from '../../utils/format.js';
@@ -234,7 +234,7 @@ export default function ChartOfAccountsPage() {
         </DialogTitle>
         <DialogContent dividers>
           {viewDialog.data && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Box sx={flexColumnSx}>
               <Box sx={detailGridSx}>
                 <FieldRow label="Code" value={viewDialog.data.code || '\u2014'} />
                 <FieldRow label="Name" value={viewDialog.data.name} />

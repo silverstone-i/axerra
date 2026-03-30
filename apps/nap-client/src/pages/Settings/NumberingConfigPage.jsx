@@ -24,7 +24,7 @@ import Divider from '@mui/material/Divider';
 import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
 import { useNumberingConfig, useUpdateNumberingConfig } from '../../hooks/useNumberingConfig.js';
-import { pageContainerSx } from '../../config/layoutTokens.js';
+import { pageContainerSx, flexBetweenSx, flexColumnSx } from '../../config/layoutTokens.js';
 import { useToast } from '../../hooks/useToast.js';
 
 /* ── Constants ─────────────────────────────────────────────────── */
@@ -130,9 +130,9 @@ function NumberingCard({ config, onSave, saving }) {
 
   return (
     <Card variant="outlined" sx={{ opacity: form.is_enabled ? 1 : 0.7 }}>
-      <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <CardContent sx={flexColumnSx}>
         {/* Header row */}
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Box sx={flexBetweenSx}>
           <Typography variant="subtitle1" fontWeight={600}>
             {label} Numbering
           </Typography>
@@ -316,13 +316,13 @@ export default function NumberingConfigPage() {
       </Typography>
 
       {isLoading ? (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Box sx={flexColumnSx}>
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} variant="rounded" height={80} />
           ))}
         </Box>
       ) : (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Box sx={flexColumnSx}>
           {sorted.map((cfg) => (
             <NumberingCard key={cfg.id} config={cfg} onSave={handleSave} saving={savingId === cfg.id} />
           ))}

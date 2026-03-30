@@ -29,7 +29,7 @@ import DataTable from '../../../components/shared/DataTable.jsx';
 import PatternTextField from '../../../components/shared/PatternTextField.jsx';
 import EmailRow from '../../../components/shared/EmailRow.jsx';
 import PhoneRow from '../../../components/shared/PhoneRow.jsx';
-import { formGridSx, formGroupCardSx, formFullSpanSx } from '../../../config/layoutTokens.js';
+import { formGridSx, formGroupCardSx, formFullSpanSx, flexBetweenSx, flexColumnSx } from '../../../config/layoutTokens.js';
 import { TAX_TYPES, COUNTRIES } from '@nap/shared';
 
 const dialogSx = { '& .MuiDialogTitle-root + .MuiDialogContent-root': { paddingTop: '16px' } };
@@ -88,7 +88,7 @@ export default function VendorEditDialog({
             </Button>
           </Box>
         </DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <DialogContent sx={flexColumnSx}>
           <Tabs value={editTab} onChange={(_, v) => setEditTab(v)} sx={{ borderBottom: 1, borderColor: 'divider' }}>
             <Tab label="Vendor" />
             <Tab label="Contacts" />
@@ -127,7 +127,7 @@ export default function VendorEditDialog({
 
               {/* ── Emails ──────────────────────────────────────────── */}
               <Divider />
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box sx={flexBetweenSx}>
                 <Typography variant="subtitle2">Emails</Typography>
                 <Button size="small" startIcon={<AddIcon />} onClick={emails.add}>Add Email</Button>
               </Box>
@@ -140,7 +140,7 @@ export default function VendorEditDialog({
 
               {/* ── Phone Numbers ──────────────────────────────────── */}
               <Divider />
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box sx={flexBetweenSx}>
                 <Typography variant="subtitle2">Phone Numbers</Typography>
                 <Button size="small" startIcon={<AddIcon />} onClick={phones.add}>Add Phone</Button>
               </Box>
@@ -153,7 +153,7 @@ export default function VendorEditDialog({
 
               {/* ── Addresses ──────────────────────────────────────── */}
               <Divider />
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box sx={flexBetweenSx}>
                 <Typography variant="subtitle2">Addresses</Typography>
                 <Button size="small" startIcon={<AddIcon />} onClick={addresses.add}>Add Address</Button>
               </Box>
@@ -188,7 +188,7 @@ export default function VendorEditDialog({
 
               {/* ── Tax Identifiers ──────────────────────────────────── */}
               <Divider />
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box sx={flexBetweenSx}>
                 <Typography variant="subtitle2">Tax Identifiers</Typography>
                 <Button size="small" startIcon={<AddIcon />} onClick={taxIds.add}>Add Tax ID</Button>
               </Box>

@@ -37,7 +37,7 @@ import FormDialog from '../../components/shared/FormDialog.jsx';
 import StatusBadge from '../../components/shared/StatusBadge.jsx';
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
 import { useRoles, useCreateRole, useUpdateRole } from '../../hooks/useRoles.js';
-import { masterDetailSx, masterPanelSx, detailPanelSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
+import { masterDetailSx, masterPanelSx, detailPanelSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx, flexColumnSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useToast } from '../../hooks/useToast.js';
 import { capSnake, fmtDate, errMsg } from '../../utils/format.js';
@@ -257,7 +257,7 @@ export default function ManageRolesPage() {
         </DialogTitle>
         <DialogContent dividers>
           {viewDialog.data && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Box sx={flexColumnSx}>
               <Box sx={detailGridSx}>
                 <FieldRow label="Code" value={viewDialog.data.code} />
                 <FieldRow label="Name" value={viewDialog.data.name} />

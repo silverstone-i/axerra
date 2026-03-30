@@ -18,6 +18,7 @@ import MenuItem from '@mui/material/MenuItem';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
+import { flexColumnSx } from '../../../config/layoutTokens.js';
 import Typography from '@mui/material/Typography';
 
 const dialogSx = { '& .MuiDialogTitle-root + .MuiDialogContent-root': { paddingTop: '16px' } };
@@ -50,7 +51,7 @@ export default function VendorCreateDialog({ open, onClose, createForm, onCreate
             </Button>
           </Box>
         </DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <DialogContent sx={flexColumnSx}>
           <Tabs value={createTab} onChange={(_, v) => setCreateTab(v)} sx={{ borderBottom: 1, borderColor: 'divider' }}>
             <Tab label="Vendor" />
             <Tab label="Contacts" />

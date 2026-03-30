@@ -23,6 +23,7 @@ import DialogTitle from '@mui/material/DialogTitle';
 import Alert from '@mui/material/Alert';
 import Typography from '@mui/material/Typography';
 import CheckIcon from '@mui/icons-material/Check';
+import { flexColumnSx } from '../../config/layoutTokens.js';
 import CloseIcon from '@mui/icons-material/Close';
 import PasswordField from './PasswordField.jsx';
 
@@ -111,7 +112,7 @@ export default function ResetPasswordDialog({ open, onClose, onSuccess, onReset,
           component="form"
           id="reset-password-form"
           onSubmit={handleSubmit}
-          sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}
+          sx={flexColumnSx}
         >
           <PasswordField
             label="New Password"

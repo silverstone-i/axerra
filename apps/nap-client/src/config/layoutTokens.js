@@ -111,6 +111,12 @@ export const flexBetweenSx = {
   justifyContent: 'space-between',
 };
 
+export const flexColumnSx = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 2,
+};
+
 /* ── Detail / report presets ─────────────────────────────────── */
 
 export const detailGridSx = {
