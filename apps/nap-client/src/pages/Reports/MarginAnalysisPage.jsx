@@ -8,13 +8,10 @@
  */
 
 import { useState } from 'react';
-import Box from '@mui/material/Box';
-import Typography from '@mui/material/Typography';
-import { DataGrid } from '@mui/x-data-grid';
 
 import PercentCell from '../../components/shared/PercentCell.jsx';
+import ReportTablePage from '../../components/shared/ReportTablePage.jsx';
 import { useMarginAnalysis } from '../../hooks/useReports.js';
-import { pageContainerSx } from '../../config/layoutTokens.js';
 import { statusColumn, currencyColumn } from '../../utils/columnHelpers.jsx';
 
 const SORT_FIELDS = new Set([
@@ -50,24 +47,17 @@ export default function MarginAnalysisPage() {
   const { data: rows = [], isLoading } = useMarginAnalysis(apiParams);
 
   return (
-    <Box sx={pageContainerSx}>
-      <Box sx={{ p: 2 }}>
-        <Typography variant="h6" gutterBottom>
-          Margin Analysis
-        </Typography>
-      </Box>
-      <DataGrid
-        rows={rows}
-        columns={columns}
-        getRowId={(r) => r.project_id || r.project_code}
-        loading={isLoading}
-        sortingMode="server"
-        sortModel={sortModel}
-        onSortModelChange={setSortModel}
-        pageSizeOptions={[25, 50, 100]}
-        initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
-        disableRowSelectionOnClick
-      />
-    </Box>
+    <ReportTablePage
+      title="Margin Analysis"
+      rows={rows}
+      columns={columns}
+      getRowId={(r) => r.project_id || r.project_code}
+      loading={isLoading}
+      dataGridProps={{
+        sortingMode: 'server',
+        sortModel,
+        onSortModelChange: setSortModel,
+      }}
+    />
   );
 }
