@@ -1,6 +1,6 @@
 /**
- * @file Inline editable email row — shared between vendor and contact edit forms
- * @module nap-client/pages/Core/vendors/EmailRow
+ * @file Inline editable email row — reusable across all entity edit forms
+ * @module nap-client/components/shared/EmailRow
  *
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
@@ -13,10 +13,11 @@ import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 
-import { cap } from '../../../utils/format.js';
-import { EMAIL_LABELS } from '../../../utils/formConstants.js';
+import { cap } from '../../utils/format.js';
+import { EMAIL_LABELS } from '../../utils/formConstants.js';
 
-export default function EmailRow({ item, index, onUpdate, onRemove }) {
+export default function EmailRow({ item, index, onUpdate, onRemove, showLogin, loginDisabled }) {
+  const isLoginEmail = showLogin && item.is_login;
   return (
     <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
       <TextField
@@ -44,7 +45,14 @@ export default function EmailRow({ item, index, onUpdate, onRemove }) {
         label="Primary"
         sx={{ mr: 0 }}
       />
-      <IconButton size="small" onClick={() => onRemove(index)} color="error">
+      {showLogin && (
+        <FormControlLabel
+          control={<Checkbox checked={item.is_login} onChange={(e) => onUpdate(index, 'is_login', e.target.checked)} size="small" disabled={loginDisabled} />}
+          label="Login"
+          sx={{ mr: 0 }}
+        />
+      )}
+      <IconButton size="small" onClick={() => onRemove(index)} color="error" disabled={isLoginEmail}>
         <DeleteOutlineIcon fontSize="small" />
       </IconButton>
     </Box>

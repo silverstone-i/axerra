@@ -27,8 +27,8 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import ConfirmDialog from '../../../components/shared/ConfirmDialog.jsx';
 import DataTable from '../../../components/shared/DataTable.jsx';
 import PatternTextField from '../../../components/shared/PatternTextField.jsx';
-import EmailRow from './EmailRow.jsx';
-import PhoneRow from './PhoneRow.jsx';
+import EmailRow from '../../../components/shared/EmailRow.jsx';
+import PhoneRow from '../../../components/shared/PhoneRow.jsx';
 import { formGridSx, formGroupCardSx, formFullSpanSx } from '../../../config/layoutTokens.js';
 import { TAX_TYPES, COUNTRIES } from '@nap/shared';
 

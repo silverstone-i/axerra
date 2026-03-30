@@ -1,78 +1,54 @@
 /**
- * @file Employees CRUD page — DataTable + create/edit/view/archive/restore with is_app_user toggle
+ * @file Employees CRUD page — coordinator component
  * @module nap-client/pages/Core/EmployeesPage
- *
- * Migrated to standardised list-view selection system:
- *   useListSelection + DataTable + RowActionsMenu
  *
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
 
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useDialogState } from '../../hooks/useDialogState.js';
 import { useFormState } from '../../hooks/useFormState.js';
-import { useCollectionState } from '../../hooks/useCollectionState.js';
-import { saveCollection } from '../../utils/saveCollection.js';
-import { useQueryClient } from '@tanstack/react-query';
 import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import Dialog from '@mui/material/Dialog';
-import DialogContent from '@mui/material/DialogContent';
-import DialogTitle from '@mui/material/DialogTitle';
-import Divider from '@mui/material/Divider';
-import IconButton from '@mui/material/IconButton';
-import MenuItem from '@mui/material/MenuItem';
-import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
-import { useToast } from '../../hooks/useToast.js';
-import TextField from '@mui/material/TextField';
-import Typography from '@mui/material/Typography';
-import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import AddIcon from '@mui/icons-material/Add';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import TextField from '@mui/material/TextField';
 import LockResetIcon from '@mui/icons-material/LockReset';
 
 import ConfirmDialog from '../../components/shared/ConfirmDialog.jsx';
 import DataTable from '../../components/shared/DataTable.jsx';
-import FieldRow from '../../components/shared/FieldRow.jsx';
 import FormDialog from '../../components/shared/FormDialog.jsx';
 import ImportDialog from '../../components/shared/ImportDialog.jsx';
-import PatternTextField from '../../components/shared/PatternTextField.jsx';
 import ResetPasswordDialog from '../../components/shared/ResetPasswordDialog.jsx';
 import SetPasswordPopover from '../../components/shared/SetPasswordPopover.jsx';
-import StatusBadge from '../../components/shared/StatusBadge.jsx';
-import EmailsSection from '../../components/shared/EmailsSection.jsx';
-import PhoneNumbersSection from '../../components/shared/PhoneNumbersSection.jsx';
-import AddressesSection from '../../components/shared/AddressesSection.jsx';
-import TaxIdentifiersSection from '../../components/shared/TaxIdentifiersSection.jsx';
+import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
+import { useAuth } from '../../contexts/AuthContext.jsx';
 import {
   useEmployees, useCreateEmployee, useUpdateEmployee, useArchiveEmployee, useRestoreEmployee, useResetEmployeePassword,
 } from '../../hooks/useEmployees.js';
-import { useRoles } from '../../hooks/useRoles.js';
-import {
-  usePhoneNumbers, useCreatePhoneNumber, useUpdatePhoneNumber, useArchivePhoneNumber,
-} from '../../hooks/usePhoneNumbers.js';
-import {
-  useEmails, useCreateEmail, useUpdateEmail, useArchiveEmail,
-} from '../../hooks/useEmails.js';
-import {
-  useAddresses, useCreateAddress, useUpdateAddress, useArchiveAddress,
-} from '../../hooks/useAddresses.js';
-import {
-  useTaxIdentifiers, useCreateTaxIdentifier, useUpdateTaxIdentifier, useArchiveTaxIdentifier,
-} from '../../hooks/useTaxIdentifiers.js';
+import { useCreateEmail, useUpdateEmail, useArchiveEmail } from '../../hooks/useEmails.js';
+import { useCreatePhoneNumber, useUpdatePhoneNumber, useArchivePhoneNumber } from '../../hooks/usePhoneNumbers.js';
+import { useCreateAddress, useUpdateAddress, useArchiveAddress } from '../../hooks/useAddresses.js';
+import { useCreateTaxIdentifier, useUpdateTaxIdentifier, useArchiveTaxIdentifier } from '../../hooks/useTaxIdentifiers.js';
+import { useEmails } from '../../hooks/useEmails.js';
+import { usePhoneNumbers } from '../../hooks/usePhoneNumbers.js';
+import { useAddresses } from '../../hooks/useAddresses.js';
+import { useTaxIdentifiers } from '../../hooks/useTaxIdentifiers.js';
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
-import { TAX_TYPES, COUNTRIES } from '@nap/shared';
-import { cap, fmtDate, errMsg } from '../../utils/format.js';
-import { BLANK_PHONE, BLANK_ADDRESS, BLANK_TAX_ID, PHONE_TYPES, EMAIL_LABELS } from '../../utils/formConstants.js';
+import { useRoles } from '../../hooks/useRoles.js';
+import { resolveLevel } from '@nap/shared';
+import { useToast } from '../../hooks/useToast.js';
+import { errMsg } from '../../utils/format.js';
 import { employeeApi } from '../../services/employeeApi.js';
-import { pageContainerSx, formGridSx, formGroupCardSx, formFullSpanSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
+import { pageContainerSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
-import { useAuth } from '../../contexts/AuthContext.jsx';
-import { resolveLevel } from '@nap/shared';
+
+import EmployeeViewDialog from './employees/EmployeeViewDialog.jsx';
+import EmployeeEditDialog from './employees/EmployeeEditDialog.jsx';
+import { useEmployeeEditCollections } from './employees/useEmployeeEditCollections.jsx';
 
 const BLANK_CREATE = {
   first_name: '', last_name: '', code: '', position: '', department: '', email: '',
@@ -83,26 +59,14 @@ const BLANK_EDIT = {
   is_app_user: false, password: '', roles: [], is_primary_contact: false, is_billing_contact: false,
 };
 
-const BLANK_EMAIL = { email: '', label: 'work', is_primary: false, is_login: false };
-
 const columns = [
   { field: 'code', headerName: 'Code', width: 100 },
   { field: 'first_name', headerName: 'First Name', width: 140 },
   { field: 'last_name', headerName: 'Last Name', width: 140 },
   { field: 'position', headerName: 'Position', width: 140 },
   { field: 'department', headerName: 'Department', width: 140 },
-  {
-    field: 'roles',
-    headerName: 'Roles',
-    width: 160,
-    valueGetter: (params) => (params.row.roles ?? []).join(', '),
-  },
-  {
-    field: 'is_app_user',
-    headerName: 'App User',
-    width: 100,
-    valueGetter: (params) => (params.row.is_app_user ? 'Yes' : 'No'),
-  },
+  { field: 'roles', headerName: 'Roles', width: 160, valueGetter: (params) => (params.row.roles ?? []).join(', ') },
+  { field: 'is_app_user', headerName: 'App User', width: 100, valueGetter: (params) => (params.row.is_app_user ? 'Yes' : 'No') },
 ];
 
 export default function EmployeesPage() {
@@ -115,7 +79,6 @@ export default function EmployeesPage() {
 
   const { data: res, isLoading } = useEmployees();
   const allRows = res?.rows ?? [];
-
   const { data: rolesRes } = useRoles();
   const roleOptions = rolesRes?.rows ?? [];
 
@@ -135,12 +98,12 @@ export default function EmployeesPage() {
   const importMut = useImportXls(employeeApi.importXls, ['employees'], [['nap-users']]);
   const exportMut = useExportXls(employeeApi.exportXls, 'employees');
 
-  const createPhoneMut = useCreatePhoneNumber();
-  const updatePhoneMut = useUpdatePhoneNumber();
-  const archivePhoneMut = useArchivePhoneNumber();
   const createEmailMut = useCreateEmail();
   const updateEmailMut = useUpdateEmail();
   const archiveEmailMut = useArchiveEmail();
+  const createPhoneMut = useCreatePhoneNumber();
+  const updatePhoneMut = useUpdatePhoneNumber();
+  const archivePhoneMut = useArchivePhoneNumber();
   const createAddrMut = useCreateAddress();
   const updateAddrMut = useUpdateAddress();
   const archiveAddrMut = useArchiveAddress();
@@ -148,7 +111,7 @@ export default function EmployeesPage() {
   const updateTaxIdMut = useUpdateTaxIdentifier();
   const archiveTaxIdMut = useArchiveTaxIdentifier();
 
-  /* ── Selection (new system) ─────────────────────────────────── */
+  /* ── Selection ─────────────────────────────────────────────── */
   const selection = useListSelection(rows);
   const { selectedRows, allActive, allArchived } = selection;
 
@@ -156,132 +119,76 @@ export default function EmployeesPage() {
   const importDialog = useDialogState();
   const [importErrors, setImportErrors] = useState(null);
   const viewDialog = useDialogState();
-  const [viewSourceId, setViewSourceId] = useState(null);
   const createDialog = useDialogState();
   const editDialog = useDialogState();
   const resetPwDialog = useDialogState();
 
-  const [editSourceId, setEditSourceId] = useState(null);
-  const { data: phonesRes } = usePhoneNumbers({ source_id: editSourceId, includeDeactivated: 'false' }, { enabled: !!editSourceId });
-  const { data: emailsRes } = useEmails({ source_id: editSourceId, includeDeactivated: 'false' }, { enabled: !!editSourceId });
-  const { data: addressesRes } = useAddresses({ source_id: editSourceId, includeDeactivated: 'false' }, { enabled: !!editSourceId });
-  const { data: taxIdsRes } = useTaxIdentifiers({ source_id: editSourceId, includeDeactivated: 'false' }, { enabled: !!editSourceId });
+  const { form: createForm, setForm: setCreateForm, field: onCreateField, reset: resetCreateForm } = useFormState(BLANK_CREATE);
+  const { form: editForm, setForm: setEditForm, field: onEditField } = useFormState(BLANK_EDIT);
+  const { toast, snackProps } = useToast();
 
   // View dialog child data
+  const viewSourceId = viewDialog.data?.source_id;
   const { data: viewPhonesRes } = usePhoneNumbers({ source_id: viewSourceId, includeDeactivated: 'false' }, { enabled: !!viewSourceId });
   const { data: viewEmailsRes } = useEmails({ source_id: viewSourceId, includeDeactivated: 'false' }, { enabled: !!viewSourceId });
   const { data: viewAddressesRes } = useAddresses({ source_id: viewSourceId, includeDeactivated: 'false' }, { enabled: !!viewSourceId });
   const { data: viewTaxIdsRes } = useTaxIdentifiers({ source_id: viewSourceId, includeDeactivated: 'false' }, { enabled: !!viewSourceId });
-  const viewPhones = viewPhonesRes?.rows ?? [];
-  const viewEmails = viewEmailsRes?.rows ?? [];
-  const viewAddresses = viewAddressesRes?.rows ?? [];
-  const viewTaxIds = viewTaxIdsRes?.rows ?? [];
 
-  const { form: createForm, setForm: setCreateForm, field: onCreateField, reset: resetCreateForm } = useFormState(BLANK_CREATE);
-  const { form: editForm, setForm: setEditForm, field: onEditField } = useFormState(BLANK_EDIT);
-  const emails = useCollectionState([], { blank: BLANK_EMAIL, autoPrimary: 'is_primary', exclusive: ['is_primary', 'is_login'] });
-  const phones = useCollectionState([], { blank: BLANK_PHONE, autoPrimary: 'is_primary', exclusive: ['is_primary'] });
-  const addresses = useCollectionState([], { blank: BLANK_ADDRESS });
-  const taxIds = useCollectionState([], { blank: BLANK_TAX_ID });
-  const editInitial = useRef({ form: null, phones: null, emails: null, addresses: null, taxIds: null });
+  const {
+    emails, phones, addresses, taxIds,
+    hasEditChanges, handleUpdate,
+    openEditSession, closeEditSession,
+  } = useEmployeeEditCollections({
+    editOpen: editDialog.isOpen,
+    editRow: editDialog.data,
+    editForm,
+    updateMut,
+    toast,
+    qc,
+    emailMuts: { create: createEmailMut, update: updateEmailMut, archive: archiveEmailMut },
+    phoneMuts: { create: createPhoneMut, update: updatePhoneMut, archive: archivePhoneMut },
+    addressMuts: { create: createAddrMut, update: updateAddrMut, archive: archiveAddrMut },
+    taxIdMuts: { create: createTaxIdMut, update: updateTaxIdMut, archive: archiveTaxIdMut },
+  });
 
-  const { toast, snackProps } = useToast();
-
-
-  const onCreateCheck = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.checked }));
-  const onEditCheck = (f) => (e) => setEditForm((p) => ({ ...p, [f]: e.target.checked }));
-
-  /* ── App-user password popover state ────────────────────────── */
+  /* ── App-user password popover ─────────────────────────────── */
   const [pwAnchor, setPwAnchor] = useState(null);
-  const [pwTarget, setPwTarget] = useState(null); // 'create' | 'edit'
+  const [pwTarget, setPwTarget] = useState(null);
 
-  const handleAppUserToggle = (target, setForm) => (e) => {
+  const handleAppUserToggle = useCallback((target, setForm) => (e) => {
     if (e.target.checked) {
       setPwTarget(target);
       setPwAnchor(e.currentTarget);
     } else {
       setForm((p) => ({ ...p, is_app_user: false, password: '' }));
     }
-  };
+  }, []);
 
-  const handlePwConfirm = (password) => {
+  const handlePwConfirm = useCallback((password) => {
     const setForm = pwTarget === 'create' ? setCreateForm : setEditForm;
     setForm((p) => ({ ...p, is_app_user: true, password }));
     setPwAnchor(null);
     setPwTarget(null);
-  };
+  }, [pwTarget, setCreateForm, setEditForm]);
 
-  const handlePwCancel = () => {
+  const handlePwCancel = useCallback(() => {
     setPwAnchor(null);
     setPwTarget(null);
-  };
-
-  /* ── Sync query-fetched phones/addresses/taxIds into edit state */
-  useEffect(() => {
-    if (editDialog.isOpen && phonesRes?.rows) {
-      phones.reset(phonesRes.rows);
-      editInitial.current.phones = phonesRes.rows;
-    }
-  }, [editDialog.isOpen, phonesRes]);
-
-  useEffect(() => {
-    if (editDialog.isOpen && emailsRes?.rows) {
-      emails.reset(emailsRes.rows);
-      editInitial.current.emails = emailsRes.rows;
-    }
-  }, [editDialog.isOpen, emailsRes]);
-
-  useEffect(() => {
-    if (editDialog.isOpen && addressesRes?.rows) {
-      addresses.reset(addressesRes.rows);
-      editInitial.current.addresses = addressesRes.rows;
-    }
-  }, [editDialog.isOpen, addressesRes]);
-
-  useEffect(() => {
-    if (editDialog.isOpen && taxIdsRes?.rows) {
-      taxIds.reset(taxIdsRes.rows);
-      editInitial.current.taxIds = taxIdsRes.rows;
-    }
-  }, [editDialog.isOpen, taxIdsRes]);
+  }, []);
 
   /* ── Row action callbacks ──────────────────────────────────── */
-  const handleView = useCallback((row) => {
-    viewDialog.open(row);
-    setViewSourceId(row.source_id || null);
-  }, []);
+  const handleView = useCallback((row) => viewDialog.open(row), [viewDialog.open]);
 
   const handleEdit = useCallback((row) => {
-    const form = {
-      first_name: row.first_name ?? '',
-      last_name: row.last_name ?? '',
-      code: row.code ?? '',
-      position: row.position ?? '',
-      department: row.department ?? '',
-      is_app_user: !!row.is_app_user,
-      roles: row.roles ?? [],
-      is_primary_contact: !!row.is_primary_contact,
-      is_billing_contact: !!row.is_billing_contact,
-    };
-    setEditForm(form);
-    editInitial.current.form = form;
-
-    setEditSourceId(row.source_id || null);
-    if (!row.source_id) {
-      phones.reset([]);
-      emails.reset([]);
-      addresses.reset([]);
-      taxIds.reset([]);
-      editInitial.current.phones = [];
-      editInitial.current.emails = [];
-      editInitial.current.addresses = [];
-      editInitial.current.taxIds = [];
-    }
-
+    openEditSession(row, setEditForm);
     editDialog.open(row);
-  }, []);
+  }, [openEditSession, editDialog.open]);
 
-  /** Per-row kebab actions — Reset Password shown for app users when permitted */
+  const handleEditClose = useCallback(() => {
+    editDialog.close();
+    closeEditSession();
+  }, [editDialog.close, closeEditSession]);
+
   const getRowActions = useCallback(
     (row) => {
       const actions = [];
@@ -297,82 +204,12 @@ export default function EmployeesPage() {
     [canResetPassword],
   );
 
-  /* ── Dirty-check: disable Save when nothing changed ──────── */
-  const hasEditChanges = useMemo(() => {
-    const init = editInitial.current;
-    if (!init.form) return false;
-    // Form fields
-    if (JSON.stringify(editForm) !== JSON.stringify(init.form)) return true;
-    // Collections — any addition, deletion, or field change counts
-    const collectionChanged = (current, initial, fields) => {
-      if (!initial) return false;
-      if (current.some((c) => c._deleted)) return true;
-      if (current.some((c) => !c.id && !c._deleted)) return true;
-      const initMap = new Map(initial.map((r) => [r.id, r]));
-      return current.filter((c) => c.id && !c._deleted).some((c) => {
-        const orig = initMap.get(c.id);
-        return !orig || fields.some((f) => c[f] !== orig[f]);
-      });
-    };
-    if (collectionChanged(phones.items, init.phones, ['country_code', 'phone_type', 'phone_number', 'is_primary'])) return true;
-    if (collectionChanged(emails.items, init.emails, ['email', 'label', 'is_primary', 'is_login'])) return true;
-    if (collectionChanged(addresses.items, init.addresses, ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'])) return true;
-    if (collectionChanged(taxIds.items, init.taxIds, ['country_code', 'tax_type', 'tax_value'])) return true;
-    return false;
-  }, [editForm, phones.items, emails.items, addresses.items, taxIds.items]);
-
   const handleCreate = async () => {
     try {
       await createMut.mutateAsync(createForm);
       toast('Employee created');
       createDialog.close();
       resetCreateForm();
-    } catch (err) {
-      toast(errMsg(err), 'error');
-    }
-  };
-
-  const handleUpdate = async () => {
-    try {
-      // When toggling is_app_user on, include the selected login email in the
-      // employee update payload so the backend can provision before email mutations run
-      const changes = { ...editForm };
-      if (changes.is_app_user && !editDialog.data.is_app_user) {
-        const loginEm = emails.items.find((em) => em.is_login && !em._deleted);
-        if (loginEm) changes.email = loginEm.email;
-      }
-      await updateMut.mutateAsync({ filter: { id: editDialog.data.id }, changes });
-
-      if (editDialog.data.source_id) {
-        const sid = editDialog.data.source_id;
-        await saveCollection(phones.items, {
-          sourceId: sid,
-          fields: ['country_code', 'phone_type', 'phone_number', 'is_primary'],
-          createMut: createPhoneMut.mutateAsync, updateMut: updatePhoneMut.mutateAsync, archiveMut: archivePhoneMut.mutateAsync,
-        });
-        await saveCollection(emails.items, {
-          sourceId: sid,
-          fields: ['email', 'label', 'is_primary', 'is_login'],
-          createMut: createEmailMut.mutateAsync, updateMut: updateEmailMut.mutateAsync, archiveMut: archiveEmailMut.mutateAsync,
-        });
-        await saveCollection(addresses.items, {
-          sourceId: sid,
-          fields: ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'],
-          createMut: createAddrMut.mutateAsync, updateMut: updateAddrMut.mutateAsync, archiveMut: archiveAddrMut.mutateAsync,
-        });
-        await saveCollection(taxIds.items, {
-          sourceId: sid,
-          fields: ['country_code', 'tax_type', 'tax_value'],
-          createMut: createTaxIdMut.mutateAsync, updateMut: updateTaxIdMut.mutateAsync, archiveMut: archiveTaxIdMut.mutateAsync,
-        });
-      }
-
-      if (editForm.is_app_user !== editDialog.data.is_app_user) {
-        qc.invalidateQueries({ queryKey: ['nap-users'] });
-      }
-      toast('Employee updated');
-      editDialog.close();
-      setEditSourceId(null);
     } catch (err) {
       toast(errMsg(err), 'error');
     }
@@ -414,15 +251,16 @@ export default function EmployeesPage() {
     getLabel: (r) => `${r.first_name} ${r.last_name}`,
   });
 
-  /* ── ModuleBar: tabs + Create + Archive/Restore ────────────── */
+  const onCreateCheck = (f) => (e) => setCreateForm((p) => ({ ...p, [f]: e.target.checked }));
+
+  /* ── ModuleBar ─────────────────────────────────────────────── */
   const toolbar = useMemo(() => {
     const primary = [];
 
     if (viewFilter === 'active' || viewFilter === 'all') {
       primary.push({
         label: selectedRows.length > 1 ? `Archive (${selectedRows.length})` : 'Archive',
-        variant: 'outlined',
-        color: 'error',
+        variant: 'outlined', color: 'error',
         disabled: selectedRows.length === 0 || !allActive,
         onClick: () => setArchiveOpen(true),
       });
@@ -430,33 +268,17 @@ export default function EmployeesPage() {
     if (viewFilter === 'archived' || viewFilter === 'all') {
       primary.push({
         label: selectedRows.length > 1 ? `Restore (${selectedRows.length})` : 'Restore',
-        variant: 'outlined',
-        color: 'success',
+        variant: 'outlined', color: 'success',
         disabled: selectedRows.length === 0 || !allArchived,
         onClick: () => setRestoreOpen(true),
       });
     }
 
-    if (canExport) {
-      primary.push({
-        label: 'Export',
-        variant: 'outlined',
-        disabled: exportMut.isPending,
-        onClick: handleExport,
-      });
-    }
-    if (canImport) {
-      primary.push({
-        label: 'Import',
-        variant: 'outlined',
-        onClick: () => importDialog.open(),
-      });
-    }
+    if (canExport) primary.push({ label: 'Export', variant: 'outlined', disabled: exportMut.isPending, onClick: handleExport });
+    if (canImport) primary.push({ label: 'Import', variant: 'outlined', onClick: () => importDialog.open() });
 
     primary.push({
-      label: 'Create Employee',
-      variant: 'contained',
-      color: 'primary',
+      label: 'Create Employee', variant: 'contained', color: 'primary',
       onClick: () => { resetCreateForm(); createDialog.open(); },
     });
 
@@ -474,63 +296,18 @@ export default function EmployeesPage() {
 
   return (
     <Box sx={pageContainerSx}>
-      <DataTable
-        rows={rows}
-        columns={columns}
-        loading={isLoading}
-        selection={selection}
-        onView={handleView}
-        onEdit={handleEdit}
-        rowActions={getRowActions}
+      <DataTable rows={rows} columns={columns} loading={isLoading} selection={selection} onView={handleView} onEdit={handleEdit} rowActions={getRowActions} />
+
+      <EmployeeViewDialog
+        open={viewDialog.isOpen}
+        onClose={viewDialog.close}
+        employee={viewDialog.data}
+        viewPhones={viewPhonesRes?.rows ?? []}
+        viewEmails={viewEmailsRes?.rows ?? []}
+        viewAddresses={viewAddressesRes?.rows ?? []}
+        viewTaxIds={viewTaxIdsRes?.rows ?? []}
       />
 
-      {/* ── View Details Dialog ──────────────────────────────────── */}
-      <Dialog open={viewDialog.isOpen} onClose={() => { viewDialog.close(); setViewSourceId(null); }} maxWidth="sm" fullWidth>
-        <DialogTitle sx={dialogHeaderSx}>
-          <Box>
-            <span>Employee Details</span>
-            {viewDialog.data && (
-              <Typography variant="body2" color="text.secondary">
-                {viewDialog.data.first_name} {viewDialog.data.last_name}
-              </Typography>
-            )}
-          </Box>
-          <Box sx={dialogActionBoxSx}>
-            <Button size="small" color="inherit" onClick={() => { viewDialog.close(); setViewSourceId(null); }}>
-              Close
-            </Button>
-          </Box>
-        </DialogTitle>
-        <DialogContent dividers>
-          {viewDialog.data && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Box sx={detailGridSx}>
-                <FieldRow label="Code" value={viewDialog.data.code || '\u2014'} />
-                <FieldRow label="First Name" value={viewDialog.data.first_name} />
-                <FieldRow label="Last Name" value={viewDialog.data.last_name} />
-                <FieldRow label="Position" value={viewDialog.data.position || '\u2014'} />
-                <FieldRow label="Department" value={viewDialog.data.department || '\u2014'} />
-                <FieldRow label="App User" value={viewDialog.data.is_app_user ? 'Yes' : 'No'} />
-                <FieldRow label="Roles" value={(viewDialog.data.roles ?? []).join(', ') || '\u2014'} />
-                <FieldRow label="Status">
-                  <StatusBadge status={viewDialog.data.deactivated_at ? 'archived' : 'active'} />
-                </FieldRow>
-                <FieldRow label="Primary Contact" value={viewDialog.data.is_primary_contact ? 'Yes' : 'No'} />
-                <FieldRow label="Billing Contact" value={viewDialog.data.is_billing_contact ? 'Yes' : 'No'} />
-                <FieldRow label="Created" value={fmtDate(viewDialog.data.created_at)} />
-                <FieldRow label="Updated" value={fmtDate(viewDialog.data.updated_at)} />
-              </Box>
-
-              <PhoneNumbersSection phones={viewPhones} />
-              <EmailsSection emails={viewEmails} showLogin />
-              <AddressesSection addresses={viewAddresses} />
-              <TaxIdentifiersSection taxIds={viewTaxIds} />
-            </Box>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Create Employee Dialog ───────────────────────────────── */}
       <FormDialog open={createDialog.isOpen} title="Create Employee" submitLabel="Create" loading={createMut.isPending} onSubmit={handleCreate} onCancel={createDialog.close}>
         <TextField label="First Name" required value={createForm.first_name} onChange={onCreateField('first_name')} />
         <TextField label="Last Name" required value={createForm.last_name} onChange={onCreateField('last_name')} />
@@ -540,9 +317,7 @@ export default function EmployeesPage() {
         <TextField label="Email" type="email" value={createForm.email} onChange={onCreateField('email')} helperText={createForm.is_app_user && !createForm.email ? 'Email required for app users' : ''} error={createForm.is_app_user && !createForm.email} />
         <FormControlLabel control={<Checkbox checked={createForm.is_app_user} onChange={handleAppUserToggle('create', setCreateForm)} />} label="App User (creates login account)" />
         <Autocomplete
-          multiple
-          options={roleOptions}
-          getOptionLabel={(opt) => opt.name}
+          multiple options={roleOptions} getOptionLabel={(opt) => opt.name}
           isOptionEqualToValue={(opt, val) => opt.code === val.code}
           value={roleOptions.filter((r) => createForm.roles.includes(r.code))}
           onChange={(_, v) => setCreateForm((p) => ({ ...p, roles: v.map((r) => r.code) }))}
@@ -552,252 +327,28 @@ export default function EmployeesPage() {
         <FormControlLabel control={<Checkbox checked={createForm.is_billing_contact} onChange={onCreateCheck('is_billing_contact')} />} label="Billing Contact" />
       </FormDialog>
 
-      {/* ── Edit Employee Dialog ─────────────────────────────── */}
-      <FormDialog open={editDialog.isOpen} title="Edit Employee" submitLabel="Save Changes" maxWidth="md" loading={updateMut.isPending} submitDisabled={!hasEditChanges} onSubmit={handleUpdate} onCancel={() => { editDialog.close(); setEditSourceId(null); }}>
-        <Box sx={formGridSx}>
-          <TextField label="First Name" required value={editForm.first_name} onChange={onEditField('first_name')} />
-          <TextField label="Last Name" required value={editForm.last_name} onChange={onEditField('last_name')} />
-          <TextField label="Code" value={editForm.code} onChange={onEditField('code')} inputProps={{ maxLength: 16 }} />
-          <TextField label="Position" value={editForm.position} onChange={onEditField('position')} />
-          <TextField label="Department" value={editForm.department} onChange={onEditField('department')} />
-          <FormControlLabel control={<Checkbox checked={editForm.is_app_user} onChange={handleAppUserToggle('edit', setEditForm)} />} label="App User (creates login account)" />
-          <Autocomplete
-            multiple
-            options={roleOptions}
-            getOptionLabel={(opt) => opt.name}
-            isOptionEqualToValue={(opt, val) => opt.code === val.code}
-            value={roleOptions.filter((r) => editForm.roles.includes(r.code))}
-            onChange={(_, v) => setEditForm((p) => ({ ...p, roles: v.map((r) => r.code) }))}
-            renderInput={(params) => <TextField {...params} label="Roles" />}
-          />
-          <FormControlLabel control={<Checkbox checked={editForm.is_primary_contact} onChange={onEditCheck('is_primary_contact')} />} label="Primary Contact" />
-          <FormControlLabel control={<Checkbox checked={editForm.is_billing_contact} onChange={onEditCheck('is_billing_contact')} />} label="Billing Contact" />
-        </Box>
-
-        {editForm.is_app_user && canResetPassword && (
-          <Button variant="outlined" size="small" onClick={() => resetPwDialog.open(editDialog.data)}>
-            Reset Password
-          </Button>
-        )}
-
-        {/* ── Phone Numbers ──────────────────────────────────── */}
-        <Divider />
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Typography variant="subtitle2">Phone Numbers</Typography>
-          <Button size="small" startIcon={<AddIcon />} onClick={phones.add}>Add Phone</Button>
-        </Box>
-        {phones.visibleItems.length === 0 && (
-          <Typography variant="body2" color="text.secondary">No phone numbers</Typography>
-        )}
-        {phones.visibleItems.map((phone) => {
-          const idx = phones.items.indexOf(phone);
-          const countryCode = phone.country_code?.trim() || 'US';
-          const country = COUNTRIES.find((c) => c.code === countryCode);
-          return (
-            <Box key={phone.id || idx} sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-              <TextField
-                select
-                label="Type"
-                value={phone.phone_type}
-                onChange={(e) => phones.update(idx, 'phone_type', e.target.value)}
-                sx={{ minWidth: 120 }}
-                size="small"
-              >
-                {PHONE_TYPES.map((t) => (
-                  <MenuItem key={t} value={t}>{cap(t)}</MenuItem>
-                ))}
-              </TextField>
-              <TextField
-                select
-                label="Country"
-                value={countryCode}
-                onChange={(e) => phones.update(idx, 'country_code', e.target.value)}
-                SelectProps={{ renderValue: (val) => COUNTRIES.find((c) => c.code === val)?.dial_code || val }}
-                sx={{ minWidth: 80 }}
-                size="small"
-              >
-                {COUNTRIES.map((c) => (
-                  <MenuItem key={c.code} value={c.code}>{c.dial_code} {c.code} - {c.name}</MenuItem>
-                ))}
-              </TextField>
-              <PatternTextField
-                label="Number"
-                value={phone.phone_number}
-                onChange={(raw) => phones.update(idx, 'phone_number', raw)}
-                pattern={country?.placeholder}
-                size="small"
-                sx={{ flex: 1, minWidth: 160 }}
-              />
-              <FormControlLabel
-                control={<Checkbox checked={phone.is_primary} onChange={(e) => phones.update(idx, 'is_primary', e.target.checked)} size="small" />}
-                label="Primary"
-                sx={{ mr: 0 }}
-              />
-              <IconButton size="small" onClick={() => phones.remove(idx)} color="error">
-                <DeleteOutlineIcon fontSize="small" />
-              </IconButton>
-            </Box>
-          );
-        })}
-
-        {/* ── Emails ────────────────────────────────────────── */}
-        <Divider />
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Typography variant="subtitle2">Emails</Typography>
-          <Button size="small" startIcon={<AddIcon />} onClick={emails.add}>Add Email</Button>
-        </Box>
-        {emails.visibleItems.length === 0 && (
-          <Typography variant="body2" color="text.secondary">No emails</Typography>
-        )}
-        {emails.visibleItems.map((em) => {
-          const idx = emails.items.indexOf(em);
-          const isLoginEmail = em.is_login && editForm.is_app_user;
-          return (
-            <Box key={em.id || idx} sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-              <TextField
-                label="Email"
-                type="email"
-                value={em.email}
-                onChange={(e) => emails.update(idx, 'email', e.target.value)}
-                size="small"
-                sx={{ flex: 1, minWidth: 200 }}
-              />
-              <TextField
-                select
-                label="Label"
-                value={em.label}
-                onChange={(e) => emails.update(idx, 'label', e.target.value)}
-                sx={{ minWidth: 120 }}
-                size="small"
-              >
-                {EMAIL_LABELS.map((l) => (
-                  <MenuItem key={l} value={l}>{cap(l)}</MenuItem>
-                ))}
-              </TextField>
-              <FormControlLabel
-                control={<Checkbox checked={em.is_primary} onChange={(e) => emails.update(idx, 'is_primary', e.target.checked)} size="small" />}
-                label="Primary"
-                sx={{ mr: 0 }}
-              />
-              {editForm.is_app_user && (
-                <FormControlLabel
-                  control={<Checkbox checked={em.is_login} onChange={(e) => emails.update(idx, 'is_login', e.target.checked)} size="small" disabled={editDialog.data?.is_app_user} />}
-                  label="Login"
-                  sx={{ mr: 0 }}
-                />
-              )}
-              <IconButton size="small" onClick={() => emails.remove(idx)} color="error" disabled={isLoginEmail}>
-                <DeleteOutlineIcon fontSize="small" />
-              </IconButton>
-            </Box>
-          );
-        })}
-
-        {/* ── Addresses ──────────────────────────────────────── */}
-        <Divider />
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Typography variant="subtitle2">Addresses</Typography>
-          <Button size="small" startIcon={<AddIcon />} onClick={addresses.add}>Add Address</Button>
-        </Box>
-        {addresses.visibleItems.length === 0 && (
-          <Typography variant="body2" color="text.secondary">No addresses</Typography>
-        )}
-        {addresses.visibleItems.map((addr) => {
-          const idx = addresses.items.indexOf(addr);
-          return (
-            <Box key={addr.id || idx} sx={{ ...formGroupCardSx, gridColumn: undefined }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                <TextField
-                  label="Label"
-                  value={addr.label}
-                  onChange={(e) => addresses.update(idx, 'label', e.target.value)}
-                  size="small"
-                  sx={{ width: 200 }}
-                />
-                <IconButton size="small" onClick={() => addresses.remove(idx)} color="error">
-                  <DeleteOutlineIcon fontSize="small" />
-                </IconButton>
-              </Box>
-              <Box sx={formGridSx}>
-                <TextField label="Address Line 1" value={addr.address_line_1} onChange={(e) => addresses.update(idx, 'address_line_1', e.target.value)} size="small" sx={formFullSpanSx} />
-                <TextField label="Address Line 2" value={addr.address_line_2} onChange={(e) => addresses.update(idx, 'address_line_2', e.target.value)} size="small" sx={formFullSpanSx} />
-                <TextField label="Address Line 3" value={addr.address_line_3 || ''} onChange={(e) => addresses.update(idx, 'address_line_3', e.target.value)} size="small" sx={formFullSpanSx} />
-                <TextField label="City" value={addr.city} onChange={(e) => addresses.update(idx, 'city', e.target.value)} size="small" />
-                <TextField label="State / Province" value={addr.state_province} onChange={(e) => addresses.update(idx, 'state_province', e.target.value)} size="small" />
-                <TextField label="Postal Code" value={addr.postal_code} onChange={(e) => addresses.update(idx, 'postal_code', e.target.value)} size="small" />
-                <TextField label="Country Code" value={addr.country_code} onChange={(e) => addresses.update(idx, 'country_code', e.target.value)} size="small" inputProps={{ maxLength: 2 }} />
-              </Box>
-            </Box>
-          );
-        })}
-
-        {/* ── Tax Identifiers ──────────────────────────────────── */}
-        <Divider />
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Typography variant="subtitle2">Tax Identifiers</Typography>
-          <Button size="small" startIcon={<AddIcon />} onClick={taxIds.add}>Add Tax ID</Button>
-        </Box>
-        {taxIds.visibleItems.length === 0 && (
-          <Typography variant="body2" color="text.secondary">No tax identifiers</Typography>
-        )}
-        {taxIds.visibleItems.map((taxId) => {
-          const idx = taxIds.items.indexOf(taxId);
-          const countryCode = taxId.country_code?.trim() || '';
-          const taxTypes = TAX_TYPES[countryCode] || TAX_TYPES._OTHER;
-          return (
-            <Box key={taxId.id || idx} sx={{ ...formGroupCardSx, gridColumn: undefined }}>
-              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-                <TextField
-                  select
-                  label="Country"
-                  value={countryCode}
-                  onChange={(e) => {
-                    taxIds.update(idx, 'country_code', e.target.value);
-                    const newTypes = TAX_TYPES[e.target.value] || TAX_TYPES._OTHER;
-                    taxIds.update(idx, 'tax_type', newTypes[0]?.code || 'TIN');
-                  }}
-                  SelectProps={{ renderValue: (val) => val }}
-                  size="small"
-                  sx={{ minWidth: 80 }}
-                >
-                  {COUNTRIES.map((c) => (
-                    <MenuItem key={c.code} value={c.code}>{c.code} - {c.name}</MenuItem>
-                  ))}
-                </TextField>
-                <TextField
-                  select
-                  label="Type"
-                  value={taxId.tax_type}
-                  onChange={(e) => taxIds.update(idx, 'tax_type', e.target.value)}
-                  SelectProps={{ renderValue: (val) => val }}
-                  size="small"
-                  sx={{ minWidth: 80 }}
-                >
-                  {taxTypes.map((t) => (
-                    <MenuItem key={t.code} value={t.code}>{t.label}</MenuItem>
-                  ))}
-                </TextField>
-                <PatternTextField
-                  label="Tax ID Value"
-                  value={taxId.tax_value}
-                  onChange={(raw) => taxIds.update(idx, 'tax_value', raw)}
-                  pattern={taxTypes.find((t) => t.code === taxId.tax_type)?.placeholder}
-                  size="small"
-                  sx={{ flex: 1, minWidth: 160 }}
-                />
-                <IconButton size="small" onClick={() => taxIds.remove(idx)} color="error">
-                  <DeleteOutlineIcon fontSize="small" />
-                </IconButton>
-              </Box>
-            </Box>
-          );
-        })}
-      </FormDialog>
+      <EmployeeEditDialog
+        open={editDialog.isOpen}
+        onClose={handleEditClose}
+        editForm={editForm}
+        onEditField={onEditField}
+        setEditForm={setEditForm}
+        editRow={editDialog.data}
+        emails={emails}
+        phones={phones}
+        addresses={addresses}
+        taxIds={taxIds}
+        roleOptions={roleOptions}
+        hasEditChanges={hasEditChanges}
+        onSubmit={async () => { if (await handleUpdate()) handleEditClose(); }}
+        loading={updateMut.isPending}
+        canResetPassword={canResetPassword}
+        onResetPassword={() => resetPwDialog.open(editDialog.data)}
+        onAppUserToggle={handleAppUserToggle('edit', setEditForm)}
+      />
 
       <ImportDialog
-        open={importDialog.isOpen}
-        title="Import Employees"
-        loading={importMut.isPending}
+        open={importDialog.isOpen} title="Import Employees" loading={importMut.isPending}
         errors={importErrors}
         onSubmit={handleImport}
         onCancel={() => { importDialog.close(); setImportErrors(null); }}
@@ -816,7 +367,6 @@ export default function EmployeesPage() {
       />
 
       <SetPasswordPopover anchorEl={pwAnchor} onConfirm={handlePwConfirm} onCancel={handlePwCancel} />
-
       <ToastSnackbar {...snackProps} />
     </Box>
   );

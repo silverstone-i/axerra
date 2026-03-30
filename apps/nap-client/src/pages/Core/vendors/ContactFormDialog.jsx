@@ -21,8 +21,8 @@ import AddIcon from '@mui/icons-material/Add';
 import FormDialog from '../../../components/shared/FormDialog.jsx';
 import { formGridSx } from '../../../config/layoutTokens.js';
 import { BLANK_EMAIL, BLANK_PHONE } from '../../../utils/formConstants.js';
-import EmailRow from './EmailRow.jsx';
-import PhoneRow from './PhoneRow.jsx';
+import EmailRow from '../../../components/shared/EmailRow.jsx';
+import PhoneRow from '../../../components/shared/PhoneRow.jsx';
 
 export default function ContactFormDialog({
   open,
