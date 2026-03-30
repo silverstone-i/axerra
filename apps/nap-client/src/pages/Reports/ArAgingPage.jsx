@@ -24,9 +24,9 @@ const columns = [
 ];
 
 export default function ArAgingPage() {
-  const { data: rows = [], isLoading } = useArAging();
+  const { data: rows = [], isLoading, isError, error } = useArAging();
 
   return (
-    <ReportTablePage title="AR Aging" rows={rows} columns={columns} getRowId={(r) => r.client_id || r.client_code} loading={isLoading} />
+    <ReportTablePage title="AR Aging" rows={rows} columns={columns} getRowId={(r) => r.client_id || r.client_code} loading={isLoading} error={isError ? error : null} />
   );
 }

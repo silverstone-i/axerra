@@ -17,7 +17,10 @@ import { useTaxIdentifiers } from '../../../hooks/useTaxIdentifiers.js';
 import { useCollectionState } from '../../../hooks/useCollectionState.js';
 import { saveCollection } from '../../../utils/saveCollection.js';
 import { errMsg } from '../../../utils/format.js';
-import { BLANK_EMAIL, BLANK_PHONE, BLANK_ADDRESS, BLANK_TAX_ID } from '../../../utils/formConstants.js';
+import {
+  BLANK_EMAIL, BLANK_PHONE, BLANK_ADDRESS, BLANK_TAX_ID,
+  EMAIL_FIELDS, PHONE_FIELDS, ADDRESS_FIELDS, TAX_ID_FIELDS, collectionChanged,
+} from '../../../utils/formConstants.js';
 
 export function useStandaloneContactEditCollections({
   editOpen,
@@ -25,6 +28,7 @@ export function useStandaloneContactEditCollections({
   editForm,
   updateMut,
   toast,
+  qc,
   emailMuts,
   phoneMuts,
   addressMuts,
@@ -75,20 +79,10 @@ export function useStandaloneContactEditCollections({
     const init = editInitial.current;
     if (!init.form) return false;
     if (JSON.stringify(editForm) !== JSON.stringify(init.form)) return true;
-    const collectionChanged = (current, initial, fields) => {
-      if (!initial) return false;
-      if (current.some((c) => c._deleted)) return true;
-      if (current.some((c) => !c.id && !c._deleted)) return true;
-      const initMap = new Map(initial.map((r) => [r.id, r]));
-      return current.filter((c) => c.id && !c._deleted).some((c) => {
-        const orig = initMap.get(c.id);
-        return !orig || fields.some((f) => c[f] !== orig[f]);
-      });
-    };
-    if (collectionChanged(emails.items, init.emails, ['email', 'label', 'is_primary'])) return true;
-    if (collectionChanged(phones.items, init.phones, ['country_code', 'phone_type', 'phone_number', 'is_primary'])) return true;
-    if (collectionChanged(addresses.items, init.addresses, ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'])) return true;
-    if (collectionChanged(taxIds.items, init.taxIds, ['country_code', 'tax_type', 'tax_value'])) return true;
+    if (collectionChanged(emails.items, init.emails, EMAIL_FIELDS)) return true;
+    if (collectionChanged(phones.items, init.phones, PHONE_FIELDS)) return true;
+    if (collectionChanged(addresses.items, init.addresses, ADDRESS_FIELDS)) return true;
+    if (collectionChanged(taxIds.items, init.taxIds, TAX_ID_FIELDS)) return true;
     return false;
   }, [editForm, emails.items, phones.items, addresses.items, taxIds.items]);
 
@@ -120,6 +114,7 @@ export function useStandaloneContactEditCollections({
       return true;
     } catch (err) {
       toast(errMsg(err), 'error');
+      qc.invalidateQueries({ queryKey: ['contacts'] });
       return false;
     }
   };

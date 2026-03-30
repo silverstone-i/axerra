@@ -61,7 +61,7 @@ export default function PhoneRow({ item, index, onUpdate, onRemove }) {
         label="Primary"
         sx={{ mr: 0 }}
       />
-      <IconButton size="small" onClick={() => onRemove(index)} color="error">
+      <IconButton size="small" onClick={() => onRemove(index)} color="error" aria-label={`Remove ${item.phone_number || 'phone number'}`}>
         <DeleteOutlineIcon fontSize="small" />
       </IconButton>
     </Box>

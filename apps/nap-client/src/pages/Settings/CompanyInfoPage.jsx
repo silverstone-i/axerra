@@ -204,6 +204,7 @@ function SetupCompanyForm({ tenantCode, tenantName, tenantId, onComplete, onErro
                   color="error"
                   onClick={() => setTaxRows((p) => p.filter((_, i) => i !== idx))}
                   sx={{ mt: 0.5 }}
+                  aria-label={`Remove ${row.country_code} ${row.tax_type} tax identifier`}
                 >
                   <DeleteIcon fontSize="small" />
                 </IconButton>
@@ -291,7 +292,7 @@ function AddressCard({ address, isNew, sourceId, onSaved, onDeleted, onError }) 
           </Typography>
           <Box sx={{ display: 'flex', gap: 1 }}>
             {!isNew && (
-              <IconButton size="small" color="error" onClick={handleDelete} disabled={archiveMut.isPending}>
+              <IconButton size="small" color="error" onClick={handleDelete} disabled={archiveMut.isPending} aria-label={`Remove ${form.label || 'address'}`}>
                 <DeleteIcon fontSize="small" />
               </IconButton>
             )}
@@ -407,7 +408,7 @@ function TaxIdentifierRow({ taxId, isNew, sourceId, onSaved, onDeleted, onError 
         Save
       </Button>
       {!isNew && (
-        <IconButton size="small" color="error" onClick={handleDelete} disabled={archiveMut.isPending} sx={{ mt: 0.5 }}>
+        <IconButton size="small" color="error" onClick={handleDelete} disabled={archiveMut.isPending} sx={{ mt: 0.5 }} aria-label={`Remove ${form.country_code} ${form.tax_type} tax identifier`}>
           <DeleteIcon fontSize="small" />
         </IconButton>
       )}

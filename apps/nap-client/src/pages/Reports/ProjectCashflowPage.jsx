@@ -38,7 +38,7 @@ export default function ProjectCashflowPage() {
   const projects = projRes?.rows ?? [];
 
   const [projectId, setProjectId] = useState('');
-  const { data: rows = [], isLoading } = useProjectCashflow(projectId);
+  const { data: rows = [], isLoading, isError, error } = useProjectCashflow(projectId);
 
   const chartLabels = useMemo(
     () => rows.map((r) => (r.month ? new Date(r.month).toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) : '')),
@@ -89,6 +89,7 @@ export default function ProjectCashflowPage() {
       columns={columns}
       getRowId={(r) => r.month}
       loading={isLoading}
+      error={isError ? error : null}
       headerContent={headerContent}
       dataGridProps={{ pageSizeOptions: [25, 50] }}
     />

@@ -32,7 +32,7 @@ const columns = [
 ];
 
 export default function ProjectProfitabilityPage() {
-  const { data: rows = [], isLoading } = useProjectProfitability();
+  const { data: rows = [], isLoading, isError, error } = useProjectProfitability();
 
   return (
     <ReportTablePage
@@ -41,6 +41,7 @@ export default function ProjectProfitabilityPage() {
       columns={columns}
       getRowId={(r) => r.project_id || r.project_code}
       loading={isLoading}
+      error={isError ? error : null}
     />
   );
 }

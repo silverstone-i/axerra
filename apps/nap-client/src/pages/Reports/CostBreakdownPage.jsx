@@ -33,7 +33,7 @@ export default function CostBreakdownPage() {
   const projects = projRes?.rows ?? [];
 
   const [projectId, setProjectId] = useState('');
-  const { data: rows = [], isLoading } = useCostBreakdown(projectId);
+  const { data: rows = [], isLoading, isError, error } = useCostBreakdown(projectId);
 
   const chartLabels = useMemo(() => rows.map((r) => r.category_code || r.category_name || ''), [rows]);
   const budgetData = useMemo(() => rows.map((r) => Number(r.budgeted_amount || 0)), [rows]);
@@ -79,6 +79,7 @@ export default function CostBreakdownPage() {
       columns={columns}
       getRowId={(r) => r.category_code || `${r.category_name}-${r.category_type}`}
       loading={isLoading}
+      error={isError ? error : null}
       headerContent={headerContent}
       dataGridProps={{ pageSizeOptions: [25, 50] }}
     />
