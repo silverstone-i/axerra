@@ -11,14 +11,13 @@ import { useState, useMemo } from 'react';
 import Box from '@mui/material/Box';
 import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
-import Typography from '@mui/material/Typography';
-import { DataGrid } from '@mui/x-data-grid';
 import { LineChart } from '@mui/x-charts/LineChart';
 
 import CurrencyCell from '../../components/shared/CurrencyCell.jsx';
+import ReportTablePage from '../../components/shared/ReportTablePage.jsx';
 import { useProjects } from '../../hooks/useProjects.js';
 import { useProjectCashflow } from '../../hooks/useReports.js';
-import { pageContainerSx, chartContainerSx } from '../../config/layoutTokens.js';
+import { chartContainerSx } from '../../config/layoutTokens.js';
 
 const columns = [
   {
@@ -49,51 +48,49 @@ export default function ProjectCashflowPage() {
   const outflowData = useMemo(() => rows.map((r) => Number(r.outflow || 0)), [rows]);
   const netData = useMemo(() => rows.map((r) => Number(r.cumulative_net || 0)), [rows]);
 
-  return (
-    <Box sx={pageContainerSx}>
-      <Box sx={{ p: 2 }}>
-        <Typography variant="h6" gutterBottom>
-          Project Cashflow
-        </Typography>
-        <TextField
-          select
-          label="Select Project"
-          value={projectId}
-          onChange={(e) => setProjectId(e.target.value)}
-          sx={{ minWidth: 300, mb: 2 }}
-          size="small"
-        >
-          <MenuItem value="">— Select —</MenuItem>
-          {projects.map((p) => (
-            <MenuItem key={p.id} value={p.id}>
-              {p.project_code} — {p.project_name || p.name}
-            </MenuItem>
-          ))}
-        </TextField>
+  const headerContent = (
+    <>
+      <TextField
+        select
+        label="Select Project"
+        value={projectId}
+        onChange={(e) => setProjectId(e.target.value)}
+        sx={{ minWidth: 300, mb: 2 }}
+        size="small"
+      >
+        <MenuItem value="">— Select —</MenuItem>
+        {projects.map((p) => (
+          <MenuItem key={p.id} value={p.id}>
+            {p.project_code} — {p.project_name || p.name}
+          </MenuItem>
+        ))}
+      </TextField>
 
-        {rows.length > 0 && (
-          <Box sx={chartContainerSx}>
-            <LineChart
-              xAxis={[{ data: chartLabels, scaleType: 'band' }]}
-              series={[
-                { data: inflowData, label: 'Inflow', color: '#4caf50' },
-                { data: outflowData, label: 'Outflow', color: '#f44336' },
-                { data: netData, label: 'Cumulative Net', color: '#2196f3' },
-              ]}
-              height={280}
-            />
-          </Box>
-        )}
-      </Box>
-      <DataGrid
-        rows={rows}
-        columns={columns}
-        getRowId={(r) => r.month || Math.random()}
-        loading={isLoading}
-        pageSizeOptions={[25, 50]}
-        initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
-        disableRowSelectionOnClick
-      />
-    </Box>
+      {rows.length > 0 && (
+        <Box sx={chartContainerSx}>
+          <LineChart
+            xAxis={[{ data: chartLabels, scaleType: 'band' }]}
+            series={[
+              { data: inflowData, label: 'Inflow', color: '#4caf50' },
+              { data: outflowData, label: 'Outflow', color: '#f44336' },
+              { data: netData, label: 'Cumulative Net', color: '#2196f3' },
+            ]}
+            height={280}
+          />
+        </Box>
+      )}
+    </>
+  );
+
+  return (
+    <ReportTablePage
+      title="Project Cashflow"
+      rows={rows}
+      columns={columns}
+      getRowId={(r) => r.month}
+      loading={isLoading}
+      headerContent={headerContent}
+      dataGridProps={{ pageSizeOptions: [25, 50] }}
+    />
   );
 }

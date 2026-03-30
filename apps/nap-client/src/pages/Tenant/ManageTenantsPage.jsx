@@ -18,24 +18,21 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useFormState } from '../../hooks/useFormState.js';
 import { useDialogState } from '../../hooks/useDialogState.js';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import Dialog from '@mui/material/Dialog';
-import DialogContent from '@mui/material/DialogContent';
-import DialogTitle from '@mui/material/DialogTitle';
 import Divider from '@mui/material/Divider';
 import Link from '@mui/material/Link';
 import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import { DataGrid } from '@mui/x-data-grid';
 import StatusBadge from '../../components/shared/StatusBadge.jsx';
 import FieldRow from '../../components/shared/FieldRow.jsx';
 import TaxIdentifiersSection from '../../components/shared/TaxIdentifiersSection.jsx';
 import ConfirmDialog from '../../components/shared/ConfirmDialog.jsx';
 import DataTable from '../../components/shared/DataTable.jsx';
+import DetailDialog from '../../components/shared/DetailDialog.jsx';
 import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
 import FormDialog from '../../components/shared/FormDialog.jsx';
 import ImportDialog from '../../components/shared/ImportDialog.jsx';
+import ReadOnlyDataTable from '../../components/shared/ReadOnlyDataTable.jsx';
 import CreateTenantWizard from './CreateTenantWizard.jsx';
 import { COUNTRIES, formatByPattern } from '@nap/shared';
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
@@ -51,7 +48,7 @@ import {
   TENANTS_KEY,
   TENANT_SCHEMAS_KEY,
 } from '../../hooks/useTenants.js';
-import { pageContainerSx, dialogHeaderSx, dialogActionBoxSx, formFullSpanSx, detailGridSx } from '../../config/layoutTokens.js';
+import { pageContainerSx, formFullSpanSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useToast } from '../../hooks/useToast.js';
 import { cap, fmtDate, errMsg } from '../../utils/format.js';
@@ -338,123 +335,98 @@ export default function ManageTenantsPage() {
       />
 
       {/* ── View Details ───────────────────────────────────── */}
-      <Dialog open={detailDialog.isOpen} onClose={detailDialog.close} maxWidth="md" fullWidth>
-        <DialogTitle sx={dialogHeaderSx}>
-          <Box>
-            <span>Tenant Details</span>
-            {detailTenant && (
-              <Typography variant="body2" color="text.secondary">
-                {detailTenant.company}
-              </Typography>
-            )}
-          </Box>
-          <Box sx={dialogActionBoxSx}>
-            <Button size="small" color="inherit" onClick={detailDialog.close}>
-              Close
-            </Button>
-          </Box>
-        </DialogTitle>
-        <DialogContent dividers>
-          {detailTenant && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              {/* ── Tenant fields ─────────────────────────────── */}
-              <Box sx={detailGridSx}>
-                <FieldRow label="Code" value={detailTenant.tenant_code} />
-                <FieldRow label="Tier" value={cap(detailTenant.tier)} />
-                <FieldRow label="Region" value={detailTenant.region || '\u2014'} />
-                <FieldRow label="Status">
-                  <StatusBadge status={detailTenant.status} />
-                </FieldRow>
-                <FieldRow label="Max Users" value={detailTenant.max_users ?? '\u2014'} />
-                <FieldRow label="Schema">
-                  <Typography variant="body2" fontFamily="monospace">
-                    {detailTenant.schema_name || '\u2014'}
-                  </Typography>
-                </FieldRow>
-                <FieldRow label="Created" value={fmtDate(detailTenant.created_at)} />
-                <FieldRow label="Updated" value={fmtDate(detailTenant.updated_at)} />
-                <FieldRow label="Notes" value={detailTenant.notes || '\u2014'} sx={formFullSpanSx} />
-              </Box>
-
-              {/* ── Company Address & Tax IDs ─────────────────── */}
-              {companyData?.company && (
-                <>
-                  <Divider />
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                    <Typography variant="overline" color="text.secondary">
-                      Company Billing Address
-                    </Typography>
-                    {companyData.addresses?.length ? (
-                      <Box sx={detailGridSx}>
-                        {companyData.addresses.map((a) => (
-                            <Box key={a.id} sx={{ gridColumn: '1 / -1' }}>
-                              <Typography variant="body2">
-                                {[a.address_line_1, a.address_line_2, a.address_line_3].filter(Boolean).join(', ')}
-                              </Typography>
-                              <Typography variant="body2">
-                                {[a.city, a.state_province, a.postal_code, a.country_code].filter(Boolean).join(', ')}
-                              </Typography>
-                            </Box>
-                          ))}
-                      </Box>
-                    ) : (
-                      <Typography variant="body2" color="text.secondary">
-                        No address on file
-                      </Typography>
-                    )}
-                  </Box>
-                  <TaxIdentifiersSection taxIds={companyData.tax_identifiers} />
-                </>
-              )}
-
-              {/* ── Contacts ──────────────────────────────────── */}
-              <Divider />
-
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <Typography variant="overline" color="text.secondary">
-                  Primary Contacts
+      <DetailDialog open={detailDialog.isOpen} onClose={detailDialog.close} maxWidth="md" title="Tenant Details" subtitle={detailTenant?.company}>
+        {detailTenant && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {/* ── Tenant fields ─────────────────────────────── */}
+            <Box sx={detailGridSx}>
+              <FieldRow label="Code" value={detailTenant.tenant_code} />
+              <FieldRow label="Tier" value={cap(detailTenant.tier)} />
+              <FieldRow label="Region" value={detailTenant.region || '\u2014'} />
+              <FieldRow label="Status">
+                <StatusBadge status={detailTenant.status} />
+              </FieldRow>
+              <FieldRow label="Max Users" value={detailTenant.max_users ?? '\u2014'} />
+              <FieldRow label="Schema">
+                <Typography variant="body2" fontFamily="monospace">
+                  {detailTenant.schema_name || '\u2014'}
                 </Typography>
-                {contactsData?.primary?.length ? (
-                  <DataGrid
-                    rows={contactsData.primary}
-                    columns={contactColumns}
-                    getRowId={(r) => r.id}
-                    autoHeight
-                    hideFooter
-                    disableColumnMenu
-                    disableRowSelectionOnClick
-                  />
-                ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    No primary contacts
-                  </Typography>
-                )}
-              </Box>
-
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <Typography variant="overline" color="text.secondary">
-                  Billing Contacts
-                </Typography>
-                {contactsData?.billing?.length ? (
-                  <DataGrid
-                    rows={contactsData.billing}
-                    columns={contactColumns}
-                    getRowId={(r) => r.id}
-                    autoHeight
-                    hideFooter
-                    disableColumnMenu
-                    disableRowSelectionOnClick
-                  />
-                ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    No billing contacts
-                  </Typography>
-                )}
-              </Box>
+              </FieldRow>
+              <FieldRow label="Created" value={fmtDate(detailTenant.created_at)} />
+              <FieldRow label="Updated" value={fmtDate(detailTenant.updated_at)} />
+              <FieldRow label="Notes" value={detailTenant.notes || '\u2014'} sx={formFullSpanSx} />
             </Box>
-          )}
-        </DialogContent>
-      </Dialog>
+
+            {/* ── Company Address & Tax IDs ─────────────────── */}
+            {companyData?.company && (
+              <>
+                <Divider />
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <Typography variant="overline" color="text.secondary">
+                    Company Billing Address
+                  </Typography>
+                  {companyData.addresses?.length ? (
+                    <Box sx={detailGridSx}>
+                      {companyData.addresses.map((a) => (
+                        <Box key={a.id} sx={{ gridColumn: '1 / -1' }}>
+                          <Typography variant="body2">
+                            {[a.address_line_1, a.address_line_2, a.address_line_3].filter(Boolean).join(', ')}
+                          </Typography>
+                          <Typography variant="body2">
+                            {[a.city, a.state_province, a.postal_code, a.country_code].filter(Boolean).join(', ')}
+                          </Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      No address on file
+                    </Typography>
+                  )}
+                </Box>
+                <TaxIdentifiersSection taxIds={companyData.tax_identifiers} />
+              </>
+            )}
+
+            {/* ── Contacts ──────────────────────────────────── */}
+            <Divider />
+
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <Typography variant="overline" color="text.secondary">
+                Primary Contacts
+              </Typography>
+              {contactsData?.primary?.length ? (
+                <ReadOnlyDataTable
+                  rows={contactsData.primary}
+                  columns={contactColumns}
+                  getRowId={(r) => r.id}
+                />
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  No primary contacts
+                </Typography>
+              )}
+            </Box>
+
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <Typography variant="overline" color="text.secondary">
+                Billing Contacts
+              </Typography>
+              {contactsData?.billing?.length ? (
+                <ReadOnlyDataTable
+                  rows={contactsData.billing}
+                  columns={contactColumns}
+                  getRowId={(r) => r.id}
+                />
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  No billing contacts
+                </Typography>
+              )}
+            </Box>
+          </Box>
+        )}
+      </DetailDialog>
 
       {/* ── Create Wizard ──────────────────────────────────── */}
       <CreateTenantWizard open={createDialog.isOpen} onClose={createDialog.close} onSuccess={toast} />

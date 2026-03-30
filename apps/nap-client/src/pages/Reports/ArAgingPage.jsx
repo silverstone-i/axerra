@@ -7,13 +7,9 @@
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
 
-import Box from '@mui/material/Box';
-import Typography from '@mui/material/Typography';
-import { DataGrid } from '@mui/x-data-grid';
-
 import CurrencyCell from '../../components/shared/CurrencyCell.jsx';
+import ReportTablePage from '../../components/shared/ReportTablePage.jsx';
 import { useArAging } from '../../hooks/useReports.js';
-import { pageContainerSx } from '../../config/layoutTokens.js';
 
 const columns = [
   { field: 'client_code', headerName: 'Code', width: 100 },
@@ -31,21 +27,6 @@ export default function ArAgingPage() {
   const { data: rows = [], isLoading } = useArAging();
 
   return (
-    <Box sx={pageContainerSx}>
-      <Box sx={{ p: 2 }}>
-        <Typography variant="h6" gutterBottom>
-          AR Aging
-        </Typography>
-      </Box>
-      <DataGrid
-        rows={rows}
-        columns={columns}
-        getRowId={(r) => r.client_id || r.client_code}
-        loading={isLoading}
-        pageSizeOptions={[25, 50, 100]}
-        initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
-        disableRowSelectionOnClick
-      />
-    </Box>
+    <ReportTablePage title="AR Aging" rows={rows} columns={columns} getRowId={(r) => r.client_id || r.client_code} loading={isLoading} />
   );
 }
