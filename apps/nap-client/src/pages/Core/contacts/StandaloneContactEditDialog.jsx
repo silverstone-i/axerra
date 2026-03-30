@@ -22,7 +22,7 @@ import PatternTextField from '../../../components/shared/PatternTextField.jsx';
 import EmailRow from '../../../components/shared/EmailRow.jsx';
 import PhoneRow from '../../../components/shared/PhoneRow.jsx';
 import { TAX_TYPES, COUNTRIES } from '@nap/shared';
-import { formGridSx, formGroupCardSx, formFullSpanSx } from '../../../config/layoutTokens.js';
+import { formGridSx, formGroupCardSx, formFullSpanSx, flexBetweenSx } from '../../../config/layoutTokens.js';
 
 export default function StandaloneContactEditDialog({
   open,
@@ -57,7 +57,7 @@ export default function StandaloneContactEditDialog({
 
       {/* ── Emails ─────────────────────────────────────────────── */}
       <Divider />
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Box sx={flexBetweenSx}>
         <Typography variant="subtitle2">Emails</Typography>
         <Button size="small" startIcon={<AddIcon />} onClick={emails.add}>Add Email</Button>
       </Box>
@@ -70,7 +70,7 @@ export default function StandaloneContactEditDialog({
 
       {/* ── Phone Numbers ──────────────────────────────────────── */}
       <Divider />
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Box sx={flexBetweenSx}>
         <Typography variant="subtitle2">Phone Numbers</Typography>
         <Button size="small" startIcon={<AddIcon />} onClick={phones.add}>Add Phone</Button>
       </Box>
@@ -83,7 +83,7 @@ export default function StandaloneContactEditDialog({
 
       {/* ── Addresses ──────────────────────────────────────────── */}
       <Divider />
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Box sx={flexBetweenSx}>
         <Typography variant="subtitle2">Addresses</Typography>
         <Button size="small" startIcon={<AddIcon />} onClick={addresses.add}>Add Address</Button>
       </Box>
@@ -112,7 +112,7 @@ export default function StandaloneContactEditDialog({
 
       {/* ── Tax Identifiers ────────────────────────────────────── */}
       <Divider />
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Box sx={flexBetweenSx}>
         <Typography variant="subtitle2">Tax Identifiers</Typography>
         <Button size="small" startIcon={<AddIcon />} onClick={taxIds.add}>Add Tax ID</Button>
       </Box>

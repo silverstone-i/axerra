@@ -15,7 +15,7 @@ import Divider from '@mui/material/Divider';
 import FieldRow from '../../../components/shared/FieldRow.jsx';
 import EmailsSection from '../../../components/shared/EmailsSection.jsx';
 import PhoneNumbersSection from '../../../components/shared/PhoneNumbersSection.jsx';
-import { dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../../config/layoutTokens.js';
+import { dialogHeaderSx, dialogActionBoxSx, detailGridSx, flexColumnSx } from '../../../config/layoutTokens.js';
 
 export default function ContactViewDialog({ open, onClose, contact, emails, phones }) {
   return (
@@ -28,7 +28,7 @@ export default function ContactViewDialog({ open, onClose, contact, emails, phon
       </DialogTitle>
       <DialogContent dividers>
         {contact && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Box sx={flexColumnSx}>
             <Box sx={detailGridSx}>
               <FieldRow label="First Name" value={contact.first_name} />
               <FieldRow label="Last Name" value={contact.last_name} />

@@ -17,7 +17,7 @@ import StatusBadge from '../../../components/shared/StatusBadge.jsx';
 import AddressesSection from '../../../components/shared/AddressesSection.jsx';
 import TaxIdentifiersSection from '../../../components/shared/TaxIdentifiersSection.jsx';
 import { fmtDate } from '../../../utils/format.js';
-import { dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../../config/layoutTokens.js';
+import { dialogHeaderSx, dialogActionBoxSx, detailGridSx, flexColumnSx } from '../../../config/layoutTokens.js';
 
 export default function CompanyViewDialog({
   open,
@@ -45,7 +45,7 @@ export default function CompanyViewDialog({
       </DialogTitle>
       <DialogContent dividers>
         {company && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Box sx={flexColumnSx}>
             <Box sx={detailGridSx}>
               <FieldRow label="Code" value={company.code || '\u2014'} />
               <FieldRow label="Name" value={company.name} />

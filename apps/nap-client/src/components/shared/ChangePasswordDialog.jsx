@@ -18,6 +18,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
+import { flexColumnSx } from '../../config/layoutTokens.js';
 import Alert from '@mui/material/Alert';
 import Typography from '@mui/material/Typography';
 import CheckIcon from '@mui/icons-material/Check';
@@ -113,7 +114,7 @@ export default function ChangePasswordDialog({ open, onClose, onSuccess, forced 
           component="form"
           id="change-password-form"
           onSubmit={handleSubmit}
-          sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}
+          sx={flexColumnSx}
         >
           <PasswordField
             label="Current Password"

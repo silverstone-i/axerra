@@ -21,7 +21,7 @@ import Skeleton from '@mui/material/Skeleton';
 import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
 import { useTenantPreferences, useUpdateTenantPreferences } from '../../hooks/useTenantPreferences.js';
-import { pageContainerSx } from '../../config/layoutTokens.js';
+import { pageContainerSx, flexColumnSx } from '../../config/layoutTokens.js';
 import { useToast } from '../../hooks/useToast.js';
 
 /* ── Constants ─────────────────────────────────────────────────── */
@@ -84,7 +84,7 @@ export default function PreferencesPage() {
         <Skeleton variant="rounded" height={120} />
       ) : (
         <Card variant="outlined" sx={{ maxWidth: 480 }}>
-          <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <CardContent sx={flexColumnSx}>
             <Typography variant="subtitle1" fontWeight={600}>
               Data Grid Display
             </Typography>

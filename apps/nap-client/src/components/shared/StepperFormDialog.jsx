@@ -17,6 +17,7 @@ import DialogTitle from '@mui/material/DialogTitle';
 import Step from '@mui/material/Step';
 import StepLabel from '@mui/material/StepLabel';
 import Stepper from '@mui/material/Stepper';
+import { flexColumnSx } from '../../config/layoutTokens.js';
 
 import { density } from '../../config/tokens.js';
 
@@ -57,7 +58,7 @@ export default function StepperFormDialog({
   return (
     <Dialog open={open} onClose={onCancel} maxWidth={maxWidth} fullWidth disableRestoreFocus sx={dialogSx}>
       <form onSubmit={handleSubmit}>
-        <DialogTitle sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <DialogTitle sx={flexColumnSx}>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <span>{title}</span>
             <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>

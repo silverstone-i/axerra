@@ -38,7 +38,7 @@ import {
   useArchiveTaxIdentifier,
 } from '../../hooks/useCompanyInfo.js';
 import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
-import { pageContainerSx } from '../../config/layoutTokens.js';
+import { pageContainerSx, flexBetweenSx, flexColumnSx } from '../../config/layoutTokens.js';
 import { useToast } from '../../hooks/useToast.js';
 import { cap, errMsg } from '../../utils/format.js';
 
@@ -114,7 +114,7 @@ function SetupCompanyForm({ tenantCode, tenantName, tenantId, onComplete, onErro
 
       {/* ── Company Name ───────────────────────────────────────── */}
       <Card variant="outlined">
-        <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <CardContent sx={flexColumnSx}>
           <Typography variant="subtitle2" fontWeight={600}>
             Company
           </Typography>
@@ -131,7 +131,7 @@ function SetupCompanyForm({ tenantCode, tenantName, tenantId, onComplete, onErro
 
       {/* ── Billing Address ────────────────────────────────────── */}
       <Card variant="outlined">
-        <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <CardContent sx={flexColumnSx}>
           <Typography variant="subtitle2" fontWeight={600}>
             Billing Address
           </Typography>
@@ -170,8 +170,8 @@ function SetupCompanyForm({ tenantCode, tenantName, tenantId, onComplete, onErro
 
       {/* ── Tax Identifiers ────────────────────────────────────── */}
       <Card variant="outlined">
-        <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <CardContent sx={flexColumnSx}>
+          <Box sx={flexBetweenSx}>
             <Typography variant="subtitle2" fontWeight={600}>
               Tax Identifiers
             </Typography>
@@ -284,8 +284,8 @@ function AddressCard({ address, isNew, sourceId, onSaved, onDeleted, onError }) 
 
   return (
     <Card variant="outlined">
-      <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <CardContent sx={flexColumnSx}>
+        <Box sx={flexBetweenSx}>
           <Typography variant="subtitle2" fontWeight={600}>
             {isNew ? 'New Address' : `${cap(form.label)} Address`}
           </Typography>
@@ -481,8 +481,8 @@ export default function CompanyInfoPage() {
           </Card>
 
           {/* ── Addresses ────────────────────────────────────────── */}
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Box sx={flexColumnSx}>
+            <Box sx={flexBetweenSx}>
               <Typography variant="overline" color="text.secondary">
                 Addresses
               </Typography>
@@ -524,8 +524,8 @@ export default function CompanyInfoPage() {
           <Divider />
 
           {/* ── Tax Identifiers ──────────────────────────────────── */}
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Box sx={flexColumnSx}>
+            <Box sx={flexBetweenSx}>
               <Typography variant="overline" color="text.secondary">
                 Tax Identifiers
               </Typography>

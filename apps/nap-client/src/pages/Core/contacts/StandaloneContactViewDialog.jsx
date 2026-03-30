@@ -19,7 +19,7 @@ import PhoneNumbersSection from '../../../components/shared/PhoneNumbersSection.
 import AddressesSection from '../../../components/shared/AddressesSection.jsx';
 import TaxIdentifiersSection from '../../../components/shared/TaxIdentifiersSection.jsx';
 import { fmtDate } from '../../../utils/format.js';
-import { dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../../config/layoutTokens.js';
+import { dialogHeaderSx, dialogActionBoxSx, detailGridSx, flexColumnSx } from '../../../config/layoutTokens.js';
 
 export default function StandaloneContactViewDialog({
   open,
@@ -49,7 +49,7 @@ export default function StandaloneContactViewDialog({
       </DialogTitle>
       <DialogContent dividers>
         {contact && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Box sx={flexColumnSx}>
             <Box sx={detailGridSx}>
               <FieldRow label="Code" value={contact.code || '\u2014'} />
               <FieldRow label="Name" value={contact.name} />

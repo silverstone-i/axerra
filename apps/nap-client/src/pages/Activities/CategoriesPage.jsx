@@ -42,7 +42,7 @@ import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
 import { resolveLevel } from '@nap/shared';
 import { categoryApi } from '../../services/categoryApi.js';
-import { pageContainerSx, formGridSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
+import { pageContainerSx, formGridSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx, flexColumnSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
 import { useToast } from '../../hooks/useToast.js';
@@ -243,7 +243,7 @@ export default function CategoriesPage() {
         </DialogTitle>
         <DialogContent dividers>
           {viewDialog.data && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Box sx={flexColumnSx}>
               <Box sx={detailGridSx}>
                 <FieldRow label="Code" value={viewDialog.data.code || '\u2014'} />
                 <FieldRow label="Name" value={viewDialog.data.name} />

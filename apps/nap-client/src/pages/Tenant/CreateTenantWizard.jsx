@@ -27,6 +27,7 @@ import StepperFormDialog from '../../components/shared/StepperFormDialog.jsx';
 import PasswordField from '../../components/shared/PasswordField.jsx';
 import { useCreateTenant } from '../../hooks/useTenants.js';
 import { cap } from '../../utils/format.js';
+import { flexBetweenSx } from '../../config/layoutTokens.js';
 
 /* ── Constants ──────────────────────────────────────────────────── */
 
@@ -214,7 +215,7 @@ export default function CreateTenantWizard({ open, onClose, onSuccess }) {
           />
 
           <Divider sx={{ mt: 1 }} />
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Box sx={flexBetweenSx}>
             <Typography variant="overline" color="text.secondary">
               Tax Identifiers (optional)
             </Typography>

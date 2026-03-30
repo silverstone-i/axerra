@@ -20,7 +20,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import FormDialog from '../../../components/shared/FormDialog.jsx';
 import PatternTextField from '../../../components/shared/PatternTextField.jsx';
 import { TAX_TYPES, COUNTRIES } from '@nap/shared';
-import { formGridSx, formGroupCardSx, formFullSpanSx } from '../../../config/layoutTokens.js';
+import { formGridSx, formGroupCardSx, formFullSpanSx, flexBetweenSx } from '../../../config/layoutTokens.js';
 
 export default function CompanyEditDialog({
   open,
@@ -54,7 +54,7 @@ export default function CompanyEditDialog({
 
       {/* ── Addresses ───────────────────────────────────────────── */}
       <Divider />
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Box sx={flexBetweenSx}>
         <Typography variant="subtitle2">Addresses</Typography>
         <Button size="small" startIcon={<AddIcon />} onClick={addresses.add} disabled={!hasSource}>Add Address</Button>
       </Box>
@@ -86,7 +86,7 @@ export default function CompanyEditDialog({
 
       {/* ── Tax Identifiers ─────────────────────────────────────── */}
       <Divider />
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Box sx={flexBetweenSx}>
         <Typography variant="subtitle2">Tax Identifiers</Typography>
         <Button size="small" startIcon={<AddIcon />} onClick={taxIds.add} disabled={!hasSource}>Add Tax ID</Button>
       </Box>

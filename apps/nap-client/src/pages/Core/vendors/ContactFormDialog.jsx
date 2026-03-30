@@ -19,7 +19,7 @@ import Typography from '@mui/material/Typography';
 import AddIcon from '@mui/icons-material/Add';
 
 import FormDialog from '../../../components/shared/FormDialog.jsx';
-import { formGridSx } from '../../../config/layoutTokens.js';
+import { formGridSx, flexBetweenSx } from '../../../config/layoutTokens.js';
 import { BLANK_EMAIL, BLANK_PHONE } from '../../../utils/formConstants.js';
 import EmailRow from '../../../components/shared/EmailRow.jsx';
 import PhoneRow from '../../../components/shared/PhoneRow.jsx';
@@ -113,7 +113,7 @@ export default function ContactFormDialog({
 
       {/* ── Emails ──────────────────────────────────────────── */}
       <Divider />
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Box sx={flexBetweenSx}>
         <Typography variant="subtitle2">Emails</Typography>
         <Button size="small" startIcon={<AddIcon />} onClick={addEmail}>Add Email</Button>
       </Box>
@@ -126,7 +126,7 @@ export default function ContactFormDialog({
 
       {/* ── Phones ─────────────────────────────────────────── */}
       <Divider />
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Box sx={flexBetweenSx}>
         <Typography variant="subtitle2">Phone Numbers</Typography>
         <Button size="small" startIcon={<AddIcon />} onClick={addPhone}>Add Phone</Button>
       </Box>

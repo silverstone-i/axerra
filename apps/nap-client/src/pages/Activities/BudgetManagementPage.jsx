@@ -38,7 +38,7 @@ import { resolveLevel } from '@nap/shared';
 import { budgetApi } from '../../services/budgetApi.js';
 import { useDeliverables } from '../../hooks/useDeliverables.js';
 import { useActivities } from '../../hooks/useActivities.js';
-import { pageContainerSx, formGridSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
+import { pageContainerSx, formGridSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx, flexColumnSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
 import { useToast } from '../../hooks/useToast.js';
@@ -285,7 +285,7 @@ export default function BudgetManagementPage() {
         </DialogTitle>
         <DialogContent dividers>
           {viewDialog.data && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Box sx={flexColumnSx}>
               <Box sx={detailGridSx}>
                 <FieldRow label="Deliverable" value={deliverableMap[viewDialog.data.deliverable_id] || viewDialog.data.deliverable_id} />
                 <FieldRow label="Activity" value={activityMap[viewDialog.data.activity_id] || viewDialog.data.activity_id} />

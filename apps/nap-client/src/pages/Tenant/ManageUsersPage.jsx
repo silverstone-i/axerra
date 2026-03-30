@@ -32,7 +32,7 @@ import FormDialog from '../../components/shared/FormDialog.jsx';
 import PasswordField from '../../components/shared/PasswordField.jsx';
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
 import { useUsers, useUpdateUser } from '../../hooks/useUsers.js';
-import { pageContainerSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
+import { pageContainerSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx, flexColumnSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useToast } from '../../hooks/useToast.js';
 import { capSnake, fmtDate, errMsg } from '../../utils/format.js';
@@ -186,7 +186,7 @@ export default function ManageUsersPage() {
         </DialogTitle>
         <DialogContent dividers>
           {viewDialog.data && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Box sx={flexColumnSx}>
               <Box sx={detailGridSx}>
                 <FieldRow label="Email" value={viewDialog.data.email} />
                 <FieldRow label="Entity Type" value={capSnake(viewDialog.data.entity_type) || '\u2014'} />
