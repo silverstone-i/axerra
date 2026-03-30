@@ -15,7 +15,6 @@ import Checkbox from '@mui/material/Checkbox';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import TextField from '@mui/material/TextField';
 
-import StatusBadge from '../../components/shared/StatusBadge.jsx';
 import ConfirmDialog from '../../components/shared/ConfirmDialog.jsx';
 import ResetPasswordDialog from '../../components/shared/ResetPasswordDialog.jsx';
 import SetPasswordPopover from '../../components/shared/SetPasswordPopover.jsx';
@@ -49,6 +48,7 @@ import { useRoles } from '../../hooks/useRoles.js';
 import { resolveLevel } from '@nap/shared';
 import { useToast } from '../../hooks/useToast.js';
 import { errMsg } from '../../utils/format.js';
+import { statusColumn } from '../../utils/columnHelpers.jsx';
 import { clientApi } from '../../services/clientApi.js';
 import { pageContainerSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
@@ -64,12 +64,7 @@ const BLANK_EDIT = { name: '', code: '', is_active: true, is_app_user: false, ro
 const columns = [
   { field: 'code', headerName: 'Code', width: 120 },
   { field: 'name', headerName: 'Client Name', flex: 1, minWidth: 200 },
-  {
-    field: 'is_active',
-    headerName: 'Active',
-    width: 100,
-    renderCell: ({ value }) => <StatusBadge status={value ? 'active' : 'suspended'} />,
-  },
+  statusColumn('is_active', 'Active', { width: 100, map: (v) => v ? 'active' : 'suspended' }),
 ];
 
 export default function ClientsPage() {

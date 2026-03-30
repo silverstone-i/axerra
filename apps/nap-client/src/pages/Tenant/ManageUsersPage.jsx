@@ -25,7 +25,6 @@ import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 
-import StatusBadge from '../../components/shared/StatusBadge.jsx';
 import DataTable from '../../components/shared/DataTable.jsx';
 import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
 import FieldRow from '../../components/shared/FieldRow.jsx';
@@ -37,6 +36,7 @@ import { pageContainerSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from
 import { useListSelection } from '../../hooks/useListSelection.js';
 import { useToast } from '../../hooks/useToast.js';
 import { capSnake, fmtDate, errMsg } from '../../utils/format.js';
+import { statusColumn, capColumn } from '../../utils/columnHelpers.jsx';
 
 /* ── Enums ────────────────────────────────────────────────────── */
 
@@ -69,18 +69,8 @@ const PW_RULES = [
 
 const columns = [
   { field: 'email', headerName: 'Email', flex: 1, minWidth: 220 },
-  {
-    field: 'entity_type',
-    headerName: 'Entity Type',
-    width: 140,
-    valueGetter: (params) => capSnake(params.row.entity_type) || '\u2014',
-  },
-  {
-    field: 'status',
-    headerName: 'Status',
-    width: 110,
-    renderCell: ({ value }) => <StatusBadge status={value} />,
-  },
+  capColumn('entity_type', 'Entity Type', { snake: true, width: 140 }),
+  statusColumn('status', 'Status', { width: 110 }),
 ];
 
 /* ── Component ────────────────────────────────────────────────── */

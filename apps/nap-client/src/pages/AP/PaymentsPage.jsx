@@ -17,7 +17,6 @@ import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 
-import CurrencyCell from '../../components/shared/CurrencyCell.jsx';
 import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
 import ConfirmDialog from '../../components/shared/ConfirmDialog.jsx';
 import DataTable from '../../components/shared/DataTable.jsx';
@@ -36,6 +35,7 @@ import { resolveLevel } from '@nap/shared';
 import { paymentApi } from '../../services/apApi.js';
 import { useToast } from '../../hooks/useToast.js';
 import { capSnake, fmtDate, errMsg } from '../../utils/format.js';
+import { dateColumn, currencyColumn, capColumn } from '../../utils/columnHelpers.jsx';
 
 const METHOD_OPTS = ['check', 'ach', 'wire'];
 
@@ -45,9 +45,9 @@ const BLANK_EDIT = { payment_date: '', amount: '', method: 'check', reference: '
 const columns = [
   { field: 'id', headerName: 'ID', width: 100, valueGetter: (params) => params.row.id?.slice(0, 8) },
   { field: 'vendor_id', headerName: 'Vendor', width: 120, valueGetter: (params) => params.row.vendor_id?.slice(0, 8) ?? '\u2014' },
-  { field: 'payment_date', headerName: 'Date', width: 120, valueGetter: (params) => fmtDate(params.row.payment_date) },
-  { field: 'amount', headerName: 'Amount', width: 140, renderCell: (params) => <CurrencyCell value={params.value} /> },
-  { field: 'method', headerName: 'Method', width: 120, valueGetter: (params) => capSnake(params.row.method) },
+  dateColumn('payment_date', 'Date'),
+  currencyColumn('amount', 'Amount'),
+  capColumn('method', 'Method', { snake: true }),
   { field: 'reference', headerName: 'Reference', flex: 1, minWidth: 160 },
 ];
 

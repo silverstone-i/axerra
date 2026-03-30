@@ -17,9 +17,7 @@ import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 
-import StatusBadge from '../../components/shared/StatusBadge.jsx';
 import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
-import CurrencyCell from '../../components/shared/CurrencyCell.jsx';
 import ConfirmDialog from '../../components/shared/ConfirmDialog.jsx';
 import DataTable from '../../components/shared/DataTable.jsx';
 import FieldRow from '../../components/shared/FieldRow.jsx';
@@ -39,6 +37,7 @@ import { resolveLevel } from '@nap/shared';
 import { apInvoiceApi } from '../../services/apApi.js';
 import { useToast } from '../../hooks/useToast.js';
 import { capSnake, fmtDate, errMsg } from '../../utils/format.js';
+import { statusColumn, dateColumn, currencyColumn } from '../../utils/columnHelpers.jsx';
 
 const STATUS_OPTS = ['open', 'approved', 'paid', 'voided'];
 
@@ -48,10 +47,10 @@ const BLANK_EDIT = { invoice_number: '', invoice_date: '', due_date: '', total_a
 const columns = [
   { field: 'invoice_number', headerName: 'Invoice #', width: 140 },
   { field: 'vendor_id', headerName: 'Vendor', width: 120, valueGetter: (params) => params.row.vendor_id?.slice(0, 8) ?? '\u2014' },
-  { field: 'invoice_date', headerName: 'Date', width: 120, valueGetter: (params) => fmtDate(params.row.invoice_date) },
-  { field: 'due_date', headerName: 'Due', width: 120, valueGetter: (params) => fmtDate(params.row.due_date) },
-  { field: 'total_amount', headerName: 'Total', width: 140, renderCell: (params) => <CurrencyCell value={params.value} /> },
-  { field: 'status', headerName: 'Status', width: 120, renderCell: ({ value }) => <StatusBadge status={value} /> },
+  dateColumn('invoice_date', 'Date'),
+  dateColumn('due_date', 'Due'),
+  currencyColumn('total_amount', 'Total'),
+  statusColumn(),
 ];
 
 export default function ApInvoicesPage() {

@@ -12,11 +12,10 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { DataGrid } from '@mui/x-data-grid';
 
-import StatusBadge from '../../components/shared/StatusBadge.jsx';
-import CurrencyCell from '../../components/shared/CurrencyCell.jsx';
 import PercentCell from '../../components/shared/PercentCell.jsx';
 import { useMarginAnalysis } from '../../hooks/useReports.js';
 import { pageContainerSx } from '../../config/layoutTokens.js';
+import { statusColumn, currencyColumn } from '../../utils/columnHelpers.jsx';
 
 const SORT_FIELDS = new Set([
   'project_code',
@@ -32,24 +31,13 @@ const SORT_FIELDS = new Set([
 const columns = [
   { field: 'project_code', headerName: 'Code', width: 120 },
   { field: 'project_name', headerName: 'Project', flex: 1, minWidth: 180 },
-  {
-    field: 'project_status',
-    headerName: 'Status',
-    width: 120,
-    sortable: false,
-    renderCell: ({ value }) => (value ? <StatusBadge status={value} /> : null),
-  },
-  { field: 'invoiced_revenue', headerName: 'Revenue', width: 140, renderCell: (params) => <CurrencyCell value={params.value} /> },
-  { field: 'committed_cost', headerName: 'Committed Cost', width: 140, renderCell: (params) => <CurrencyCell value={params.value} /> },
-  { field: 'gross_profit', headerName: 'Gross Profit', width: 140, renderCell: (params) => <CurrencyCell value={params.value} variance /> },
+  statusColumn('project_status', 'Status', { sortable: false }),
+  currencyColumn('invoiced_revenue', 'Revenue'),
+  currencyColumn('committed_cost', 'Committed Cost'),
+  currencyColumn('gross_profit', 'Gross Profit', { variance: true }),
   { field: 'gross_margin_pct', headerName: 'Margin %', width: 110, renderCell: (params) => <PercentCell value={params.value} /> },
-  { field: 'net_cashflow', headerName: 'Net Cashflow', width: 140, renderCell: (params) => <CurrencyCell value={params.value} variance /> },
-  {
-    field: 'budget_variance',
-    headerName: 'Budget Var.',
-    width: 140,
-    renderCell: (params) => <CurrencyCell value={params.value} variance />,
-  },
+  currencyColumn('net_cashflow', 'Net Cashflow', { variance: true }),
+  currencyColumn('budget_variance', 'Budget Var.', { variance: true }),
 ];
 
 export default function MarginAnalysisPage() {

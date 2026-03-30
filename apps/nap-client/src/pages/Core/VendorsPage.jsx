@@ -16,7 +16,6 @@ import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import LockResetIcon from '@mui/icons-material/LockReset';
 
-import StatusBadge from '../../components/shared/StatusBadge.jsx';
 import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
 import ConfirmDialog from '../../components/shared/ConfirmDialog.jsx';
 import ResetPasswordDialog from '../../components/shared/ResetPasswordDialog.jsx';
@@ -49,6 +48,7 @@ import { useRoles } from '../../hooks/useRoles.js';
 import { resolveLevel } from '@nap/shared';
 import { useToast } from '../../hooks/useToast.js';
 import { errMsg } from '../../utils/format.js';
+import { statusColumn } from '../../utils/columnHelpers.jsx';
 import { useFormState } from '../../hooks/useFormState.js';
 import { vendorApi } from '../../services/vendorApi.js';
 import { pageContainerSx } from '../../config/layoutTokens.js';
@@ -69,12 +69,7 @@ const baseColumns = [
   { field: 'code', headerName: 'Code', width: 120 },
   { field: 'name', headerName: 'Vendor Name', flex: 1, minWidth: 200 },
   { field: 'payment_term_id', headerName: 'Terms', width: 160 },
-  {
-    field: 'is_active',
-    headerName: 'Active',
-    width: 100,
-    renderCell: ({ value }) => <StatusBadge status={value ? 'active' : 'suspended'} />,
-  },
+  statusColumn('is_active', 'Active', { width: 100, map: (v) => v ? 'active' : 'suspended' }),
 ];
 
 export default function VendorsPage() {

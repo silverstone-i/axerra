@@ -16,7 +16,6 @@ import Checkbox from '@mui/material/Checkbox';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import TextField from '@mui/material/TextField';
 
-import StatusBadge from '../../components/shared/StatusBadge.jsx';
 import ConfirmDialog from '../../components/shared/ConfirmDialog.jsx';
 import DataTable from '../../components/shared/DataTable.jsx';
 import FormDialog from '../../components/shared/FormDialog.jsx';
@@ -39,6 +38,7 @@ import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import { resolveLevel } from '@nap/shared';
 import { useToast } from '../../hooks/useToast.js';
 import { errMsg } from '../../utils/format.js';
+import { statusColumn } from '../../utils/columnHelpers.jsx';
 import { contactApi } from '../../services/contactApi.js';
 import { pageContainerSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';
@@ -54,12 +54,7 @@ const BLANK_EDIT = { name: '', code: '', is_active: true };
 const columns = [
   { field: 'code', headerName: 'Code', width: 120 },
   { field: 'name', headerName: 'Contact Name', flex: 1, minWidth: 200 },
-  {
-    field: 'is_active',
-    headerName: 'Active',
-    width: 100,
-    renderCell: ({ value }) => <StatusBadge status={value ? 'active' : 'suspended'} />,
-  },
+  statusColumn('is_active', 'Active', { width: 100, map: (v) => v ? 'active' : 'suspended' }),
 ];
 
 export default function ContactsPage() {
