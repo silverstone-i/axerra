@@ -66,7 +66,7 @@ export default function EmployeeEditDialog({
         <FormControlLabel control={<Checkbox checked={editForm.is_billing_contact} onChange={onEditCheck('is_billing_contact')} />} label="Billing Contact" />
       </Box>
 
-      {editForm.is_app_user && canResetPassword && (
+      {editRow?.is_app_user && canResetPassword && (
         <Button variant="outlined" size="small" onClick={onResetPassword}>
           Reset Password
         </Button>

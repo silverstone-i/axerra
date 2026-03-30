@@ -16,6 +16,7 @@ import { saveCollection } from '../../../utils/saveCollection.js';
 import { errMsg } from '../../../utils/format.js';
 import { BLANK_PHONE, BLANK_ADDRESS, BLANK_TAX_ID } from '../../../utils/formConstants.js';
 
+// Extends shared BLANK_EMAIL with is_login — specific to app-user entities (employees/clients).
 const BLANK_EMAIL = { email: '', label: 'work', is_primary: false, is_login: false };
 
 export function useEmployeeEditCollections({
