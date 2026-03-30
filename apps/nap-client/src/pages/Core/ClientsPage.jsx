@@ -26,7 +26,7 @@ import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import {
-  useClients, useCreateClient, useArchiveClient, useRestoreClient, useResetClientPassword,
+  useClients, useCreateClient, useUpdateClient, useArchiveClient, useRestoreClient, useResetClientPassword,
 } from '../../hooks/useClients.js';
 import {
   useCreateEmail, useUpdateEmail, useArchiveEmail,
@@ -45,7 +45,6 @@ import { usePhoneNumbers } from '../../hooks/usePhoneNumbers.js';
 import { useAddresses } from '../../hooks/useAddresses.js';
 import { useTaxIdentifiers } from '../../hooks/useTaxIdentifiers.js';
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
-import { useUpdateClient } from '../../hooks/useClients.js';
 import { useRoles } from '../../hooks/useRoles.js';
 import { resolveLevel } from '@nap/shared';
 import { useToast } from '../../hooks/useToast.js';
@@ -115,7 +114,7 @@ export default function ClientsPage() {
   const updateTaxIdMut = useUpdateTaxIdentifier();
   const archiveTaxIdMut = useArchiveTaxIdentifier();
 
-  /* ── Selection ───────────────────────────────────────────────��� */
+  /* ── Selection ─────────────────────────────────────────────── */
   const selection = useListSelection(rows);
   const { selectedRows, allActive, allArchived } = selection;
 

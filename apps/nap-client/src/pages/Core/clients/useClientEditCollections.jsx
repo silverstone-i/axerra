@@ -149,14 +149,15 @@ export function useClientEditCollections({
     setEditForm(form);
     editInitial.current.form = form;
 
+    // Always clear sub-collection state when starting a new edit session
+    // to avoid briefly showing the previous row's data while queries load.
+    emails.reset([]); phones.reset([]); addresses.reset([]); taxIds.reset([]);
+    editInitial.current.emails = [];
+    editInitial.current.phones = [];
+    editInitial.current.addresses = [];
+    editInitial.current.taxIds = [];
+
     setEditSourceId(row.source_id || null);
-    if (!row.source_id) {
-      emails.reset([]); phones.reset([]); addresses.reset([]); taxIds.reset([]);
-      editInitial.current.emails = [];
-      editInitial.current.phones = [];
-      editInitial.current.addresses = [];
-      editInitial.current.taxIds = [];
-    }
   }, []);
 
   /** Reset all edit state. */
