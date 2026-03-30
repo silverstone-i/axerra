@@ -62,13 +62,11 @@ export function useCompanyEditCollections({
 
       if (editRow.source_id) {
         await saveCollection(addresses.items, {
-          sourceId: editRow.source_id,
-          fields: ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'],
+          sourceId: editRow.source_id, fields: ADDRESS_FIELDS,
           createMut: addressMuts.create.mutateAsync, updateMut: addressMuts.update.mutateAsync, archiveMut: addressMuts.archive.mutateAsync,
         });
         await saveCollection(taxIds.items, {
-          sourceId: editRow.source_id,
-          fields: ['country_code', 'tax_type', 'tax_value'],
+          sourceId: editRow.source_id, fields: TAX_ID_FIELDS,
           createMut: taxIdMuts.create.mutateAsync, updateMut: taxIdMuts.update.mutateAsync, archiveMut: taxIdMuts.archive.mutateAsync,
         });
       }

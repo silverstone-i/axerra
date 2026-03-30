@@ -98,19 +98,19 @@ export function useEmployeeEditCollections({
       if (editRow.source_id) {
         const sid = editRow.source_id;
         await saveCollection(phones.items, {
-          sourceId: sid, fields: ['country_code', 'phone_type', 'phone_number', 'is_primary'],
+          sourceId: sid, fields: PHONE_FIELDS,
           createMut: phoneMuts.create.mutateAsync, updateMut: phoneMuts.update.mutateAsync, archiveMut: phoneMuts.archive.mutateAsync,
         });
         await saveCollection(emails.items, {
-          sourceId: sid, fields: ['email', 'label', 'is_primary', 'is_login'],
+          sourceId: sid, fields: EMAIL_LOGIN_FIELDS,
           createMut: emailMuts.create.mutateAsync, updateMut: emailMuts.update.mutateAsync, archiveMut: emailMuts.archive.mutateAsync,
         });
         await saveCollection(addresses.items, {
-          sourceId: sid, fields: ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'],
+          sourceId: sid, fields: ADDRESS_FIELDS,
           createMut: addressMuts.create.mutateAsync, updateMut: addressMuts.update.mutateAsync, archiveMut: addressMuts.archive.mutateAsync,
         });
         await saveCollection(taxIds.items, {
-          sourceId: sid, fields: ['country_code', 'tax_type', 'tax_value'],
+          sourceId: sid, fields: TAX_ID_FIELDS,
           createMut: taxIdMuts.create.mutateAsync, updateMut: taxIdMuts.update.mutateAsync, archiveMut: taxIdMuts.archive.mutateAsync,
         });
       }
