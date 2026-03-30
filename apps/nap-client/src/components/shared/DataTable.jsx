@@ -97,9 +97,9 @@ export default function DataTable({
 
   const NoRowsOverlay = useMemo(() => {
     const msg = emptyMessage;
-    return function Overlay() {
+    return function Overlay(props) {
       return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 1, py: 4 }}>
+        <Box {...props} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 1, py: 4, ...props?.sx }}>
           <InboxOutlinedIcon sx={{ fontSize: 48, color: 'text.disabled' }} />
           <Typography variant="body2" color="text.secondary">{msg}</Typography>
         </Box>
