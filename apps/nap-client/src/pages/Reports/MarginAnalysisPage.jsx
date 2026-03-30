@@ -31,7 +31,7 @@ const SORT_FIELDS = new Set([
 const columns = [
   { field: 'project_code', headerName: 'Code', width: 120 },
   { field: 'project_name', headerName: 'Project', flex: 1, minWidth: 180 },
-  statusColumn('project_status', 'Status', { sortable: false }),
+  statusColumn('project_status', 'Status', { sortable: false, hideEmpty: true }),
   currencyColumn('invoiced_revenue', 'Revenue'),
   currencyColumn('committed_cost', 'Committed Cost'),
   currencyColumn('gross_profit', 'Gross Profit', { variance: true }),

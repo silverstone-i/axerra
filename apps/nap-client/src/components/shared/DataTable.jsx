@@ -122,8 +122,9 @@ export default function DataTable({
       pageSizeOptions={PAGE_SIZE_OPTIONS}
       initialState={{ pagination: { paginationModel: { pageSize: defaultPageSize } } }}
       getRowClassName={mergedGetRowClassName}
-      slots={{ noRowsOverlay: NoRowsOverlay }}
       {...dataGridProps}
+      slots={{ noRowsOverlay: NoRowsOverlay, ...(dataGridProps.slots || {}) }}
+      slotProps={{ ...dataGridProps.slotProps, noRowsOverlay: { ...(dataGridProps.slotProps?.noRowsOverlay || {}) } }}
     />
   );
 }

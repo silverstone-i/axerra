@@ -25,14 +25,16 @@ import { fmtDate, cap, capSnake } from './format.js';
  *     → maps the raw value through the function before passing to StatusBadge
  */
 export function statusColumn(field = 'status', headerName = 'Status', overrides = {}) {
-  const { map, ...rest } = overrides;
+  const { map, hideEmpty, ...rest } = overrides;
   return {
     field,
     headerName,
     width: 120,
-    renderCell: map
-      ? ({ value }) => <StatusBadge status={map(value)} />
-      : ({ value }) => <StatusBadge status={value} />,
+    renderCell: ({ value }) => {
+      const display = map ? map(value) : value;
+      if (hideEmpty && !display) return null;
+      return <StatusBadge status={display} />;
+    },
     ...rest,
   };
 }
