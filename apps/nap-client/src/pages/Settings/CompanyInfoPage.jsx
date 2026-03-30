@@ -292,7 +292,7 @@ function AddressCard({ address, isNew, sourceId, onSaved, onDeleted, onError }) 
           </Typography>
           <Box sx={{ display: 'flex', gap: 1 }}>
             {!isNew && (
-              <IconButton size="small" color="error" onClick={handleDelete} disabled={archiveMut.isPending} aria-label={`Remove ${form.label || 'address'}`}>
+              <IconButton size="small" color="error" onClick={handleDelete} disabled={archiveMut.isPending} aria-label={`Remove ${form.label ? `${form.label} address` : 'address'}`}>
                 <DeleteIcon fontSize="small" />
               </IconButton>
             )}
