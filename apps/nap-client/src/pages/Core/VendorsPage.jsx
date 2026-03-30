@@ -171,6 +171,7 @@ export default function VendorsPage() {
     editForm,
     updateMut,
     toast,
+    qc,
     emailMuts: { create: createEmailMut, update: updateEmailMut, archive: archiveEmailMut },
     phoneMuts: { create: createPhoneMut, update: updatePhoneMut, archive: archivePhoneMut },
     addressMuts: { create: createAddrMut, update: updateAddrMut, archive: archiveAddrMut },

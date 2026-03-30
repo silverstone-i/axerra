@@ -67,10 +67,15 @@ function buildPreview(cfg) {
   const padded = serial.padStart(cfg.padding || 4, '0');
   const sep = cfg.separator || '';
 
+  const now = new Date();
+  const y = String(now.getFullYear());
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+
   let datePart = '';
-  if (cfg.date_mode === 'year') datePart = '2026';
-  else if (cfg.date_mode === 'year_month') datePart = '2026-02';
-  else if (cfg.date_mode === 'ymd') datePart = '2026-02-25';
+  if (cfg.date_mode === 'year') datePart = y;
+  else if (cfg.date_mode === 'year_month') datePart = `${y}-${m}`;
+  else if (cfg.date_mode === 'ymd') datePart = `${y}-${m}-${d}`;
 
   const parts = [cfg.prefix, datePart, padded, cfg.suffix].filter(Boolean);
   const result = parts.join(sep);

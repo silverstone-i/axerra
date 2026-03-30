@@ -14,6 +14,7 @@ import { useListSelection } from '../../../hooks/useListSelection.js';
 import { useArchiveRestore } from '../../../hooks/useArchiveRestore.js';
 import { errMsg } from '../../../utils/format.js';
 import { saveCollection } from '../../../utils/saveCollection.js';
+import { EMAIL_LOGIN_FIELDS, PHONE_FIELDS } from '../../../utils/formConstants.js';
 
 const BLANK_CONTACT_FORM = {
   first_name: '', last_name: '', position: '', department: '',
@@ -236,11 +237,11 @@ export function useVendorContactDialogs({
 
       const sid = contactEditRow.source_id;
       await saveCollection(contactEditEmails, {
-        sourceId: sid, fields: ['email', 'label', 'is_primary', 'is_login'],
+        sourceId: sid, fields: EMAIL_LOGIN_FIELDS,
         createMut: createEmailMut.mutateAsync, updateMut: updateEmailMut.mutateAsync, archiveMut: archiveEmailMut.mutateAsync,
       });
       await saveCollection(contactEditPhones, {
-        sourceId: sid, fields: ['country_code', 'phone_type', 'phone_number', 'is_primary'],
+        sourceId: sid, fields: PHONE_FIELDS,
         createMut: createPhoneMut.mutateAsync, updateMut: updatePhoneMut.mutateAsync, archiveMut: archivePhoneMut.mutateAsync,
       });
 

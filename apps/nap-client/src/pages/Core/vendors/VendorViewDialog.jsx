@@ -14,11 +14,11 @@ import Tabs from '@mui/material/Tabs';
 import DetailDialog from '../../../components/shared/DetailDialog.jsx';
 import StatusBadge from '../../../components/shared/StatusBadge.jsx';
 import FieldRow from '../../../components/shared/FieldRow.jsx';
-import DataTable from '../../../components/shared/DataTable.jsx';
 import EmailsSection from '../../../components/shared/EmailsSection.jsx';
 import PhoneNumbersSection from '../../../components/shared/PhoneNumbersSection.jsx';
 import AddressesSection from '../../../components/shared/AddressesSection.jsx';
 import TaxIdentifiersSection from '../../../components/shared/TaxIdentifiersSection.jsx';
+import VendorContactsPanel from './VendorContactsPanel.jsx';
 import { detailGridSx } from '../../../config/layoutTokens.js';
 import { fmtDate } from '../../../utils/format.js';
 
@@ -80,15 +80,12 @@ export default function VendorViewDialog({
           )}
 
           {viewTab === 1 && (
-            <Box sx={{ pt: 2 }}>
-              <DataTable
-                rows={viewContacts}
-                columns={contactColumns}
-                selection={contactSelection}
-                onView={onViewContact}
-                dataGridProps={{ autoHeight: true, checkboxSelection: false, pageSizeOptions: [10, 25] }}
-              />
-            </Box>
+            <VendorContactsPanel
+              rows={viewContacts}
+              columns={contactColumns}
+              selection={contactSelection}
+              onViewContact={onViewContact}
+            />
           )}
         </>
       )}

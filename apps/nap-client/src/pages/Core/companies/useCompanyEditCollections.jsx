@@ -12,7 +12,7 @@ import { useTaxIdentifiers } from '../../../hooks/useTaxIdentifiers.js';
 import { useCollectionState } from '../../../hooks/useCollectionState.js';
 import { saveCollection } from '../../../utils/saveCollection.js';
 import { errMsg } from '../../../utils/format.js';
-import { BLANK_ADDRESS, BLANK_TAX_ID } from '../../../utils/formConstants.js';
+import { BLANK_ADDRESS, BLANK_TAX_ID, ADDRESS_FIELDS, TAX_ID_FIELDS, collectionChanged } from '../../../utils/formConstants.js';
 
 export function useCompanyEditCollections({
   editOpen,
@@ -20,6 +20,7 @@ export function useCompanyEditCollections({
   editForm,
   updateMut,
   toast,
+  qc,
   addressMuts,
   taxIdMuts,
 }) {
@@ -50,18 +51,8 @@ export function useCompanyEditCollections({
     const init = editInitial.current;
     if (!init.form) return false;
     if (JSON.stringify(editForm) !== JSON.stringify(init.form)) return true;
-    const collectionChanged = (current, initial, fields) => {
-      if (!initial) return false;
-      if (current.some((c) => c._deleted)) return true;
-      if (current.some((c) => !c.id && !c._deleted)) return true;
-      const initMap = new Map(initial.map((r) => [r.id, r]));
-      return current.filter((c) => c.id && !c._deleted).some((c) => {
-        const orig = initMap.get(c.id);
-        return !orig || fields.some((f) => c[f] !== orig[f]);
-      });
-    };
-    if (collectionChanged(addresses.items, init.addresses, ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'])) return true;
-    if (collectionChanged(taxIds.items, init.taxIds, ['country_code', 'tax_type', 'tax_value'])) return true;
+    if (collectionChanged(addresses.items, init.addresses, ADDRESS_FIELDS)) return true;
+    if (collectionChanged(taxIds.items, init.taxIds, TAX_ID_FIELDS)) return true;
     return false;
   }, [editForm, addresses.items, taxIds.items]);
 
@@ -71,13 +62,11 @@ export function useCompanyEditCollections({
 
       if (editRow.source_id) {
         await saveCollection(addresses.items, {
-          sourceId: editRow.source_id,
-          fields: ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'],
+          sourceId: editRow.source_id, fields: ADDRESS_FIELDS,
           createMut: addressMuts.create.mutateAsync, updateMut: addressMuts.update.mutateAsync, archiveMut: addressMuts.archive.mutateAsync,
         });
         await saveCollection(taxIds.items, {
-          sourceId: editRow.source_id,
-          fields: ['country_code', 'tax_type', 'tax_value'],
+          sourceId: editRow.source_id, fields: TAX_ID_FIELDS,
           createMut: taxIdMuts.create.mutateAsync, updateMut: taxIdMuts.update.mutateAsync, archiveMut: taxIdMuts.archive.mutateAsync,
         });
       }
@@ -86,6 +75,7 @@ export function useCompanyEditCollections({
       return true;
     } catch (err) {
       toast(errMsg(err), 'error');
+      qc.invalidateQueries({ queryKey: ['companies'] });
       return false;
     }
   };

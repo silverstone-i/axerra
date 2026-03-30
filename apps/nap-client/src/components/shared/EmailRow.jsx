@@ -52,7 +52,7 @@ export default function EmailRow({ item, index, onUpdate, onRemove, showLogin, l
           sx={{ mr: 0 }}
         />
       )}
-      <IconButton size="small" onClick={() => onRemove(index)} color="error" disabled={isLoginEmail}>
+      <IconButton size="small" onClick={() => onRemove(index)} color="error" disabled={isLoginEmail} aria-label={`Remove ${item.email || 'email'}`}>
         <DeleteOutlineIcon fontSize="small" />
       </IconButton>
     </Box>

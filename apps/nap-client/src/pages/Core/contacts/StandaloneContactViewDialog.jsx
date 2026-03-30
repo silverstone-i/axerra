@@ -6,12 +6,8 @@
  */
 
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import Dialog from '@mui/material/Dialog';
-import DialogContent from '@mui/material/DialogContent';
-import DialogTitle from '@mui/material/DialogTitle';
-import Typography from '@mui/material/Typography';
 
+import DetailDialog from '../../../components/shared/DetailDialog.jsx';
 import FieldRow from '../../../components/shared/FieldRow.jsx';
 import StatusBadge from '../../../components/shared/StatusBadge.jsx';
 import EmailsSection from '../../../components/shared/EmailsSection.jsx';
@@ -19,7 +15,7 @@ import PhoneNumbersSection from '../../../components/shared/PhoneNumbersSection.
 import AddressesSection from '../../../components/shared/AddressesSection.jsx';
 import TaxIdentifiersSection from '../../../components/shared/TaxIdentifiersSection.jsx';
 import { fmtDate } from '../../../utils/format.js';
-import { dialogHeaderSx, dialogActionBoxSx, detailGridSx, flexColumnSx } from '../../../config/layoutTokens.js';
+import { detailGridSx, flexColumnSx } from '../../../config/layoutTokens.js';
 
 export default function StandaloneContactViewDialog({
   open,
@@ -31,43 +27,26 @@ export default function StandaloneContactViewDialog({
   viewTaxIds,
 }) {
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={dialogHeaderSx}>
-        <Box>
-          <span>Contact Details</span>
-          {contact && (
-            <Typography variant="body2" color="text.secondary">
-              {contact.name}
-            </Typography>
-          )}
-        </Box>
-        <Box sx={dialogActionBoxSx}>
-          <Button size="small" color="inherit" onClick={onClose}>
-            Close
-          </Button>
-        </Box>
-      </DialogTitle>
-      <DialogContent dividers>
-        {contact && (
-          <Box sx={flexColumnSx}>
-            <Box sx={detailGridSx}>
-              <FieldRow label="Code" value={contact.code || '\u2014'} />
-              <FieldRow label="Name" value={contact.name} />
-              <FieldRow label="Active" value={contact.is_active ? 'Yes' : 'No'} />
-              <FieldRow label="Status">
-                <StatusBadge status={contact.deactivated_at ? 'archived' : 'active'} />
-              </FieldRow>
-              <FieldRow label="Created" value={fmtDate(contact.created_at)} />
-              <FieldRow label="Updated" value={fmtDate(contact.updated_at)} />
-            </Box>
-
-            <EmailsSection emails={viewEmails} />
-            <PhoneNumbersSection phones={viewPhones} />
-            <AddressesSection addresses={viewAddresses} />
-            <TaxIdentifiersSection taxIds={viewTaxIds} />
+    <DetailDialog open={open} onClose={onClose} title="Contact Details" subtitle={contact?.name}>
+      {contact && (
+        <Box sx={flexColumnSx}>
+          <Box sx={detailGridSx}>
+            <FieldRow label="Code" value={contact.code || '\u2014'} />
+            <FieldRow label="Name" value={contact.name} />
+            <FieldRow label="Active" value={contact.is_active ? 'Yes' : 'No'} />
+            <FieldRow label="Status">
+              <StatusBadge status={contact.deactivated_at ? 'archived' : 'active'} />
+            </FieldRow>
+            <FieldRow label="Created" value={fmtDate(contact.created_at)} />
+            <FieldRow label="Updated" value={fmtDate(contact.updated_at)} />
           </Box>
-        )}
-      </DialogContent>
-    </Dialog>
+
+          <EmailsSection emails={viewEmails} />
+          <PhoneNumbersSection phones={viewPhones} />
+          <AddressesSection addresses={viewAddresses} />
+          <TaxIdentifiersSection taxIds={viewTaxIds} />
+        </Box>
+      )}
+    </DetailDialog>
   );
 }

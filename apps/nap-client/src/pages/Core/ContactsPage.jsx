@@ -9,6 +9,7 @@
  */
 
 import { useState, useMemo, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useDialogState } from '../../hooks/useDialogState.js';
 import { useFormState } from '../../hooks/useFormState.js';
 import Box from '@mui/material/Box';
@@ -108,6 +109,7 @@ export default function ContactsPage() {
   const { form: createForm, setForm: setCreateForm, field: onCreateField, reset: resetCreateForm } = useFormState(BLANK_CREATE);
   const { form: editForm, setForm: setEditForm, field: onEditField } = useFormState(BLANK_EDIT);
   const { toast, snackProps } = useToast();
+  const qc = useQueryClient();
 
   // View dialog child data
   const viewSourceId = viewDialog.data?.source_id;
@@ -126,6 +128,7 @@ export default function ContactsPage() {
     editForm,
     updateMut,
     toast,
+    qc,
     emailMuts: { create: createEmailMut, update: updateEmailMut, archive: archiveEmailMut },
     phoneMuts: { create: createPhoneMut, update: updatePhoneMut, archive: archivePhoneMut },
     addressMuts: { create: createAddrMut, update: updateAddrMut, archive: archiveAddrMut },

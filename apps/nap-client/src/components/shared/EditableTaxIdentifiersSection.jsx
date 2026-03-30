@@ -90,7 +90,7 @@ export default function EditableTaxIdentifiersSection({
                 size="small"
                 sx={taxValueSx}
               />
-              <IconButton size="small" onClick={() => collection.remove(index)} color="error">
+              <IconButton size="small" onClick={() => collection.remove(index)} color="error" aria-label={`Remove ${countryCode} ${item.tax_type} tax identifier`}>
                 <DeleteOutlineIcon fontSize="small" />
               </IconButton>
             </Box>

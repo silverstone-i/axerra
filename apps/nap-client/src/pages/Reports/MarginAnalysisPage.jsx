@@ -44,7 +44,7 @@ export default function MarginAnalysisPage() {
   const sortDir = (sortModel[0]?.sort || 'desc').toUpperCase();
   const apiParams = SORT_FIELDS.has(sortBy) ? { sortBy, sortDir } : {};
 
-  const { data: rows = [], isLoading } = useMarginAnalysis(apiParams);
+  const { data: rows = [], isLoading, isError, error } = useMarginAnalysis(apiParams);
 
   return (
     <ReportTablePage
@@ -53,6 +53,7 @@ export default function MarginAnalysisPage() {
       columns={columns}
       getRowId={(r) => r.project_id || r.project_code}
       loading={isLoading}
+      error={isError ? error : null}
       dataGridProps={{
         sortingMode: 'server',
         sortModel,

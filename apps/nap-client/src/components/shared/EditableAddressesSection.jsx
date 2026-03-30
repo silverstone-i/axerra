@@ -48,7 +48,7 @@ export default function EditableAddressesSection({
               size="small"
               sx={addressLabelFieldSx}
             />
-            <IconButton size="small" onClick={() => collection.remove(index)} color="error">
+            <IconButton size="small" onClick={() => collection.remove(index)} color="error" aria-label={`Remove ${item.label ? `${item.label} address` : 'address'}`}>
               <DeleteOutlineIcon fontSize="small" />
             </IconButton>
           </Box>

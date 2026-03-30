@@ -14,7 +14,7 @@
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useFormState } from '../../hooks/useFormState.js';
 import { useDialogState } from '../../hooks/useDialogState.js';
 import Box from '@mui/material/Box';
@@ -96,6 +96,8 @@ export default function ManageRolesPage() {
 
   /* ── detail tab ────────────────────────────────────────────── */
   const [detailTab, setDetailTab] = useState(0);
+  const selectedRoleId = selection.selected?.id;
+  useEffect(() => { setDetailTab(0); }, [selectedRoleId]);
   const [actionsContainer, setActionsContainer] = useState(null);
 
   /* ── dialog state ──────────────────────────────────────────── */

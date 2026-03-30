@@ -24,9 +24,9 @@ const columns = [
 ];
 
 export default function ApAgingPage() {
-  const { data: rows = [], isLoading } = useApAging();
+  const { data: rows = [], isLoading, isError, error } = useApAging();
 
   return (
-    <ReportTablePage title="AP Aging" rows={rows} columns={columns} getRowId={(r) => r.vendor_id || r.vendor_code} loading={isLoading} />
+    <ReportTablePage title="AP Aging" rows={rows} columns={columns} getRowId={(r) => r.vendor_id || r.vendor_code} loading={isLoading} error={isError ? error : null} />
   );
 }
