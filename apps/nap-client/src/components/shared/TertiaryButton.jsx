@@ -20,7 +20,7 @@
 import Button from '@mui/material/Button';
 
 const baseSx = (theme) => ({
-  color: theme.palette.brand.navy,
+  color: theme.palette.brand.navyText,
   '&:hover': { backgroundColor: theme.palette.background.surface },
 });
 

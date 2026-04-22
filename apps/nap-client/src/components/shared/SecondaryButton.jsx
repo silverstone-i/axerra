@@ -16,7 +16,7 @@ import Button from '@mui/material/Button';
 
 const secondarySx = (theme) => ({
   borderColor: theme.palette.border.strong,
-  color: theme.palette.brand.navy,
+  color: theme.palette.brand.navyText,
   '&:hover': {
     borderColor: theme.palette.text.tertiary,
     backgroundColor: theme.palette.background.surface,

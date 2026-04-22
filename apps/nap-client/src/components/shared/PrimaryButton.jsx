@@ -5,7 +5,7 @@
  * Implements BRAND.md §"Primary button":
  *   - Navy background (palette-aware: lifted in dark mode for contrast)
  *   - White text
- *   - Gold left stripe — 1.5px wide, expanding to 2.5px on hover
+ *   - Gold left stripe — 2px wide, expanding to 3px on hover
  *   - Padding-left shifts +1px on hover for the "growing" feel
  *   - Stripe hidden when disabled
  *
@@ -29,12 +29,12 @@ const stripeSx = (theme) => ({
     left: 0,
     top: 0,
     bottom: 0,
-    width: '1.5px',
+    width: '2px',
     backgroundColor: theme.palette.brand.gold,
     transition: 'width 160ms ease',
   },
   '&:hover': { paddingLeft: '18.5px' },
-  '&:hover::before': { width: '2.5px' },
+  '&:hover::before': { width: '3px' },
   '&.Mui-disabled::before': { display: 'none' },
 });
 

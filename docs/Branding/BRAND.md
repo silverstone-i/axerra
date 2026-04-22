@@ -57,8 +57,10 @@ Paste into `<head>`:
 
 ```css
 :root {
-  /* Brand */
-  --navy: #2F3E52;
+  /* Brand — two navy tokens; identical in light, divergent in dark. See
+     "Fill vs foreground" below for which to use where. */
+  --navy: #2F3E52;        /* Fill: navy as background (white sits on top) */
+  --navy-text: #2F3E52;   /* Foreground: navy as text/border/icon on a surface */
   --gold: #F4B000;
 
   /* Light surfaces */
@@ -69,11 +71,11 @@ Paste into `<head>`:
   /* Light text */
   --text-primary: #1A2332;
   --text-secondary: #5A6475;
-  --text-tertiary: #8B94A3;
+  --text-tertiary: #677082;
 
   /* Light borders */
-  --border: #E4E6EA;
-  --border-strong: #C8CCD3;
+  --border: #898F9D;
+  --border-strong: #6B7280;
 
   /* Semantic */
   --success: #15803D;
@@ -81,12 +83,24 @@ Paste into `<head>`:
   --warning-text: #B45309;
   --error: #B91C1C;
   --info: #2563EB;
+
+  /* Semantic tints (light — fixed pastels) */
+  --success-tint-bg: #F0FDF4;
+  --success-tint-border: #BBF7D0;
+  --warning-tint-bg: #FFF7ED;
+  --warning-tint-border: #FED7AA;
+  --error-tint-bg: #FEF2F2;
+  --error-tint-border: #FECACA;
+  --info-tint-bg: #EFF6FF;
+  --info-tint-border: #BFDBFE;
 }
 
 [data-theme="dark"] {
-  /* Lifted navy — same hue and saturation as #2F3E52, lightness raised
-     so wordmark and primary CTAs reach AA contrast on the dark page. */
-  --navy: #5D7CA2;
+  /* Two-token navy: fill is darker so white text on it clears AA (5.51:1);
+     foreground is lighter so navy-on-card clears AA (5.17:1). One value
+     can't satisfy both roles — that's why there are two. */
+  --navy: #4F6B8C;        /* Fill: primary CTA background, avatar fills */
+  --navy-text: #698BB8;   /* Foreground: wordmark, navy text/border/icons */
 
   --page: #0B0F14;
   --card: #131923;
@@ -94,15 +108,26 @@ Paste into `<head>`:
 
   --text-primary: #E8ECF2;
   --text-secondary: #9AA4B4;
-  --text-tertiary: #6B7585;
+  --text-tertiary: #818B9C;
 
-  --border: #2A3240;
-  --border-strong: #3A4250;
+  --border: #636C7C;
+  --border-strong: #8B95A5;
 
   --success: #22C55E;
   --warning: #F59E0B;
   --error: #EF4444;
   --info: #60A5FA;
+
+  /* Semantic tints (dark — alpha-derived from each --main so they sit as
+     a faint translucent wash on the dark card, not a pastel flash) */
+  --success-tint-bg: rgba(34, 197, 94, 0.12);
+  --success-tint-border: rgba(34, 197, 94, 0.32);
+  --warning-tint-bg: rgba(245, 158, 11, 0.12);
+  --warning-tint-border: rgba(245, 158, 11, 0.32);
+  --error-tint-bg: rgba(239, 68, 68, 0.12);
+  --error-tint-border: rgba(239, 68, 68, 0.32);
+  --info-tint-bg: rgba(96, 165, 250, 0.12);
+  --info-tint-border: rgba(96, 165, 250, 0.32);
 }
 
 body {
@@ -124,8 +149,11 @@ body {
 
 | Token | Light | Dark | Usage |
 |---|---|---|---|
-| `--navy` | `#2F3E52` | `#5D7CA2` | Wordmark + primary action surface. Dark variant is a tonal lift (same hue/saturation, raised lightness) so the mark and CTAs reach AA contrast on the dark page — `#2F3E52` on `#0B0F14` is ~1.4:1 and unreadable. The brand identity hex stays `#2F3E52`; only the on-screen rendering shifts in dark mode. |
+| `--navy` | `#2F3E52` | `#4F6B8C` | **Fill.** Navy as a *background* with white text/icons on top — primary CTA, avatar, any surface where navy sits *under* light content. Dark variant darkened so white-on-fill clears AA at 5.51:1. |
+| `--navy-text` | `#2F3E52` | `#698BB8` | **Foreground.** Navy as text, border, or icon on a surface — wordmark, secondary/tertiary button text, sidebar active state, navy borders. Dark variant lifted so navy-on-card clears AA at 5.17:1. Identical to `--navy` in light mode. |
 | `--gold` | `#F4B000` | `#F4B000` | Four approved uses (see [Gold discipline](#gold-discipline--the-four-rules)). Same hex in both modes. |
+
+**Brand identity constant:** `#2F3E52` is the canonical brand navy and never changes. It's the value that goes in the favicon, the `theme-color` meta tag, marketing PDFs, business cards, and merch. The on-screen `--navy` and `--navy-text` are *per-mode renderings* of that identity, tuned for AA contrast — they're not new brand colors.
 
 ### Surfaces · light mode
 
@@ -149,16 +177,22 @@ body {
 |---|---|---|---|
 | `--text-primary` | `#1A2332` | `#E8ECF2` | Body, headlines, table data |
 | `--text-secondary` | `#5A6475` | `#9AA4B4` | Supporting copy, metadata |
-| `--text-tertiary` | `#8B94A3` | `#6B7585` | Timestamps, disabled, fine print |
+| `--text-tertiary` | `#677082` | `#818B9C` | Timestamps, disabled, fine print |
 
-**Two-navy rule:** In light mode, the wordmark uses `#2F3E52` (brand) and body text uses `#1A2332` (slightly darker, optimized for reading). In dark mode, the wordmark and primary CTA use `#5D7CA2` (lifted navy) and body text uses `#E8ECF2`. Don't swap the two within a mode, and don't render the canonical `#2F3E52` directly on the dark page — it disappears.
+**Fill vs foreground (the two-navy rule):** `--navy` is the *fill* — something sits on it (almost always white). `--navy-text` is the *foreground* — it sits on something. In light mode the two tokens hold the same value (`#2F3E52`); in dark mode they diverge. Use `--navy` for primary button backgrounds, avatar fills, and any surface where navy is *underneath* lighter content. Use `--navy-text` for the wordmark, secondary/tertiary button text, sidebar active state, navy borders, and navy icons — anywhere navy *is* the visible content on top of a card or page.
+
+**Why two tokens in dark mode:** A single navy can't satisfy both roles. The fill must be dark enough that white text on it clears 4.5:1; the foreground must be light enough that it on a dark card clears 4.5:1. One color can't be both. The lifted dark.navy from earlier (`#5D7CA2`) was a compromise that ended up failing AA in both directions (white-on-fill at 4.32:1, navy-on-card at ~3:1). Splitting into `--navy` (`#4F6B8C`) and `--navy-text` (`#698BB8`) lets each token be optimal for its job.
+
+**Don't render the canonical `#2F3E52` directly on the dark page** — it's ~1.4:1 against `#0B0F14`, completely invisible. Always use the per-mode token.
 
 ### Borders
 
 | Token | Light | Dark |
 |---|---|---|
-| `--border` | `#E4E6EA` | `#2A3240` |
-| `--border-strong` | `#C8CCD3` | `#3A4250` |
+| `--border` | `#898F9D` | `#636C7C` |
+| `--border-strong` | `#6B7280` | `#8B95A5` |
+
+Both tokens reach ≥3:1 against page and card surfaces (WCAG 1.4.11 non-text contrast) so dividers, input outlines, and dialog edges remain visible. Strong is roughly 1.5× the contrast of subtle in both modes.
 
 ### Semantic
 
@@ -171,12 +205,14 @@ body {
 
 **Semantic tinted backgrounds** (for alerts/badges):
 
-| Role | Background | Border |
-|---|---|---|
-| Success | `#F0FDF4` | `#BBF7D0` |
-| Warning | `#FFF7ED` | `#FED7AA` |
-| Error | `#FEF2F2` | `#FECACA` |
-| Info | `#EFF6FF` | `#BFDBFE` |
+| Role | Light bg | Light border | Dark bg | Dark border |
+|---|---|---|---|---|
+| Success | `#F0FDF4` | `#BBF7D0` | `rgba(34, 197, 94, 0.12)` | `rgba(34, 197, 94, 0.32)` |
+| Warning | `#FFF7ED` | `#FED7AA` | `rgba(245, 158, 11, 0.12)` | `rgba(245, 158, 11, 0.32)` |
+| Error | `#FEF2F2` | `#FECACA` | `rgba(239, 68, 68, 0.12)` | `rgba(239, 68, 68, 0.32)` |
+| Info | `#EFF6FF` | `#BFDBFE` | `rgba(96, 165, 250, 0.12)` | `rgba(96, 165, 250, 0.32)` |
+
+**Why two patterns:** Light mode uses fixed pastel hexes that read as gentle washes on white/cream surfaces. In dark mode, those same pastels render as washed-out near-white flashes against `#131923` — distracting and out of palette. Dark mode derives its tints from each semantic `--main` color via `alpha(main, 0.12)` for backgrounds and `alpha(main, 0.32)` for borders, producing a faint translucent wash in the matching hue. Consume via the `--*-tint-bg` / `--*-tint-border` CSS variables defined in [Install](#install) — they swap automatically when `[data-theme="dark"]` is applied.
 
 ---
 
@@ -231,7 +267,7 @@ Use on marketing pages (home, pricing, about, features). Larger and looser than 
 Gold (`#F4B000`) appears in exactly these four places. Nowhere else.
 
 1. **The logo dot** — the square period after `napsoft.`
-2. **Primary CTA left stripe** — 1.5px, expands to 2.5px on hover
+2. **Primary CTA left stripe** — 2px, expands to 3px on hover
 3. **Active nav indicator** — one element per screen (left bar on side nav OR underline on tabs)
 4. **Final-total rule in reports** — 2px bar above the totals row
 
@@ -326,7 +362,7 @@ Copy-paste starting points. Markup is plain HTML with BEM-ish classes — port t
   content: "";
   position: absolute;
   left: 0; top: 0; bottom: 0;
-  width: 1.5px;
+  width: 2px;
   background: var(--gold);
   transition: width 160ms ease;
 }
@@ -334,7 +370,7 @@ Copy-paste starting points. Markup is plain HTML with BEM-ish classes — port t
   background: #243142;
   padding-left: 24.5px;
 }
-.btn-primary:hover::before { width: 2.5px; }
+.btn-primary:hover::before { width: 3px; }
 .btn-primary:disabled {
   background: var(--border-strong);
   color: var(--text-tertiary);
@@ -356,7 +392,7 @@ Copy-paste starting points. Markup is plain HTML with BEM-ish classes — port t
 .btn-secondary {
   padding: 12px 22px;
   background: transparent;
-  color: var(--navy);
+  color: var(--navy-text);
   border: 1px solid var(--border-strong);
   border-radius: 4px;
   font: 500 14px/1 'Inter', sans-serif;
@@ -380,7 +416,7 @@ Copy-paste starting points. Markup is plain HTML with BEM-ish classes — port t
 .btn-tertiary {
   padding: 12px 14px;
   background: transparent;
-  color: var(--navy);
+  color: var(--navy-text);
   border: none;
   border-radius: 4px;
   font: 500 14px/1 'Inter', sans-serif;
@@ -388,7 +424,7 @@ Copy-paste starting points. Markup is plain HTML with BEM-ish classes — port t
 }
 .btn-tertiary:hover { background: var(--subtle); }
 .btn-tertiary--danger { color: var(--error); }
-.btn-tertiary--danger:hover { background: #FEF2F2; }
+.btn-tertiary--danger:hover { background: var(--error-tint-bg); }
 ```
 
 ### Destructive actions
@@ -444,7 +480,7 @@ Red is reserved for *status* (something is broken), not *action* (the user is ta
 .input:hover { border-color: var(--text-tertiary); }
 .input:focus {
   outline: none;
-  border-color: var(--navy);
+  border-color: var(--navy-text);
   box-shadow: 0 0 0 3px rgba(47, 62, 82, 0.12);
 }
 .input:disabled {
@@ -486,7 +522,7 @@ Accounting-specific. Numeric fields need monospace digits, right-alignment, and 
   transition: border-color 140ms ease, box-shadow 140ms ease;
 }
 .input-currency:focus-within {
-  border-color: var(--navy);
+  border-color: var(--navy-text);
   box-shadow: 0 0 0 3px rgba(47, 62, 82, 0.12);
 }
 .input-currency-prefix {
@@ -537,10 +573,10 @@ Accounting-specific. Numeric fields need monospace digits, right-alignment, and 
   font: 700 10px/1 'Inter', sans-serif;
 }
 
-.badge--success { background: #F0FDF4; border-color: #BBF7D0; color: #15803D; }
-.badge--warning { background: #FFF7ED; border-color: #FED7AA; color: #B45309; }
-.badge--error   { background: #FEF2F2; border-color: #FECACA; color: var(--error); }
-.badge--info    { background: #EFF6FF; border-color: #BFDBFE; color: #1D4ED8; }
+.badge--success { background: var(--success-tint-bg); border-color: var(--success-tint-border); color: var(--success); }
+.badge--warning { background: var(--warning-tint-bg); border-color: var(--warning-tint-border); color: var(--warning-text); }
+.badge--error   { background: var(--error-tint-bg);   border-color: var(--error-tint-border);   color: var(--error); }
+.badge--info    { background: var(--info-tint-bg);    border-color: var(--info-tint-border);    color: var(--info); }
 .badge--neutral { background: var(--subtle); border-color: var(--border); color: var(--text-secondary); }
 ```
 
@@ -577,13 +613,13 @@ Accounting-specific. Numeric fields need monospace digits, right-alignment, and 
   margin-top: 1px;
 }
 
-.alert--success { background: #F0FDF4; border-left-color: #15803D; }
-.alert--success .alert-icon { background: #15803D; }
-.alert--warning { background: #FFF7ED; border-left-color: var(--warning); }
+.alert--success { background: var(--success-tint-bg); border-left-color: var(--success); }
+.alert--success .alert-icon { background: var(--success); }
+.alert--warning { background: var(--warning-tint-bg); border-left-color: var(--warning); }
 .alert--warning .alert-icon { background: var(--warning); }
-.alert--error   { background: #FEF2F2; border-left-color: var(--error); }
+.alert--error   { background: var(--error-tint-bg);   border-left-color: var(--error); }
 .alert--error   .alert-icon { background: var(--error); }
-.alert--info    { background: #EFF6FF; border-left-color: var(--info); }
+.alert--info    { background: var(--info-tint-bg);    border-left-color: var(--info); }
 .alert--info    .alert-icon { background: var(--info); }
 ```
 
@@ -781,7 +817,7 @@ The wordmark is implemented as HTML, not an image, so it renders crisp at any si
 .wordmark {
   font-family: 'Inter', sans-serif;
   font-weight: 500;
-  color: var(--navy);
+  color: var(--navy-text);
   display: inline-flex;
   align-items: baseline;
   line-height: 1;
@@ -816,4 +852,4 @@ Set the `font-size` on the outer `.wordmark` and the dot scales with it automati
 
 ---
 
-*Brand system v1 · Last updated with typography & voice · © NapSoft*
+*Brand system v1 · Updated with WCAG AA tokens & two-token navy split · © NapSoft*

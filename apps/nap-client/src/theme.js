@@ -401,6 +401,28 @@ const buildOptions = (t) => ({
     MuiChip: {
       styleOverrides: {
         sizeSmall: { fontWeight: 600, fontSize: '0.75rem' },
+        outlinedPrimary: ({ theme }) => ({
+          color: theme.palette.brand.navyText,
+          borderColor: theme.palette.brand.navyText,
+        }),
+      },
+    },
+
+    /* ── Tabs ──────────────────────────────────────────────── */
+
+    MuiTab: {
+      styleOverrides: {
+        root: ({ theme }) => ({
+          '&.Mui-selected': { color: theme.palette.brand.navyText },
+        }),
+      },
+    },
+
+    MuiTabs: {
+      styleOverrides: {
+        indicator: ({ theme }) => ({
+          backgroundColor: theme.palette.brand.navyText,
+        }),
       },
     },
 
@@ -450,9 +472,17 @@ const buildPalette = (mode) => {
       secondary: c.text.secondary,
       tertiary: c.text.tertiary,
     },
-    brand: { navy: c.brand.navy, gold: BRAND.gold },
+    brand: { navy: c.brand.navy, navyText: c.brand.navyText, gold: BRAND.gold },
     border: { subtle: c.border.subtle, strong: c.border.strong },
-    semantic: c.semantic,
+    semantic:
+      mode === 'dark'
+        ? Object.fromEntries(
+            Object.entries(c.semantic).map(([k, s]) => [
+              k,
+              { ...s, tintBg: alpha(s.main, 0.12), tintBorder: alpha(s.main, 0.32) },
+            ]),
+          )
+        : c.semantic,
   };
 };
 

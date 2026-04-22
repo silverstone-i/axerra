@@ -163,7 +163,7 @@ export default function Sidebar() {
                   <ListItemIcon
                     sx={{
                       minWidth: 0,
-                      color: isGroupActive ? 'primary.main' : 'text.secondary',
+                      color: isGroupActive ? 'brand.navyText' : 'text.secondary',
                       opacity: isGroupActive ? 1 : undefined,
                     }}
                   >
@@ -178,7 +178,7 @@ export default function Sidebar() {
               <ListItemButton onClick={() => toggleGroup(group.label)} sx={{ mb: 0.25 }}>
                 <ListItemIcon
                   sx={{
-                    color: isGroupActive ? 'primary.main' : 'text.secondary',
+                    color: isGroupActive ? 'brand.navyText' : 'text.secondary',
                     opacity: isGroupActive ? 1 : undefined,
                   }}
                 >
@@ -189,7 +189,7 @@ export default function Sidebar() {
                   primaryTypographyProps={{
                     ...FONT.navGroup,
                     fontWeight: isGroupActive ? 600 : 400,
-                    color: isGroupActive ? 'primary.main' : 'text.primary',
+                    color: isGroupActive ? 'brand.navyText' : 'text.primary',
                   }}
                 />
                 {openGroups[group.label] ? (

@@ -9,10 +9,18 @@
  *
  * Structure mirrors BRAND.md §"Color tokens":
  *   - BRAND        : canonical brand identity hexes (navy, gold) — never change
- *   - brand.navy   : per-mode display navy. Light mode = BRAND.navy. Dark mode
- *                    uses a lifted tonal variant (#5D7CA2) so the wordmark and
- *                    primary CTAs reach AA contrast on the dark page surface.
- *                    Hue and saturation are preserved from BRAND.navy.
+ *   - brand.navy   : per-mode FILL navy. Light = BRAND.navy. Dark = #4F6B8C
+ *                    (darkened so white text on the CTA fill clears AA, 5.51:1).
+ *                    Used for primary button backgrounds and any other surface
+ *                    where navy sits beneath white/light foreground.
+ *   - brand.navyText: per-mode FOREGROUND navy. Light = BRAND.navy (same value
+ *                    as brand.navy — passes 10.87:1 on white). Dark = #698BB8
+ *                    (lifted so navy-on-card text/border clears AA, 5.17:1).
+ *                    Use for navy text, navy borders, navy icons — anywhere
+ *                    navy is the foreground against a light/dark surface.
+ *                    Two tokens because one value can't satisfy both roles
+ *                    in dark mode: fill needs to be dark (white-on-it), text
+ *                    needs to be light (it-on-dark).
  *   - surface      : page / card / subtle (BRAND.md §"Surfaces")
  *   - text         : primary / secondary / tertiary (BRAND.md §"Text")
  *   - border       : subtle / strong (BRAND.md §"Borders")
@@ -43,6 +51,7 @@ export const BRAND = {
 const light = {
   brand: {
     navy: BRAND.navy,
+    navyText: BRAND.navy,
   },
   surface: {
     page: '#FAFAF7',
@@ -52,11 +61,11 @@ const light = {
   text: {
     primary: '#1A2332',
     secondary: '#5A6475',
-    tertiary: '#8B94A3',
+    tertiary: '#677082',
   },
   border: {
-    subtle: '#E4E6EA',
-    strong: '#C8CCD3',
+    subtle: '#898F9D',
+    strong: '#6B7280',
   },
   semantic: {
     success: { main: '#15803D', text: '#15803D', tintBg: '#F0FDF4', tintBorder: '#BBF7D0' },
@@ -70,7 +79,8 @@ const light = {
 
 const dark = {
   brand: {
-    navy: '#5D7CA2',
+    navy: '#4F6B8C',
+    navyText: '#698BB8',
   },
   surface: {
     page: '#0B0F14',
@@ -80,11 +90,11 @@ const dark = {
   text: {
     primary: '#E8ECF2',
     secondary: '#9AA4B4',
-    tertiary: '#6B7585',
+    tertiary: '#818B9C',
   },
   border: {
-    subtle: '#2A3240',
-    strong: '#3A4250',
+    subtle: '#636C7C',
+    strong: '#8B95A5',
   },
   semantic: {
     success: { main: '#22C55E', text: '#22C55E', tintBg: '#F0FDF4', tintBorder: '#BBF7D0' },

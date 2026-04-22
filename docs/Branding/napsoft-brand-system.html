@@ -9,9 +9,11 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <style>
   :root {
-    /* Core brand */
-    --navy: #2F3E52;
-    --navy-text: #1A2332;
+    /* Core brand — two navy tokens; identical in light, divergent in dark.
+       --navy = fill (white sits on top); --navy-text = foreground (it sits
+       on something). See BRAND.md §"Fill vs foreground" for usage. */
+    --navy: #2F3E52;        /* Fill */
+    --navy-text: #2F3E52;   /* Foreground (lifted to #698BB8 in dark) */
     --gold: #F4B000;
 
     /* Light mode surfaces */
@@ -22,17 +24,28 @@
     /* Text */
     --text-primary: #1A2332;
     --text-secondary: #5A6475;
-    --text-tertiary: #8B94A3;
+    --text-tertiary: #677082;
 
-    /* Borders */
-    --border: #E4E6EA;
-    --border-strong: #C8CCD3;
+    /* Borders — bumped from #E4E6EA / #C8CCD3 so dividers, input outlines,
+       and dialog edges read at ≥3:1 (WCAG 1.4.11) against page and card. */
+    --border: #898F9D;
+    --border-strong: #6B7280;
 
     /* Semantic */
     --success: #15803D;
     --warning: #E67E22;
     --error: #B91C1C;
     --info: #2563EB;
+
+    /* Semantic tints (light — fixed pastels) */
+    --success-tint-bg: #F0FDF4;
+    --success-tint-border: #BBF7D0;
+    --warning-tint-bg: #FFF7ED;
+    --warning-tint-border: #FED7AA;
+    --error-tint-bg: #FEF2F2;
+    --error-tint-border: #FECACA;
+    --info-tint-bg: #EFF6FF;
+    --info-tint-border: #BFDBFE;
   }
 
   * { box-sizing: border-box; }
@@ -128,7 +141,7 @@
     align-items: center;
   }
   .logo-card--dark .logo-card-label {
-    color: #6B7585;
+    color: #818B9C;
     border-bottom-color: #1A212D;
   }
   .logo-card-tag {
@@ -162,7 +175,7 @@
     align-items: baseline;
     line-height: 1;
   }
-  .logo-card--dark .wordmark { color: #E8ECF2; }
+  .logo-card--dark .wordmark { color: #698BB8; }
 
   /* Tightened "nap" — subtle de-emphasis via density, not size */
   .wordmark .nap { letter-spacing: -0.055em; }
@@ -339,7 +352,7 @@
     left: 0;
     top: 0;
     bottom: 0;
-    width: 1.5px;
+    width: 2px;
     background: var(--gold);
     transition: width 160ms ease;
   }
@@ -347,15 +360,15 @@
     background: #243142;
     padding-left: 24.5px;
   }
-  .btn-primary:hover::before { width: 2.5px; }
+  .btn-primary:hover::before { width: 3px; }
   .btn-primary:focus-visible {
     outline: 2px solid rgba(90, 111, 160, 0.5);
     outline-offset: 2px;
   }
   .btn-primary:disabled,
   .btn-primary.is-disabled {
-    background: #C8CCD3;
-    color: #8B94A3;
+    background: #6B7280;
+    color: #677082;
     cursor: not-allowed;
     padding-left: 22px;
   }
@@ -369,7 +382,7 @@
     background: #243142;
     padding-left: 24.5px;
   }
-  .btn-primary.is-hover-demo::before { width: 2.5px; }
+  .btn-primary.is-hover-demo::before { width: 3px; }
 
   /* Secondary button for contrast — NO gold */
   .btn-secondary {
@@ -414,7 +427,7 @@
   }
   .btn-tertiary:hover { background: var(--subtle); }
   .btn-tertiary--danger { color: var(--error); }
-  .btn-tertiary--danger:hover { background: #FEF2F2; }
+  .btn-tertiary--danger:hover { background: var(--error-tint-bg); }
 
   /* Tabs */
   .tabs {
@@ -467,7 +480,7 @@
     font-weight: 600;
   }
   .dropdown-item--danger { color: var(--error); }
-  .dropdown-item--danger:hover { background: #FEF2F2; }
+  .dropdown-item--danger:hover { background: var(--error-tint-bg); }
   .dropdown-item--disabled { color: var(--border-strong); cursor: not-allowed; }
   .dropdown-item--disabled:hover { background: transparent; }
   .dropdown-divider {
@@ -528,10 +541,10 @@
     font-family: 'Inter', sans-serif;
     line-height: 1;
   }
-  .badge--success { background: #F0FDF4; border-color: #BBF7D0; color: #15803D; }
-  .badge--warning { background: #FFF7ED; border-color: #FED7AA; color: #B45309; }
-  .badge--error { background: #FEF2F2; border-color: #FECACA; color: #B91C1C; }
-  .badge--info { background: #EFF6FF; border-color: #BFDBFE; color: #1D4ED8; }
+  .badge--success { background: var(--success-tint-bg); border-color: var(--success-tint-border); color: #15803D; }
+  .badge--warning { background: var(--warning-tint-bg); border-color: var(--warning-tint-border); color: #B45309; }
+  .badge--error   { background: var(--error-tint-bg);   border-color: var(--error-tint-border);   color: #B91C1C; }
+  .badge--info    { background: var(--info-tint-bg);    border-color: var(--info-tint-border);    color: #1D4ED8; }
   .badge--neutral { background: var(--subtle); border-color: var(--border); color: var(--text-secondary); }
 
   /* Alert banners */
@@ -561,14 +574,14 @@
   }
   .alert-body { color: var(--text-primary); }
   .alert-body strong { font-weight: 600; }
-  .alert--success { background: #F0FDF4; border-left-color: #15803D; }
+  .alert--success { background: var(--success-tint-bg); border-left-color: #15803D; }
   .alert--success .alert-icon { background: #15803D; }
-  .alert--warning { background: #FFF7ED; border-left-color: #E67E22; }
+  .alert--warning { background: var(--warning-tint-bg); border-left-color: #E67E22; }
   .alert--warning .alert-icon { background: #E67E22; }
-  .alert--error { background: #FEF2F2; border-left-color: #B91C1C; }
-  .alert--error .alert-icon { background: #B91C1C; }
-  .alert--info { background: #EFF6FF; border-left-color: #2563EB; }
-  .alert--info .alert-icon { background: #2563EB; }
+  .alert--error   { background: var(--error-tint-bg);   border-left-color: #B91C1C; }
+  .alert--error   .alert-icon { background: #B91C1C; }
+  .alert--info    { background: var(--info-tint-bg);    border-left-color: #2563EB; }
+  .alert--info    .alert-icon { background: #2563EB; }
   .component-card {
     border: 1px solid var(--border);
     border-radius: 6px;
@@ -670,7 +683,7 @@
     width: 100%;
     padding: 9px 12px;
     background: #FFFFFF;
-    border: 1px solid #C8CCD3;
+    border: 1px solid #6B7280;
     border-radius: 4px;
     font-family: 'Inter', sans-serif;
     font-size: 14px;
@@ -679,7 +692,7 @@
     transition: border-color 140ms ease, box-shadow 140ms ease;
   }
   .input::placeholder { color: var(--text-tertiary); }
-  .input:hover { border-color: #8B94A3; }
+  .input:hover { border-color: #677082; }
   .input:focus {
     outline: none;
     border-color: var(--navy);
@@ -691,7 +704,7 @@
     border-color: var(--border);
     cursor: not-allowed;
   }
-  .input--filled { border-color: #8B94A3; }
+  .input--filled { border-color: #677082; }
   .input--readonly {
     background: transparent;
     border-color: transparent;
@@ -714,11 +727,11 @@
     align-items: stretch;
     width: 100%;
     background: #FFFFFF;
-    border: 1px solid #C8CCD3;
+    border: 1px solid #6B7280;
     border-radius: 4px;
     transition: border-color 140ms ease, box-shadow 140ms ease;
   }
-  .input-currency:hover { border-color: #8B94A3; }
+  .input-currency:hover { border-color: #677082; }
   .input-currency:focus-within {
     border-color: var(--navy);
     box-shadow: 0 0 0 3px rgba(47, 62, 82, 0.12);
@@ -751,7 +764,7 @@
     width: 100%;
     padding: 9px 36px 9px 12px;
     background: #FFFFFF;
-    border: 1px solid #C8CCD3;
+    border: 1px solid #6B7280;
     border-radius: 4px;
     font-family: inherit;
     font-size: 14px;
@@ -761,7 +774,7 @@
     transition: border-color 140ms ease;
     appearance: none;
   }
-  .select-trigger:hover { border-color: #8B94A3; }
+  .select-trigger:hover { border-color: #677082; }
   .select-trigger:focus {
     outline: none;
     border-color: var(--navy);
@@ -784,7 +797,7 @@
     min-height: 36px;
     padding: 4px 12px 4px 6px;
     background: #FFFFFF;
-    border: 1px solid #C8CCD3;
+    border: 1px solid #6B7280;
     border-radius: 4px;
     display: flex;
     flex-wrap: wrap;
@@ -793,7 +806,7 @@
     cursor: text;
     transition: border-color 140ms ease, box-shadow 140ms ease;
   }
-  .input-multi:hover { border-color: #8B94A3; }
+  .input-multi:hover { border-color: #677082; }
   .input-multi:focus-within {
     border-color: var(--navy);
     box-shadow: 0 0 0 3px rgba(47, 62, 82, 0.12);
@@ -851,7 +864,7 @@
     appearance: none;
     width: 16px;
     height: 16px;
-    border: 1.5px solid #C8CCD3;
+    border: 1.5px solid #6B7280;
     background: #FFFFFF;
     border-radius: 3px;
     cursor: pointer;
@@ -859,7 +872,7 @@
     flex-shrink: 0;
     transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
   }
-  .checkbox:hover { border-color: #8B94A3; }
+  .checkbox:hover { border-color: #677082; }
   .checkbox:focus-visible {
     outline: none;
     box-shadow: 0 0 0 3px rgba(47, 62, 82, 0.2);
@@ -913,7 +926,7 @@
     appearance: none;
     width: 16px;
     height: 16px;
-    border: 1.5px solid #C8CCD3;
+    border: 1.5px solid #6B7280;
     background: #FFFFFF;
     border-radius: 50%;
     cursor: pointer;
@@ -921,7 +934,7 @@
     flex-shrink: 0;
     transition: border-color 140ms ease, box-shadow 140ms ease;
   }
-  .radio:hover { border-color: #8B94A3; }
+  .radio:hover { border-color: #677082; }
   .radio:focus-visible {
     outline: none;
     box-shadow: 0 0 0 3px rgba(47, 62, 82, 0.2);
@@ -946,7 +959,7 @@
     appearance: none;
     width: 32px;
     height: 18px;
-    background: #C8CCD3;
+    background: #6B7280;
     border: none;
     border-radius: 9px;
     position: relative;
@@ -966,7 +979,7 @@
     box-shadow: 0 1px 2px rgba(26, 35, 50, 0.15);
     transition: left 160ms ease;
   }
-  .toggle:hover { background: #8B94A3; }
+  .toggle:hover { background: #677082; }
   .toggle:focus-visible {
     outline: none;
     box-shadow: 0 0 0 3px rgba(47, 62, 82, 0.2);
@@ -1058,8 +1071,8 @@
   }
   .table-selection-strip-btn--danger { color: #B91C1C; }
   .table-selection-strip-btn--danger:hover {
-    background: #FEF2F2;
-    border-color: #FECACA;
+    background: var(--error-tint-bg);
+    border-color: var(--error-tint-border);
   }
 
   /* Core table */
@@ -1764,17 +1777,17 @@
         </div>
       </div>
       <div class="swatch">
-        <div class="swatch-chip" style="background:#8B94A3;"></div>
+        <div class="swatch-chip" style="background:#677082;"></div>
         <div class="swatch-body">
           <div class="swatch-label">Text tertiary</div>
-          <div class="swatch-hex">#8B94A3</div>
+          <div class="swatch-hex">#677082</div>
         </div>
       </div>
       <div class="swatch">
-        <div class="swatch-chip" style="background:#E4E6EA;"></div>
+        <div class="swatch-chip" style="background:#898F9D;"></div>
         <div class="swatch-body">
           <div class="swatch-label">Border default</div>
-          <div class="swatch-hex">#E4E6EA</div>
+          <div class="swatch-hex">#898F9D</div>
         </div>
       </div>
       <div class="swatch">
@@ -1824,8 +1837,8 @@
               <td style="padding:12px 20px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-tertiary);text-align:right;">#5A6475</td>
             </tr>
             <tr style="border-bottom:1px solid var(--border);">
-              <td style="padding:12px 20px;color:#8B94A3;">Text tertiary</td>
-              <td style="padding:12px 20px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-tertiary);text-align:right;">#8B94A3</td>
+              <td style="padding:12px 20px;color:#677082;">Text tertiary</td>
+              <td style="padding:12px 20px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-tertiary);text-align:right;">#677082</td>
             </tr>
             <tr>
               <td style="padding:12px 20px;color:#2F3E52;">Wordmark navy</td>
@@ -1835,28 +1848,28 @@
         </div>
         <!-- Dark mode text -->
         <div style="border:1px solid #1A212D;border-radius:6px;background:#0B0F14;overflow:hidden;">
-          <div style="padding:12px 20px;border-bottom:1px solid #1A212D;font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#6B7585;">Dark mode</div>
+          <div style="padding:12px 20px;border-bottom:1px solid #1A212D;font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#818B9C;">Dark mode</div>
           <table style="width:100%;border-collapse:collapse;font-size:13px;">
             <tr style="border-bottom:1px solid #1A212D;">
               <td style="padding:12px 20px;color:#E8ECF2;">Text primary</td>
-              <td style="padding:12px 20px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#6B7585;text-align:right;">#E8ECF2</td>
+              <td style="padding:12px 20px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#818B9C;text-align:right;">#E8ECF2</td>
             </tr>
             <tr style="border-bottom:1px solid #1A212D;">
               <td style="padding:12px 20px;color:#9AA4B4;">Text secondary</td>
-              <td style="padding:12px 20px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#6B7585;text-align:right;">#9AA4B4</td>
+              <td style="padding:12px 20px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#818B9C;text-align:right;">#9AA4B4</td>
             </tr>
             <tr style="border-bottom:1px solid #1A212D;">
-              <td style="padding:12px 20px;color:#6B7585;">Text tertiary</td>
-              <td style="padding:12px 20px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#6B7585;text-align:right;">#6B7585</td>
+              <td style="padding:12px 20px;color:#818B9C;">Text tertiary</td>
+              <td style="padding:12px 20px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#818B9C;text-align:right;">#818B9C</td>
             </tr>
             <tr>
-              <td style="padding:12px 20px;color:#E8ECF2;">Wordmark (dark)</td>
-              <td style="padding:12px 20px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#6B7585;text-align:right;">#E8ECF2</td>
+              <td style="padding:12px 20px;color:#698BB8;">Wordmark (dark)</td>
+              <td style="padding:12px 20px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#818B9C;text-align:right;">#698BB8</td>
             </tr>
           </table>
         </div>
       </div>
-      <p style="margin-top:16px;font-size:13px;color:var(--text-secondary);max-width:640px;line-height:1.6;">Light mode uses <em>two</em> navies: <code style="background:var(--subtle);padding:1px 6px;border-radius:3px;font-family:'JetBrains Mono',monospace;font-size:12px;">#2F3E52</code> for the wordmark only, and <code style="background:var(--subtle);padding:1px 6px;border-radius:3px;font-family:'JetBrains Mono',monospace;font-size:12px;">#1A2332</code> for body text. The wordmark navy is slightly lighter and more saturated (brand energy); the text navy is darker and more neutral (optimized for reading). Dark mode collapses these into one — <code style="background:var(--subtle);padding:1px 6px;border-radius:3px;font-family:'JetBrains Mono',monospace;font-size:12px;">#E8ECF2</code> — because subtle tinting doesn't survive on dark surfaces.</p>
+      <p style="margin-top:16px;font-size:13px;color:var(--text-secondary);max-width:640px;line-height:1.6;">Light mode uses two navies side-by-side: <code style="background:var(--subtle);padding:1px 6px;border-radius:3px;font-family:'JetBrains Mono',monospace;font-size:12px;">#2F3E52</code> for the wordmark and primary CTAs (brand energy), <code style="background:var(--subtle);padding:1px 6px;border-radius:3px;font-family:'JetBrains Mono',monospace;font-size:12px;">#1A2332</code> for body text (slightly darker, optimized for reading). Dark mode keeps that distinction and adds a third axis: the wordmark and navy <em>foreground</em> uses <code style="background:var(--subtle);padding:1px 6px;border-radius:3px;font-family:'JetBrains Mono',monospace;font-size:12px;">#698BB8</code> (lifted so it clears AA on the dark card), while navy <em>fills</em> use <code style="background:var(--subtle);padding:1px 6px;border-radius:3px;font-family:'JetBrains Mono',monospace;font-size:12px;">#4F6B8C</code> (darker so white text on top clears AA). Body text is <code style="background:var(--subtle);padding:1px 6px;border-radius:3px;font-family:'JetBrains Mono',monospace;font-size:12px;">#E8ECF2</code>. See BRAND.md §"Fill vs foreground" for which navy goes where.</p>
     </div>
 
     <!-- Semantic colors in context -->
@@ -1934,7 +1947,7 @@
       </div>
 
       <!-- Accessibility summary -->
-      <div style="margin-top:16px;border-left:2px solid #2563EB;background:#EFF6FF;padding:16px 20px;border-radius:0 4px 4px 0;">
+      <div style="margin-top:16px;border-left:2px solid #2563EB;background:var(--info-tint-bg);padding:16px 20px;border-radius:0 4px 4px 0;">
         <div style="font-size:12px;font-weight:600;color:#1D4ED8;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px;">Accessibility note</div>
         <div style="font-size:13px;color:var(--text-primary);line-height:1.6;">Color alone never conveys status. Every badge has a distinctive shape; every alert has an icon and text label. The system survives deuteranopia (6% of men), protanopia (2%), tritanopia (rare), and full achromatopsia. If a status indicator is ever designed with color as the sole cue, it violates this system.</div>
       </div>
@@ -2029,7 +2042,7 @@
           <button class="btn-primary">Post journal entry</button>
           <button class="btn-secondary">Cancel</button>
         </div>
-        <div class="rule-note">1.5px gold stripe on the navy button's left edge. Expands to 2.5px on hover. A detail, not an element — premium brands reward close attention rather than shout for it. Secondary buttons have <em>no</em> gold.</div>
+        <div class="rule-note">2px gold stripe on the navy button's left edge. Expands to 3px on hover. A detail, not an element — premium brands reward close attention rather than shout for it. Secondary buttons have <em>no</em> gold.</div>
       </div>
 
       <!-- Rule 3: Nav active state -->
@@ -2114,7 +2127,7 @@
           <button class="btn-primary is-hover-demo">Approve invoice <span style="margin-left:6px;opacity:0.7;font-size:11px;">(hover)</span></button>
           <button class="btn-primary is-disabled" disabled>Approve invoice</button>
         </div>
-        <div class="component-note">Gold stripe expands from 1.5px to 2.5px on hover; padding shifts 1px to keep label visually anchored. Disabled state drops the stripe entirely — accent never appears on inactive elements.</div>
+        <div class="component-note">Gold stripe expands from 2px to 3px on hover; padding shifts 1px to keep label visually anchored. Disabled state drops the stripe entirely — accent never appears on inactive elements.</div>
       </div>
 
       <!-- Destructive & ghost variants -->
@@ -3033,7 +3046,7 @@
     </div>
 
     <!-- Product vs marketing contrast -->
-    <div style="margin-top:32px;border-left:2px solid #2563EB;background:#EFF6FF;padding:16px 20px;border-radius:0 4px 4px 0;">
+    <div style="margin-top:32px;border-left:2px solid #2563EB;background:var(--info-tint-bg);padding:16px 20px;border-radius:0 4px 4px 0;">
       <div style="font-size:12px;font-weight:600;color:#1D4ED8;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px;">Product vs. marketing scales</div>
       <div style="font-size:13px;color:var(--text-primary);line-height:1.6;">Marketing type is bigger, looser, and more generous than product type by design. Inside the app, a user is scanning for a specific invoice among hundreds at 14px body and 12px labels. On the landing page, a prospect is being persuaded at 64px hero and 20px lede. Same brand, same font family, different scale rhythm. Don't mix them — a product screen with marketing-scale typography looks amateur; a marketing page with product-scale typography looks cramped.</div>
     </div>
