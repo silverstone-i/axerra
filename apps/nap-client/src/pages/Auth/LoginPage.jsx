@@ -15,6 +15,7 @@ import { useAuth } from '../../contexts/AuthContext.jsx';
 import PasswordField from '../../components/shared/PasswordField.jsx';
 import PrimaryButton from '../../components/shared/PrimaryButton.jsx';
 import ChangePasswordDialog from '../../components/shared/ChangePasswordDialog.jsx';
+import Wordmark from '../../components/shared/Wordmark.jsx';
 
 export default function LoginPage() {
   const { user, loading: authLoading, login, refreshUser } = useAuth();
@@ -85,9 +86,9 @@ export default function LoginPage() {
     >
       <Card sx={{ width: '100%', maxWidth: 400, mx: 2 }}>
         <CardContent sx={{ p: 4 }}>
-          <Typography variant="h4" color="primary" fontWeight={700} textAlign="center" mb={1}>
-            NAP
-          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
+            <Wordmark size={56} />
+          </Box>
           <Typography variant="body2" color="text.secondary" textAlign="center" mb={3}>
             Sign in to your account
           </Typography>

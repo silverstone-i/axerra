@@ -48,10 +48,13 @@ Paste into `<head>`:
 <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
 <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+<link rel="icon" href="/favicon.ico" sizes="any" />
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
 <link rel="manifest" href="/site.webmanifest" />
 <meta name="theme-color" content="#2F3E52" />
 ```
+
+The order matters. Modern browsers honor the SVG; older browsers that don't understand `image/svg+xml` walk down the list. The `favicon.ico` line is the fallback for legacy browsers (and a few corners of Outlook/Office that hard-code an `.ico` request).
 
 ### Base CSS
 
@@ -769,6 +772,7 @@ All in `/favicons/`:
 | File | Size | Used for |
 |---|---|---|
 | `favicon.svg` | Vector | Primary favicon (modern browsers) |
+| `favicon.ico` | 16/32/48 multi-res | Legacy browser fallback when SVG isn't recognized |
 | `favicon-16.png` | 16×16 | Legacy browsers, tight UI |
 | `favicon-32.png` | 32×32 | Standard tab favicon |
 | `favicon-48.png` | 48×48 | Windows site tiles |
