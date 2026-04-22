@@ -22,7 +22,6 @@ import {
   IconButton,
   Tooltip,
   Popover,
-  Typography,
 } from '@mui/material';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
@@ -30,6 +29,7 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { NAV_ITEMS } from '../../config/navigationConfig.js';
 import { useAuth } from '../../contexts/AuthContext.jsx';
+import Wordmark from '../shared/Wordmark.jsx';
 import {
   SIDEBAR_WIDTH_EXPANDED,
   SIDEBAR_WIDTH_COLLAPSED,
@@ -133,11 +133,7 @@ export default function Sidebar() {
           minHeight: TENANT_BAR_HEIGHT,
         }}
       >
-        {!collapsed && (
-          <Typography variant="h6" color="primary" fontWeight={700} noWrap>
-            NAP
-          </Typography>
-        )}
+        {!collapsed && <Wordmark size={22} />}
         <IconButton size="small" onClick={() => setCollapsed((c) => !c)}>
           {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
         </IconButton>
