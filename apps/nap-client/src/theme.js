@@ -431,7 +431,7 @@ const buildPalette = (mode) => {
   const c = getColors(mode);
   return {
     mode,
-    primary: { main: BRAND.navy, contrastText: '#FFFFFF' },
+    primary: { main: c.brand.navy, contrastText: '#FFFFFF' },
     secondary: { main: c.semantic.info.main, contrastText: '#FFFFFF' },
     divider: c.border.subtle,
     background: {
@@ -450,7 +450,8 @@ const buildPalette = (mode) => {
       secondary: c.text.secondary,
       tertiary: c.text.tertiary,
     },
-    brand: { navy: BRAND.navy, gold: BRAND.gold },
+    brand: { navy: c.brand.navy, gold: BRAND.gold },
+    border: { subtle: c.border.subtle, strong: c.border.strong },
     semantic: c.semantic,
   };
 };

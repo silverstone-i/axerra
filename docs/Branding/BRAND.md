@@ -84,6 +84,10 @@ Paste into `<head>`:
 }
 
 [data-theme="dark"] {
+  /* Lifted navy — same hue and saturation as #2F3E52, lightness raised
+     so wordmark and primary CTAs reach AA contrast on the dark page. */
+  --navy: #5D7CA2;
+
   --page: #0B0F14;
   --card: #131923;
   --subtle: #1A212D;
@@ -118,10 +122,10 @@ body {
 
 ### Brand
 
-| Token | Hex | Usage |
-|---|---|---|
-| `--navy` | `#2F3E52` | Wordmark only |
-| `--gold` | `#F4B000` | Four approved uses (see [Gold discipline](#gold-discipline--the-four-rules)) |
+| Token | Light | Dark | Usage |
+|---|---|---|---|
+| `--navy` | `#2F3E52` | `#5D7CA2` | Wordmark + primary action surface. Dark variant is a tonal lift (same hue/saturation, raised lightness) so the mark and CTAs reach AA contrast on the dark page — `#2F3E52` on `#0B0F14` is ~1.4:1 and unreadable. The brand identity hex stays `#2F3E52`; only the on-screen rendering shifts in dark mode. |
+| `--gold` | `#F4B000` | `#F4B000` | Four approved uses (see [Gold discipline](#gold-discipline--the-four-rules)). Same hex in both modes. |
 
 ### Surfaces · light mode
 
@@ -147,7 +151,7 @@ body {
 | `--text-secondary` | `#5A6475` | `#9AA4B4` | Supporting copy, metadata |
 | `--text-tertiary` | `#8B94A3` | `#6B7585` | Timestamps, disabled, fine print |
 
-**Two-navy rule:** In light mode, the wordmark uses `#2F3E52` (brand) and body text uses `#1A2332` (slightly darker, optimized for reading). Don't swap them.
+**Two-navy rule:** In light mode, the wordmark uses `#2F3E52` (brand) and body text uses `#1A2332` (slightly darker, optimized for reading). In dark mode, the wordmark and primary CTA use `#5D7CA2` (lifted navy) and body text uses `#E8ECF2`. Don't swap the two within a mode, and don't render the canonical `#2F3E52` directly on the dark page — it disappears.
 
 ### Borders
 

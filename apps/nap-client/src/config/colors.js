@@ -8,7 +8,11 @@
  * when brand colors change.
  *
  * Structure mirrors BRAND.md §"Color tokens":
- *   - BRAND        : mode-independent brand constants (navy, gold)
+ *   - BRAND        : canonical brand identity hexes (navy, gold) — never change
+ *   - brand.navy   : per-mode display navy. Light mode = BRAND.navy. Dark mode
+ *                    uses a lifted tonal variant (#5D7CA2) so the wordmark and
+ *                    primary CTAs reach AA contrast on the dark page surface.
+ *                    Hue and saturation are preserved from BRAND.navy.
  *   - surface      : page / card / subtle (BRAND.md §"Surfaces")
  *   - text         : primary / secondary / tertiary (BRAND.md §"Text")
  *   - border       : subtle / strong (BRAND.md §"Borders")
@@ -37,6 +41,9 @@ export const BRAND = {
 /* ── Light mode ──────────────────────────────────────────────── */
 
 const light = {
+  brand: {
+    navy: BRAND.navy,
+  },
   surface: {
     page: '#FAFAF7',
     card: '#FFFFFF',
@@ -62,6 +69,9 @@ const light = {
 /* ── Dark mode ───────────────────────────────────────────────── */
 
 const dark = {
+  brand: {
+    navy: '#5D7CA2',
+  },
   surface: {
     page: '#0B0F14',
     card: '#131923',

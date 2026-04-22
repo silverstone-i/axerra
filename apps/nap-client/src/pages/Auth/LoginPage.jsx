@@ -10,9 +10,10 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
-import { Box, Card, CardContent, TextField, Button, Typography, Alert, CircularProgress } from '@mui/material';
+import { Box, Card, CardContent, TextField, Typography, Alert, CircularProgress } from '@mui/material';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import PasswordField from '../../components/shared/PasswordField.jsx';
+import PrimaryButton from '../../components/shared/PrimaryButton.jsx';
 import ChangePasswordDialog from '../../components/shared/ChangePasswordDialog.jsx';
 
 export default function LoginPage() {
@@ -126,15 +127,14 @@ export default function LoginPage() {
               InputLabelProps={{ shrink: passwordAutofilled || !!password }}
               inputProps={{ onAnimationStart: handleAutofill(setPasswordAutofilled) }}
             />
-            <Button
+            <PrimaryButton
               type="submit"
-              variant="contained"
               fullWidth
               disabled={submitting || (!email && !emailAutofilled) || (!password && !passwordAutofilled)}
               sx={{ mt: 2, py: 1 }}
             >
               {submitting ? <CircularProgress size={20} color="inherit" /> : 'Sign In'}
-            </Button>
+            </PrimaryButton>
           </Box>
         </CardContent>
       </Card>
