@@ -12,7 +12,7 @@
 
 import { useState, useCallback } from 'react';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
+import TertiaryButton from '../../components/shared/TertiaryButton.jsx';
 import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
@@ -219,9 +219,9 @@ export default function CreateTenantWizard({ open, onClose, onSuccess }) {
             <Typography variant="overline" color="text.secondary">
               Tax Identifiers (optional)
             </Typography>
-            <Button size="small" startIcon={<AddIcon />} onClick={addTaxRow}>
+            <TertiaryButton size="small" startIcon={<AddIcon />} onClick={addTaxRow}>
               Add
-            </Button>
+            </TertiaryButton>
           </Box>
           {form.tax_identifiers.map((row, idx) => (
             <Box key={idx} sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>

@@ -11,8 +11,9 @@
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
+import PrimaryButton from './PrimaryButton.jsx';
+import TertiaryButton from './TertiaryButton.jsx';
 import Popover from '@mui/material/Popover';
 import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
@@ -130,12 +131,12 @@ export default function SetPasswordPopover({ anchorEl, onConfirm, onCancel }) {
 
       {/* Actions */}
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 2 }}>
-        <Button size="small" onClick={onCancel}>
+        <TertiaryButton size="small" onClick={onCancel}>
           Cancel
-        </Button>
-        <Button size="small" variant="contained" disabled={!allPass} onClick={() => onConfirm(password)}>
+        </TertiaryButton>
+        <PrimaryButton size="small" disabled={!allPass} onClick={() => onConfirm(password)}>
           Set Password
-        </Button>
+        </PrimaryButton>
       </Box>
     </Popover>
   );

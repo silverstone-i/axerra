@@ -15,7 +15,7 @@ import CardContent from '@mui/material/CardContent';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
-import Button from '@mui/material/Button';
+import PrimaryButton from '../../components/shared/PrimaryButton.jsx';
 import Skeleton from '@mui/material/Skeleton';
 
 import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
@@ -105,14 +105,13 @@ export default function PreferencesPage() {
             </TextField>
 
             <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <Button
-                variant="contained"
+              <PrimaryButton
                 size="small"
                 disabled={!dirty || updateMut.isPending}
                 onClick={handleSave}
               >
                 {updateMut.isPending ? 'Saving...' : 'Save'}
-              </Button>
+              </PrimaryButton>
             </Box>
           </CardContent>
         </Card>

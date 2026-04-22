@@ -12,7 +12,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { useFormState } from '../../hooks/useFormState.js';
 import { useDialogState } from '../../hooks/useDialogState.js';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
+import TertiaryButton from '../../components/shared/TertiaryButton.jsx';
 import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
@@ -233,9 +233,9 @@ export default function ArInvoicesPage() {
             )}
           </Box>
           <Box sx={dialogActionBoxSx}>
-            <Button size="small" color="inherit" onClick={viewDialog.close}>
+            <TertiaryButton size="small" onClick={viewDialog.close}>
               Close
-            </Button>
+            </TertiaryButton>
           </Box>
         </DialogTitle>
         <DialogContent dividers>

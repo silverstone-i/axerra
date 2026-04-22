@@ -13,9 +13,10 @@ import Accordion from '@mui/material/Accordion';
 import AccordionSummary from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import PrimaryButton from '../../components/shared/PrimaryButton.jsx';
+import SecondaryButton from '../../components/shared/SecondaryButton.jsx';
 import Typography from '@mui/material/Typography';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -165,16 +166,15 @@ export default function PolicyEditor({ roleId, readOnly = false, actionsContaine
       {actionsContainer && createPortal(
         <>
           {dirty && !readOnly && (
-            <Button size="small" variant="outlined" onClick={handleDiscard}>Discard</Button>
+            <SecondaryButton size="small" onClick={handleDiscard}>Discard</SecondaryButton>
           )}
-          <Button
+          <PrimaryButton
             size="small"
-            variant="contained"
             disabled={!dirty || readOnly || syncMut.isPending}
             onClick={handleSave}
           >
             {syncMut.isPending ? 'Saving\u2026' : 'Save Policies'}
-          </Button>
+          </PrimaryButton>
         </>,
         actionsContainer,
       )}

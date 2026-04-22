@@ -6,7 +6,7 @@
  */
 
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
+import TertiaryButton from '../../../components/shared/TertiaryButton.jsx';
 import Checkbox from '@mui/material/Checkbox';
 import Divider from '@mui/material/Divider';
 import FormControlLabel from '@mui/material/FormControlLabel';
@@ -59,7 +59,7 @@ export default function StandaloneContactEditDialog({
       <Divider />
       <Box sx={flexBetweenSx}>
         <Typography variant="subtitle2">Emails</Typography>
-        <Button size="small" startIcon={<AddIcon />} onClick={emails.add}>Add Email</Button>
+        <TertiaryButton size="small" startIcon={<AddIcon />} onClick={emails.add}>Add Email</TertiaryButton>
       </Box>
       {emails.indexedItems.length === 0 && (
         <Typography variant="body2" color="text.secondary">No emails</Typography>
@@ -72,7 +72,7 @@ export default function StandaloneContactEditDialog({
       <Divider />
       <Box sx={flexBetweenSx}>
         <Typography variant="subtitle2">Phone Numbers</Typography>
-        <Button size="small" startIcon={<AddIcon />} onClick={phones.add}>Add Phone</Button>
+        <TertiaryButton size="small" startIcon={<AddIcon />} onClick={phones.add}>Add Phone</TertiaryButton>
       </Box>
       {phones.indexedItems.length === 0 && (
         <Typography variant="body2" color="text.secondary">No phone numbers</Typography>
@@ -85,7 +85,7 @@ export default function StandaloneContactEditDialog({
       <Divider />
       <Box sx={flexBetweenSx}>
         <Typography variant="subtitle2">Addresses</Typography>
-        <Button size="small" startIcon={<AddIcon />} onClick={addresses.add}>Add Address</Button>
+        <TertiaryButton size="small" startIcon={<AddIcon />} onClick={addresses.add}>Add Address</TertiaryButton>
       </Box>
       {addresses.indexedItems.length === 0 && (
         <Typography variant="body2" color="text.secondary">No addresses</Typography>
@@ -114,7 +114,7 @@ export default function StandaloneContactEditDialog({
       <Divider />
       <Box sx={flexBetweenSx}>
         <Typography variant="subtitle2">Tax Identifiers</Typography>
-        <Button size="small" startIcon={<AddIcon />} onClick={taxIds.add}>Add Tax ID</Button>
+        <TertiaryButton size="small" startIcon={<AddIcon />} onClick={taxIds.add}>Add Tax ID</TertiaryButton>
       </Box>
       {taxIds.indexedItems.length === 0 && (
         <Typography variant="body2" color="text.secondary">No tax identifiers</Typography>

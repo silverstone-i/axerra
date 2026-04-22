@@ -6,12 +6,12 @@
  */
 
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import Divider from '@mui/material/Divider';
 
+import TertiaryButton from '../../../components/shared/TertiaryButton.jsx';
 import FieldRow from '../../../components/shared/FieldRow.jsx';
 import EmailsSection from '../../../components/shared/EmailsSection.jsx';
 import PhoneNumbersSection from '../../../components/shared/PhoneNumbersSection.jsx';
@@ -23,7 +23,7 @@ export default function ContactViewDialog({ open, onClose, contact, emails, phon
       <DialogTitle sx={dialogHeaderSx}>
         <span>{contact ? `${contact.first_name} ${contact.last_name}` : 'Contact Details'}</span>
         <Box sx={dialogActionBoxSx}>
-          <Button size="small" onClick={onClose}>Close</Button>
+          <TertiaryButton size="small" onClick={onClose}>Close</TertiaryButton>
         </Box>
       </DialogTitle>
       <DialogContent dividers>

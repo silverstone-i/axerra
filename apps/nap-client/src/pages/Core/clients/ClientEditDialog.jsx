@@ -6,7 +6,7 @@
  */
 
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
+import TertiaryButton from '../../../components/shared/TertiaryButton.jsx';
 import Checkbox from '@mui/material/Checkbox';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import TextField from '@mui/material/TextField';
@@ -58,9 +58,9 @@ export default function ClientEditDialog({
           label="App User (creates login account)"
         />
         {editForm.is_app_user && editRow?.is_app_user && (
-          <Button size="small" startIcon={<LockResetIcon />} onClick={onResetPassword}>
+          <TertiaryButton size="small" startIcon={<LockResetIcon />} onClick={onResetPassword}>
             Reset Password
-          </Button>
+          </TertiaryButton>
         )}
         <Autocomplete
           multiple

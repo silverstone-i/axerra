@@ -15,7 +15,6 @@ import {
   Breadcrumbs,
   Link,
   Typography,
-  Button,
   MenuItem,
   TextField,
   ToggleButtonGroup,
@@ -25,6 +24,15 @@ import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import { NAV_ITEMS } from '../../config/navigationConfig.js';
 import { useModuleActions } from '../../contexts/ModuleActionsContext.jsx';
 import { FONT, moduleBarSx } from '../../config/layoutTokens.js';
+import PrimaryButton from '../shared/PrimaryButton.jsx';
+import SecondaryButton from '../shared/SecondaryButton.jsx';
+import TertiaryButton from '../shared/TertiaryButton.jsx';
+
+const VARIANT_TO_BUTTON = {
+  contained: PrimaryButton,
+  outlined: SecondaryButton,
+  text: TertiaryButton,
+};
 
 /**
  * Resolve the current module name and breadcrumb segments from the route.
@@ -172,19 +180,21 @@ export default function ModuleBar() {
         ))}
 
         {/* Primary actions */}
-        {actions.primaryActions.map((action) => (
-          <Button
-            key={action.label}
-            variant={action.variant || 'contained'}
-            size="small"
-            color={action.color || 'primary'}
-            disabled={!!action.disabled}
-            onClick={action.onClick}
-            startIcon={action.icon || null}
-          >
-            {action.label}
-          </Button>
-        ))}
+        {actions.primaryActions.map((action) => {
+          const ButtonComponent = VARIANT_TO_BUTTON[action.variant || 'contained'] || PrimaryButton;
+          return (
+            <ButtonComponent
+              key={action.label}
+              size="small"
+              color={action.color || 'primary'}
+              disabled={!!action.disabled}
+              onClick={action.onClick}
+              startIcon={action.icon || null}
+            >
+              {action.label}
+            </ButtonComponent>
+          );
+        })}
       </Box>
     </Box>
   );

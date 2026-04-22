@@ -7,7 +7,8 @@
 
 import { useState } from 'react';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
+import PrimaryButton from '../../../components/shared/PrimaryButton.jsx';
+import TertiaryButton from '../../../components/shared/TertiaryButton.jsx';
 import Checkbox from '@mui/material/Checkbox';
 import CircularProgress from '@mui/material/CircularProgress';
 import Dialog from '@mui/material/Dialog';
@@ -37,18 +38,17 @@ export default function VendorCreateDialog({ open, onClose, createForm, onCreate
         <DialogTitle sx={{ display: 'flex', alignItems: 'center' }}>
           <span>Create Vendor</span>
           <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
-            <Button size="small" onClick={handleClose} disabled={loading}>
+            <TertiaryButton size="small" onClick={handleClose} disabled={loading}>
               Cancel
-            </Button>
-            <Button
+            </TertiaryButton>
+            <PrimaryButton
               size="small"
               type="submit"
-              variant="contained"
               disabled={loading}
               startIcon={loading ? <CircularProgress size={16} color="inherit" /> : null}
             >
               Create
-            </Button>
+            </PrimaryButton>
           </Box>
         </DialogTitle>
         <DialogContent sx={flexColumnSx}>

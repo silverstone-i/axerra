@@ -9,13 +9,14 @@
  */
 
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 
 import { density } from '../../config/tokens.js';
+import PrimaryButton from './PrimaryButton.jsx';
+import TertiaryButton from './TertiaryButton.jsx';
 
 const contentSx = { display: 'flex', flexDirection: 'column', gap: `${density.fieldGap}px` };
 
@@ -46,18 +47,17 @@ export default function FormDialog({
         <DialogTitle sx={{ display: 'flex', alignItems: 'center' }}>
           <span>{title}</span>
           <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
-            <Button size="small" onClick={onCancel} disabled={loading}>
+            <TertiaryButton size="small" onClick={onCancel} disabled={loading}>
               {cancelLabel}
-            </Button>
-            <Button
+            </TertiaryButton>
+            <PrimaryButton
               size="small"
               type="submit"
-              variant="contained"
               disabled={loading || submitDisabled}
               startIcon={loading ? <CircularProgress size={16} color="inherit" /> : null}
             >
               {submitLabel}
-            </Button>
+            </PrimaryButton>
           </Box>
         </DialogTitle>
         <DialogContent sx={contentSx}>

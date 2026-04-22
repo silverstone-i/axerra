@@ -6,12 +6,12 @@
  */
 
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import Typography from '@mui/material/Typography';
 
+import TertiaryButton from './TertiaryButton.jsx';
 import { dialogHeaderSx, dialogActionBoxSx } from '../../config/layoutTokens.js';
 
 export default function DetailDialog({
@@ -34,9 +34,9 @@ export default function DetailDialog({
           )}
         </Box>
         <Box sx={dialogActionBoxSx}>
-          <Button size="small" color="inherit" onClick={onClose}>
+          <TertiaryButton size="small" onClick={onClose}>
             Close
-          </Button>
+          </TertiaryButton>
         </Box>
       </DialogTitle>
       <DialogContent dividers>{children}</DialogContent>

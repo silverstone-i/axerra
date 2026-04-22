@@ -15,7 +15,8 @@
 
 import { useState, useMemo } from 'react';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
+import PrimaryButton from './PrimaryButton.jsx';
+import TertiaryButton from './TertiaryButton.jsx';
 import CircularProgress from '@mui/material/CircularProgress';
 import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
@@ -81,18 +82,17 @@ export default function ResetPasswordDialog({ open, onClose, onSuccess, onReset,
       <DialogTitle sx={{ display: 'flex', alignItems: 'center' }}>
         <span>Reset Password</span>
         <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
-          <Button size="small" onClick={handleClose} disabled={pending}>
+          <TertiaryButton size="small" onClick={handleClose} disabled={pending}>
             Cancel
-          </Button>
-          <Button
+          </TertiaryButton>
+          <PrimaryButton
             size="small"
             type="submit"
             form="reset-password-form"
-            variant="contained"
             disabled={!canSubmit || pending}
           >
             {pending ? <CircularProgress size={16} color="inherit" /> : 'Reset Password'}
-          </Button>
+          </PrimaryButton>
         </Box>
       </DialogTitle>
       <DialogContent>

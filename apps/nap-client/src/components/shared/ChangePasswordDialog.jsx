@@ -13,7 +13,8 @@
 
 import { useState, useMemo } from 'react';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
+import PrimaryButton from './PrimaryButton.jsx';
+import TertiaryButton from './TertiaryButton.jsx';
 import CircularProgress from '@mui/material/CircularProgress';
 import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
@@ -82,19 +83,18 @@ export default function ChangePasswordDialog({ open, onClose, onSuccess, forced 
         <span>{forced ? 'Set a New Password' : 'Change Password'}</span>
         <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
           {!forced && (
-            <Button size="small" onClick={handleClose} disabled={submitting}>
+            <TertiaryButton size="small" onClick={handleClose} disabled={submitting}>
               Cancel
-            </Button>
+            </TertiaryButton>
           )}
-          <Button
+          <PrimaryButton
             size="small"
             type="submit"
             form="change-password-form"
-            variant="contained"
             disabled={!canSubmit || submitting}
           >
             {submitting ? <CircularProgress size={16} color="inherit" /> : 'Change Password'}
-          </Button>
+          </PrimaryButton>
         </Box>
       </DialogTitle>
       <DialogContent>

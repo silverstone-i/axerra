@@ -8,20 +8,25 @@
  */
 
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import Typography from '@mui/material/Typography';
 
+import PrimaryButton from './PrimaryButton.jsx';
+import TertiaryButton from './TertiaryButton.jsx';
+
+// confirmColor is accepted for API compatibility but intentionally not applied:
+// BRAND.md §"Destructive actions" reserves red for STATUS, not for ACTIONS.
+// All confirm buttons render as navy primary; the label conveys destructive intent.
 export default function ConfirmDialog({
   open,
   title,
   message,
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
-  confirmColor = 'primary',
+  confirmColor: _confirmColor,
   loading = false,
   onConfirm,
   onCancel,
@@ -31,19 +36,17 @@ export default function ConfirmDialog({
       <DialogTitle sx={{ display: 'flex', alignItems: 'center' }}>
         <span>{title}</span>
         <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
-          <Button size="small" onClick={onCancel} disabled={loading}>
+          <TertiaryButton size="small" onClick={onCancel} disabled={loading}>
             {cancelLabel}
-          </Button>
-          <Button
+          </TertiaryButton>
+          <PrimaryButton
             size="small"
-            variant="contained"
-            color={confirmColor}
             onClick={onConfirm}
             disabled={loading}
             startIcon={loading ? <CircularProgress size={16} color="inherit" /> : null}
           >
             {confirmLabel}
-          </Button>
+          </PrimaryButton>
         </Box>
       </DialogTitle>
       <DialogContent>

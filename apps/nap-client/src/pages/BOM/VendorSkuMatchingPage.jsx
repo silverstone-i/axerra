@@ -9,7 +9,8 @@ import { useState, useMemo } from 'react';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
-import Button from '@mui/material/Button';
+import PrimaryButton from '../../components/shared/PrimaryButton.jsx';
+import SecondaryButton from '../../components/shared/SecondaryButton.jsx';
 import Chip from '@mui/material/Chip';
 import LinearProgress from '@mui/material/LinearProgress';
 import { DataGrid } from '@mui/x-data-grid';
@@ -200,12 +201,12 @@ export default function VendorSkuMatchingPage() {
             autoHeight
           />
           <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
-            <Button variant="contained" color="success" disabled={matchSelection.length === 0} onClick={handleAutoMatch}>
+            <PrimaryButton disabled={matchSelection.length === 0} onClick={handleAutoMatch}>
               Accept Match
-            </Button>
-            <Button variant="outlined" onClick={() => setMatchResults([])}>
+            </PrimaryButton>
+            <SecondaryButton onClick={() => setMatchResults([])}>
               Dismiss
-            </Button>
+            </SecondaryButton>
           </Box>
         </Paper>
       )}

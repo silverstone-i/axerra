@@ -9,7 +9,6 @@
  */
 
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
@@ -20,6 +19,8 @@ import Stepper from '@mui/material/Stepper';
 import { flexColumnSx } from '../../config/layoutTokens.js';
 
 import { density } from '../../config/tokens.js';
+import PrimaryButton from './PrimaryButton.jsx';
+import TertiaryButton from './TertiaryButton.jsx';
 
 const contentSx = { display: 'flex', flexDirection: 'column', gap: `${density.fieldGap}px` };
 
@@ -62,23 +63,22 @@ export default function StepperFormDialog({
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <span>{title}</span>
             <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
-              <Button size="small" onClick={onCancel} disabled={loading}>
+              <TertiaryButton size="small" onClick={onCancel} disabled={loading}>
                 {cancelLabel}
-              </Button>
+              </TertiaryButton>
               {!isFirstStep && (
-                <Button size="small" onClick={onBack} disabled={loading}>
+                <TertiaryButton size="small" onClick={onBack} disabled={loading}>
                   Back
-                </Button>
+                </TertiaryButton>
               )}
-              <Button
+              <PrimaryButton
                 size="small"
                 type="submit"
-                variant="contained"
                 disabled={loading || nextDisabled}
                 startIcon={loading && isLastStep ? <CircularProgress size={16} color="inherit" /> : null}
               >
                 {isLastStep ? submitLabel : 'Next'}
-              </Button>
+              </PrimaryButton>
             </Box>
           </Box>
           <Stepper activeStep={activeStep} alternativeLabel>

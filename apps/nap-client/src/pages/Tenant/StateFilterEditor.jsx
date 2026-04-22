@@ -10,7 +10,9 @@
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
+import PrimaryButton from '../../components/shared/PrimaryButton.jsx';
+import SecondaryButton from '../../components/shared/SecondaryButton.jsx';
+import TertiaryButton from '../../components/shared/TertiaryButton.jsx';
 import Chip from '@mui/material/Chip';
 import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
@@ -147,21 +149,20 @@ export default function StateFilterEditor({ roleId, readOnly = false, actionsCon
       {actionsContainer && createPortal(
         <>
           {!readOnly && (
-            <Button size="small" variant="outlined" startIcon={<AddIcon />} onClick={() => { resetForm(); setAdding(true); }}>
+            <SecondaryButton size="small" startIcon={<AddIcon />} onClick={() => { resetForm(); setAdding(true); }}>
               Add Filter
-            </Button>
+            </SecondaryButton>
           )}
           {dirty && !readOnly && (
-            <Button size="small" variant="outlined" onClick={handleDiscard}>Discard</Button>
+            <SecondaryButton size="small" onClick={handleDiscard}>Discard</SecondaryButton>
           )}
-          <Button
+          <PrimaryButton
             size="small"
-            variant="contained"
             disabled={!dirty || readOnly || syncMut.isPending}
             onClick={handleSave}
           >
             {syncMut.isPending ? 'Saving\u2026' : 'Save Filters'}
-          </Button>
+          </PrimaryButton>
         </>,
         actionsContainer,
       )}
@@ -267,15 +268,14 @@ export default function StateFilterEditor({ roleId, readOnly = false, actionsCon
               sx={{ flex: 1 }}
             />
           )}
-          <Button
+          <PrimaryButton
             size="small"
-            variant="contained"
             onClick={handleSubmitForm}
             disabled={!newModule || !newRouter || (validStatuses ? !newStatusesArr.length : !newStatuses.trim())}
           >
             {isEditing ? 'Update' : 'Add'}
-          </Button>
-          <Button size="small" onClick={resetForm}>Cancel</Button>
+          </PrimaryButton>
+          <TertiaryButton size="small" onClick={resetForm}>Cancel</TertiaryButton>
         </Box>
       )}
     </Box>

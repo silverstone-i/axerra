@@ -10,7 +10,8 @@
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
+import PrimaryButton from '../../components/shared/PrimaryButton.jsx';
+import SecondaryButton from '../../components/shared/SecondaryButton.jsx';
 import Checkbox from '@mui/material/Checkbox';
 import Chip from '@mui/material/Chip';
 import Typography from '@mui/material/Typography';
@@ -103,16 +104,15 @@ export default function FieldGroupEditor({ roleId, readOnly = false, actionsCont
       {actionsContainer && createPortal(
         <>
           {dirty && !readOnly && (
-            <Button size="small" variant="outlined" onClick={handleDiscard}>Discard</Button>
+            <SecondaryButton size="small" onClick={handleDiscard}>Discard</SecondaryButton>
           )}
-          <Button
+          <PrimaryButton
             size="small"
-            variant="contained"
             disabled={!dirty || readOnly || syncMut.isPending}
             onClick={handleSave}
           >
             {syncMut.isPending ? 'Saving\u2026' : 'Save Grants'}
-          </Button>
+          </PrimaryButton>
         </>,
         actionsContainer,
       )}

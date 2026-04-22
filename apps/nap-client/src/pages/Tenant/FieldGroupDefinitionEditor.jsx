@@ -12,7 +12,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
+import PrimaryButton from '../../components/shared/PrimaryButton.jsx';
 import Checkbox from '@mui/material/Checkbox';
 import Chip from '@mui/material/Chip';
 import FormControlLabel from '@mui/material/FormControlLabel';
@@ -172,9 +172,9 @@ export default function FieldGroupDefinitionEditor({ readOnly = false, actionsCo
       {actionsContainer && createPortal(
         <>
           {!readOnly && (
-            <Button size="small" variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
+            <PrimaryButton size="small" startIcon={<AddIcon />} onClick={openCreate}>
               Add Definition
-            </Button>
+            </PrimaryButton>
           )}
         </>,
         actionsContainer,

@@ -15,7 +15,6 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Button,
   Autocomplete,
   TextField,
   Box,
@@ -23,6 +22,8 @@ import {
 } from '@mui/material';
 import client from '../../services/client.js';
 import { useAuth } from '../../contexts/AuthContext.jsx';
+import PrimaryButton from '../shared/PrimaryButton.jsx';
+import TertiaryButton from '../shared/TertiaryButton.jsx';
 
 export default function ImpersonateDialog({ open, onClose }) {
   const { startImpersonation } = useAuth();
@@ -142,15 +143,13 @@ export default function ImpersonateDialog({ open, onClose }) {
         </Box>
       </DialogContent>
       <DialogActions>
-        <Button onClick={handleClose}>Cancel</Button>
-        <Button
+        <TertiaryButton onClick={handleClose}>Cancel</TertiaryButton>
+        <PrimaryButton
           onClick={handleStart}
-          variant="contained"
-          color="warning"
           disabled={!selectedUser || loading}
         >
           {loading ? 'Starting...' : 'Start Impersonation'}
-        </Button>
+        </PrimaryButton>
       </DialogActions>
     </Dialog>
   );

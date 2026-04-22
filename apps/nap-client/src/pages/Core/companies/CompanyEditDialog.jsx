@@ -6,7 +6,7 @@
  */
 
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
+import TertiaryButton from '../../../components/shared/TertiaryButton.jsx';
 import Checkbox from '@mui/material/Checkbox';
 import Divider from '@mui/material/Divider';
 import FormControlLabel from '@mui/material/FormControlLabel';
@@ -56,7 +56,7 @@ export default function CompanyEditDialog({
       <Divider />
       <Box sx={flexBetweenSx}>
         <Typography variant="subtitle2">Addresses</Typography>
-        <Button size="small" startIcon={<AddIcon />} onClick={addresses.add} disabled={!hasSource}>Add Address</Button>
+        <TertiaryButton size="small" startIcon={<AddIcon />} onClick={addresses.add} disabled={!hasSource}>Add Address</TertiaryButton>
       </Box>
       {!hasSource && (
         <Typography variant="body2" color="text.secondary">Save company first to manage addresses</Typography>
@@ -88,7 +88,7 @@ export default function CompanyEditDialog({
       <Divider />
       <Box sx={flexBetweenSx}>
         <Typography variant="subtitle2">Tax Identifiers</Typography>
-        <Button size="small" startIcon={<AddIcon />} onClick={taxIds.add} disabled={!hasSource}>Add Tax ID</Button>
+        <TertiaryButton size="small" startIcon={<AddIcon />} onClick={taxIds.add} disabled={!hasSource}>Add Tax ID</TertiaryButton>
       </Box>
       {!hasSource && (
         <Typography variant="body2" color="text.secondary">Save company first to manage tax identifiers</Typography>

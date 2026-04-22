@@ -17,7 +17,7 @@ import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
 import Switch from '@mui/material/Switch';
 import FormControlLabel from '@mui/material/FormControlLabel';
-import Button from '@mui/material/Button';
+import PrimaryButton from '../../components/shared/PrimaryButton.jsx';
 import Skeleton from '@mui/material/Skeleton';
 import Divider from '@mui/material/Divider';
 
@@ -252,9 +252,9 @@ function NumberingCard({ config, onSave, saving }) {
 
             {/* Save */}
             <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <Button variant="contained" size="small" disabled={!dirty || saving} onClick={handleSave}>
+              <PrimaryButton size="small" disabled={!dirty || saving} onClick={handleSave}>
                 {saving ? 'Saving...' : 'Save'}
-              </Button>
+              </PrimaryButton>
             </Box>
           </>
         )}
@@ -266,9 +266,9 @@ function NumberingCard({ config, onSave, saving }) {
               Auto-numbering disabled — enable to configure format
             </Typography>
             {dirty && (
-              <Button variant="contained" size="small" disabled={saving} onClick={handleSave} sx={{ ml: 'auto' }}>
+              <PrimaryButton size="small" disabled={saving} onClick={handleSave} sx={{ ml: 'auto' }}>
                 {saving ? 'Saving...' : 'Save'}
-              </Button>
+              </PrimaryButton>
             )}
           </Box>
         )}

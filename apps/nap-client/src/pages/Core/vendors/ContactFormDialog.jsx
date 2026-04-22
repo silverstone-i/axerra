@@ -10,7 +10,7 @@
 
 import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
+import TertiaryButton from '../../../components/shared/TertiaryButton.jsx';
 import Checkbox from '@mui/material/Checkbox';
 import Divider from '@mui/material/Divider';
 import FormControlLabel from '@mui/material/FormControlLabel';
@@ -115,7 +115,7 @@ export default function ContactFormDialog({
       <Divider />
       <Box sx={flexBetweenSx}>
         <Typography variant="subtitle2">Emails</Typography>
-        <Button size="small" startIcon={<AddIcon />} onClick={addEmail}>Add Email</Button>
+        <TertiaryButton size="small" startIcon={<AddIcon />} onClick={addEmail}>Add Email</TertiaryButton>
       </Box>
       {visibleEmails.length === 0 && (
         <Typography variant="body2" color="text.secondary">No emails</Typography>
@@ -128,7 +128,7 @@ export default function ContactFormDialog({
       <Divider />
       <Box sx={flexBetweenSx}>
         <Typography variant="subtitle2">Phone Numbers</Typography>
-        <Button size="small" startIcon={<AddIcon />} onClick={addPhone}>Add Phone</Button>
+        <TertiaryButton size="small" startIcon={<AddIcon />} onClick={addPhone}>Add Phone</TertiaryButton>
       </Box>
       {visiblePhones.length === 0 && (
         <Typography variant="body2" color="text.secondary">No phone numbers</Typography>

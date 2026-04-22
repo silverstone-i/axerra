@@ -7,7 +7,9 @@
 
 import { useState } from 'react';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
+import PrimaryButton from '../../../components/shared/PrimaryButton.jsx';
+import SecondaryButton from '../../../components/shared/SecondaryButton.jsx';
+import TertiaryButton from '../../../components/shared/TertiaryButton.jsx';
 import Checkbox from '@mui/material/Checkbox';
 import CircularProgress from '@mui/material/CircularProgress';
 import Dialog from '@mui/material/Dialog';
@@ -70,18 +72,17 @@ export default function VendorEditDialog({
         <DialogTitle sx={{ display: 'flex', alignItems: 'center' }}>
           <span>Edit Vendor</span>
           <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
-            <Button size="small" onClick={handleClose} disabled={loading}>
+            <TertiaryButton size="small" onClick={handleClose} disabled={loading}>
               Cancel
-            </Button>
-            <Button
+            </TertiaryButton>
+            <PrimaryButton
               size="small"
               type="submit"
-              variant="contained"
               disabled={loading || !hasEditChanges}
               startIcon={loading ? <CircularProgress size={16} color="inherit" /> : null}
             >
               Save Changes
-            </Button>
+            </PrimaryButton>
           </Box>
         </DialogTitle>
         <DialogContent sx={flexColumnSx}>
@@ -136,27 +137,27 @@ export default function VendorEditDialog({
               </Tabs>
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
                 {(contactViewFilter === 'active' || contactViewFilter === 'all') && (
-                  <Button
-                    size="small" variant="outlined" color="error"
+                  <SecondaryButton
+                    size="small"
                     disabled={contactSelection.selectedRows.length === 0 || !contactSelection.allActive}
                     onClick={onContactArchive}
                   >
                     {contactSelection.selectedRows.length > 1 ? `Archive (${contactSelection.selectedRows.length})` : 'Archive'}
-                  </Button>
+                  </SecondaryButton>
                 )}
                 {(contactViewFilter === 'archived' || contactViewFilter === 'all') && (
-                  <Button
-                    size="small" variant="outlined" color="success"
+                  <SecondaryButton
+                    size="small"
                     disabled={contactSelection.selectedRows.length === 0 || !contactSelection.allArchived}
                     onClick={onContactRestore}
                   >
                     {contactSelection.selectedRows.length > 1 ? `Restore (${contactSelection.selectedRows.length})` : 'Restore'}
-                  </Button>
+                  </SecondaryButton>
                 )}
                 {contactViewFilter !== 'archived' && (
-                  <Button size="small" startIcon={<AddIcon />} onClick={onCreateContact}>
+                  <TertiaryButton size="small" startIcon={<AddIcon />} onClick={onCreateContact}>
                     Create Contact
-                  </Button>
+                  </TertiaryButton>
                 )}
               </Box>
               <DataTable

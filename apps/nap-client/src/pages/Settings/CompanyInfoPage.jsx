@@ -10,7 +10,9 @@
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
+import PrimaryButton from '../../components/shared/PrimaryButton.jsx';
+import SecondaryButton from '../../components/shared/SecondaryButton.jsx';
+import TertiaryButton from '../../components/shared/TertiaryButton.jsx';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Divider from '@mui/material/Divider';
@@ -175,9 +177,9 @@ function SetupCompanyForm({ tenantCode, tenantName, tenantId, onComplete, onErro
             <Typography variant="subtitle2" fontWeight={600}>
               Tax Identifiers
             </Typography>
-            <Button size="small" startIcon={<AddIcon />} onClick={() => setTaxRows((p) => [...p, { ...BLANK_TAX }])}>
+            <TertiaryButton size="small" startIcon={<AddIcon />} onClick={() => setTaxRows((p) => [...p, { ...BLANK_TAX }])}>
               Add Row
-            </Button>
+            </TertiaryButton>
           </Box>
 
           {taxRows.map((row, idx) => (
@@ -220,9 +222,9 @@ function SetupCompanyForm({ tenantCode, tenantName, tenantId, onComplete, onErro
 
       {/* ── Submit ──────────────────────────────────────────────── */}
       <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <Button variant="contained" startIcon={<SaveIcon />} disabled={!canSubmit || saving} onClick={handleSubmit}>
+        <PrimaryButton startIcon={<SaveIcon />} disabled={!canSubmit || saving} onClick={handleSubmit}>
           {saving ? 'Saving…' : 'Create Company Info'}
-        </Button>
+        </PrimaryButton>
       </Box>
     </Box>
   );
@@ -296,15 +298,14 @@ function AddressCard({ address, isNew, sourceId, onSaved, onDeleted, onError }) 
                 <DeleteIcon fontSize="small" />
               </IconButton>
             )}
-            <Button
+            <PrimaryButton
               size="small"
-              variant="contained"
               startIcon={<SaveIcon />}
               disabled={!dirty || saving}
               onClick={handleSave}
             >
               Save
-            </Button>
+            </PrimaryButton>
           </Box>
         </Box>
 
@@ -404,9 +405,9 @@ function TaxIdentifierRow({ taxId, isNew, sourceId, onSaved, onDeleted, onError 
         ))}
       </TextField>
       <TextField label="Value" size="small" value={form.tax_value} onChange={onChange('tax_value')} sx={{ flex: 1 }} />
-      <Button size="small" variant="outlined" startIcon={<SaveIcon />} disabled={!dirty || saving} onClick={handleSave} sx={{ mt: 0.5 }}>
+      <SecondaryButton size="small" startIcon={<SaveIcon />} disabled={!dirty || saving} onClick={handleSave} sx={{ mt: 0.5 }}>
         Save
-      </Button>
+      </SecondaryButton>
       {!isNew && (
         <IconButton size="small" color="error" onClick={handleDelete} disabled={archiveMut.isPending} sx={{ mt: 0.5 }} aria-label={`Remove ${form.country_code} ${form.tax_type} tax identifier`}>
           <DeleteIcon fontSize="small" />
