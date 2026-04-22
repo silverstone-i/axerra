@@ -11,6 +11,7 @@
 
 import { alpha, createTheme } from '@mui/material/styles';
 import { createTokens } from './config/tokens.js';
+import { BRAND, getColors } from './config/colors.js';
 import { TENANT_BAR_HEIGHT } from './config/layoutTokens.js';
 
 /* ── Options builder (token-aware) ─────────────────────────── */
@@ -371,7 +372,7 @@ const buildOptions = (t) => ({
               bottom: 6,
               width: 2,
               borderRadius: 2,
-              backgroundColor: theme.palette.primary.main,
+              backgroundColor: theme.palette.brand.gold,
             },
             '&:hover': { backgroundColor: t.surface.hoverOverlay },
           },
@@ -424,50 +425,41 @@ const buildOptions = (t) => ({
   },
 });
 
-/* ── Palettes ───────────────────────────────────────────────── */
+/* ── Palette (derived from config/colors.js) ────────────────── */
 
-const lightPalette = {
-  mode: 'light',
-  primary: { main: '#003e6b', contrastText: '#ffffff' },
-  secondary: { main: '#f79c3c', contrastText: '#ffffff' },
-  divider: 'rgba(17, 24, 39, 0.12)',
-  background: {
-    default: '#f5f5f5',
-    paper: '#ffffff',
-    sidebar: '#f8f9fb',
-    header: '#ffffff',
-    surface: '#fdfdfd',
-  },
-  success: { main: '#4caf50' },
-  warning: { main: '#ffa000' },
-  error: { main: '#d32f2f' },
-  text: { primary: '#212121', secondary: '#424242' },
-};
-
-const darkPalette = {
-  mode: 'dark',
-  primary: { main: '#f6b21b', contrastText: '#0D1117' },
-  secondary: { main: '#0ea5e9', contrastText: '#0D1117' },
-  divider: 'rgba(230, 237, 243, 0.08)',
-  background: {
-    default: '#080B10',
-    paper: '#161B22',
-    sidebar: '#0D1117',
-    header: '#161B22',
-    surface: '#1C2128',
-  },
-  success: { main: '#58d68d' },
-  warning: { main: '#f6b21b' },
-  error: { main: '#ef5350' },
-  text: { primary: '#e6edf3', secondary: '#9ea6b7' },
+const buildPalette = (mode) => {
+  const c = getColors(mode);
+  return {
+    mode,
+    primary: { main: BRAND.navy, contrastText: '#FFFFFF' },
+    secondary: { main: c.semantic.info.main, contrastText: '#FFFFFF' },
+    divider: c.border.subtle,
+    background: {
+      default: c.surface.page,
+      paper: c.surface.card,
+      sidebar: c.surface.page,
+      header: c.surface.card,
+      surface: c.surface.subtle,
+    },
+    success: { main: c.semantic.success.main, contrastText: '#FFFFFF' },
+    warning: { main: c.semantic.warning.main, contrastText: '#FFFFFF' },
+    error: { main: c.semantic.error.main, contrastText: '#FFFFFF' },
+    info: { main: c.semantic.info.main, contrastText: '#FFFFFF' },
+    text: {
+      primary: c.text.primary,
+      secondary: c.text.secondary,
+      tertiary: c.text.tertiary,
+    },
+    brand: { navy: BRAND.navy, gold: BRAND.gold },
+    semantic: c.semantic,
+  };
 };
 
 /* ── Factory ────────────────────────────────────────────────── */
 
 export const createAppTheme = (mode = 'light') => {
-  const palette = mode === 'dark' ? darkPalette : lightPalette;
   const t = createTokens(mode);
-  return createTheme({ ...buildOptions(t), palette });
+  return createTheme({ ...buildOptions(t), palette: buildPalette(mode) });
 };
 
 export default createAppTheme;

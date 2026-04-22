@@ -1,13 +1,18 @@
 /**
- * @file Semantic design tokens — single source of truth for visual values
+ * @file Semantic design tokens — borders, surfaces, shadows, density, motion
  * @module nap-client/config/tokens
  *
- * Mode-independent values are exported directly for use in layout tokens
- * and static contexts. Mode-dependent values (borders, surfaces, shadows)
- * are created via createTokens(mode) and consumed by the theme factory.
+ * Mode-independent values are exported directly. Mode-dependent values
+ * (border, surface, shadow) are produced by createTokens(mode), which reads
+ * brand color hexes from ./colors.js — the single source of truth.
+ *
+ * Layout dimensions live in config/layoutTokens.js.
  *
  * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
  */
+
+import { alpha } from '@mui/material/styles';
+import { getColors } from './colors.js';
 
 /* ── Mode-independent tokens ─────────────────────────────────── */
 
@@ -44,6 +49,7 @@ export const motion = {
 /* ── Mode-dependent tokens ───────────────────────────────────── */
 
 export const createTokens = (mode = 'dark') => {
+  const c = getColors(mode);
   const dark = mode === 'dark';
 
   return {
@@ -54,16 +60,16 @@ export const createTokens = (mode = 'dark') => {
 
     border: {
       width: 1,
-      subtle: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)',
-      hover: dark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.12)',
-      strong: dark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.18)',
+      subtle: c.border.subtle,
+      hover: alpha(c.text.primary, 0.18),
+      strong: c.border.strong,
     },
 
     surface: {
-      hoverOverlay: dark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
-      activeOverlay: dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
-      selectedOverlay: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
-      headerOverlay: dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
+      hoverOverlay: alpha(c.text.primary, 0.04),
+      activeOverlay: alpha(c.text.primary, 0.06),
+      selectedOverlay: alpha(c.text.primary, 0.08),
+      headerOverlay: alpha(c.text.primary, 0.03),
       scrim: 'rgba(0,0,0,0.60)',
     },
 
