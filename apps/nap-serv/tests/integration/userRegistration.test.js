@@ -15,7 +15,7 @@ import { bootstrapAdmin, cleanupTestDb } from '../helpers/testDb.js';
 
 const ROOT_EMAIL = process.env.ROOT_EMAIL;
 const ROOT_PASSWORD = process.env.ROOT_PASSWORD;
-const ROOT_TENANT_CODE = process.env.ROOT_TENANT_CODE || 'NAP';
+const ROOT_TENANT_CODE = process.env.ROOT_TENANT_CODE || 'VIMBER';
 
 let db;
 beforeAll(async () => {

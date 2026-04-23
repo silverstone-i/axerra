@@ -140,9 +140,9 @@ describe('authRedis middleware', () => {
 
     mockFindById.mockResolvedValue({
       id: tenantId,
-      tenant_code: 'NAP',
+      tenant_code: 'VIMBER',
       company: 'Vimber LLC',
-      schema_name: 'nap',
+      schema_name: 'vimber',
       status: 'active',
     });
 
@@ -156,8 +156,8 @@ describe('authRedis middleware', () => {
     expect(req.user).toBeDefined();
     expect(req.user.id).toBe(userId);
     expect(req.user.email).toBe('admin@vimber.io');
-    expect(req.user.tenant_code).toBe('nap');
-    expect(req.user.schema_name).toBe('nap');
+    expect(req.user.tenant_code).toBe('vimber');
+    expect(req.user.schema_name).toBe('vimber');
   });
 
   test('returns 401 when user not found in DB', async () => {
@@ -190,8 +190,8 @@ describe('authRedis middleware', () => {
 
     mockFindById.mockResolvedValue({
       id: tenantId,
-      tenant_code: 'NAP',
-      schema_name: 'nap',
+      tenant_code: 'VIMBER',
+      schema_name: 'vimber',
     });
 
     const req = makeReq({
@@ -222,8 +222,8 @@ describe('authRedis middleware', () => {
 
     mockFindById.mockResolvedValue({
       id: homeTenantId,
-      tenant_code: 'NAP',
-      schema_name: 'nap',
+      tenant_code: 'VIMBER',
+      schema_name: 'vimber',
       allowed_modules: ['projects', 'accounting'],
     });
 
@@ -253,6 +253,6 @@ describe('authRedis middleware', () => {
     expect(req.ctx.tenant.allowed_modules).toEqual(['projects']);
     // req.user.tenant_id must reflect assumed tenant, not home tenant
     expect(req.user.tenant_id).toBe(acmeTenantId);
-    expect(req.user.home_tenant).toBe('nap');
+    expect(req.user.home_tenant).toBe('vimber');
   });
 });

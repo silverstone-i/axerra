@@ -108,7 +108,7 @@ function getSystemRoleDefinitions(isRootTenant) {
  * @param {object} dbInstance pg-promise database connection or transaction
  * @param {object} pgp pg-promise helpers
  * @param {string} schemaName Tenant schema name
- * @param {string} tenantCode Tenant code (e.g., 'nap', 'acme')
+ * @param {string} tenantCode Tenant code (e.g., 'vimber', 'acme')
  * @param {boolean} isRootTenant Whether this is the Vimber platform tenant
  */
 export async function seedSystemRoles(dbInstance, pgp, schemaName, tenantCode, isRootTenant) {

@@ -10,7 +10,7 @@
 #   - restore_srh.sh  (drop → setupAdmin → provision → restore)
 #
 # Prerequisites:
-#   - .pgpass or PGPASSWORD configured for nap_admin
+#   - .pgpass or PGPASSWORD configured for vimber_admin
 #   - Node >= 20, npm workspaces installed
 #   - Run from the monorepo root
 #

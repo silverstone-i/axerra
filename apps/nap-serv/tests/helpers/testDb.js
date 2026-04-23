@@ -3,7 +3,7 @@
  * @module tests/helpers/testDb
  *
  * Initializes the test database, runs bootstrap migration, and provides
- * cleanup. Tests must use NODE_ENV=test which resolves to nap_test database.
+ * cleanup. Tests must use NODE_ENV=test which resolves to vimber_test database.
  *
  * Performance: admin schema + tables are created ONCE per test-suite run
  * (via `adminReady` flag). Between test files only tenant schemas are
@@ -33,7 +33,7 @@ process.env.ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || 'test-acces
 process.env.REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || 'test-refresh-secret-32chars-long!';
 process.env.ROOT_EMAIL = process.env.ROOT_EMAIL || 'admin@vimber.io';
 process.env.ROOT_PASSWORD = process.env.ROOT_PASSWORD || 'TestPass123!';
-process.env.ROOT_TENANT_CODE = process.env.ROOT_TENANT_CODE || 'NAP';
+process.env.ROOT_TENANT_CODE = process.env.ROOT_TENANT_CODE || 'VIMBER';
 process.env.ROOT_COMPANY = process.env.ROOT_COMPANY || 'Vimber LLC';
 process.env.BCRYPT_ROUNDS = '4'; // Fast for tests
 
@@ -80,7 +80,7 @@ async function getCachedPasswordHash() {
  * admin schema. Called by bootstrapAdmin when adminReady is true.
  */
 async function reseedAdmin(db) {
-  const rootTenantCode = process.env.ROOT_TENANT_CODE || 'NAP';
+  const rootTenantCode = process.env.ROOT_TENANT_CODE || 'VIMBER';
   const rootCompany = process.env.ROOT_COMPANY || 'Vimber LLC';
   const rootSchema = rootTenantCode.toLowerCase();
   const rootEmail = process.env.ROOT_EMAIL || 'admin@vimber.io';

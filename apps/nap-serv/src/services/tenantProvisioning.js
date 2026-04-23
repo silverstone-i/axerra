@@ -21,7 +21,7 @@ import { seedNumberingConfig } from '../system/core/services/numberingConfigSeed
 import { seedTenantPreferences } from '../system/core/services/tenantPreferencesSeeder.js';
 import logger from '../lib/logger.js';
 
-const ROOT_TENANT_CODE = (process.env.ROOT_TENANT_CODE || 'NAP').toUpperCase();
+const ROOT_TENANT_CODE = (process.env.ROOT_TENANT_CODE || 'VIMBER').toUpperCase();
 
 /**
  * Provision a new tenant schema with all tables and default RBAC data.

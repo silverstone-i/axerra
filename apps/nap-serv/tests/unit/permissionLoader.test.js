@@ -40,7 +40,7 @@ describe('loadPermissions', () => {
 
   it('returns empty canon when entityType is null (bootstrap user)', async () => {
     const result = await loadPermissions({
-      schemaName: 'nap',
+      schemaName: 'vimber',
       userId: 'u1',
       entityType: null,
       entityId: null,

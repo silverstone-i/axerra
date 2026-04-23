@@ -40,7 +40,7 @@ export default defineMigration({
     }
 
     // ── Seed root tenant ──────────────────────────────────────────
-    const rootTenantCode = process.env.ROOT_TENANT_CODE || 'NAP';
+    const rootTenantCode = process.env.ROOT_TENANT_CODE || 'VIMBER';
     const rootCompany = process.env.ROOT_COMPANY || 'Vimber LLC';
     const rootSchema = rootTenantCode.toLowerCase();
 

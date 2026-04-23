@@ -67,6 +67,6 @@ npm -w apps/nap-serv run seed             # seed dev data
 ## Environment
 
 - `.env` lives at monorepo root; `db.js` walks up from cwd to find it
-- Databases: dev → `nap_dev`, test → `nap_test`, user → `nap_admin`
+- Databases: dev → `vimber_dev`, test → `vimber_test`, user → `vimber_admin`
 - PG extensions: `pgcrypto`, `uuid-ossp`, `vector`
 - Node ≥ 20 (`.nvmrc`)

@@ -30,7 +30,7 @@ Rebuilding from scratch ensures the database matches the current codebase.
 bash scripts/db/rebuild_and_restore_srh.sh
 ```
 
-Run from the monorepo root. Requires `.pgpass` or `PGPASSWORD` for `nap_admin`.
+Run from the monorepo root. Requires `.pgpass` or `PGPASSWORD` for `vimber_admin`.
 
 ---
 
@@ -158,7 +158,7 @@ cross-env NODE_ENV=development node scripts/db/reseedPolicyCatalog.js --schema n
 
 ## Prerequisites
 
-- `.pgpass` configured for `nap_admin` on `nap_dev` (or `PGPASSWORD` set)
+- `.pgpass` configured for `vimber_admin` on `vimber_dev` (or `PGPASSWORD` set)
 - Node >= 20, npm workspace dependencies installed
 - Run from the monorepo root
 

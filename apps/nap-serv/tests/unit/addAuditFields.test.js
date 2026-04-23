@@ -28,7 +28,7 @@ describe('addAuditFields', () => {
   it('injects created_by on POST', () => {
     const req = {
       method: 'POST',
-      user: { id: 'uuid-123', tenant_code: 'nap' },
+      user: { id: 'uuid-123', tenant_code: 'vimber' },
       body: { name: 'test' },
       originalUrl: '/api/core/v1/roles',
     };
@@ -38,14 +38,14 @@ describe('addAuditFields', () => {
     addAuditFields(req, res, next);
 
     expect(req.body.created_by).toBe('uuid-123');
-    expect(req.body.tenant_code).toBe('nap');
+    expect(req.body.tenant_code).toBe('vimber');
     expect(next).toHaveBeenCalledOnce();
   });
 
   it('injects updated_by on PUT', () => {
     const req = {
       method: 'PUT',
-      user: { id: 'uuid-456', tenant_code: 'nap' },
+      user: { id: 'uuid-456', tenant_code: 'vimber' },
       body: { name: 'updated' },
       originalUrl: '/api/core/v1/roles/update',
     };
@@ -62,7 +62,7 @@ describe('addAuditFields', () => {
   it('injects updated_by on DELETE', () => {
     const req = {
       method: 'DELETE',
-      user: { id: 'uuid-789', tenant_code: 'nap' },
+      user: { id: 'uuid-789', tenant_code: 'vimber' },
       body: {},
       originalUrl: '/api/core/v1/roles/archive',
     };
@@ -107,7 +107,7 @@ describe('addAuditFields', () => {
   it('uses body tenant_code for tenant creation path', () => {
     const req = {
       method: 'POST',
-      user: { id: 'uuid-123', tenant_code: 'nap' },
+      user: { id: 'uuid-123', tenant_code: 'vimber' },
       body: { tenant_code: 'acme', company: 'Acme Inc' },
       originalUrl: '/api/tenants/v1/tenants',
     };

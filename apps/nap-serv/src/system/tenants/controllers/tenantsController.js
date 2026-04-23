@@ -79,7 +79,7 @@ class TenantsController extends BaseController {
    * Rejects archival of the root tenant (NAP).
    */
   async archive(req, res) {
-    const rootTenantCode = (process.env.ROOT_TENANT_CODE || 'NAP').toUpperCase();
+    const rootTenantCode = (process.env.ROOT_TENANT_CODE || 'VIMBER').toUpperCase();
 
     // Check by tenant_code query param
     const tenantCode = req.query.tenant_code?.toUpperCase?.();

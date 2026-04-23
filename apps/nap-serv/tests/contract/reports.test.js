@@ -15,8 +15,8 @@ import bcrypt from 'bcrypt';
 process.env.ACCESS_TOKEN_SECRET = 'test-access-secret-rpt';
 process.env.REFRESH_TOKEN_SECRET = 'test-refresh-secret-rpt';
 process.env.NODE_ENV = 'test';
-process.env.DATABASE_URL_TEST = 'postgres://nap_admin:test@localhost:5432/nap_test';
-process.env.ROOT_TENANT_CODE = 'NAP';
+process.env.DATABASE_URL_TEST = 'postgres://vimber_admin:test@localhost:5432/vimber_test';
+process.env.ROOT_TENANT_CODE = 'VIMBER';
 process.env.COOKIE_SECURE = 'false';
 process.env.BCRYPT_ROUNDS = '4';
 
@@ -25,7 +25,7 @@ const mockUser = {
   id: '550e8400-e29b-41d4-a716-446655440000',
   email: 'admin@vimber.io',
   password_hash: testPasswordHash,
-  tenant_code: 'NAP',
+  tenant_code: 'VIMBER',
   tenant_id: '660e8400-e29b-41d4-a716-446655440001',
   role: 'super_user',
   status: 'active',
@@ -34,9 +34,9 @@ const mockUser = {
 
 const mockTenant = {
   id: '660e8400-e29b-41d4-a716-446655440001',
-  tenant_code: 'NAP',
+  tenant_code: 'VIMBER',
   company: 'Vimber',
-  schema_name: 'nap',
+  schema_name: 'vimber',
   status: 'active',
   deactivated_at: null,
   allowed_modules: [],
@@ -68,7 +68,7 @@ vi.mock('../../src/db/db.js', () => {
     findOneBy: vi.fn(async (conds) => {
       const c = conds[0];
       if (c.email === mockUser.email || c.id === mockUser.id) return mockUser;
-      if (c.tenant_code === 'NAP') return mockTenant;
+      if (c.tenant_code === 'VIMBER') return mockTenant;
       return null;
     }),
     findById: vi.fn(async (id) => {
@@ -140,7 +140,7 @@ describe('Reports Routes Contract', () => {
   describe('Ping route', () => {
     it('GET /api/reports/v1/ping returns pong', async () => {
       const cookies = await getAuthCookies();
-      const res = await request.get('/api/reports/v1/ping').set('Cookie', cookies).set('x-tenant-code', 'NAP');
+      const res = await request.get('/api/reports/v1/ping').set('Cookie', cookies).set('x-tenant-code', 'VIMBER');
       expect(res.status).toBe(200);
       expect(res.body.message).toBe('pong');
     });
@@ -149,14 +149,14 @@ describe('Reports Routes Contract', () => {
   describe('Profitability endpoints', () => {
     it('GET /api/reports/v1/project-profitability returns array', async () => {
       const cookies = await getAuthCookies();
-      const res = await request.get('/api/reports/v1/project-profitability').set('Cookie', cookies).set('x-tenant-code', 'NAP');
+      const res = await request.get('/api/reports/v1/project-profitability').set('Cookie', cookies).set('x-tenant-code', 'VIMBER');
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
     });
 
     it('GET /api/reports/v1/project-profitability/:projectId returns 404 for missing project', async () => {
       const cookies = await getAuthCookies();
-      const res = await request.get('/api/reports/v1/project-profitability/missing-id').set('Cookie', cookies).set('x-tenant-code', 'NAP');
+      const res = await request.get('/api/reports/v1/project-profitability/missing-id').set('Cookie', cookies).set('x-tenant-code', 'VIMBER');
       expect(res.status).toBe(404);
       expect(res.body.error).toContain('Project not found');
     });
@@ -165,14 +165,14 @@ describe('Reports Routes Contract', () => {
   describe('Cashflow endpoints', () => {
     it('GET /api/reports/v1/project-cashflow/:projectId returns 404 for missing data', async () => {
       const cookies = await getAuthCookies();
-      const res = await request.get('/api/reports/v1/project-cashflow/missing-id').set('Cookie', cookies).set('x-tenant-code', 'NAP');
+      const res = await request.get('/api/reports/v1/project-cashflow/missing-id').set('Cookie', cookies).set('x-tenant-code', 'VIMBER');
       expect(res.status).toBe(404);
       expect(res.body.error).toContain('No cashflow data');
     });
 
     it('GET /api/reports/v1/project-cashflow/:projectId/forecast returns forecast shape', async () => {
       const cookies = await getAuthCookies();
-      const res = await request.get('/api/reports/v1/project-cashflow/some-id/forecast').set('Cookie', cookies).set('x-tenant-code', 'NAP');
+      const res = await request.get('/api/reports/v1/project-cashflow/some-id/forecast').set('Cookie', cookies).set('x-tenant-code', 'VIMBER');
       expect(res.status).toBe(200);
       expect(res.body).toHaveProperty('expected_inflows');
       expect(res.body).toHaveProperty('expected_outflows');
@@ -183,7 +183,7 @@ describe('Reports Routes Contract', () => {
   describe('Cost breakdown endpoints', () => {
     it('GET /api/reports/v1/project-cost-breakdown/:projectId returns 404 for missing data', async () => {
       const cookies = await getAuthCookies();
-      const res = await request.get('/api/reports/v1/project-cost-breakdown/missing-id').set('Cookie', cookies).set('x-tenant-code', 'NAP');
+      const res = await request.get('/api/reports/v1/project-cost-breakdown/missing-id').set('Cookie', cookies).set('x-tenant-code', 'VIMBER');
       expect(res.status).toBe(404);
       expect(res.body.error).toContain('No cost data');
     });
@@ -192,14 +192,14 @@ describe('Reports Routes Contract', () => {
   describe('AR aging endpoints', () => {
     it('GET /api/reports/v1/ar-aging returns array', async () => {
       const cookies = await getAuthCookies();
-      const res = await request.get('/api/reports/v1/ar-aging').set('Cookie', cookies).set('x-tenant-code', 'NAP');
+      const res = await request.get('/api/reports/v1/ar-aging').set('Cookie', cookies).set('x-tenant-code', 'VIMBER');
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
     });
 
     it('GET /api/reports/v1/ar-aging/:clientId returns 404 for missing client', async () => {
       const cookies = await getAuthCookies();
-      const res = await request.get('/api/reports/v1/ar-aging/missing-id').set('Cookie', cookies).set('x-tenant-code', 'NAP');
+      const res = await request.get('/api/reports/v1/ar-aging/missing-id').set('Cookie', cookies).set('x-tenant-code', 'VIMBER');
       expect(res.status).toBe(404);
       expect(res.body.error).toContain('Client not found');
     });
@@ -208,14 +208,14 @@ describe('Reports Routes Contract', () => {
   describe('AP aging endpoints', () => {
     it('GET /api/reports/v1/ap-aging returns array', async () => {
       const cookies = await getAuthCookies();
-      const res = await request.get('/api/reports/v1/ap-aging').set('Cookie', cookies).set('x-tenant-code', 'NAP');
+      const res = await request.get('/api/reports/v1/ap-aging').set('Cookie', cookies).set('x-tenant-code', 'VIMBER');
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
     });
 
     it('GET /api/reports/v1/ap-aging/:vendorId returns 404 for missing vendor', async () => {
       const cookies = await getAuthCookies();
-      const res = await request.get('/api/reports/v1/ap-aging/missing-id').set('Cookie', cookies).set('x-tenant-code', 'NAP');
+      const res = await request.get('/api/reports/v1/ap-aging/missing-id').set('Cookie', cookies).set('x-tenant-code', 'VIMBER');
       expect(res.status).toBe(404);
       expect(res.body.error).toContain('Vendor not found');
     });
@@ -224,7 +224,7 @@ describe('Reports Routes Contract', () => {
   describe('Company cashflow endpoint', () => {
     it('GET /api/reports/v1/company-cashflow returns array', async () => {
       const cookies = await getAuthCookies();
-      const res = await request.get('/api/reports/v1/company-cashflow').set('Cookie', cookies).set('x-tenant-code', 'NAP');
+      const res = await request.get('/api/reports/v1/company-cashflow').set('Cookie', cookies).set('x-tenant-code', 'VIMBER');
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
     });
@@ -233,21 +233,21 @@ describe('Reports Routes Contract', () => {
   describe('Margin analysis endpoint', () => {
     it('GET /api/reports/v1/margin-analysis returns array', async () => {
       const cookies = await getAuthCookies();
-      const res = await request.get('/api/reports/v1/margin-analysis').set('Cookie', cookies).set('x-tenant-code', 'NAP');
+      const res = await request.get('/api/reports/v1/margin-analysis').set('Cookie', cookies).set('x-tenant-code', 'VIMBER');
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
     });
 
     it('GET /api/reports/v1/margin-analysis rejects invalid sort column', async () => {
       const cookies = await getAuthCookies();
-      const res = await request.get('/api/reports/v1/margin-analysis?sortBy=DROP_TABLE').set('Cookie', cookies).set('x-tenant-code', 'NAP');
+      const res = await request.get('/api/reports/v1/margin-analysis?sortBy=DROP_TABLE').set('Cookie', cookies).set('x-tenant-code', 'VIMBER');
       expect(res.status).toBe(400);
       expect(res.body.error).toContain('Invalid sort column');
     });
 
     it('GET /api/reports/v1/margin-analysis accepts valid sort column', async () => {
       const cookies = await getAuthCookies();
-      const res = await request.get('/api/reports/v1/margin-analysis?sortBy=gross_profit&sortDir=ASC').set('Cookie', cookies).set('x-tenant-code', 'NAP');
+      const res = await request.get('/api/reports/v1/margin-analysis?sortBy=gross_profit&sortDir=ASC').set('Cookie', cookies).set('x-tenant-code', 'VIMBER');
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
     });
@@ -256,7 +256,7 @@ describe('Reports Routes Contract', () => {
   describe('POST methods are not available', () => {
     it('POST /api/reports/v1/project-profitability returns 404', async () => {
       const cookies = await getAuthCookies();
-      const res = await request.post('/api/reports/v1/project-profitability').set('Cookie', cookies).set('x-tenant-code', 'NAP').send({});
+      const res = await request.post('/api/reports/v1/project-profitability').set('Cookie', cookies).set('x-tenant-code', 'VIMBER').send({});
       expect(res.status).toBe(404);
     });
   });

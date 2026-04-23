@@ -56,7 +56,7 @@ Schema names are derived from `tenant_code` (lowercased, underscored).
 
 ## Root Tenant Protection
 
-The root Vimber tenant (code `NAP`) has special protections:
+The root Vimber tenant (code `VIMBER`) has special protections:
 
 - **Cannot be archived** — archive requests return `403 Forbidden`
 - **Cannot be deleted** — there is no hard-delete endpoint
@@ -110,7 +110,7 @@ When a tenant is restored:
 
 ## Cross-Tenant Access (Assumed Tenant)
 
-Vimber users (those belonging to the `NAP` tenant) can assume the
+Vimber users (those belonging to the `VIMBER` tenant) can assume the
 context of another tenant:
 
 - The `x-tenant-code` header on API requests switches the active tenant
@@ -153,7 +153,7 @@ Vimber admins can impersonate other users for support and debugging:
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
-| `ROOT_TENANT_CODE` | No | `NAP` | Root tenant identifier |
+| `ROOT_TENANT_CODE` | No | `VIMBER` | Root tenant identifier |
 | `ROOT_COMPANY` | No | `Vimber LLC` | Root tenant company name |
 | `ROOT_EMAIL` | Yes | — | Bootstrap admin email |
 | `ROOT_PASSWORD` | Yes | — | Bootstrap admin password |

@@ -48,7 +48,7 @@ describe('GET /api/tenants/v1/tenants', () => {
     // Should have at least the root NAP tenant from bootstrap
     const rows = res.body.rows ?? res.body;
     expect(rows.length).toBeGreaterThanOrEqual(1);
-    const nap = (Array.isArray(rows) ? rows : []).find((t) => t.tenant_code === 'NAP');
+    const nap = (Array.isArray(rows) ? rows : []).find((t) => t.tenant_code === 'VIMBER');
     expect(nap).toBeDefined();
   });
 });
@@ -125,7 +125,7 @@ describe('DELETE /api/tenants/v1/tenants/archive', () => {
     // Find NAP tenant id
     const listRes = await request(app).get('/api/tenants/v1/tenants').set('Cookie', cookies);
     const rows = listRes.body.rows ?? listRes.body;
-    const nap = (Array.isArray(rows) ? rows : []).find((t) => t.tenant_code === 'NAP');
+    const nap = (Array.isArray(rows) ? rows : []).find((t) => t.tenant_code === 'VIMBER');
 
     const res = await request(app)
       .delete(`/api/tenants/v1/tenants/archive?id=${nap.id}`)
@@ -185,7 +185,7 @@ describe('GET /api/tenants/v1/tenants/:id/modules', () => {
 
     const listRes = await request(app).get('/api/tenants/v1/tenants').set('Cookie', cookies);
     const rows = listRes.body.rows ?? listRes.body;
-    const nap = (Array.isArray(rows) ? rows : []).find((t) => t.tenant_code === 'NAP');
+    const nap = (Array.isArray(rows) ? rows : []).find((t) => t.tenant_code === 'VIMBER');
 
     const res = await request(app)
       .get(`/api/tenants/v1/tenants/${nap.id}/modules`)

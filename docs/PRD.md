@@ -371,7 +371,7 @@ Roles with `is_immutable = true` OR `is_system = true` are read-only across all 
 
 **Access Control:** Restricted to Vimber employees via `requireRootTenant` middleware.
 
-**Root Tenant:** Vimber (tenant_code `NAP`) is the platform root tenant. It cannot be archived or deleted. The `super_user` and `support` system roles can only be assigned to users belonging to the Vimber tenant. The root tenant is created automatically during initial setup via the `202502110001_bootstrapAdmin` migration.
+**Root Tenant:** Vimber (tenant_code `VIMBER`) is the platform root tenant. It cannot be archived or deleted. The `super_user` and `support` system roles can only be assigned to users belonging to the Vimber tenant. The root tenant is created automatically during initial setup via the `202502110001_bootstrapAdmin` migration.
 
 #### 3.2.1 Manage Tenants
 
@@ -2034,15 +2034,15 @@ Based on the sidebar navigation config (`navigationConfig.js`) and client-side r
 | `COOKIE_SECURE` | Secure cookie flag | `false` (dev) |
 | `COOKIE_SAMESITE` | SameSite cookie policy | `Lax` |
 | `BCRYPT_ROUNDS` | Password hashing cost | 12 |
-| `ROOT_TENANT_CODE` | Vimber tenant code for admin access | `NAP` |
-| `VITE_ROOT_TENANT_CODE` | Client-side Vimber tenant code | `NAP` |
+| `ROOT_TENANT_CODE` | Vimber tenant code for admin access | `VIMBER` |
+| `VITE_ROOT_TENANT_CODE` | Client-side Vimber tenant code | `VIMBER` |
 | `VITE_ROOT_COMPANY` | Client-side Vimber company name (reserved, not currently used) | `Vimber` |
 | `VITE_ROOT_EMAIL_DOMAIN` | Client-side Vimber email domain (reserved, not currently used) | `vimber.io` |
 | `PORT` | Express server port | `3000` |
 | `HOST` | Express server host | `localhost` |
 | `NODE_ENV` | Runtime environment (`development`, `test`, `production`) | — |
 | `OPENAI_API_KEY` | OpenAI API key for BOM embedding service (`bom/services/embeddingService.js`) | — |
-| `ROOT_TENANT_CODE` | Root tenant code for bootstrap migration (falls back directly to `'NAP'`) | `NAP` |
+| `ROOT_TENANT_CODE` | Root tenant code for bootstrap migration (falls back directly to `'VIMBER'`) | `VIMBER` |
 | `ROOT_COMPANY` | Root company name for bootstrap migration | `Vimber LLC` |
 
 ---
@@ -2640,8 +2640,8 @@ cp .env.example .env
 
 ```bash
 # Database
-DATABASE_URL_DEV=postgres://nap_admin:password@localhost:5432/nap_dev
-DATABASE_URL_TEST=postgres://nap_admin:password@localhost:5432/nap_test
+DATABASE_URL_DEV=postgres://vimber_admin:password@localhost:5432/vimber_dev
+DATABASE_URL_TEST=postgres://vimber_admin:password@localhost:5432/vimber_test
 
 # Redis
 REDIS_URL=redis://localhost:6379
@@ -2659,8 +2659,8 @@ CLIENT_ORIGIN=http://localhost:5173
 CORS_ORIGINS=http://localhost:5173
 
 # Vimber identity
-ROOT_TENANT_CODE=NAP
-VITE_ROOT_TENANT_CODE=NAP
+ROOT_TENANT_CODE=VIMBER
+VITE_ROOT_TENANT_CODE=VIMBER
 VITE_ROOT_COMPANY=Vimber
 VITE_ROOT_EMAIL_DOMAIN=vimber.io
 ```
@@ -2674,18 +2674,18 @@ node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 
 ```bash
 # 1. Create PostgreSQL user and databases
-psql -U postgres -c "CREATE USER nap_admin WITH PASSWORD 'password' CREATEDB;"
-psql -U postgres -c "CREATE DATABASE nap_dev OWNER nap_admin;"
-psql -U postgres -c "CREATE DATABASE nap_test OWNER nap_admin;"
+psql -U postgres -c "CREATE USER vimber_admin WITH PASSWORD 'password' CREATEDB;"
+psql -U postgres -c "CREATE DATABASE vimber_dev OWNER vimber_admin;"
+psql -U postgres -c "CREATE DATABASE vimber_test OWNER vimber_admin;"
 
 # 2. Enable required extensions (connect to each database)
-psql -U nap_admin -d nap_dev -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
-psql -U nap_admin -d nap_dev -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
-psql -U nap_admin -d nap_dev -c "CREATE EXTENSION IF NOT EXISTS vector;"
+psql -U vimber_admin -d vimber_dev -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
+psql -U vimber_admin -d vimber_dev -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
+psql -U vimber_admin -d vimber_dev -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
-psql -U nap_admin -d nap_test -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
-psql -U nap_admin -d nap_test -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
-psql -U nap_admin -d nap_test -c "CREATE EXTENSION IF NOT EXISTS vector;"
+psql -U vimber_admin -d vimber_test -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
+psql -U vimber_admin -d vimber_test -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
+psql -U vimber_admin -d vimber_test -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
 # 3. Run migrations and bootstrap the admin schema
 npm -w apps/nap-serv run setupAdmin:dev
@@ -2832,8 +2832,8 @@ The `.env.example` file exists at the monorepo root. Keep it in version control 
 
 ```bash
 # Database
-DATABASE_URL_DEV=postgres://nap_admin:password@localhost:5432/nap_dev
-DATABASE_URL_TEST=postgres://nap_admin:password@localhost:5432/nap_test
+DATABASE_URL_DEV=postgres://vimber_admin:password@localhost:5432/vimber_dev
+DATABASE_URL_TEST=postgres://vimber_admin:password@localhost:5432/vimber_test
 DATABASE_URL_PROD=
 
 # Redis
@@ -2859,8 +2859,8 @@ COOKIE_SAMESITE=Lax
 BCRYPT_ROUNDS=12
 
 # Vimber identity
-ROOT_TENANT_CODE=NAP
-VITE_ROOT_TENANT_CODE=NAP
+ROOT_TENANT_CODE=VIMBER
+VITE_ROOT_TENANT_CODE=VIMBER
 VITE_ROOT_COMPANY=Vimber
 VITE_ROOT_EMAIL_DOMAIN=vimber.io
 ```

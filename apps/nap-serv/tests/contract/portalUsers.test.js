@@ -59,7 +59,7 @@ describe('POST /api/tenants/v1/portal-users/register', () => {
   test('registers a new user with valid tenant_code', async () => {
     const cookies = await loginRoot();
     const body = {
-      tenant_code: 'NAP',
+      tenant_code: 'VIMBER',
       email: 'newuser@vimber.io',
       password: 'TestPass123!',
     };
@@ -102,7 +102,7 @@ describe('POST /api/tenants/v1/portal-users/register', () => {
     const res = await request(app)
       .post('/api/tenants/v1/portal-users/register')
       .set('Cookie', cookies)
-      .send({ tenant_code: 'NAP', email: 'newuser@vimber.io', password: 'Pass123!' });
+      .send({ tenant_code: 'VIMBER', email: 'newuser@vimber.io', password: 'Pass123!' });
 
     expect(res.status).toBe(409);
   });

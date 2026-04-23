@@ -13,7 +13,7 @@
  * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
-import { defineMigration } from '../../../../db/migrations/defineMigration.js';
+import { defineMigration } from '../../../../../db/migrations/defineMigration.js';
 
 export default defineMigration({
   id: '202604231200-rename-nap-users-to-portal-users',

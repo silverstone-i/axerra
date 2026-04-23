@@ -15,7 +15,7 @@ import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import { bootstrapAdmin, cleanupTestDb, DB } from '../helpers/testDb.js';
 
 const ROOT_EMAIL = process.env.ROOT_EMAIL;
-const ROOT_TENANT_CODE = process.env.ROOT_TENANT_CODE || 'NAP';
+const ROOT_TENANT_CODE = process.env.ROOT_TENANT_CODE || 'VIMBER';
 const ROOT_COMPANY = process.env.ROOT_COMPANY || 'Vimber LLC';
 
 describe('Bootstrap admin migration', () => {

@@ -149,6 +149,6 @@ The `admin.portal_users` table is a pure identity/login table:
 | `REFRESH_TOKEN_SECRET` | Yes | — | JWT signing secret for refresh tokens |
 | `ROOT_EMAIL` | Yes | — | Bootstrap super user email |
 | `ROOT_PASSWORD` | Yes | — | Bootstrap super user password |
-| `ROOT_TENANT_CODE` | No | `NAP` | Bootstrap tenant code |
+| `ROOT_TENANT_CODE` | No | `VIMBER` | Bootstrap tenant code |
 | `ROOT_COMPANY` | No | `Vimber LLC` | Bootstrap tenant company name |
 | `BCRYPT_ROUNDS` | No | `12` | bcrypt cost factor (4 in test) |

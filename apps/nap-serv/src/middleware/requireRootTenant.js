@@ -12,7 +12,7 @@
  * Express middleware that gates routes to Vimber employees only.
  */
 export function requireRootTenant(req, res, next) {
-  const rootSchema = (process.env.ROOT_TENANT_CODE || 'nap').toLowerCase();
+  const rootSchema = (process.env.ROOT_TENANT_CODE || 'vimber').toLowerCase();
   const userTenant = req.user?.home_tenant?.toLowerCase?.();
 
   if (!req.user || !userTenant || userTenant !== rootSchema) {

@@ -10,7 +10,7 @@
 #   DUMP=$(bash backup_srh.sh | grep '^DUMP_FILE=' | cut -d= -f2-)
 #
 # Prerequisites:
-#   - .pgpass or PGPASSWORD configured for nap_admin
+#   - .pgpass or PGPASSWORD configured for vimber_admin
 #   - Run from the monorepo root
 #
 # Usage:
@@ -21,8 +21,8 @@
 set -Eeuo pipefail
 
 # ─── Configuration ────────────────────────────────────────────────
-DB_NAME="nap_dev"
-DB_USER="nap_admin"
+DB_NAME="vimber_dev"
+DB_USER="vimber_admin"
 SOURCE_SCHEMA="srh"
 TENANT_CODE="SRH"
 

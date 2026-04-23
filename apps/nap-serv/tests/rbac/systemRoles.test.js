@@ -59,7 +59,7 @@ describe('System Role Seeding', () => {
   });
 
   it('seeds super_user, admin, and support for Vimber tenant', async () => {
-    await seedSystemRoles(mockDb, mockPgp, 'nap', 'NAP', true);
+    await seedSystemRoles(mockDb, mockPgp, 'vimber', 'VIMBER', true);
 
     expect(insertedRoles.find((r) => r.code === 'super_user')).toBeDefined();
     expect(insertedRoles.find((r) => r.code === 'admin')).toBeDefined();
@@ -67,14 +67,14 @@ describe('System Role Seeding', () => {
   });
 
   it('super_user gets full access policy for all modules', async () => {
-    await seedSystemRoles(mockDb, mockPgp, 'nap', 'NAP', true);
+    await seedSystemRoles(mockDb, mockPgp, 'vimber', 'VIMBER', true);
 
     const superPolicies = insertedPolicies.filter((p) => p.role_id === 'role-super_user');
     expect(superPolicies.some((p) => p.module === '' && p.level === 'full')).toBe(true);
   });
 
   it('support gets none for financial modules', async () => {
-    await seedSystemRoles(mockDb, mockPgp, 'nap', 'NAP', true);
+    await seedSystemRoles(mockDb, mockPgp, 'vimber', 'VIMBER', true);
 
     const supportPolicies = insertedPolicies.filter((p) => p.role_id === 'role-support');
     const financialDenied = supportPolicies.filter(
@@ -94,7 +94,7 @@ describe('System Role Seeding', () => {
   });
 
   it('system roles use correct scopes', async () => {
-    await seedSystemRoles(mockDb, mockPgp, 'nap', 'NAP', true);
+    await seedSystemRoles(mockDb, mockPgp, 'vimber', 'VIMBER', true);
 
     for (const role of insertedRoles) {
       if (role.code === 'vendor_contact' || role.code === 'client') {

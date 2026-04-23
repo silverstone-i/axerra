@@ -61,4 +61,4 @@ It provides:
 
 - Conventions documented in CLAUDE.md and enforced by code review.
 - Comprehensive migration tests (idempotency, checksums, advisory locks)
-  run in CI against `nap_test`.
+  run in CI against `vimber_test`.

@@ -32,7 +32,7 @@ A single `ci.yml` workflow triggers on PRs to `dev` and `main` with two jobs:
 
 ### Local test gate (pre-push hook)
 
-Tests run locally against `nap_test` via a Husky `pre-push` hook. The full Vitest suite must pass before `git push` succeeds. This avoids the complexity of provisioning PostgreSQL + Redis service containers in CI while still guaranteeing tests are green before any PR is created.
+Tests run locally against `vimber_test` via a Husky `pre-push` hook. The full Vitest suite must pass before `git push` succeeds. This avoids the complexity of provisioning PostgreSQL + Redis service containers in CI while still guaranteeing tests are green before any PR is created.
 
 ### Branch protection rules (manual configuration)
 
@@ -52,4 +52,4 @@ Architecture reports (`report.json`, `report.md`, `dependency-graph.json`) are g
 - Deterministic checks are hard gates; AI interpretation (ADR TBD) is advisory only
 - Adding a new module requires updating `moduleRegistry.js` or CI will fail
 - Adding a new cross-module import requires going through a barrel export or CI will fail
-- Tests are enforced locally via pre-push hook against the developer's `nap_test` database — `git push` is blocked until all tests pass
+- Tests are enforced locally via pre-push hook against the developer's `vimber_test` database — `git push` is blocked until all tests pass

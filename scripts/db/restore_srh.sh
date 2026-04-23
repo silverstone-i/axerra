@@ -13,7 +13,7 @@
 # These files are produced by backup_srh.sh.
 #
 # Prerequisites:
-#   - .pgpass or PGPASSWORD configured for nap_admin
+#   - .pgpass or PGPASSWORD configured for vimber_admin
 #   - Node >= 20, npm workspaces installed
 #   - Run from the monorepo root
 #
@@ -28,8 +28,8 @@
 set -Eeuo pipefail
 
 # ─── Configuration ────────────────────────────────────────────────
-DB_NAME="nap_dev"
-DB_USER="nap_admin"
+DB_NAME="vimber_dev"
+DB_USER="vimber_admin"
 SOURCE_SCHEMA="srh"
 STAGE_SCHEMA="srh_restore"
 TENANT_CODE="SRH"

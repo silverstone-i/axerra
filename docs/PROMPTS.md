@@ -82,7 +82,7 @@ Create the following files by porting from the `nap` branch (`git show nap:<path
 - ESLint: unused vars warn with `^_` prefix ignore
 - pg-schemata schema defaults use JS values (`default: 'active'`), NOT SQL literals
 - `.env` lives at monorepo root; `db.js` walks up from cwd to find it
-- Databases: dev → `nap_dev`, test → `nap_test`, user → `nap_admin`
+- Databases: dev → `vimber_dev`, test → `vimber_test`, user → `vimber_admin`
 
 #### Verification
 
