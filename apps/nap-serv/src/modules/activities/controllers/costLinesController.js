@@ -4,7 +4,7 @@
  *
  * Status workflow: draft → locked → change_order
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import BaseController from '../../../lib/BaseController.js';

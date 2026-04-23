@@ -2,7 +2,7 @@
  * @file RBAC tests for system role definitions
  * @module tests/rbac/systemRoles
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -51,14 +51,14 @@ describe('System Role Seeding', () => {
     expect(admin.scope).toBe('all_projects');
   });
 
-  it('does NOT seed super_user or support for non-NapSoft tenants', async () => {
+  it('does NOT seed super_user or support for non-Vimber tenants', async () => {
     await seedSystemRoles(mockDb, mockPgp, 'acme', 'ACME', false);
 
     expect(insertedRoles.find((r) => r.code === 'super_user')).toBeUndefined();
     expect(insertedRoles.find((r) => r.code === 'support')).toBeUndefined();
   });
 
-  it('seeds super_user, admin, and support for NapSoft tenant', async () => {
+  it('seeds super_user, admin, and support for Vimber tenant', async () => {
     await seedSystemRoles(mockDb, mockPgp, 'nap', 'NAP', true);
 
     expect(insertedRoles.find((r) => r.code === 'super_user')).toBeDefined();

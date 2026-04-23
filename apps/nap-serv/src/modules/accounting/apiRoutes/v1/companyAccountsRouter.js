@@ -2,7 +2,7 @@
  * @file Company Accounts router — /api/accounting/v1/company-accounts
  * @module accounting/apiRoutes/v1/companyAccountsRouter
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import createRouter from '../../../../lib/createRouter.js';

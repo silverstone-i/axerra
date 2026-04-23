@@ -5,7 +5,7 @@
  * Tests admin schema listing and impersonation start/stop/status.
  * Requires Redis — tests that call Redis will be skipped if unavailable.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
@@ -38,7 +38,7 @@ describe('GET /api/tenants/v1/admin/schemas', () => {
     expect(res.status).toBe(401);
   });
 
-  test('returns active tenant schemas for NapSoft user', async () => {
+  test('returns active tenant schemas for Vimber user', async () => {
     const cookies = await loginRoot();
     const res = await request(app).get('/api/tenants/v1/admin/schemas').set('Cookie', cookies);
 

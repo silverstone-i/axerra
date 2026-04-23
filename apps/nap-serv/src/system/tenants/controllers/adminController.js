@@ -2,14 +2,14 @@
  * @file Admin controller — schema listing and impersonation per PRD §3.2.3
  * @module tenants/controllers/adminController
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import db from '../../../db/db.js';
 import { getRedis } from '../../../db/redis.js';
 
 /**
- * GET /schemas — list all active tenant schemas (NapSoft users)
+ * GET /schemas — list all active tenant schemas (Vimber users)
  * Returns whitelisted tenant objects for the UI tenant picker.
  */
 export async function getAllSchemas(req, res) {

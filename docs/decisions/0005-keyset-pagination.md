@@ -2,7 +2,7 @@
  * @file ADR-0005: Keyset pagination over offset pagination
  * @module docs/decisions
  *
- * Copyright (c) 2025 NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 Vimber LLC. All rights reserved.
  */
 
 # ADR-0005: Keyset Pagination

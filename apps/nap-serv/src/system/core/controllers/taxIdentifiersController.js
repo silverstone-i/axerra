@@ -2,7 +2,7 @@
  * @file Tax identifiers controller — CRUD for typed tax IDs linked via sources
  * @module core/controllers/taxIdentifiersController
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import BaseController from '../../../lib/BaseController.js';

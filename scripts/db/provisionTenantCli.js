@@ -8,7 +8,7 @@
  *     --company "Sterling Ridge Homes, LLC" \
  *     --schema-name srh
  *
- * Copyright (c) 2025 NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 Vimber LLC. All rights reserved.
  */
 
 import { resolve, dirname } from 'node:path';

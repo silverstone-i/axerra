@@ -5,7 +5,7 @@
  * Extracted from TenantsController.create() so the Tenants model can call it
  * during spreadsheet import without creating a circular dependency.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import bcrypt from 'bcrypt';

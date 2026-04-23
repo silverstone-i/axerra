@@ -2,7 +2,7 @@
 # ────────────────────────────────────────────────────────────────────
 # restore_srh.sh
 #
-# Rebuilds the entire database from scratch (admin + NapSoft root +
+# Rebuilds the entire database from scratch (admin + Vimber root +
 # SRH tenant) then restores SRH business data from a backup while
 # keeping a freshly-seeded policy_catalog.
 #
@@ -23,7 +23,7 @@
 #   backup_dir  Path to directory with backup files.
 #               Defaults to tmp/srh_backups.
 #
-# Copyright (c) 2025 NapSoft LLC. All rights reserved.
+# Copyright (c) 2025 Vimber LLC. All rights reserved.
 # ────────────────────────────────────────────────────────────────────
 set -Eeuo pipefail
 

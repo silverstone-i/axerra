@@ -6,14 +6,14 @@
 
 NAP (Next Generation Accounting Platform) is a **multi-tenant, modular construction and project management ERP** designed for property development, homebuilding, and general contracting companies. It provides end-to-end management of projects, budgets, cost tracking, vendor relationships, accounts payable/receivable, general ledger accounting, intercompany operations, and **project-level cashflow and profitability analysis** — all within a schema-isolated multi-tenant architecture.
 
-> **Build Approach:** This application is built from scratch (greenfield). All server-side data access, schema management, migrations, and CRUD operations leverage **pg-schemata 1.3.0** — an owned, extensible PostgreSQL ORM layer. Since NapSoft owns the pg-schemata repository, features can be added and bugs fixed as needed to support NAP requirements.
+> **Build Approach:** This application is built from scratch (greenfield). All server-side data access, schema management, migrations, and CRUD operations leverage **pg-schemata 1.3.0** — an owned, extensible PostgreSQL ORM layer. Since Vimber owns the pg-schemata repository, features can be added and bugs fixed as needed to support NAP requirements.
 
 ### 1.2 Target Users
 
 | Persona | Description |
 |---|---|
-| **NapSoft Super User** | Platform operator with full access to NapSoft data, cross-tenant access, impersonation, and tenant management |
-| **NapSoft Support** | Cross-tenant access, impersonation, and tenant management. No access to NapSoft financial data |
+| **Vimber Super User** | Platform operator with full access to Vimber data, cross-tenant access, impersonation, and tenant management |
+| **Vimber Support** | Cross-tenant access, impersonation, and tenant management. No access to Vimber financial data |
 | **Administrator** | Full access within their tenant's data. Same role meaning in every schema |
 | **Project Manager** | Creates/manages projects, units, budgets, cost lines, change orders, and actual costs |
 | **Accountant / Controller** | Manages chart of accounts, journal entries, AP/AR invoices, and intercompany transactions |
@@ -62,7 +62,7 @@ NAP uses **PostgreSQL schema-per-tenant** isolation powered by pg-schemata:
 
 ### 2.2 pg-schemata Integration (Owned Dependency)
 
-NAP is built entirely on **pg-schemata 1.3.0**. Since NapSoft owns the pg-schemata repository, the library can be extended with new features or patched as NAP requirements evolve.
+NAP is built entirely on **pg-schemata 1.3.0**. Since Vimber owns the pg-schemata repository, the library can be extended with new features or patched as NAP requirements evolve.
 
 #### 2.2.1 Core Capabilities Used
 
@@ -296,9 +296,9 @@ RBAC uses a four-layer model where each layer narrows what the previous layer gr
 
 All roles — including system roles — go through the full RBAC policy resolution. There are no bypass or short-circuit paths in the middleware.
 
-- `super_user` (NapSoft `nap` schema only): Full access to all NapSoft data + cross-tenant access + impersonation + tenant management. Seeded with `level: 'full'` policies for all modules plus cross-tenant and impersonation policies. Goes through full RBAC policy resolution — no bypass.
+- `super_user` (Vimber `nap` schema only): Full access to all Vimber data + cross-tenant access + impersonation + tenant management. Seeded with `level: 'full'` policies for all modules plus cross-tenant and impersonation policies. Goes through full RBAC policy resolution — no bypass.
 - `admin` (all tenant schemas): Full access within that tenant's data. Seeded with `level: 'full'` policies for all modules. Same meaning in every schema. Goes through full RBAC policy resolution — no bypass.
-- `support` (NapSoft `nap` schema only): Cross-tenant access + impersonation + tenant management. No access to NapSoft financial modules (accounting, AR, AP). Seeded with `level: 'none'` for financial modules + `level: 'full'` for non-financial modules + cross-tenant and impersonation policies. Goes through full RBAC policy resolution.
+- `support` (Vimber `nap` schema only): Cross-tenant access + impersonation + tenant management. No access to Vimber financial modules (accounting, AR, AP). Seeded with `level: 'none'` for financial modules + `level: 'full'` for non-financial modules + cross-tenant and impersonation policies. Goes through full RBAC policy resolution.
 
 > **No RBAC Bypass:** The middleware does NOT short-circuit for `super_user` or `admin`. All users are authorized through the same entity `roles` array → `policies` resolution path. This ensures all access is auditable, configurable, and consistent.
 
@@ -307,7 +307,7 @@ All roles — including system roles — go through the full RBAC policy resolut
 
 > **Note:** Only `admin`, `super_user`, and `support` are seeded by the system role seeder. Additional roles (e.g., `project_manager`, `controller`) are tenant-configurable and must be created by tenant admins via the ManageRolesPage UI.
 
-**NapSoft-Only Policies:** Cross-tenant and impersonation policies are ONLY seeded in the `nap` schema on `super_user` and `support` roles. These policies cannot be assigned to other tenants' schemas.
+**Vimber-Only Policies:** Cross-tenant and impersonation policies are ONLY seeded in the `nap` schema on `super_user` and `support` roles. These policies cannot be assigned to other tenants' schemas.
 
 **Tenant Configurability:** All roles except `super_user`, `admin`, and `support` are tenant-configurable. Tenants define their own roles, assign scopes, create state filters, and build field groups.
 
@@ -323,7 +323,7 @@ All roles — including system roles — go through the full RBAC policy resolut
 - Enforced by middleware after auth and before RBAC: if `req.resource.module` is not in the tenant's `allowed_modules`, return 403
 - Cached in Redis alongside tenant metadata
 - Default: empty array means **all modules allowed** — entitlement enforcement activates per-tenant as their `allowed_modules` arrays are populated
-- Managed by NapSoft `super_user` / `support` via tenant management UI
+- Managed by Vimber `super_user` / `support` via tenant management UI
 
 **Enforcement:**
 - **Module Entitlement (middleware):** `moduleEntitlement` is auto-applied by `createRouter` on all routes. Checks `tenants.allowed_modules` — if the tenant doesn't have the module enabled, returns 403 regardless of user permissions. Empty array means all modules allowed.
@@ -367,11 +367,11 @@ Roles with `is_immutable = true` OR `is_system = true` are read-only across all 
 
 ### 3.2 Tenant Management
 
-**Purpose:** NapSoft operators manage customer organizations (tenants) and their users.
+**Purpose:** Vimber operators manage customer organizations (tenants) and their users.
 
-**Access Control:** Restricted to NapSoft employees via `requireNapsoftTenant` middleware.
+**Access Control:** Restricted to Vimber employees via `requireNapsoftTenant` middleware.
 
-**Root Tenant:** NapSoft (tenant_code `NAP`) is the platform root tenant. It cannot be archived or deleted. The `super_user` and `support` system roles can only be assigned to users belonging to the NapSoft tenant. The root tenant is created automatically during initial setup via the `202502110001_bootstrapAdmin` migration.
+**Root Tenant:** Vimber (tenant_code `NAP`) is the platform root tenant. It cannot be archived or deleted. The `super_user` and `support` system roles can only be assigned to users belonging to the Vimber tenant. The root tenant is created automatically during initial setup via the `202502110001_bootstrapAdmin` migration.
 
 #### 3.2.1 Manage Tenants
 
@@ -406,7 +406,7 @@ Roles with `is_immutable = true` OR `is_system = true` are read-only across all 
 - Create tenant form includes admin user fields: first name, last name, email, and password (used to create the tenant's Administrator user and linked employee record)
 - Pagination with configurable rows-per-page (powered by `findAfterCursor()`)
 - Archive cascades to deactivate all currently-active associated `nap_users` (sets `deactivated_at`, `status = 'locked'`, and `updated_by`) — works for both `?id=` and `?tenant_code=` query params.
-- The root tenant (NapSoft, `NAP`) cannot be archived — server rejects the request with 403
+- The root tenant (Vimber, `NAP`) cannot be archived — server rejects the request with 403
 - Restore reactivates the tenant only — users remain archived and must be individually restored by an admin
 - **View Details dialog** (`maxWidth="md"`): displays tenant fields in a responsive 3-column grid of `FieldRow` components (label:value pairs). Fields: Code, Tier, Region, Status (rendered as `StatusBadge` chip), Max Users, Schema (monospace), Created, Updated, Notes (full-width). Below a divider, two `DataGrid` tables display **Primary Contacts** and **Billing Contacts** with Name, Email (mailto link), and Phone columns. Contact data is fetched via `useTenantContacts(tenantId)` hook.
 
@@ -442,7 +442,7 @@ Partial unique index: `(entity_type, entity_id) WHERE deactivated_at IS NULL` �
 
 > **Removed from nap_users:** `tenant_code`, `user_name`, `full_name`, `tax_id`, `notes`, `role`, `tenant_role`, `employee_id`. The `employee_id` column has been replaced by the polymorphic `entity_type` + `entity_id` pair, supporting logins for employees, vendors, clients, and contacts. User identity data lives on the entity record. Roles are stored as a `roles` text array on the entity record (not in a `role_members` junction table). Contact designation (primary/billing) is via `employees.is_primary_contact` / `is_billing_contact`. The `nap_admin_phones` and `nap_admin_addresses` tables have been removed — phone numbers and addresses are stored on the linked entity via the polymorphic `sources` → `phone_numbers` / `addresses` pattern.
 
-**Access Control:** All nap-users routes are gated by `requireNapsoftTenant` middleware and `withMeta({ module: 'tenants', router: 'nap-users' })`. `rbac()` is not currently applied — access control relies on `requireNapsoftTenant` (restricts to NapSoft users) and `moduleEntitlement`.
+**Access Control:** All nap-users routes are gated by `requireNapsoftTenant` middleware and `withMeta({ module: 'tenants', router: 'nap-users' })`. `rbac()` is not currently applied — access control relies on `requireNapsoftTenant` (restricts to Vimber users) and `moduleEntitlement`.
 
 **Endpoints:**
 | Method | Path | Purpose |
@@ -463,19 +463,19 @@ Partial unique index: `(entity_type, entity_id) WHERE deactivated_at IS NULL` �
 - Archiving a user sets `status = 'locked'` (in addition to `deactivated_at`) and cascades to soft-delete the linked entity record (employee/vendor/client/contact) in the tenant schema via `entity_type` + `entity_id`
 - Restoring a user sets `status = 'active'`, clears `deactivated_at`, and cascades to restore the linked entity record in the tenant schema
 - Restoring a user requires the parent tenant to be active — returns 403 if the tenant is deactivated
-- NapSoft membership is determined by `tenant_code` comparison: server uses `requireNapsoftTenant` middleware (checks `req.user.tenant_code` against `NAPSOFT_TENANT` env var); client uses `isNapSoftUser` computed flag in `AuthContext` (checks `tenant_code` against `VITE_NAPSOFT_TENANT`)
+- Vimber membership is determined by `tenant_code` comparison: server uses `requireNapsoftTenant` middleware (checks `req.user.tenant_code` against `NAPSOFT_TENANT` env var); client uses `isNapSoftUser` computed flag in `AuthContext` (checks `tenant_code` against `VITE_NAPSOFT_TENANT`)
 
 #### 3.2.3 Admin Operations
 
 **Endpoints:**
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/api/tenants/v1/admin/schemas` | List all active tenants (NapSoft users only) |
+| `GET` | `/api/tenants/v1/admin/schemas` | List all active tenants (Vimber users only) |
 | `POST` | `/api/tenants/v1/admin/impersonate` | Start impersonation session (requires `target_user_id`) |
 | `POST` | `/api/tenants/v1/admin/exit-impersonation` | End active impersonation session |
 | `GET` | `/api/tenants/v1/admin/impersonation-status` | Check current impersonation state |
 
-**Cross-tenant access:** NapSoft users send `x-tenant-code` header to switch tenant context — handled by `authRedis` middleware, no dedicated endpoint needed. See [BR-RBAC-043](./rules/rbac.md#br-rbac-043).
+**Cross-tenant access:** Vimber users send `x-tenant-code` header to switch tenant context — handled by `authRedis` middleware, no dedicated endpoint needed. See [BR-RBAC-043](./rules/rbac.md#br-rbac-043).
 
 **Impersonation Implementation:**
 - Audit trail: `admin.impersonation_logs` table records `impersonator_id`, `target_user_id`, `target_tenant_code`, `reason`, `started_at`, `ended_at`
@@ -1918,7 +1918,7 @@ Primary Group -> Leaf items
     +-- Manage Users (/tenant/manage-users, capability: tenants::)
 ```
 
-Extensible design: add new groups/modules to `NAV_ITEMS` array with optional `capability` guards and `napsoftOnly` flag. Groups with `napsoftOnly: true` are only visible to NapSoft users. The example above shows only 2 of 14 nav groups — see §7 for the complete navigation structure.
+Extensible design: add new groups/modules to `NAV_ITEMS` array with optional `capability` guards and `napsoftOnly` flag. Groups with `napsoftOnly: true` are only visible to Vimber users. The example above shows only 2 of 14 nav groups — see §7 for the complete navigation structure.
 
 ### 6.3 Module Bar (Dynamic Toolbar)
 
@@ -2007,7 +2007,7 @@ Based on the sidebar navigation config (`navigationConfig.js`) and client-side r
 | **BOM** | Catalog SKUs (`bom::catalog-skus`), Vendor SKU Matching (`bom::vendor-skus`) | `/bom` | `bom::` |
 | **Settings** | Numbering (`core::numbering-config`), Payment Terms (`core::payment-terms`) | `/settings` | `core::` |
 | **Admin** | Vendors (`core::vendors`), Clients (`core::clients`), Employees (`core::employees`), Contacts (`core::contacts`), Companies (`core::companies`), Roles (`core::roles`) | `/core`, `/tenant` | `core::` |
-| **Tenants** *(NapSoft only)* | Manage Tenants (`tenants::`), Manage Users (`tenants::`) | `/tenant` | `tenants::` |
+| **Tenants** *(Vimber only)* | Manage Tenants (`tenants::`), Manage Users (`tenants::`) | `/tenant` | `tenants::` |
 
 > **Nav-only items (no route or page component yet):** P&L (`/reports/pnl`) and Balance Sheet (`/reports/balance-sheet`) appear in the sidebar navigation config but have no matching routes in `App.jsx`. Clicking them falls through to the catch-all redirect (`/dashboard`).
 
@@ -2034,16 +2034,16 @@ Based on the sidebar navigation config (`navigationConfig.js`) and client-side r
 | `COOKIE_SECURE` | Secure cookie flag | `false` (dev) |
 | `COOKIE_SAMESITE` | SameSite cookie policy | `Lax` |
 | `BCRYPT_ROUNDS` | Password hashing cost | 12 |
-| `NAPSOFT_TENANT` | NapSoft tenant code for admin access | `NAP` |
-| `VITE_NAPSOFT_TENANT` | Client-side NapSoft tenant code | `NAP` |
-| `VITE_NAPSOFT_COMPANY` | Client-side NapSoft company name (reserved, not currently used) | `NapSoft` |
-| `VITE_NAPSOFT_EMAIL_DOMAIN` | Client-side NapSoft email domain (reserved, not currently used) | `napsoft.com` |
+| `NAPSOFT_TENANT` | Vimber tenant code for admin access | `NAP` |
+| `VITE_NAPSOFT_TENANT` | Client-side Vimber tenant code | `NAP` |
+| `VITE_NAPSOFT_COMPANY` | Client-side Vimber company name (reserved, not currently used) | `Vimber` |
+| `VITE_NAPSOFT_EMAIL_DOMAIN` | Client-side Vimber email domain (reserved, not currently used) | `vimber.io` |
 | `PORT` | Express server port | `3000` |
 | `HOST` | Express server host | `localhost` |
 | `NODE_ENV` | Runtime environment (`development`, `test`, `production`) | — |
 | `OPENAI_API_KEY` | OpenAI API key for BOM embedding service (`bom/services/embeddingService.js`) | — |
 | `ROOT_TENANT_CODE` | Root tenant code for bootstrap migration (falls back directly to `'NAP'`) | `NAP` |
-| `ROOT_COMPANY` | Root company name for bootstrap migration | `NapSoft LLC` |
+| `ROOT_COMPANY` | Root company name for bootstrap migration | `Vimber LLC` |
 
 ---
 
@@ -2191,7 +2191,7 @@ Every source file must include a copyright header as the first content:
  * @file <Brief description of what this file does>
  * @module <module/path>
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 ```
 
@@ -2199,7 +2199,7 @@ Every source file must include a copyright header as the first content:
 ```sql
 -- Migration: <migration_id>
 -- Description: <what this migration does>
--- Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+-- Copyright (c) 2025 – present Vimber LLC. All rights reserved.
 ```
 
 ### 10.4 Code Reuse & DRY Principles
@@ -2651,18 +2651,18 @@ ACCESS_TOKEN_SECRET=<generate-a-random-secret>
 REFRESH_TOKEN_SECRET=<generate-a-different-random-secret>
 
 # Super User bootstrap
-ROOT_EMAIL=admin@napsoft.com
+ROOT_EMAIL=admin@vimber.io
 ROOT_PASSWORD=<choose-a-strong-password>
 
 # Client
 CLIENT_ORIGIN=http://localhost:5173
 CORS_ORIGINS=http://localhost:5173
 
-# NapSoft identity
+# Vimber identity
 NAPSOFT_TENANT=NAP
 VITE_NAPSOFT_TENANT=NAP
-VITE_NAPSOFT_COMPANY=NapSoft
-VITE_NAPSOFT_EMAIL_DOMAIN=napsoft.com
+VITE_NAPSOFT_COMPANY=Vimber
+VITE_NAPSOFT_EMAIL_DOMAIN=vimber.io
 ```
 
 **Generate secrets:**
@@ -2858,11 +2858,11 @@ COOKIE_SAMESITE=Lax
 # Encryption
 BCRYPT_ROUNDS=12
 
-# NapSoft identity
+# Vimber identity
 NAPSOFT_TENANT=NAP
 VITE_NAPSOFT_TENANT=NAP
-VITE_NAPSOFT_COMPANY=NapSoft
-VITE_NAPSOFT_EMAIL_DOMAIN=napsoft.com
+VITE_NAPSOFT_COMPANY=Vimber
+VITE_NAPSOFT_EMAIL_DOMAIN=vimber.io
 ```
 
 ---

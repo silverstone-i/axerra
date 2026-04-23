@@ -5,7 +5,7 @@
  * Preferences row is pre-seeded during tenant provisioning.
  * Only GET and PUT are needed.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import createRouter from '../../../../lib/createRouter.js';

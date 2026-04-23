@@ -2,7 +2,7 @@
  * @file ADR-0001: Schema-per-tenant isolation
  * @module docs/decisions
  *
- * Copyright (c) 2025 NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 Vimber LLC. All rights reserved.
  */
 
 # ADR-0001: Schema-per-Tenant Isolation
@@ -50,7 +50,7 @@ structures. A shared `admin` schema holds cross-tenant tables (`tenants`,
 - Migrations must iterate all tenant schemas — the `migrateTenants` script
   handles this with advisory locks to prevent concurrent runs.
 - Cross-tenant reporting requires explicit schema joins or an aggregation
-  layer (NapSoft super-users use `x-tenant-code` header to switch context).
+  layer (Vimber super-users use `x-tenant-code` header to switch context).
 - Schema count grows linearly with tenants; hundreds of schemas are fine for
   PG but thousands may need connection pooling tuning.
 

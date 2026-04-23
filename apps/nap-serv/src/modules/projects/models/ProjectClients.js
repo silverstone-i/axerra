@@ -2,7 +2,7 @@
  * @file ProjectClients model — project-client junction table
  * @module projects/models/ProjectClients
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { TableModel } from 'pg-schemata';

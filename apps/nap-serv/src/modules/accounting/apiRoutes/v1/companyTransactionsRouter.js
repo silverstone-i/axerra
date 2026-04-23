@@ -2,7 +2,7 @@
  * @file Company Transactions router — /api/accounting/v1/company-transactions
  * @module accounting/apiRoutes/v1/companyTransactionsRouter
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import createRouter from '../../../../lib/createRouter.js';

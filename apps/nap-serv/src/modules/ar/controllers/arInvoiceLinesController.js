@@ -2,7 +2,7 @@
  * @file AR Invoice Lines controller — CRUD with account_id validation
  * @module ar/controllers/arInvoiceLinesController
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import BaseController from '../../../lib/BaseController.js';

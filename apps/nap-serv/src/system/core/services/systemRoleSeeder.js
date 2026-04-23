@@ -6,13 +6,13 @@
  * - admin (all tenants): full access all modules
  * - vendor_contact (all tenants): self-scoped portal access for vendor contacts
  * - client (all tenants): self-scoped portal access for clients
- * - super_user (NapSoft only): full access all modules, cross-tenant, impersonation
- * - support (NapSoft only): full non-financial, cross-tenant, impersonation
+ * - super_user (Vimber only): full access all modules, cross-tenant, impersonation
+ * - support (Vimber only): full non-financial, cross-tenant, impersonation
  *
  * All system roles go through full RBAC resolution — no bypass.
  * Called during tenant provisioning (Phase 4).
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import logger from '../../../lib/logger.js';
@@ -22,7 +22,7 @@ const FINANCIAL_MODULES = ['accounting', 'ap', 'ar'];
 
 /**
  * System role definitions.
- * @param {boolean} isNapsoft Whether this is the NapSoft platform tenant
+ * @param {boolean} isNapsoft Whether this is the Vimber platform tenant
  * @returns {Array<object>} Role definitions with their policies
  */
 function getSystemRoleDefinitions(isNapsoft) {
@@ -72,7 +72,7 @@ function getSystemRoleDefinitions(isNapsoft) {
   });
 
   if (isNapsoft) {
-    // super_user — NapSoft only
+    // super_user — Vimber only
     roles.push({
       code: 'super_user',
       name: 'Super User',
@@ -83,7 +83,7 @@ function getSystemRoleDefinitions(isNapsoft) {
       policies: [{ module: '', router: null, action: null, level: 'full' }],
     });
 
-    // support — NapSoft only
+    // support — Vimber only
     roles.push({
       code: 'support',
       name: 'Support',
@@ -109,7 +109,7 @@ function getSystemRoleDefinitions(isNapsoft) {
  * @param {object} pgp pg-promise helpers
  * @param {string} schemaName Tenant schema name
  * @param {string} tenantCode Tenant code (e.g., 'nap', 'acme')
- * @param {boolean} isNapsoft Whether this is the NapSoft platform tenant
+ * @param {boolean} isNapsoft Whether this is the Vimber platform tenant
  */
 export async function seedSystemRoles(dbInstance, pgp, schemaName, tenantCode, isNapsoft) {
   const s = pgp.as.name(schemaName);

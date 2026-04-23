@@ -6,7 +6,7 @@
  * Each vendor contact gets its own source record (source_type = 'vendor_contact')
  * for linked emails and phone numbers via the polymorphic sources pattern.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 /** @type {import('pg-schemata').TableSchema} */

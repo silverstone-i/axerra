@@ -6,7 +6,7 @@
  *   GET /  — all projects profitability summary
  *   GET /:projectId — single project profitability detail
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import db, { pgp } from '../../../db/db.js';

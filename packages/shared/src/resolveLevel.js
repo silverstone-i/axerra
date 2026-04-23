@@ -3,7 +3,7 @@
  *       fallback chain in middleware/rbac.js
  * @module @nap/shared/resolveLevel
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 /**

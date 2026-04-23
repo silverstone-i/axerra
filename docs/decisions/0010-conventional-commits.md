@@ -2,7 +2,7 @@
 
 **Status:** Accepted
 **Date:** 2025-02-22
-**Deciders:** NapSoft Engineering
+**Deciders:** Vimber Engineering
 
 ## Context
 

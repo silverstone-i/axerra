@@ -2,7 +2,7 @@
  * @file Journal Entry Lines controller — CRUD with validation
  * @module accounting/controllers/journalEntryLinesController
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import BaseController from '../../../lib/BaseController.js';

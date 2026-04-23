@@ -1,15 +1,15 @@
 /**
- * @file requireNapsoftTenant — restricts access to NapSoft tenant users
+ * @file requireNapsoftTenant — restricts access to Vimber tenant users
  * @module nap-serv/middleware/requireNapsoftTenant
  *
  * Returns 403 for any request where the authenticated user does not belong
- * to the NapSoft platform tenant (per PRD §3.2).
+ * to the Vimber platform tenant (per PRD §3.2).
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 /**
- * Express middleware that gates routes to NapSoft employees only.
+ * Express middleware that gates routes to Vimber employees only.
  */
 export function requireNapsoftTenant(req, res, next) {
   const napsoftTenant = (process.env.NAPSOFT_TENANT || 'nap').toLowerCase();

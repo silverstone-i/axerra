@@ -17,7 +17,7 @@
 # Usage:
 #   bash scripts/db/rebuild_and_restore_srh.sh
 #
-# Copyright (c) 2025 NapSoft LLC. All rights reserved.
+# Copyright (c) 2025 Vimber LLC. All rights reserved.
 # ────────────────────────────────────────────────────────────────────
 set -Eeuo pipefail
 

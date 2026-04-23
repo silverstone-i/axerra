@@ -5,7 +5,7 @@
  * Covers: basic CRUD and single is_primary enforcement (creating or updating
  * a primary phone demotes the previous primary for the same source).
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';

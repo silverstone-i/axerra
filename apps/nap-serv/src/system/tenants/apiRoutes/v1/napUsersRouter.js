@@ -5,7 +5,7 @@
  * Standard POST is disabled; users must be created via /register.
  * All routes gated by requireNapsoftTenant + RBAC (tenants::nap-users).
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import napUsersController from '../../controllers/napUsersController.js';
@@ -17,7 +17,7 @@ import { withMeta } from '../../../../middleware/withMeta.js';
 const meta = withMeta({ module: 'tenants', router: 'nap-users' });
 
 // Note: RBAC enforcement deferred to Phase 5 (no role_members exist yet).
-// requireNapsoftTenant gates all routes to NapSoft users only.
+// requireNapsoftTenant gates all routes to Vimber users only.
 export default createRouter(
   napUsersController,
   (router) => {

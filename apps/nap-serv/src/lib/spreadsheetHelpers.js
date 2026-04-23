@@ -6,7 +6,7 @@
  * clients, contacts, companies) with child sheets (phones, addresses,
  * tax identifiers) linked via the polymorphic sources table.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { writeFileSync, readFileSync } from 'node:fs';

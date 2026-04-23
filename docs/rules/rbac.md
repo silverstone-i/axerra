@@ -54,9 +54,9 @@ All system roles resolve through full RBAC — no bypass.
 
 | Role | Scope | Tenants | Policies |
 |------|-------|---------|----------|
-| super_user | NapSoft only | all_projects | full for all modules |
+| super_user | Vimber only | all_projects | full for all modules |
 | admin | All tenants | all_projects | full for all modules |
-| support | NapSoft only | all_projects | full except accounting/ap/ar (none) |
+| support | Vimber only | all_projects | full except accounting/ap/ar (none) |
 
 ## Redis Cache
 

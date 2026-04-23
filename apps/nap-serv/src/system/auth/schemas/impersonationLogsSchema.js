@@ -2,9 +2,9 @@
  * @file Schema definition for admin.impersonation_logs table
  * @module auth/schemas/impersonationLogsSchema
  *
- * Audit trail for NapSoft user impersonation sessions.
+ * Audit trail for Vimber user impersonation sessions.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 /** @type {import('pg-schemata').TableSchema} */

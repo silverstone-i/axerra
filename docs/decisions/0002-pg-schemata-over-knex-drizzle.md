@@ -2,7 +2,7 @@
  * @file ADR-0002: pg-schemata over Knex / Drizzle
  * @module docs/decisions
  *
- * Copyright (c) 2025 NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 Vimber LLC. All rights reserved.
  */
 
 # ADR-0002: pg-schemata over Knex / Drizzle

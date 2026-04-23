@@ -5,7 +5,7 @@
  * Covers: create, list, getById, update, archive, restore
  * for the tenant-scope payment_terms lookup table.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';

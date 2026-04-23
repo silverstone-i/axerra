@@ -4,7 +4,7 @@
  *
  * Route ordering: /forecast before /:projectId to avoid param capture.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { Router } from 'express';

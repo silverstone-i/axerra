@@ -6,7 +6,7 @@
  * to be executed independently. The PRD (docs/PRD.md) is the source
  * of truth for all decisions.
  *
- * Copyright (c) 2025 NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 Vimber LLC. All rights reserved.
  */
 
 # NAP Build Prompts
@@ -77,7 +77,7 @@ Create the following files by porting from the `nap` branch (`git show nap:<path
 
 #### Conventions (apply to all files)
 
-- Every file gets a NapSoft copyright header (PRD §10.3)
+- Every file gets a Vimber copyright header (PRD §10.3)
 - Prettier: single quotes, trailing commas, 144-char lines, 2-space indent
 - ESLint: unused vars warn with `^_` prefix ignore
 - pg-schemata schema defaults use JS values (`default: 'active'`), NOT SQL literals
@@ -258,7 +258,7 @@ Migration: `202502110010_coreRbac.js` — Creates all RBAC tables in tenant sche
 - `src/middleware/rbac.js` — `rbac(requiredLevel)` reads `req.resource` + `req.user.permissions`, returns 403 on deny. GET/HEAD default to `view`; mutations default to `full`.
 - `src/middleware/withMeta.js` — `withMeta({ module, router, action })` annotates `req.resource`
 - `src/middleware/moduleEntitlement.js` — Checks `tenants.allowed_modules` before RBAC
-- `src/middleware/requireNapsoftTenant.js` — Gates NapSoft-only routes
+- `src/middleware/requireNapsoftTenant.js` — Gates Vimber-only routes
 - `src/middleware/addAuditFields.js` — Injects created_by/updated_by from req.user
 
 **Base Infrastructure:**
@@ -268,7 +268,7 @@ Migration: `202502110010_coreRbac.js` — Creates all RBAC tables in tenant sche
 
 **Update `authRedis.js`:** Full permission loading from entity record's roles array, Redis cache read/write, stale token detection (X-Token-Stale: 1 header when ph diverges), permission hash computation.
 
-**System Role Seeding:** super_user (NapSoft nap schema only: full access all modules + cross-tenant + impersonation), admin (all tenants: full access all modules), support (NapSoft only: full non-financial + cross-tenant + impersonation). ALL go through full RBAC resolution — no bypass.
+**System Role Seeding:** super_user (Vimber nap schema only: full access all modules + cross-tenant + impersonation), admin (all tenants: full access all modules), support (Vimber only: full non-financial + cross-tenant + impersonation). ALL go through full RBAC resolution — no bypass.
 
 **No RBAC Bypass:** The middleware does NOT short-circuit for super_user or admin. All users resolve through entity roles → policies.
 
@@ -309,7 +309,7 @@ You are continuing the NAP build. Phases 1-3 established the monorepo, admin sch
 - `permissionLoader.js` resolves entity roles → policies → Redis cache → permission hash
 - `authRedis.js` now fully hydrates req.user with permissions from Redis
 - `moduleEntitlement.js` checks `tenants.allowed_modules`
-- `requireNapsoftTenant.js` gates NapSoft-only routes
+- `requireNapsoftTenant.js` gates Vimber-only routes
 - RBAC tables (roles, policies, etc.) exist in tenant schemas
 - System roles (super_user, admin, support) are seeded during tenant provisioning
 - `nap_users.entity_type` + `entity_id` link to entity records (null for bootstrap super user)
@@ -702,7 +702,7 @@ You are continuing the NAP build. Phases 1-9 established the complete transactio
 
 ### Code Conventions
 
-- **Copyright header:** Every file gets `/** @file ... @module ... Copyright (c) 2025 NapSoft LLC. */`
+- **Copyright header:** Every file gets `/** @file ... @module ... Copyright (c) 2025 Vimber LLC. */`
 - **Prettier:** single quotes, trailing commas, 144-char lines (80 for markdown), 2-space indent
 - **ESLint:** `eslint-plugin-react` for client JSX, `eslint-plugin-import` for server
 - **No `Co-Authored-By`** in commit messages

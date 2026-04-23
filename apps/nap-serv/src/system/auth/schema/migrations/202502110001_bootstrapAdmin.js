@@ -3,11 +3,11 @@
  * @module auth/schema/migrations/202502110001_bootstrapAdmin
  *
  * Creates admin schema tables (tenants, nap_users, impersonation_logs,
- * match_review_logs). Seeds the NapSoft root tenant and a bootstrap
+ * match_review_logs). Seeds the Vimber root tenant and a bootstrap
  * super user. The entity link (entity_type, entity_id) is set by
  * setupAdmin.js after tenant provisioning creates the employees table.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import bcrypt from 'bcrypt';

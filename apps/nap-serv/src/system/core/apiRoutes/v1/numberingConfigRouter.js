@@ -6,7 +6,7 @@
  * Archive/restore/bulk-insert/import/export are disabled — use PUT /update
  * to toggle is_enabled and modify format fields.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import createRouter from '../../../../lib/createRouter.js';

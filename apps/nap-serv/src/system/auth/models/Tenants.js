@@ -6,7 +6,7 @@
  * a single row. Import supports both update (rows with id) and create (rows
  * without id trigger full provisioning via provisionNewTenant).
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { writeFileSync, readFileSync } from 'node:fs';

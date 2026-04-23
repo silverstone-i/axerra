@@ -58,7 +58,7 @@ with `CASCADE`. This removes `admin`, `nap`, `srh`, `pgschemata`, `public`, etc.
 Runs `setupAdmin.js` which:
 
 - Creates the `admin` schema and runs admin-scope migrations
-- Provisions the NapSoft root tenant (`nap` schema)
+- Provisions the Vimber root tenant (`nap` schema)
 - Seeds the root super user
 
 ### Step 5 — Provision SRH tenant

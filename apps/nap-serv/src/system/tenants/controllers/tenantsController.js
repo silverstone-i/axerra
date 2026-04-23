@@ -8,7 +8,7 @@
  *   archive → cascades deactivation to all tenant users; rejects root tenant (NAP)
  *   restore → reactivates tenant (users remain archived until individually restored)
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import fs from 'node:fs';

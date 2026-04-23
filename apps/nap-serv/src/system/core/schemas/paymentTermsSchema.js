@@ -5,7 +5,7 @@
  * Lookup table for standardised payment terms assigned to vendors.
  * Placed under the Settings menu in the UI.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 /** @type {import('pg-schemata').TableSchema} */

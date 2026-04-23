@@ -6,7 +6,7 @@
  * is synced to the corresponding admin.nap_users record. Archive of a
  * login email is blocked while the entity is an active app user.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import BaseController from '../../../lib/BaseController.js';

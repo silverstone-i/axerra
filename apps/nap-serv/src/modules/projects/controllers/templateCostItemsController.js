@@ -2,7 +2,7 @@
  * @file Template cost items controller — standard CRUD for template cost items
  * @module projects/controllers/templateCostItemsController
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import BaseController from '../../../lib/BaseController.js';

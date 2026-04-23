@@ -19,7 +19,7 @@
  *
  * Accepts per-method middleware arrays and route disable flags.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { Router } from 'express';

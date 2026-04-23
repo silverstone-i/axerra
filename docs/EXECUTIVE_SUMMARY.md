@@ -29,7 +29,7 @@ NAP covers the full project-to-cash lifecycle:
 
 - **Project-first accounting** — cost, cashflow, and profitability are first-class dimensions, not after-the-fact reports
 - **Schema-per-tenant isolation** — every customer gets a dedicated PostgreSQL schema; one compromised tenant cannot leak into another
-- **Built on pg-schemata (owned)** — NapSoft owns the underlying ORM layer, so the platform can evolve without vendor lock-in
+- **Built on pg-schemata (owned)** — Vimber owns the underlying ORM layer, so the platform can evolve without vendor lock-in
 - **Modular entitlements** — tenants activate modules (Projects, BOM, AP, AR, GL, Reports) independently
 
 ## Technology

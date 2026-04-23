@@ -2,7 +2,7 @@
  * @file TenantNumberSequenceState model — extends TableModel for sequence counters
  * @module core/models/TenantNumberSequenceState
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { TableModel } from 'pg-schemata';

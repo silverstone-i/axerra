@@ -1,15 +1,15 @@
 /**
- * @file Bootstrap admin schema and NapSoft tenant — creates tables and seeds root tenant + super user
+ * @file Bootstrap admin schema and Vimber tenant — creates tables and seeds root tenant + super user
  * @module nap-serv/scripts/setupAdmin
  *
  * Usage: npm -w apps/nap-serv run setupAdmin:dev
  *
  * Steps:
  *   1. Creates admin schema + runs admin-scope migrations (tenants, nap_users, etc.)
- *   2. Provisions the NapSoft tenant schema (CREATE SCHEMA + tenant-scope migrations + RBAC)
- *   3. Seeds the root super user employee in the NapSoft tenant schema and links it to admin.nap_users
+ *   2. Provisions the Vimber tenant schema (CREATE SCHEMA + tenant-scope migrations + RBAC)
+ *   3. Seeds the root super user employee in the Vimber tenant schema and links it to admin.nap_users
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { resolve, dirname } from 'node:path';
@@ -84,18 +84,18 @@ async function main() {
   }
   logger.info('Admin migrations complete.');
 
-  // ── Provision NapSoft tenant schema ────────────────────────────────
+  // ── Provision Vimber tenant schema ────────────────────────────────
   const rootTenantCode = process.env.ROOT_TENANT_CODE || process.env.NAPSOFT_TENANT || 'NAP';
   const tenantSchema = rootTenantCode.toLowerCase();
 
-  logger.info(`Provisioning NapSoft tenant schema "${tenantSchema}"...`);
+  logger.info(`Provisioning Vimber tenant schema "${tenantSchema}"...`);
 
   const { provisionTenant } = await import('../src/services/tenantProvisioning.js');
   await provisionTenant({ schemaName: tenantSchema, tenantCode: rootTenantCode });
 
-  logger.info(`NapSoft tenant schema "${tenantSchema}" provisioned.`);
+  logger.info(`Vimber tenant schema "${tenantSchema}" provisioned.`);
 
-  // ── Seed NapSoft self-company record ─────────────────────────────
+  // ── Seed Vimber self-company record ─────────────────────────────
   const rootCompany = process.env.ROOT_COMPANY || 'Vimber LLC';
   const tenant = await db.oneOrNone('SELECT id FROM admin.tenants WHERE tenant_code = $1', [rootTenantCode]);
 
@@ -120,7 +120,7 @@ async function main() {
 
         await t.none(`UPDATE ${s}.companies SET source_id = $1 WHERE id = $2`, [source.id, comp.id]);
       });
-      logger.info(`NapSoft self-company seeded (code=${rootTenantCode}, name=${rootCompany}).`);
+      logger.info(`Vimber self-company seeded (code=${rootTenantCode}, name=${rootCompany}).`);
     } else {
       // Backfill missing source record for existing companies
       const needsSource = await db.oneOrNone(
@@ -138,7 +138,7 @@ async function main() {
         });
         logger.info(`Backfilled source record for self-company (code=${rootTenantCode}).`);
       } else {
-        logger.info('NapSoft self-company already exists with source, skipping.');
+        logger.info('Vimber self-company already exists with source, skipping.');
       }
     }
   }

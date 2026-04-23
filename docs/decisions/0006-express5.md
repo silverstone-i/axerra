@@ -2,7 +2,7 @@
  * @file ADR-0006: Express 5 adoption
  * @module docs/decisions
  *
- * Copyright (c) 2025 NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 Vimber LLC. All rights reserved.
  */
 
 # ADR-0006: Express 5

@@ -2,7 +2,7 @@
  * @file Authentication business rules
  * @module docs/rules
  *
- * Copyright (c) 2025 NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 Vimber LLC. All rights reserved.
  */
 
 # Authentication Rules
@@ -109,7 +109,7 @@
 6. Look up tenant from `admin.tenants` by `user.tenant_id`
 7. Populate `req.user` with user fields + `tenant_code`
 8. If `x-tenant-code` header present (cross-tenant access), resolve
-   target tenant for NapSoft users
+   target tenant for Vimber users
 
 ### Phase 2 Simplifications (expanded in Phase 3)
 
@@ -150,5 +150,5 @@ The `admin.nap_users` table is a pure identity/login table:
 | `ROOT_EMAIL` | Yes | — | Bootstrap super user email |
 | `ROOT_PASSWORD` | Yes | — | Bootstrap super user password |
 | `ROOT_TENANT_CODE` | No | `NAP` | Bootstrap tenant code |
-| `ROOT_COMPANY` | No | `NapSoft LLC` | Bootstrap tenant company name |
+| `ROOT_COMPANY` | No | `Vimber LLC` | Bootstrap tenant company name |
 | `BCRYPT_ROUNDS` | No | `12` | bcrypt cost factor (4 in test) |

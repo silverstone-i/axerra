@@ -5,7 +5,7 @@
  * Covers: creation with auto-linked sources record, basic CRUD,
  * and soft-delete behavior.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';

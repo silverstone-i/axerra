@@ -6,7 +6,7 @@
  * Called during tenant provisioning (after systemRoleSeeder).
  * Idempotent — safe to re-run on existing tenants.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import logger from '../../../lib/logger.js';
@@ -232,7 +232,7 @@ const CATALOG_ENTRIES = [
   { module: 'reports', router: 'company-cashflow', action: null, label: 'Company Cashflow', description: 'Aggregated cashflow across all projects', sort_order: 1060 },
   { module: 'reports', router: 'margin-analysis', action: null, label: 'Margin Analysis', description: 'Cross-project margin comparison and trending', sort_order: 1070 },
 
-  // ── Tenants (NapSoft admin scope) ───────────────────────────────
+  // ── Tenants (Vimber admin scope) ───────────────────────────────
   { module: 'tenants', router: null, action: null, label: 'Tenants Module', description: 'Multi-tenant administration (Vimber only)', sort_order: 1100 },
   { module: 'tenants', router: 'tenants', action: null, label: 'Tenants', description: 'Tenant CRUD and provisioning', sort_order: 1110 },
   { module: 'tenants', router: 'tenants', action: 'import', label: 'Import Tenants', description: 'Import tenant records from spreadsheet', sort_order: 1111, policy_required: false },
@@ -254,7 +254,7 @@ const CATALOG_ENTRIES = [
  * @param {object} dbInstance pg-promise database connection or transaction
  * @param {object} pgp pg-promise helpers
  * @param {string} schemaName Tenant schema name
- * @param {boolean} [isNapsoft=false] Whether this is the NapSoft platform tenant
+ * @param {boolean} [isNapsoft=false] Whether this is the Vimber platform tenant
  */
 export async function seedPolicyCatalog(dbInstance, pgp, schemaName, isNapsoft = false) {
   const s = pgp.as.name(schemaName);

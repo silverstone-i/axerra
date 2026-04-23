@@ -4,7 +4,7 @@
  *
  * One row per tenant — stores UI and behaviour preferences.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 /** @type {import('pg-schemata').TableSchema} */

@@ -2,7 +2,7 @@
  * @file Tenant management business rules
  * @module docs/rules
  *
- * Copyright (c) 2025 NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 Vimber LLC. All rights reserved.
  */
 
 # Tenant Management Rules
@@ -13,7 +13,7 @@ Creating a tenant is a three-step atomic operation:
 
 1. **Insert tenant record** in `admin.tenants`
 2. **Provision schema** — creates a PostgreSQL schema, runs tenant-scope
-   migrations, seeds system RBAC roles (`admin` only; NapSoft also gets
+   migrations, seeds system RBAC roles (`admin` only; Vimber also gets
    `super_user` and `support`), seeds policy catalog, and seeds
    `tenant_numbering_config` rows (all `is_enabled = false`)
 3. **Create admin user** — inserts an `employees` record with
@@ -56,7 +56,7 @@ Schema names are derived from `tenant_code` (lowercased, underscored).
 
 ## Root Tenant Protection
 
-The root NapSoft tenant (code `NAP`) has special protections:
+The root Vimber tenant (code `NAP`) has special protections:
 
 - **Cannot be archived** — archive requests return `403 Forbidden`
 - **Cannot be deleted** — there is no hard-delete endpoint
@@ -110,7 +110,7 @@ When a tenant is restored:
 
 ## Cross-Tenant Access (Assumed Tenant)
 
-NapSoft users (those belonging to the `NAP` tenant) can assume the
+Vimber users (those belonging to the `NAP` tenant) can assume the
 context of another tenant:
 
 - The `x-tenant-code` header on API requests switches the active tenant
@@ -122,7 +122,7 @@ context of another tenant:
 
 ## Impersonation
 
-NapSoft admins can impersonate other users for support and debugging:
+Vimber admins can impersonate other users for support and debugging:
 
 ### Starting Impersonation
 
@@ -154,6 +154,6 @@ NapSoft admins can impersonate other users for support and debugging:
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
 | `ROOT_TENANT_CODE` | No | `NAP` | Root tenant identifier |
-| `ROOT_COMPANY` | No | `NapSoft LLC` | Root tenant company name |
+| `ROOT_COMPANY` | No | `Vimber LLC` | Root tenant company name |
 | `ROOT_EMAIL` | Yes | — | Bootstrap admin email |
 | `ROOT_PASSWORD` | Yes | — | Bootstrap admin password |
