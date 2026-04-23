@@ -1,16 +1,16 @@
 # BRAND
 
-The NapSoft brand system reference.
-Paired companion to [`napsoft-brand-system.html`](./napsoft-brand-system.html) — that file is the visual specimen; this file is the engineering reference.
+The Vimber brand system reference.
+Paired companion to [`vimber-brand-system.html`](./vimber-brand-system.html) — that file is the visual specimen; this file is the engineering reference.
 
 ---
 
-**Product & company:** NapSoft (stylized `napsoft.` in the wordmark)
+**Product & company:** Vimber (stylized `vimber.` in the wordmark)
 **Category:** Project-first accounting & ERP
-**Tagline · primary:** Finally, not another program.
-**Tagline · secondary:** Sleep on your books.
+**Tagline · primary:** TBD
+**Tagline · secondary:** TBD
 **Typography:** Inter (body & display) + JetBrains Mono (numerics)
-**Domains:** `napsoft.com`, `napsoft.io`, `napsoft.app`, `napsoft.ai`, `napsoft.net`, `napsoft.co`
+**Domains:** `vimber.io`, `vimber.ai`, `vimber.app`
 
 ---
 
@@ -269,7 +269,7 @@ Use on marketing pages (home, pricing, about, features). Larger and looser than 
 
 Gold (`#F4B000`) appears in exactly these four places. Nowhere else.
 
-1. **The logo dot** — the square period after `napsoft.`
+1. **The logo dot** — the square period after `vimber.`
 2. **Primary CTA left stripe** — 2px, expands to 3px on hover
 3. **Active nav indicator** — one element per screen (left bar on side nav OR underline on tabs)
 4. **Final-total rule in reports** — 2px bar above the totals row
@@ -302,17 +302,17 @@ Two taglines, two jobs. Never use both on the same surface.
 
 | Surface | Tagline | Why |
 |---|---|---|
-| Landing page hero | Finally, not another program. | Sales surface, first-touch conversion |
-| Pricing page hero | Finally, not another program. | Keep the selling line at decision moment |
-| Demo / deck cover | Finally, not another program. | One-line pitch for first slide |
-| Website footer | Sleep on your books. | Brand persistence after engagement |
-| About page hero | Sleep on your books. | Brand moment for interested visitors |
-| Email signature | Sleep on your books. | Personality for existing contacts |
-| Conference swag | Sleep on your books. | Memorable, quotable, retention-earning |
-| Social bio | "Project-first accounting. Finally, not another program." | Category + tagline |
+| Landing page hero | TBD · primary | Sales surface, first-touch conversion |
+| Pricing page hero | TBD · primary | Keep the selling line at decision moment |
+| Demo / deck cover | TBD · primary | One-line pitch for first slide |
+| Website footer | TBD · secondary | Brand persistence after engagement |
+| About page hero | TBD · secondary | Brand moment for interested visitors |
+| Email signature | TBD · secondary | Personality for existing contacts |
+| Conference swag | TBD · secondary | Memorable, quotable, retention-earning |
+| Social bio | "Project-first accounting. TBD · primary." | Category + tagline |
 | Marketing email subject lines | Varies — see voice guide | Avoid using either verbatim |
 
-**The secondary line is italic in production.** `Sleep on your books.` reads as almost-conversational in italic; upright would feel too declarative.
+**The secondary line is italic in production.** Italic reads as almost-conversational; upright would feel too declarative.
 
 ---
 
@@ -741,8 +741,8 @@ Keep it boring. No zebra stripes. No vertical gridlines. Gold only on the totals
 - Pair every status color with a shape (icon, glyph, or badge shape)
 - Right-align numeric table columns; monospace their content
 - Use skeleton rows for loading tables, never spinners
-- Lead with "Finally, not another program." on sales surfaces
-- Use "Sleep on your books." in brand moments (footer, About, swag)
+- Lead with the primary tagline on sales surfaces
+- Use the secondary tagline in brand moments (footer, About, swag)
 - Match type scale to context — marketing is bigger, product is denser
 
 ### Don't
@@ -787,8 +787,8 @@ All in `/favicons/`:
 
 ```json
 {
-  "name": "napsoft",
-  "short_name": "napsoft",
+  "name": "vimber",
+  "short_name": "vimber",
   "icons": [
     {
       "src": "/android-chrome-192.png",
@@ -812,7 +812,7 @@ All in `/favicons/`:
 The wordmark is implemented as HTML, not an image, so it renders crisp at any size and respects the CSS variables. Use:
 
 ```html
-<span class="wordmark">axerra<span class="wordmark-dot"></span></span>
+<span class="wordmark">vimber<span class="wordmark-dot"></span></span>
 ```
 
 ```css
@@ -842,8 +842,8 @@ Set the `font-size` on the outer `.wordmark` and the dot scales with it automati
 
 ## Reference
 
-- **Visual specimen:** [`napsoft-brand-system.html`](./napsoft-brand-system.html) — all decisions with reasoning, all components rendered in context, colorblind verification, accessibility notes.
-- **Favicon preview:** [`napsoft-favicon-preview.html`](./napsoft-favicon-preview.html) — every size in browser tab, bookmark, iOS home screen mockups.
+- **Visual specimen:** [`vimber-brand-system.html`](./vimber-brand-system.html) — all decisions with reasoning, all components rendered in context, colorblind verification, accessibility notes.
+- **Favicon preview:** [`vimber-favicon-preview.html`](./vimber-favicon-preview.html) — every size in browser tab, bookmark, iOS home screen mockups.
 - **Icon vocabulary (detailed):** Section 02 of the specimen
 - **Gold discipline (with examples):** Section 03 of the specimen
 - **Component gallery (with hover states):** Sections 04–06 of the specimen
@@ -852,4 +852,4 @@ Set the `font-size` on the outer `.wordmark` and the dot scales with it automati
 
 ---
 
-*Brand system v1 · Updated with WCAG AA tokens & two-token navy split · © NapSoft*
+*Brand system v1 · Updated with WCAG AA tokens & two-token navy split · © Vimber*

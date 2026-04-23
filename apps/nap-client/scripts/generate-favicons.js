@@ -1,9 +1,9 @@
 /**
- * @file Generate the full axerra favicon asset set from Inter Medium.
+ * @file Generate the full vimber favicon asset set from Inter Medium.
  * @module nap-client/scripts/generate-favicons
  *
- * Reads Inter Medium from @fontsource/inter, extracts the lowercase "a" glyph
- * as an SVG path, composes a path-based favicon.svg (navy "a" + gold square
+ * Reads Inter Medium from @fontsource/inter, extracts the lowercase "v" glyph
+ * as an SVG path, composes a path-based favicon.svg (navy "v" + gold square
  * dot on an off-white rounded square), rasterizes it with sharp to every
  * required PNG size, and composes favicon.ico from 16/32/48.
  *
@@ -49,14 +49,14 @@ const BG_RADIUS = CANVAS * 0.22;
  */
 function composeSvg({ dotRatio }) {
   const font = openFontSync(FONT_PATH);
-  const run = font.layout('a');
+  const run = font.layout('v');
   const glyph = run.glyphs[0];
   const bbox = glyph.bbox;
 
   const glyphHeightFU = bbox.maxY - bbox.minY;
   const glyphWidthFU = bbox.maxX - bbox.minX;
 
-  // Target: "a" occupies ~60% of canvas height, visually centered.
+  // Target: "v" occupies ~60% of canvas height, visually centered.
   const targetGlyphHeight = CANVAS * 0.6;
   const scale = targetGlyphHeight / glyphHeightFU;
 

@@ -1,9 +1,9 @@
 /**
- * @file Brand wordmark — `axerra.` rendered as HTML+CSS, not an image
+ * @file Brand wordmark — `vimber.` rendered as HTML+CSS, not an image
  * @module nap-client/components/shared/Wordmark
  *
  * Implements BRAND.md §"Logo wordmark":
- *   - Single text node "axerra" with uniform letter-spacing (-0.02em), gold dot
+ *   - Single text node "vimber" with uniform letter-spacing (-0.02em), gold dot
  *   - Inter Medium (500), color from palette.brand.navyText (auto light/dark)
  *   - Dot is a gold square sized in em so it scales with font-size
  *
@@ -20,7 +20,7 @@ export default function Wordmark({ size = 24, sx, ...rest }) {
     <Box
       component="span"
       role="img"
-      aria-label="axerra"
+      aria-label="vimber"
       sx={[
         {
           display: 'inline-flex',
@@ -36,7 +36,7 @@ export default function Wordmark({ size = 24, sx, ...rest }) {
       ]}
       {...rest}
     >
-      axerra
+      vimber
       <Box
         component="span"
         sx={{

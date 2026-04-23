@@ -87,7 +87,7 @@ export default function LoginPage() {
       <Card sx={{ width: '100%', maxWidth: 400, mx: 2 }}>
         <CardContent sx={{ p: 4 }}>
           <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
-            <Wordmark size={56} />
+            <Wordmark size={40} />
           </Box>
           <Typography variant="body2" color="text.secondary" textAlign="center" mb={3}>
             Sign in to your account
