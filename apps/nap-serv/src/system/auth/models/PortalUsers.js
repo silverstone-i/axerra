@@ -1,8 +1,8 @@
 /**
- * @file NapUsers model — extends TableModel for admin.nap_users
- * @module auth/models/NapUsers
+ * @file PortalUsers model — extends TableModel for admin.portal_users
+ * @module auth/models/PortalUsers
  *
- * nap_users is a pure identity/auth table per PRD §3.2.2. Personal
+ * portal_users is a pure identity/auth table per PRD §3.2.2. Personal
  * information lives on the linked entity record. password_hash is
  * never returned in API responses.
  *
@@ -10,12 +10,12 @@
  */
 
 import { TableModel } from 'pg-schemata';
-import napUsersSchema from '../schemas/napUsersSchema.js';
+import portalUsersSchema from '../schemas/portalUsersSchema.js';
 import bcrypt from 'bcrypt';
 
-export default class NapUsers extends TableModel {
+export default class PortalUsers extends TableModel {
   constructor(db, pgp, logger = null) {
-    super(db, pgp, napUsersSchema, logger);
+    super(db, pgp, portalUsersSchema, logger);
   }
 
   async importFromSpreadsheet(rows, options = {}) {

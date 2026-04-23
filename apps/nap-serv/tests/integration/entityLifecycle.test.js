@@ -3,7 +3,7 @@
  * @module tests/integration/entityLifecycle
  *
  * Verifies: Create tenant → create employee → set is_app_user → verify nap_user
- * in admin.nap_users → archive employee → verify nap_user status=locked →
+ * in admin.portal_users → archive employee → verify nap_user status=locked →
  * restore employee → verify nap_user restored.
  *
  * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
@@ -33,7 +33,7 @@ async function loginRoot() {
   return res.headers['set-cookie'];
 }
 
-describe('Entity lifecycle — employee is_app_user with nap_users cascade', () => {
+describe('Entity lifecycle — employee is_app_user with portal_users cascade', () => {
   let tenantCookies;
   let employeeId;
 
@@ -82,7 +82,7 @@ describe('Entity lifecycle — employee is_app_user with nap_users cascade', () 
     // Verify nap_user exists
     const napUser = await db.oneOrNone(
       `SELECT id, entity_type, entity_id, email, status
-       FROM admin.nap_users
+       FROM admin.portal_users
        WHERE entity_type = 'employee' AND entity_id = $1`,
       [employeeId],
     );
@@ -101,7 +101,7 @@ describe('Entity lifecycle — employee is_app_user with nap_users cascade', () 
 
     // Verify nap_user is locked
     const napUser = await db.oneOrNone(
-      `SELECT status, deactivated_at FROM admin.nap_users
+      `SELECT status, deactivated_at FROM admin.portal_users
        WHERE entity_type = 'employee' AND entity_id = $1`,
       [employeeId],
     );
@@ -128,7 +128,7 @@ describe('Entity lifecycle — employee is_app_user with nap_users cascade', () 
 
     // Verify nap_user is restored
     const napUser = await db.oneOrNone(
-      `SELECT status, deactivated_at FROM admin.nap_users
+      `SELECT status, deactivated_at FROM admin.portal_users
        WHERE entity_type = 'employee' AND entity_id = $1`,
       [employeeId],
     );

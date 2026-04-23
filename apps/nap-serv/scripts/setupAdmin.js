@@ -5,9 +5,9 @@
  * Usage: npm -w apps/nap-serv run setupAdmin:dev
  *
  * Steps:
- *   1. Creates admin schema + runs admin-scope migrations (tenants, nap_users, etc.)
+ *   1. Creates admin schema + runs admin-scope migrations (tenants, portal_users, etc.)
  *   2. Provisions the Vimber tenant schema (CREATE SCHEMA + tenant-scope migrations + RBAC)
- *   3. Seeds the root super user employee in the Vimber tenant schema and links it to admin.nap_users
+ *   3. Seeds the root super user employee in the Vimber tenant schema and links it to admin.portal_users
  *
  * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
@@ -147,7 +147,7 @@ async function main() {
   const rootEmail = process.env.ROOT_EMAIL;
   if (rootEmail) {
     const superUser = await db.oneOrNone(
-      'SELECT id, entity_type FROM admin.nap_users WHERE email = $1 AND deactivated_at IS NULL',
+      'SELECT id, entity_type FROM admin.portal_users WHERE email = $1 AND deactivated_at IS NULL',
       [rootEmail],
     );
 
@@ -187,7 +187,7 @@ async function main() {
         );
 
         // 4. Link nap_user to employee
-        await db.none("UPDATE admin.nap_users SET entity_type = 'employee', entity_id = $1 WHERE id = $2", [
+        await db.none("UPDATE admin.portal_users SET entity_type = 'employee', entity_id = $1 WHERE id = $2", [
           employee.id,
           superUser.id,
         ]);

@@ -2,7 +2,7 @@
  * @file Migration: bootstrap admin schema tables and seed root tenant + super user
  * @module auth/schema/migrations/202502110001_bootstrapAdmin
  *
- * Creates admin schema tables (tenants, nap_users, impersonation_logs,
+ * Creates admin schema tables (tenants, portal_users, impersonation_logs,
  * match_review_logs). Seeds the Vimber root tenant and a bootstrap
  * super user. The entity link (entity_type, entity_id) is set by
  * setupAdmin.js after tenant provisioning creates the employees table.
@@ -70,7 +70,7 @@ export default defineMigration({
 
       if (tenant) {
         const existingUser = await db.oneOrNone(
-          'SELECT id FROM admin.nap_users WHERE email = $1 AND deactivated_at IS NULL',
+          'SELECT id FROM admin.portal_users WHERE email = $1 AND deactivated_at IS NULL',
           [rootEmail],
         );
 
@@ -79,7 +79,7 @@ export default defineMigration({
           const passwordHash = await bcrypt.hash(rootPassword, rounds);
 
           await db.none(
-            `INSERT INTO admin.nap_users (tenant_id, entity_type, entity_id, email, password_hash, status)
+            `INSERT INTO admin.portal_users (tenant_id, entity_type, entity_id, email, password_hash, status)
              VALUES ($1, NULL, NULL, $2, $3, 'active')`,
             [tenant.id, rootEmail, passwordHash],
           );
@@ -92,7 +92,7 @@ export default defineMigration({
     if (schema !== 'admin') return;
 
     // Drop in reverse dependency order
-    const tables = ['match_review_logs', 'impersonation_logs', 'nap_users', 'tenants'];
+    const tables = ['match_review_logs', 'impersonation_logs', 'portal_users', 'tenants'];
     for (const table of tables) {
       await db.none(`DROP TABLE IF EXISTS admin.${table} CASCADE`);
     }

@@ -42,7 +42,7 @@ describe('User registration lifecycle — register → login → verify', () => 
     const cookies = await loginRoot();
 
     const res = await request(app)
-      .post('/api/tenants/v1/nap-users/register')
+      .post('/api/tenants/v1/portal-users/register')
       .set('Cookie', cookies)
       .send({
         tenant_code: ROOT_TENANT_CODE,
@@ -85,14 +85,14 @@ describe('User registration lifecycle — register → login → verify', () => 
     const adminCookies = await loginRoot();
 
     // Find the test user
-    const listRes = await request(app).get('/api/tenants/v1/nap-users').set('Cookie', adminCookies);
+    const listRes = await request(app).get('/api/tenants/v1/portal-users').set('Cookie', adminCookies);
     const rows = listRes.body.rows ?? listRes.body;
     const target = (Array.isArray(rows) ? rows : []).find((u) => u.email === TEST_EMAIL);
     expect(target).toBeDefined();
 
     // Archive the user
     const archiveRes = await request(app)
-      .delete(`/api/tenants/v1/nap-users/archive?id=${target.id}`)
+      .delete(`/api/tenants/v1/portal-users/archive?id=${target.id}`)
       .set('Cookie', adminCookies)
       .send({});
 
@@ -111,14 +111,14 @@ describe('User registration lifecycle — register → login → verify', () => 
 
     // Find the archived test user
     const listRes = await request(app)
-      .get('/api/tenants/v1/nap-users?includeDeactivated=true')
+      .get('/api/tenants/v1/portal-users?includeDeactivated=true')
       .set('Cookie', adminCookies);
     const rows = listRes.body.rows ?? listRes.body;
     const target = (Array.isArray(rows) ? rows : []).find((u) => u.email === TEST_EMAIL);
 
     // Restore
     const restoreRes = await request(app)
-      .patch(`/api/tenants/v1/nap-users/restore?id=${target.id}`)
+      .patch(`/api/tenants/v1/portal-users/restore?id=${target.id}`)
       .set('Cookie', adminCookies)
       .send({});
 

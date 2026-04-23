@@ -691,7 +691,7 @@ export default class Vendors extends TableModel {
         await this._batchUpsertFlatChildren(t, s, schema, db, pgp, insertResults, sourceByParentId, contactToInsert, CONTACT_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
 
         _tContactInserts = Date.now();
-        // Provision nap_users for app-user contacts after emails are inserted
+        // Provision portal_users for app-user contacts after emails are inserted
         if (CONTACT_CONFIG.appUserProvisioning) {
           const crypto = await import('node:crypto');
 
@@ -1077,15 +1077,15 @@ export default class Vendors extends TableModel {
           if (toProvision.length) {
             const hashMap = await batchHashPasswords(toProvision.map((p) => ({ index: p.index, password: p.clearPassword })));
 
-            const napUsersModel = db('napUsers', 'admin');
-            napUsersModel.tx = t;
+            const portalUsersModel = db('portalUsers', 'admin');
+            portalUsersModel.tx = t;
             for (const { index, email } of toProvision) {
               const existing = await t.oneOrNone(
-                'SELECT id FROM admin.nap_users WHERE email = $1 AND deactivated_at IS NULL',
+                'SELECT id FROM admin.portal_users WHERE email = $1 AND deactivated_at IS NULL',
                 [email],
               );
               if (existing) continue;
-              await napUsersModel.insert({
+              await portalUsersModel.insert({
                 tenant_id: tid,
                 entity_type: CONTACT_CONFIG.appUserProvisioning.entityType,
                 entity_id: insertResults[index].id,

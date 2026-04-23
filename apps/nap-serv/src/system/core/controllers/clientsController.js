@@ -2,7 +2,7 @@
  * @file Clients controller — auto-creates sources record, manages is_app_user lifecycle
  * @module core/controllers/clientsController
  *
- * When is_app_user is toggled ON, provisions a nap_users record in admin schema
+ * When is_app_user is toggled ON, provisions a portal_users record in admin schema
  * with entity_type='client' and entity_id pointing to the client row.
  * When toggled OFF or archived, cascades to lock the linked nap_user.
  *
@@ -25,7 +25,7 @@ class ClientsController extends BaseController {
 
   /**
    * POST / — insert a client and auto-create a linked sources record.
-   * If is_app_user is true, also provisions a nap_users login account.
+   * If is_app_user is true, also provisions a portal_users login account.
    */
   async create(req, res) {
     try {
@@ -55,7 +55,7 @@ class ClientsController extends BaseController {
         }
       }
 
-      // Extract password before insert — it's for nap_users, not the clients table
+      // Extract password before insert — it's for portal_users, not the clients table
       const suppliedPassword = req.body.password;
       delete req.body.password;
 
@@ -110,7 +110,7 @@ class ClientsController extends BaseController {
         return { ...client, source_id: source.id };
       });
 
-      // 6. If is_app_user, create the nap_users login record
+      // 6. If is_app_user, create the portal_users login record
       if (record.is_app_user && suppliedEmail) {
         await this.#provisionAppUser(record, req, suppliedPassword, suppliedEmail);
       }
@@ -155,7 +155,7 @@ class ClientsController extends BaseController {
         });
       }
 
-      // Extract password before update — it's for nap_users, not the clients table
+      // Extract password before update — it's for portal_users, not the clients table
       const suppliedPassword = req.body.password;
       delete req.body.password;
 
@@ -174,7 +174,7 @@ class ClientsController extends BaseController {
       // Determine if provisioning is needed (fresh toggle or retry after partial failure)
       const needsProvisioning = isNowAppUser && (
         !wasAppUser || !await db.oneOrNone(
-          `SELECT id FROM admin.nap_users
+          `SELECT id FROM admin.portal_users
            WHERE entity_type = 'client' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
           [before.id, req.user?.tenant_id],
         )
@@ -249,7 +249,7 @@ class ClientsController extends BaseController {
   }
 
   /**
-   * DELETE /archive — soft-delete client, cascade to nap_users if is_app_user.
+   * DELETE /archive — soft-delete client, cascade to portal_users if is_app_user.
    */
   async archive(req, res) {
     const schema = this.getSchema(req);
@@ -275,7 +275,7 @@ class ClientsController extends BaseController {
   }
 
   /**
-   * PATCH /restore — restore client, cascade to nap_users if is_app_user.
+   * PATCH /restore — restore client, cascade to portal_users if is_app_user.
    */
   async restore(req, res) {
     const schema = this.getSchema(req);
@@ -328,7 +328,7 @@ class ClientsController extends BaseController {
     try {
       const tenantId = req.user?.tenant_id;
       const napUser = await db.oneOrNone(
-        `SELECT id FROM admin.nap_users
+        `SELECT id FROM admin.portal_users
          WHERE entity_type = 'client' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
         [clientId, tenantId],
       );
@@ -340,7 +340,7 @@ class ClientsController extends BaseController {
       const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
       const hash = await bcrypt.hash(password, rounds);
       await db.none(
-        'UPDATE admin.nap_users SET password_hash = $/hash/, updated_by = $/updatedBy/ WHERE id = $/id/',
+        'UPDATE admin.portal_users SET password_hash = $/hash/, updated_by = $/updatedBy/ WHERE id = $/id/',
         { hash, updatedBy: req.user?.id || null, id: napUser.id },
       );
 
@@ -354,7 +354,7 @@ class ClientsController extends BaseController {
   /* ── Private helpers ──────────────────────────────────── */
 
   /**
-   * Create or restore a nap_users record for a client gaining app access.
+   * Create or restore a portal_users record for a client gaining app access.
    */
   async #provisionAppUser(client, req, suppliedPassword, loginEmail) {
     const tenantId = req.user?.tenant_id;
@@ -379,7 +379,7 @@ class ClientsController extends BaseController {
 
     // Check if an archived nap_user already exists for this client
     const existing = await db.oneOrNone(
-      `SELECT id, deactivated_at FROM admin.nap_users
+      `SELECT id, deactivated_at FROM admin.portal_users
        WHERE entity_type = 'client' AND entity_id = $1 AND tenant_id = $2`,
       [client.id, tenantId],
     );
@@ -391,7 +391,7 @@ class ClientsController extends BaseController {
     if (existing) {
       // Restore the archived record
       await db.none(
-        `UPDATE admin.nap_users
+        `UPDATE admin.portal_users
          SET deactivated_at = NULL, status = 'invited',
              password_hash = $1, email = $2, updated_by = $3
          WHERE id = $4`,
@@ -401,8 +401,8 @@ class ClientsController extends BaseController {
       return existing.id;
     }
 
-    // Create a new nap_users record
-    const user = await db('napUsers', 'admin').insert({
+    // Create a new portal_users record
+    const user = await db('portalUsers', 'admin').insert({
       tenant_id: tenantId,
       entity_type: 'client',
       entity_id: client.id,
@@ -417,17 +417,17 @@ class ClientsController extends BaseController {
   }
 
   /**
-   * Archive (soft-delete) the nap_users record linked to a client.
+   * Archive (soft-delete) the portal_users record linked to a client.
    */
   async #archiveAppUser(clientId, req) {
     const napUser = await db.oneOrNone(
-      `SELECT id FROM admin.nap_users
+      `SELECT id FROM admin.portal_users
        WHERE entity_type = 'client' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
       [clientId, req.user?.tenant_id],
     );
     if (napUser) {
       await db.none(
-        `UPDATE admin.nap_users
+        `UPDATE admin.portal_users
          SET deactivated_at = NOW(), status = 'locked', updated_by = $1
          WHERE id = $2`,
         [req.user?.id || null, napUser.id],
@@ -437,17 +437,17 @@ class ClientsController extends BaseController {
   }
 
   /**
-   * Restore the nap_users record linked to a client.
+   * Restore the portal_users record linked to a client.
    */
   async #restoreAppUser(clientId, req) {
     const napUser = await db.oneOrNone(
-      `SELECT id FROM admin.nap_users
+      `SELECT id FROM admin.portal_users
        WHERE entity_type = 'client' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NOT NULL`,
       [clientId, req.user?.tenant_id],
     );
     if (napUser) {
       await db.none(
-        `UPDATE admin.nap_users
+        `UPDATE admin.portal_users
          SET deactivated_at = NULL, status = 'active', updated_by = $1
          WHERE id = $2`,
         [req.user?.id || null, napUser.id],

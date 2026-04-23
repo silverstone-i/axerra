@@ -2,7 +2,7 @@
 # ────────────────────────────────────────────────────────────────────
 # backup_srh.sh
 #
-# Backs up the SRH tenant schema and admin.nap_users rows to
+# Backs up the SRH tenant schema and admin.portal_users rows to
 # tmp/srh_backups/ with timestamped filenames.
 #
 # Outputs the dump file path on a line prefixed with DUMP_FILE= so
@@ -56,16 +56,16 @@ pg_restore -f "$BACKUP_DIR/srh_schema.sql" "$DUMP_FILE"
 echo "  Plain SQL:   srh_schema.sql (derived from dump)"
 
 # ══════════════════════════════════════════════════════════════════
-# 1c. Backup admin.nap_users rows for the SRH tenant
+# 1c. Backup admin.portal_users rows for the SRH tenant
 # ══════════════════════════════════════════════════════════════════
 "${PSQL[@]}" -c "\\COPY (
   SELECT u.*
-  FROM admin.nap_users u
+  FROM admin.portal_users u
   JOIN admin.tenants t ON t.id = u.tenant_id
   WHERE t.tenant_code = '$TENANT_CODE'
     AND t.schema_name = '$SOURCE_SCHEMA'
 ) TO '$BACKUP_DIR/nap_users_srh.csv' WITH (FORMAT csv, HEADER true)"
-echo "  nap_users:   nap_users_srh.csv"
+echo "  portal_users:   nap_users_srh.csv"
 
 echo ""
 echo "Backup complete. Files in: $BACKUP_DIR"

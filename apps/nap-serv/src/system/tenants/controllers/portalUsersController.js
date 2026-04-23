@@ -1,8 +1,8 @@
 /**
- * @file NapUsersController — user CRUD with registration, safe archive/restore
- * @module tenants/controllers/napUsersController
+ * @file PortalUsersController — user CRUD with registration, safe archive/restore
+ * @module tenants/controllers/portalUsersController
  *
- * nap_users is a pure identity table (id, tenant_id, entity_type, entity_id,
+ * portal_users is a pure identity table (id, tenant_id, entity_type, entity_id,
  * email, password_hash, status). No role, user_name, full_name, or tenant_code
  * columns — those live on entity records (Phase 5).
  *
@@ -22,13 +22,13 @@ import BaseController from '../../../lib/BaseController.js';
 import db, { pgp } from '../../../db/db.js';
 import logger from '../../../lib/logger.js';
 
-class NapUsersController extends BaseController {
+class PortalUsersController extends BaseController {
   constructor() {
-    super('napUsers');
+    super('portalUsers');
   }
 
   /**
-   * Override getSchema — nap_users always live in the admin schema.
+   * Override getSchema — portal_users always live in the admin schema.
    */
   getSchema(_req) {
     return 'admin';
@@ -76,7 +76,7 @@ class NapUsersController extends BaseController {
       const password_hash = await bcrypt.hash(password, rounds);
 
       // Create user record (pure identity table)
-      const user = await db('napUsers', 'admin').insert({
+      const user = await db('portalUsers', 'admin').insert({
         tenant_id: tenant.id,
         email,
         password_hash,
@@ -157,7 +157,7 @@ class NapUsersController extends BaseController {
         const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
         const hash = await bcrypt.hash(password, rounds);
         const pwResult = await db.result(
-          'UPDATE admin.nap_users SET password_hash = $/hash/, updated_by = $/updatedBy/, updated_at = now() WHERE id = $/id/ AND deactivated_at IS NULL',
+          'UPDATE admin.portal_users SET password_hash = $/hash/, updated_by = $/updatedBy/, updated_at = now() WHERE id = $/id/ AND deactivated_at IS NULL',
           { hash, id: userId, updatedBy: req.user?.id || null },
         );
         pwUpdated = pwResult.rowCount > 0;
@@ -176,7 +176,7 @@ class NapUsersController extends BaseController {
         const values = [...safeChanges.map(([, v]) => v), req.user?.id || null, userId];
 
         const count = await db.result(
-          `UPDATE admin.nap_users SET ${setClauses.join(', ')} WHERE id = $${safeChanges.length + 2} AND deactivated_at IS NULL`,
+          `UPDATE admin.portal_users SET ${setClauses.join(', ')} WHERE id = $${safeChanges.length + 2} AND deactivated_at IS NULL`,
           values,
         );
         if (!count.rowCount && !pwUpdated) return res.status(404).json({ error: `${this.errorLabel} not found or deactivated` });
@@ -215,7 +215,7 @@ class NapUsersController extends BaseController {
 
       // Archive the nap_user with status='locked'
       await db.none(
-        `UPDATE admin.nap_users
+        `UPDATE admin.portal_users
          SET deactivated_at = NOW(), status = 'locked', updated_by = $1, updated_at = NOW()
          WHERE id = $2`,
         [req.user?.id || null, napUser.id],
@@ -258,7 +258,7 @@ class NapUsersController extends BaseController {
 
       // Restore user with status='active'
       await db.none(
-        `UPDATE admin.nap_users
+        `UPDATE admin.portal_users
          SET deactivated_at = NULL, status = 'active', updated_by = $1, updated_at = NOW()
          WHERE id = $2`,
         [req.user?.id || null, user.id],
@@ -323,7 +323,7 @@ class NapUsersController extends BaseController {
   }
 }
 
-const instance = new NapUsersController();
+const instance = new PortalUsersController();
 
-export { NapUsersController };
+export { PortalUsersController };
 export default instance;

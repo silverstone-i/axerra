@@ -26,8 +26,8 @@ const impersonationLogsSchema = {
   constraints: {
     primaryKey: ['id'],
     foreignKeys: [
-      { columns: ['impersonator_id'], references: { table: 'nap_users', columns: ['id'], schema: 'admin' } },
-      { columns: ['target_user_id'], references: { table: 'nap_users', columns: ['id'], schema: 'admin' } },
+      { columns: ['impersonator_id'], references: { table: 'portal_users', columns: ['id'], schema: 'admin' } },
+      { columns: ['target_user_id'], references: { table: 'portal_users', columns: ['id'], schema: 'admin' } },
     ],
     indexes: [
       { type: 'Index', columns: ['impersonator_id'] },

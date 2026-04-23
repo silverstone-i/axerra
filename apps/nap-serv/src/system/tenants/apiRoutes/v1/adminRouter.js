@@ -6,7 +6,7 @@
  */
 
 import { Router } from 'express';
-import { requireNapsoftTenant } from '../../../../middleware/requireNapsoftTenant.js';
+import { requireRootTenant } from '../../../../middleware/requireRootTenant.js';
 import {
   getAllSchemas,
   startImpersonation,
@@ -16,8 +16,8 @@ import {
 
 const router = Router();
 
-router.get('/schemas', requireNapsoftTenant, getAllSchemas);
-router.post('/impersonate', requireNapsoftTenant, startImpersonation);
+router.get('/schemas', requireRootTenant, getAllSchemas);
+router.post('/impersonate', requireRootTenant, startImpersonation);
 router.post('/exit-impersonation', endImpersonation);
 router.get('/impersonation-status', getImpersonationStatus);
 

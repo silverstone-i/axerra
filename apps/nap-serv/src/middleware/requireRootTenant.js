@@ -1,6 +1,6 @@
 /**
- * @file requireNapsoftTenant — restricts access to Vimber tenant users
- * @module nap-serv/middleware/requireNapsoftTenant
+ * @file requireRootTenant — restricts access to Vimber tenant users
+ * @module nap-serv/middleware/requireRootTenant
  *
  * Returns 403 for any request where the authenticated user does not belong
  * to the Vimber platform tenant (per PRD §3.2).
@@ -11,7 +11,7 @@
 /**
  * Express middleware that gates routes to Vimber employees only.
  */
-export function requireNapsoftTenant(req, res, next) {
+export function requireRootTenant(req, res, next) {
   const rootSchema = (process.env.ROOT_TENANT_CODE || 'nap').toLowerCase();
   const userTenant = req.user?.home_tenant?.toLowerCase?.();
 
@@ -22,4 +22,4 @@ export function requireNapsoftTenant(req, res, next) {
   next();
 }
 
-export default requireNapsoftTenant;
+export default requireRootTenant;

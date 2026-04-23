@@ -50,7 +50,7 @@ describe('getTableDependencies', () => {
   });
 
   test('extracts FK targets', () => {
-    const model = makeModel('admin', 'nap_users', [
+    const model = makeModel('admin', 'portal_users', [
       { columns: ['tenant_id'], references: { table: 'tenants', columns: ['id'], schema: 'admin' } },
     ]);
     expect(getTableDependencies(model)).toEqual(['admin.tenants']);
@@ -60,12 +60,12 @@ describe('getTableDependencies', () => {
 describe('orderModels', () => {
   test('orders models by dependency', () => {
     const tenants = makeModel('admin', 'tenants');
-    const users = makeModel('admin', 'nap_users', [
+    const users = makeModel('admin', 'portal_users', [
       { columns: ['tenant_id'], references: { table: 'tenants', columns: ['id'], schema: 'admin' } },
     ]);
 
     const ordered = orderModels({
-      'admin.nap_users': users,
+      'admin.portal_users': users,
       'admin.tenants': tenants,
     });
 

@@ -2,7 +2,7 @@
  * @file Employees controller — auto-creates sources record, manages is_app_user lifecycle
  * @module core/controllers/employeesController
  *
- * When is_app_user is toggled ON, provisions a nap_users record in admin schema
+ * When is_app_user is toggled ON, provisions a portal_users record in admin schema
  * with entity_type='employee' and entity_id pointing to the employee row.
  * When toggled OFF or archived, cascades to lock the linked nap_user.
  *
@@ -25,7 +25,7 @@ class EmployeesController extends BaseController {
 
   /**
    * POST / — insert an employee and auto-create a linked sources record.
-   * If is_app_user is true, also provisions a nap_users login account.
+   * If is_app_user is true, also provisions a portal_users login account.
    */
   async create(req, res) {
     try {
@@ -55,7 +55,7 @@ class EmployeesController extends BaseController {
         }
       }
 
-      // Extract password before insert — it's for nap_users, not the employees table
+      // Extract password before insert — it's for portal_users, not the employees table
       const suppliedPassword = req.body.password;
       delete req.body.password;
 
@@ -113,7 +113,7 @@ class EmployeesController extends BaseController {
         return { ...employee, source_id: source.id };
       });
 
-      // 6. If is_app_user, create the nap_users login record
+      // 6. If is_app_user, create the portal_users login record
       if (record.is_app_user && suppliedEmail) {
         await this.#provisionAppUser(record, req, suppliedPassword, suppliedEmail);
       }
@@ -159,7 +159,7 @@ class EmployeesController extends BaseController {
         });
       }
 
-      // Extract password before update — it's for nap_users, not the employees table
+      // Extract password before update — it's for portal_users, not the employees table
       const suppliedPassword = req.body.password;
       delete req.body.password;
 
@@ -178,7 +178,7 @@ class EmployeesController extends BaseController {
       // Determine if provisioning is needed (fresh toggle or retry after partial failure)
       const needsProvisioning = isNowAppUser && (
         !wasAppUser || !await db.oneOrNone(
-          `SELECT id FROM admin.nap_users
+          `SELECT id FROM admin.portal_users
            WHERE entity_type = 'employee' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
           [before.id, req.user?.tenant_id],
         )
@@ -226,7 +226,7 @@ class EmployeesController extends BaseController {
           }
         } else if (loginEmail && !hasLoginEmail) {
           // Existing primary email but not flagged as login — promote it.
-          // If a different email was supplied, update the value to keep nap_users in sync.
+          // If a different email was supplied, update the value to keep portal_users in sync.
           const updatedBy = req.user?.id || null;
           const emailUpdate = suppliedEmail && suppliedEmail !== loginEmail.email
             ? `UPDATE ${s}.emails SET is_login = true, email = $2, updated_by = $3 WHERE id = $1`
@@ -256,7 +256,7 @@ class EmployeesController extends BaseController {
   }
 
   /**
-   * DELETE /archive — soft-delete employee, cascade to nap_users if is_app_user.
+   * DELETE /archive — soft-delete employee, cascade to portal_users if is_app_user.
    */
   async archive(req, res) {
     const schema = this.getSchema(req);
@@ -282,7 +282,7 @@ class EmployeesController extends BaseController {
   }
 
   /**
-   * PATCH /restore — reactivate employee, cascade to nap_users if is_app_user.
+   * PATCH /restore — reactivate employee, cascade to portal_users if is_app_user.
    */
   async restore(req, res) {
     const schema = this.getSchema(req);
@@ -335,7 +335,7 @@ class EmployeesController extends BaseController {
     try {
       const tenantId = req.user?.tenant_id;
       const napUser = await db.oneOrNone(
-        `SELECT id FROM admin.nap_users
+        `SELECT id FROM admin.portal_users
          WHERE entity_type = 'employee' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
         [employeeId, tenantId],
       );
@@ -347,7 +347,7 @@ class EmployeesController extends BaseController {
       const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
       const hash = await bcrypt.hash(password, rounds);
       await db.none(
-        'UPDATE admin.nap_users SET password_hash = $/hash/, updated_by = $/updatedBy/ WHERE id = $/id/',
+        'UPDATE admin.portal_users SET password_hash = $/hash/, updated_by = $/updatedBy/ WHERE id = $/id/',
         { hash, updatedBy: req.user?.id || null, id: napUser.id },
       );
 
@@ -381,9 +381,9 @@ class EmployeesController extends BaseController {
   /* ── Private helpers ──────────────────────────────────── */
 
   /**
-   * Create or restore a nap_users record for an employee gaining app access.
+   * Create or restore a portal_users record for an employee gaining app access.
    *
-   * nap_users is a pure identity table: tenant_id, entity_type, entity_id,
+   * portal_users is a pure identity table: tenant_id, entity_type, entity_id,
    * email, password_hash, status. No role/full_name columns.
    */
   async #provisionAppUser(employee, req, suppliedPassword, loginEmail) {
@@ -409,7 +409,7 @@ class EmployeesController extends BaseController {
 
     // Check if an archived nap_user already exists for this employee
     const existing = await db.oneOrNone(
-      `SELECT id, deactivated_at FROM admin.nap_users
+      `SELECT id, deactivated_at FROM admin.portal_users
        WHERE entity_type = 'employee' AND entity_id = $1 AND tenant_id = $2`,
       [employee.id, tenantId],
     );
@@ -421,7 +421,7 @@ class EmployeesController extends BaseController {
     if (existing) {
       // Restore the archived record
       await db.none(
-        `UPDATE admin.nap_users
+        `UPDATE admin.portal_users
          SET deactivated_at = NULL, status = 'invited',
              password_hash = $1, email = $2, updated_by = $3
          WHERE id = $4`,
@@ -431,8 +431,8 @@ class EmployeesController extends BaseController {
       return existing.id;
     }
 
-    // Create a new nap_users record
-    const user = await db('napUsers', 'admin').insert({
+    // Create a new portal_users record
+    const user = await db('portalUsers', 'admin').insert({
       tenant_id: tenantId,
       entity_type: 'employee',
       entity_id: employee.id,
@@ -447,17 +447,17 @@ class EmployeesController extends BaseController {
   }
 
   /**
-   * Archive (soft-delete) the nap_users record linked to an employee.
+   * Archive (soft-delete) the portal_users record linked to an employee.
    */
   async #archiveAppUser(employeeId, req) {
     const napUser = await db.oneOrNone(
-      `SELECT id FROM admin.nap_users
+      `SELECT id FROM admin.portal_users
        WHERE entity_type = 'employee' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
       [employeeId, req.user?.tenant_id],
     );
     if (napUser) {
       await db.none(
-        `UPDATE admin.nap_users
+        `UPDATE admin.portal_users
          SET deactivated_at = NOW(), status = 'locked', updated_by = $1
          WHERE id = $2`,
         [req.user?.id || null, napUser.id],
@@ -467,17 +467,17 @@ class EmployeesController extends BaseController {
   }
 
   /**
-   * Restore the nap_users record linked to an employee.
+   * Restore the portal_users record linked to an employee.
    */
   async #restoreAppUser(employeeId, req) {
     const napUser = await db.oneOrNone(
-      `SELECT id FROM admin.nap_users
+      `SELECT id FROM admin.portal_users
        WHERE entity_type = 'employee' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NOT NULL`,
       [employeeId, req.user?.tenant_id],
     );
     if (napUser) {
       await db.none(
-        `UPDATE admin.nap_users
+        `UPDATE admin.portal_users
          SET deactivated_at = NULL, status = 'active', updated_by = $1
          WHERE id = $2`,
         [req.user?.id || null, napUser.id],

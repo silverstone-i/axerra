@@ -99,7 +99,7 @@
 | ------------------ | ------------ | -------------------------------------- | ---------------------------------------------- |
 | `email`          | varchar(128) | TextField (type=email)                 | PRD §3.3.2 defines email on clients table     |
 | `roles`          | text[]       | Autocomplete (multiple, from useRoles) | Required for RBAC                              |
-| `is_app_user`    | boolean      | Checkbox                               | Required before nap_users login can be created |
+| `is_app_user`    | boolean      | Checkbox                               | Required before portal_users login can be created |
 | `is_active`      | boolean      | Checkbox or Select                     | User-facing toggle                             |
 | `address_line_3` | varchar(255) | TextField                              | Missing from address section                   |
 
@@ -219,7 +219,7 @@
 | Field              | Notes                                                        |
 | ------------------ | ------------------------------------------------------------ |
 | Email `label`    | Not in PRD phone/address schema — may be an extension       |
-| Email `is_login` | Not in PRD — custom UX for linking email to nap_users login |
+| Email `is_login` | Not in PRD — custom UX for linking email to portal_users login |
 
 ### Fix Checklist
 
@@ -490,7 +490,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ---
 
-## nap_users — Edit Dialog
+## portal_users — Edit Dialog
 
 **File:** `apps/nap-client/src/pages/Tenant/ManageUsersPage.jsx`
 **Branch:** `fix/dialog-user-fields`
@@ -513,7 +513,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 | Field        | Notes                                                                                              |
 | ------------ | -------------------------------------------------------------------------------------------------- |
-| `password` | Not in PRD nap_users Edit — PRD uses separate reset-password endpoint. May be acceptable admin UX |
+| `password` | Not in PRD portal_users Edit — PRD uses separate reset-password endpoint. May be acceptable admin UX |
 
 ### Fix Checklist
 
@@ -523,7 +523,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ---
 
-## nap_users — View Dialog
+## portal_users — View Dialog
 
 **File:** `apps/nap-client/src/pages/Tenant/ManageUsersPage.jsx`
 **Branch:** `fix/dialog-user-fields`
@@ -1497,8 +1497,8 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 | Tenant                 | Create (Wizard) | 1                            | 0            | ⚠️ Needs Fix                        |
 | Tenant                 | Edit            | 1                            | 0            | ⚠️ Needs Fix                        |
 | Tenant                 | View            | 1                            | 0            | ⚠️ Needs Fix                        |
-| nap_users              | Edit            | 3                            | 1            | ⚠️ Needs Fix                        |
-| nap_users              | View            | 2                            | 0            | ⚠️ Needs Fix                        |
+| portal_users              | Edit            | 3                            | 1            | ⚠️ Needs Fix                        |
+| portal_users              | View            | 2                            | 0            | ⚠️ Needs Fix                        |
 | Project                | Create/Edit     | 3                            | 0            | ⚠️ Needs Fix                        |
 | Project                | View            | 4                            | 0            | ⚠️ Needs Fix                        |
 | Project Clients        | —              | —                           | —           | 🔴 Not Implemented                    |
@@ -1553,7 +1553,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 | `fix/dialog-contact-fields`           | Contact Create/Edit/View                                 | 14           |
 | `fix/dialog-company-fields`           | Company Create/Edit/View + address & tax-id sub-sections | 7            |
 | `fix/dialog-tenant-fields`            | Tenant Create (Wizard), Edit, View                       | 3            |
-| `fix/dialog-user-fields`              | nap_users Edit/View                                      | 5            |
+| `fix/dialog-user-fields`              | portal_users Edit/View                                      | 5            |
 | `fix/dialog-project-fields`           | Project Create/Edit/View                                 | 7            |
 | `fix/dialog-unit-fields`              | Unit Create/Edit (inline in ProjectDetailPage)           | 3            |
 | `fix/dialog-task-fields`              | Task Create/Edit (inline in ProjectDetailPage)           | 2            |

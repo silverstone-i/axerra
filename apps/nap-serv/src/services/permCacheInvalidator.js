@@ -15,7 +15,7 @@ import logger from '../lib/logger.js';
 /** Entity tables that carry a roles text[] column. */
 const ENTITY_TABLES = ['employees', 'vendors', 'clients', 'contacts'];
 
-/** Map table name → entity_type value used in admin.nap_users. */
+/** Map table name → entity_type value used in admin.portal_users. */
 const TABLE_TO_ENTITY_TYPE = {
   employees: 'employee',
   vendors: 'vendor',
@@ -50,7 +50,7 @@ export async function invalidateByRole(schema, roleCode, tenantCode) {
 
       const entityIds = entities.map((e) => e.id);
       const users = await db.any(
-        `SELECT id FROM admin.nap_users
+        `SELECT id FROM admin.portal_users
          WHERE entity_type = $1 AND entity_id IN ($2:csv) AND deactivated_at IS NULL`,
         [entityType, entityIds],
       );
@@ -81,7 +81,7 @@ export async function invalidateByEntity(entityType, entityId, tenantCode) {
     const redis = await getRedis();
 
     const user = await db.oneOrNone(
-      `SELECT id FROM admin.nap_users
+      `SELECT id FROM admin.portal_users
        WHERE entity_type = $1 AND entity_id = $2 AND deactivated_at IS NULL`,
       [entityType, entityId],
     );

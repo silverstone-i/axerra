@@ -111,7 +111,7 @@ describe('Employee CRUD — /api/core/v1/employees', () => {
 
     // Verify nap_user was created in admin schema
     const napUser = await db.oneOrNone(
-      `SELECT id, entity_type, entity_id, status FROM admin.nap_users
+      `SELECT id, entity_type, entity_id, status FROM admin.portal_users
        WHERE entity_type = 'employee' AND entity_id = $1`,
       [res.body.id],
     );
@@ -134,7 +134,7 @@ describe('Employee CRUD — /api/core/v1/employees', () => {
 
     // Verify nap_user was archived
     const napUser = await db.oneOrNone(
-      `SELECT status, deactivated_at FROM admin.nap_users
+      `SELECT status, deactivated_at FROM admin.portal_users
        WHERE entity_type = 'employee' AND entity_id = $1`,
       [bob.id],
     );

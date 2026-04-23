@@ -24,7 +24,7 @@ const router = Router();
 // Auth routes (public: login/refresh/logout; protected: me/check/change-password)
 router.use('/auth', authRouter);
 
-// Tenant management routes (Vimber-only: tenants, nap-users, admin operations)
+// Tenant management routes (Vimber-only: tenants, portal-users, admin operations)
 router.use('/tenants', tenantsApiRoutes);
 
 // Core entity routes (tenant-scope: vendors, clients, employees, contacts, etc.)

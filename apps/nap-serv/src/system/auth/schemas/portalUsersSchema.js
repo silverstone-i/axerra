@@ -1,8 +1,8 @@
 /**
- * @file Schema definition for admin.nap_users table
- * @module auth/schemas/napUsersSchema
+ * @file Schema definition for admin.portal_users table
+ * @module auth/schemas/portalUsersSchema
  *
- * nap_users is a pure identity/authentication table per PRD §3.2.2.
+ * portal_users is a pure identity/authentication table per PRD §3.2.2.
  * All personal information (name, phone, address) lives on the linked
  * entity record in the tenant schema. The link is polymorphic via
  * entity_type + entity_id. Roles are stored as a text[] on the entity
@@ -12,9 +12,9 @@
  */
 
 /** @type {import('pg-schemata').TableSchema} */
-const napUsersSchema = {
+const portalUsersSchema = {
   dbSchema: 'admin',
-  table: 'nap_users',
+  table: 'portal_users',
   version: '1.0.0',
   hasAuditFields: { enabled: true, userFields: { type: 'uuid', nullable: true, default: null } },
   softDelete: true,
@@ -47,4 +47,4 @@ const napUsersSchema = {
   },
 };
 
-export default napUsersSchema;
+export default portalUsersSchema;

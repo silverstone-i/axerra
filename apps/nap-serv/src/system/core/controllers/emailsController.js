@@ -1,9 +1,9 @@
 /**
- * @file Emails controller — CRUD with is_login sync to nap_users
+ * @file Emails controller — CRUD with is_login sync to portal_users
  * @module core/controllers/emailsController
  *
  * When an email with is_login=true is created or updated, the change
- * is synced to the corresponding admin.nap_users record. Archive of a
+ * is synced to the corresponding admin.portal_users record. Archive of a
  * login email is blocked while the entity is an active app user.
  *
  * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
@@ -46,7 +46,7 @@ class EmailsController extends BaseController {
 
       const record = await this.model(schema).insert(req.body);
 
-      // Sync login email to nap_users
+      // Sync login email to portal_users
       if (record.is_login) {
         await this.#syncLoginEmail(schema, record.source_id, record.email, req);
       }
@@ -96,7 +96,7 @@ class EmailsController extends BaseController {
       const count = await this.model(schema).updateWhere([{ id: emailId }], req.body);
       if (!count) return res.status(404).json({ error: `${this.errorLabel} not found` });
 
-      // Sync to nap_users if login email changed
+      // Sync to portal_users if login email changed
       const updatedEmail = req.body.email || before.email;
       const isNowLogin = req.body.is_login !== undefined ? req.body.is_login : before.is_login;
 
@@ -136,7 +136,7 @@ class EmailsController extends BaseController {
   }
 
   /**
-   * Sync the login email to admin.nap_users for the entity linked to this source.
+   * Sync the login email to admin.portal_users for the entity linked to this source.
    */
   async #syncLoginEmail(schema, sourceId, email, req) {
     const s = pgp.as.name(schema);
@@ -148,16 +148,16 @@ class EmailsController extends BaseController {
       );
       if (!source) return;
 
-      // Only employees sync to nap_users currently
+      // Only employees sync to portal_users currently
       if (source.source_type !== 'employee') return;
 
       await db.none(
-        `UPDATE admin.nap_users SET email = $1, updated_by = $2
+        `UPDATE admin.portal_users SET email = $1, updated_by = $2
          WHERE entity_type = 'employee' AND entity_id = $3 AND deactivated_at IS NULL`,
         [email, req.user?.id || null, source.table_id],
       );
     } catch (err) {
-      logger.error('Failed to sync login email to nap_users', { sourceId, email, error: err.message });
+      logger.error('Failed to sync login email to portal_users', { sourceId, email, error: err.message });
       throw err;
     }
   }

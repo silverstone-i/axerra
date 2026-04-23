@@ -31,7 +31,7 @@ rollback. The caller receives a 500 with the provisioning error.
 ## Contact Designation
 
 Primary and billing contacts are designated via boolean flags on the
-`employees` table — not via `nap_users` roles or a separate join table:
+`employees` table — not via `portal_users` roles or a separate join table:
 
 - `is_primary_contact` — tenant's main point of contact
 - `is_billing_contact` — tenant's billing/invoicing contact
@@ -69,7 +69,7 @@ Before a user can be registered:
 
 1. A valid `tenant_id` must be provided (or resolved from `tenant_code`)
 2. The target tenant must be **active** (`deactivated_at IS NULL`)
-3. The email must be unique across all `nap_users` (active and archived)
+3. The email must be unique across all `portal_users` (active and archived)
 
 Registration creates a `nap_user` with `status: 'active'`. The user can
 log in immediately after registration.
@@ -80,7 +80,7 @@ log in immediately after registration.
 
 When a tenant is archived:
 
-- All **active** `nap_users` belonging to that tenant are deactivated
+- All **active** `portal_users` belonging to that tenant are deactivated
   (their `deactivated_at` is set to `NOW()`)
 - Archived users cannot log in (login checks `deactivated_at IS NULL`)
 - The tenant's PostgreSQL schema is **not** dropped — data is preserved

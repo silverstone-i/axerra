@@ -48,7 +48,7 @@ All routes **must** include `moduleEntitlement` middleware:
 - `/ping` health check routes are exempt
 
 **Exempt modules:** `system/auth` (pre-authentication),
-`system/tenants` (admin-only, gated by `requireNapsoftTenant`)
+`system/tenants` (admin-only, gated by `requireRootTenant`)
 
 **Enforced by:** `checkMiddlewareChain.js` (CI gate)
 

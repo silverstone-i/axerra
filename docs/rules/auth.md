@@ -14,7 +14,7 @@
 - **Storage:** httpOnly, Secure, SameSite=Lax cookie named `auth_token`
 - **TTL:** 15 minutes
 - **Claims:**
-  - `sub` — nap_user UUID (primary key of `admin.nap_users`)
+  - `sub` — nap_user UUID (primary key of `admin.portal_users`)
   - `ph` — SHA-256 hex hash of the user's permission canon (null in
     Phase 2; populated once RBAC is active)
   - `iss` — `nap-serv`
@@ -53,7 +53,7 @@
 
 ### Login (`POST /api/auth/login`)
 
-1. Validate email exists in `admin.nap_users`
+1. Validate email exists in `admin.portal_users`
 2. Check user status is `active` or `invited` (not `locked`)
 3. Check associated tenant status is `active`
 4. Verify password against bcrypt hash
@@ -104,7 +104,7 @@
    `/auth/logout`, `/health`)
 2. Extract `auth_token` from cookies
 3. Verify JWT signature and expiration
-4. Look up user from `admin.nap_users` by `sub` claim
+4. Look up user from `admin.portal_users` by `sub` claim
 5. Verify user status is `active`
 6. Look up tenant from `admin.tenants` by `user.tenant_id`
 7. Populate `req.user` with user fields + `tenant_code`
@@ -119,9 +119,9 @@
 - No impersonation session resolution
 - Permission hash (`ph`) is null in all tokens
 
-## nap_users Table Design (PRD §3.2.2)
+## portal_users Table Design (PRD §3.2.2)
 
-The `admin.nap_users` table is a pure identity/login table:
+The `admin.portal_users` table is a pure identity/login table:
 
 | Column | Type | Purpose |
 |---|---|---|
@@ -137,7 +137,7 @@ The `admin.nap_users` table is a pure identity/login table:
 `full_name`, `tax_id`, `notes`, `role`, `tenant_role`, `employee_id`.
 
 - User profile data lives on the linked entity record
-- Roles are stored as `text[]` on entity records, not on nap_users
+- Roles are stored as `text[]` on entity records, not on portal_users
 - `entity_type` and `entity_id` are null for the bootstrap super user
   (entity tables don't exist until Phase 5)
 

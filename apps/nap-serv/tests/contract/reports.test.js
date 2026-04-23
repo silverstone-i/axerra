@@ -89,7 +89,7 @@ vi.mock('../../src/db/db.js', () => {
   const dbProxy = (_name, _schema) => model.setSchemaName(_schema);
 
   const modelNames = [
-    'tenants', 'napUsers', 'roles', 'roleMembers', 'policies', 'policyCatalog',
+    'tenants', 'portalUsers', 'roles', 'roleMembers', 'policies', 'policyCatalog',
     'napUserPhones', 'napUserAddresses',
     'projects', 'units', 'tasks', 'taskGroups', 'tasksMaster',
     'costItems', 'changeOrders',

@@ -55,9 +55,9 @@ nap/
 
 NAP uses **PostgreSQL schema-per-tenant** isolation powered by pg-schemata:
 
-- **`admin` schema**: System-wide tables (`tenants`, `nap_users`, `match_review_logs`, `impersonation_logs`)
+- **`admin` schema**: System-wide tables (`tenants`, `portal_users`, `match_review_logs`, `impersonation_logs`)
 - **Tenant schemas** (e.g., `acme`, `nap`): Each customer gets a dedicated PostgreSQL schema containing all business tables (vendors, projects, accounting, etc.)
-- Tenant resolution is performed per-request: `authRedis` looks up the user's home tenant from their `nap_users` record (via JWT `sub`), optionally overridden by the `x-tenant-code` header
+- Tenant resolution is performed per-request: `authRedis` looks up the user's home tenant from their `portal_users` record (via JWT `sub`), optionally overridden by the `x-tenant-code` header
 - All database access is schema-aware via pg-schemata's `setSchemaName()` — models bind queries to the correct tenant schema dynamically
 
 ### 2.2 pg-schemata Integration (Owned Dependency)
@@ -214,7 +214,7 @@ Browser -> Vite Dev Proxy (/api -> :3000) -> Express
 **Login Flow:**
 1. User submits email/password on `LoginPage`
 2. Client calls `POST /api/auth/login` via `authApi.login()`
-3. Server validates via Passport Local Strategy (bcrypt hash comparison against `admin.nap_users`)
+3. Server validates via Passport Local Strategy (bcrypt hash comparison against `admin.portal_users`)
 4. Server signs JWT tokens (RBAC policy loading is deferred — it happens lazily on the first `authRedis` middleware call, not during login)
 5. Server sets `auth_token` (15min) and `refresh_token` (7-day) as httpOnly cookies
 6. Client calls `GET /api/auth/me` to hydrate user context
@@ -236,7 +236,7 @@ Browser -> Vite Dev Proxy (/api -> :3000) -> Express
 - `iss`: Issuer (`'nap-serv'`)
 - `aud`: Audience (`'nap-serv-api'`)
 
-> **Note:** Authentication is against `admin.nap_users` which contains only identity/auth fields (`id`, `tenant_id`, `entity_type`, `entity_id`, `email`, `password_hash`, `status`). Tenant context (`tenant_code`, `schema_name`) and roles are resolved at request time by the `authRedis` middleware via HTTP headers, Redis cache, and database lookup — they are NOT embedded in the JWT. Roles are read from the entity record's `roles` text array (resolved via `entity_type` + `entity_id`), not from a column on `nap_users`.
+> **Note:** Authentication is against `admin.portal_users` which contains only identity/auth fields (`id`, `tenant_id`, `entity_type`, `entity_id`, `email`, `password_hash`, `status`). Tenant context (`tenant_code`, `schema_name`) and roles are resolved at request time by the `authRedis` middleware via HTTP headers, Redis cache, and database lookup — they are NOT embedded in the JWT. Roles are read from the entity record's `roles` text array (resolved via `entity_type` + `entity_id`), not from a column on `portal_users`.
 
 **Client-Side Auth:**
 - `AuthContext` provides `{ user, loading, login, logout, refreshUser, tenant, isRootTenantUser, assumedTenant, assumeTenant, exitAssumption, impersonation, startImpersonation, endImpersonation }` via React context, where `tenant` is `null` or `{ tenant_code, schema_name }` (when an assumption is active, `tenant` also includes `company` and `is_assumed: true`)
@@ -261,12 +261,12 @@ RBAC uses a four-layer model where each layer narrows what the previous layer gr
 - `roles`: Role definitions with `code`, `name`, `description` (optional), `is_system`, `is_immutable`, `scope` (`all_projects`, `assigned_companies`, `assigned_projects`, or `self`), plus `tenant_code`
 - `policies`: Permission grants with `(role_id, module, router, action, level)` dimensions, plus `tenant_code`
 
-> **Role Assignment:** Roles are stored as a `roles` text array directly on each entity table (employees, clients, vendor_contacts) — there is no `role_members` junction table. The permission loader reads the `roles` array from the entity record (resolved via `nap_users.entity_type` + `entity_id`), then queries `policies` for matching role IDs. A SQL view can reconstruct "members by role" across entity tables when needed for admin reporting.
+> **Role Assignment:** Roles are stored as a `roles` text array directly on each entity table (employees, clients, vendor_contacts) — there is no `role_members` junction table. The permission loader reads the `roles` array from the entity record (resolved via `portal_users.entity_type` + `entity_id`), then queries `policies` for matching role IDs. A SQL view can reconstruct "members by role" across entity tables when needed for admin reporting.
 
 **Layer 2 — Data Model:**
 - `project_members`: Maps `(project_id, user_id)` with a `role` label (e.g., `member`, `lead`). When `roles.scope = 'assigned_projects'`, only data from the user's assigned projects is visible.
 - `company_members`: Maps `(company_id, user_id)`. When `roles.scope = 'assigned_companies'`, only data from projects belonging to the user's assigned companies is visible. The permission loader eagerly resolves both `companyIds` and corresponding `projectIds`.
-- **`self` scope:** When `roles.scope = 'self'`, the permission loader reads `entity_type` and `entity_id` from `nap_users`. The canon includes `entityType` and `entityId`. `_applyRbacFilters()` maps the entity type to the appropriate FK column on the queried resource (e.g., `vendor_id` for AP invoices, `client_id` for AR invoices, `employee_id` for timecards). This enables portal access where vendors/clients see only their own records.
+- **`self` scope:** When `roles.scope = 'self'`, the permission loader reads `entity_type` and `entity_id` from `portal_users`. The canon includes `entityType` and `entityId`. `_applyRbacFilters()` maps the entity type to the appropriate FK column on the queried resource (e.g., `vendor_id` for AP invoices, `client_id` for AR invoices, `employee_id` for timecards). This enables portal access where vendors/clients see only their own records.
 - `policy_catalog`: Registry of valid `(module, router, action)` combinations for role configuration UI discovery. Includes `label` (varchar(128), human-readable name), `description` (varchar(512), optional explanation), `sort_order` (integer, display ordering), `valid_statuses` (text[], valid status values for state filter UI), `available_fields` (text[], columns available for field group UI), and `policy_required` (boolean, default true — whether a policy must exist for this combination). Seed-only reference data — no audit fields, no tenant_code.
 
 **Layer 3 — Data Model:**
@@ -315,7 +315,7 @@ All roles — including system roles — go through the full RBAC policy resolut
 - Canonical form: `{ caps, scope, projectIds, companyIds, entityType, entityId, stateFilters, fieldGroups }`
 - Stored at `perm:{userId}:{tenantCode}`
 - SHA-256 permission hash designed for JWT (`ph` claim) — currently hardcoded to `null` in `authController.js` (Phase 3 deferred). The `X-Token-Stale: 1` stale-detection logic exists in `authRedis` but never fires because `ph` is always falsy
-- `authRedis` middleware reads the `roles` array from the entity record (resolved via `nap_users.entity_type` + `entity_id`), then queries `policies` for matching role IDs — NOT from a `nap_users.role` column or `role_members` table
+- `authRedis` middleware reads the `roles` array from the entity record (resolved via `portal_users.entity_type` + `entity_id`), then queries `policies` for matching role IDs — NOT from a `portal_users.role` column or `role_members` table
 - `entityType` and `entityId` are included in the canon for `self` scope resolution
 
 **Module Entitlements:**
@@ -369,7 +369,7 @@ Roles with `is_immutable = true` OR `is_system = true` are read-only across all 
 
 **Purpose:** Vimber operators manage customer organizations (tenants) and their users.
 
-**Access Control:** Restricted to Vimber employees via `requireNapsoftTenant` middleware.
+**Access Control:** Restricted to Vimber employees via `requireRootTenant` middleware.
 
 **Root Tenant:** Vimber (tenant_code `NAP`) is the platform root tenant. It cannot be archived or deleted. The `super_user` and `support` system roles can only be assigned to users belonging to the Vimber tenant. The root tenant is created automatically during initial setup via the `202502110001_bootstrapAdmin` migration.
 
@@ -395,8 +395,8 @@ Roles with `is_immutable = true` OR `is_system = true` are read-only across all 
 - Extensions (e.g., `pgcrypto`, `vector`) are created per-schema as needed
 - `createMigrator` runs all pending migrations against the new schema (not `bootstrap()` or `MigrationManager`)
 - Seed data (default roles, chart of accounts templates) is inserted via `bulkInsert()`
-- **Admin User Creation:** Performed in a single transaction: (1) create an `employees` record in the tenant schema with `roles: ['admin']`, `is_app_user: true`, `is_primary_contact: true`, (2) create a `nap_users` login in `admin.nap_users` with `entity_type: 'employee'` and `entity_id` linking to the new employee. The employee must have `roles` assigned and `is_app_user = true` before the `nap_users` login is created. The admin employee is created with `code = NULL` because numbering is not yet configured; the code is backfilled when the tenant enables numbering via Settings (see §3.13.9).
-- **Contact Designation:** Primary and billing contacts are designated via `employees.is_primary_contact` and `employees.is_billing_contact` flags — there is no `tenant_role` column on `nap_users`.
+- **Admin User Creation:** Performed in a single transaction: (1) create an `employees` record in the tenant schema with `roles: ['admin']`, `is_app_user: true`, `is_primary_contact: true`, (2) create a `portal_users` login in `admin.portal_users` with `entity_type: 'employee'` and `entity_id` linking to the new employee. The employee must have `roles` assigned and `is_app_user = true` before the `portal_users` login is created. The admin employee is created with `code = NULL` because numbering is not yet configured; the code is backfilled when the tenant enables numbering via Settings (see §3.13.9).
+- **Contact Designation:** Primary and billing contacts are designated via `employees.is_primary_contact` and `employees.is_billing_contact` flags — there is no `tenant_role` column on `portal_users`.
 
 **UI Requirements:**
 - Data grid displaying: Code, Tenant Name, Status, Tier, Region, Active columns
@@ -405,7 +405,7 @@ Roles with `is_immutable = true` OR `is_system = true` are read-only across all 
 - Status badge display with color coding
 - Create tenant form includes admin user fields: first name, last name, email, and password (used to create the tenant's Administrator user and linked employee record)
 - Pagination with configurable rows-per-page (powered by `findAfterCursor()`)
-- Archive cascades to deactivate all currently-active associated `nap_users` (sets `deactivated_at`, `status = 'locked'`, and `updated_by`) — works for both `?id=` and `?tenant_code=` query params.
+- Archive cascades to deactivate all currently-active associated `portal_users` (sets `deactivated_at`, `status = 'locked'`, and `updated_by`) — works for both `?id=` and `?tenant_code=` query params.
 - The root tenant (Vimber, `NAP`) cannot be archived — server rejects the request with 403
 - Restore reactivates the tenant only — users remain archived and must be individually restored by an admin
 - **View Details dialog** (`maxWidth="md"`): displays tenant fields in a responsive 3-column grid of `FieldRow` components (label:value pairs). Fields: Code, Tier, Region, Status (rendered as `StatusBadge` chip), Max Users, Schema (monospace), Created, Updated, Notes (full-width). Below a divider, two `DataGrid` tables display **Primary Contacts** and **Billing Contacts** with Name, Email (mailto link), and Phone columns. Contact data is fetched via `useTenantContacts(tenantId)` hook.
@@ -413,7 +413,7 @@ Roles with `is_immutable = true` OR `is_system = true` are read-only across all 
 **Endpoints:**
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/api/tenants/v1/tenants` | Create tenant (provisions schema, creates employee with `roles: ['admin']` + nap_users login in single transaction) |
+| `POST` | `/api/tenants/v1/tenants` | Create tenant (provisions schema, creates employee with `roles: ['admin']` + portal_users login in single transaction) |
 | `GET` | `/api/tenants/v1/tenants` | List tenants (cursor-based pagination) |
 | `GET` | `/api/tenants/v1/tenants/:id` | Get tenant by ID |
 | `PUT` | `/api/tenants/v1/tenants/update` | Update tenant |
@@ -424,9 +424,9 @@ Roles with `is_immutable = true` OR `is_system = true` are read-only across all 
 
 #### 3.2.2 Manage Users
 
-**Data Model (`admin.nap_users`):**
+**Data Model (`admin.portal_users`):**
 
-`nap_users` is a pure identity/authentication table. All personal information (name, phone, address) lives on the linked entity record (employee, vendor, vendor contact, client, or contact) in the tenant schema. The link is polymorphic via `entity_type` + `entity_id`. Roles are stored as a `roles` text array on the entity record — there is no `role` column on `nap_users` and no `role_members` junction table.
+`portal_users` is a pure identity/authentication table. All personal information (name, phone, address) lives on the linked entity record (employee, vendor, vendor contact, client, or contact) in the tenant schema. The link is polymorphic via `entity_type` + `entity_id`. Roles are stored as a `roles` text array on the entity record — there is no `role` column on `portal_users` and no `role_members` junction table.
 
 | Field | Type | Description |
 |---|---|---|
@@ -440,19 +440,19 @@ Roles with `is_immutable = true` OR `is_system = true` are read-only across all 
 
 Partial unique index: `(entity_type, entity_id) WHERE deactivated_at IS NULL` — prevents duplicate logins for the same entity.
 
-> **Removed from nap_users:** `tenant_code`, `user_name`, `full_name`, `tax_id`, `notes`, `role`, `tenant_role`, `employee_id`. The `employee_id` column has been replaced by the polymorphic `entity_type` + `entity_id` pair, supporting logins for employees, vendors, clients, and contacts. User identity data lives on the entity record. Roles are stored as a `roles` text array on the entity record (not in a `role_members` junction table). Contact designation (primary/billing) is via `employees.is_primary_contact` / `is_billing_contact`. The `nap_admin_phones` and `nap_admin_addresses` tables have been removed — phone numbers and addresses are stored on the linked entity via the polymorphic `sources` → `phone_numbers` / `addresses` pattern.
+> **Removed from portal_users:** `tenant_code`, `user_name`, `full_name`, `tax_id`, `notes`, `role`, `tenant_role`, `employee_id`. The `employee_id` column has been replaced by the polymorphic `entity_type` + `entity_id` pair, supporting logins for employees, vendors, clients, and contacts. User identity data lives on the entity record. Roles are stored as a `roles` text array on the entity record (not in a `role_members` junction table). Contact designation (primary/billing) is via `employees.is_primary_contact` / `is_billing_contact`. The `nap_admin_phones` and `nap_admin_addresses` tables have been removed — phone numbers and addresses are stored on the linked entity via the polymorphic `sources` → `phone_numbers` / `addresses` pattern.
 
-**Access Control:** All nap-users routes are gated by `requireNapsoftTenant` middleware and `withMeta({ module: 'tenants', router: 'nap-users' })`. `rbac()` is not currently applied — access control relies on `requireNapsoftTenant` (restricts to Vimber users) and `moduleEntitlement`.
+**Access Control:** All portal-users routes are gated by `requireRootTenant` middleware and `withMeta({ module: 'tenants', router: 'portal-users' })`. `rbac()` is not currently applied — access control relies on `requireRootTenant` (restricts to Vimber users) and `moduleEntitlement`.
 
 **Endpoints:**
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/api/tenants/v1/nap-users/register` | Register new user (accepts `tenant_code`, `email`, `password`; validates tenant is active) |
-| `GET` | `/api/tenants/v1/nap-users` | List users |
-| `GET` | `/api/tenants/v1/nap-users/:id` | Get user by ID |
-| `PUT` | `/api/tenants/v1/nap-users/update` | Update user |
-| `DELETE` | `/api/tenants/v1/nap-users/archive` | Soft-delete user — sets `status = 'locked'` and `deactivated_at`, cascades to archive linked entity (prevents self-archival) |
-| `PATCH` | `/api/tenants/v1/nap-users/restore` | Restore user — sets `status = 'active'` and clears `deactivated_at`, cascades to restore linked entity (checks tenant is active) |
+| `POST` | `/api/tenants/v1/portal-users/register` | Register new user (accepts `tenant_code`, `email`, `password`; validates tenant is active) |
+| `GET` | `/api/tenants/v1/portal-users` | List users |
+| `GET` | `/api/tenants/v1/portal-users/:id` | Get user by ID |
+| `PUT` | `/api/tenants/v1/portal-users/update` | Update user |
+| `DELETE` | `/api/tenants/v1/portal-users/archive` | Soft-delete user — sets `status = 'locked'` and `deactivated_at`, cascades to archive linked entity (prevents self-archival) |
+| `PATCH` | `/api/tenants/v1/portal-users/restore` | Restore user — sets `status = 'active'` and clears `deactivated_at`, cascades to restore linked entity (checks tenant is active) |
 
 **Business Rules:**
 - Standard POST is disabled; users must be created via the `/register` endpoint
@@ -463,7 +463,7 @@ Partial unique index: `(entity_type, entity_id) WHERE deactivated_at IS NULL` �
 - Archiving a user sets `status = 'locked'` (in addition to `deactivated_at`) and cascades to soft-delete the linked entity record (employee/vendor/client/contact) in the tenant schema via `entity_type` + `entity_id`
 - Restoring a user sets `status = 'active'`, clears `deactivated_at`, and cascades to restore the linked entity record in the tenant schema
 - Restoring a user requires the parent tenant to be active — returns 403 if the tenant is deactivated
-- Vimber membership is determined by `tenant_code` comparison: server uses `requireNapsoftTenant` middleware (checks `req.user.tenant_code` against `ROOT_TENANT_CODE` env var); client uses `isRootTenantUser` computed flag in `AuthContext` (checks `tenant_code` against `VITE_ROOT_TENANT_CODE`)
+- Vimber membership is determined by `tenant_code` comparison: server uses `requireRootTenant` middleware (checks `req.user.tenant_code` against `ROOT_TENANT_CODE` env var); client uses `isRootTenantUser` computed flag in `AuthContext` (checks `tenant_code` against `VITE_ROOT_TENANT_CODE`)
 
 #### 3.2.3 Admin Operations
 
@@ -518,7 +518,7 @@ Partial unique index: `(entity_type, entity_id) WHERE deactivated_at IS NULL` �
 | `last_name` | varchar(64) | Not null |
 | `position` | varchar(64) | Job title |
 | `department` | varchar(64) | Department |
-| `is_app_user` | boolean | Default false. Must be true before a `nap_users` login can be created. Requires `roles` to be non-empty. |
+| `is_app_user` | boolean | Default false. Must be true before a `portal_users` login can be created. Requires `roles` to be non-empty. |
 | `roles` | text[] | RBAC role codes assigned to this vendor contact (default `'{}'`). References `roles.code`. |
 | `is_primary` | boolean | Default false. Marks primary contact for the vendor. |
 
@@ -550,7 +550,7 @@ Each vendor contact gets its own `sources` record (with `source_type = 'vendor_c
 | `code` | varchar(16) | Unique per tenant |
 | `email` | varchar(128) | Contact email |
 | `roles` | text[] | RBAC role codes assigned to this client (default `'{}'`). References `roles.code`. |
-| `is_app_user` | boolean | Default false. Must be true before a `nap_users` login can be created. Requires `roles` to be non-empty. |
+| `is_app_user` | boolean | Default false. Must be true before a `portal_users` login can be created. Requires `roles` to be non-empty. |
 | `is_active` | boolean | Default true |
 
 **Endpoint:** `/api/core/v1/clients`
@@ -569,13 +569,13 @@ Each vendor contact gets its own `sources` record (with `source_type = 'vendor_c
 | `department` | varchar(64) | Department |
 | `email` | varchar(128) | Employee email (unique per tenant when non-null, partial index WHERE email IS NOT NULL AND deactivated_at IS NULL) |
 | `roles` | text[] | RBAC role codes assigned to this employee (default `'{}'`). References `roles.code`. |
-| `is_app_user` | boolean | Default false. Must be true before a `nap_users` login can be created. Requires `roles` to be non-empty. |
+| `is_app_user` | boolean | Default false. Must be true before a `portal_users` login can be created. Requires `roles` to be non-empty. |
 | `is_primary_contact` | boolean | Default false. Designates this employee as the tenant's primary contact. |
 | `is_billing_contact` | boolean | Default false. Designates this employee as the tenant's billing contact. |
 
 > **Soft Delete:** Employees use the `deactivated_at` column (via pg-schemata `softDelete: true`) — there is no `is_active` boolean column. Vendors, clients, and contacts have BOTH `is_active` (boolean) AND `deactivated_at` (via `softDelete: true`) — a dual active/inactive mechanism. `is_active` is a user-facing toggle; `deactivated_at` is the pg-schemata soft-delete marker that filters records from read queries.
 
-> **Contact Designation:** Both `is_primary_contact` and `is_billing_contact` can be true on the same employee (e.g., small company owner is both primary and billing contact). Multiple employees can share the same flag. These flags replace the former `nap_users.tenant_role` designation. When the primary contact leaves the tenant (deactivated), the tenant's account executive is responsible for designating a new primary contact.
+> **Contact Designation:** Both `is_primary_contact` and `is_billing_contact` can be true on the same employee (e.g., small company owner is both primary and billing contact). Multiple employees can share the same flag. These flags replace the former `portal_users.tenant_role` designation. When the primary contact leaves the tenant (deactivated), the tenant's account executive is responsible for designating a new primary contact.
 
 **Edit Dialog:** The employee edit dialog (`maxWidth="md"`) includes phone number and address management sections below the employee fields. Phone numbers are rendered as repeatable inline rows (type select, number, is_primary checkbox, delete). Addresses are rendered as bordered cards with a 2-column grid of address fields. Changes are diffed and persisted via the polymorphic `sources` → `phone_numbers` / `addresses` pattern.
 
@@ -584,7 +584,7 @@ Each vendor contact gets its own `sources` record (with `source_type = 'vendor_c
 |---|---|---|
 | Standard CRUD | `/api/core/v1/employees` | List, get, create, update, archive, restore |
 | `GET` | `/api/core/v1/employees/:id/source-id` | Resolve the polymorphic source record for phone/address lookups |
-| `POST` | `/api/core/v1/employees/:id/reset-password` | Admin-initiated password reset for an employee's linked nap_users login |
+| `POST` | `/api/core/v1/employees/:id/reset-password` | Admin-initiated password reset for an employee's linked portal_users login |
 
 #### 3.3.4 Polymorphic Sources, Contacts, Addresses & Phone Numbers
 
@@ -1666,7 +1666,7 @@ Built into pg-schemata's TableModel and exposed as a full-stack feature across a
 The 5 core entity models (Vendors, Clients, Employees, Contacts, Companies) override the default pg-schemata `importFromSpreadsheet()` / `exportToSpreadsheet()` methods with custom multi-sheet logic via `spreadsheetHelpers.js`. These entities use the polymorphic `sources` pattern with child tables (phone numbers, addresses, tax identifiers), which requires:
 
 - **Export** (`exportSourceEntity`): Queries the parent table, strips internal columns (audit fields, `tenant_id`, `source_id`, `deactivated_at`), appends a derived `status` column, and writes child data (phones, addresses, tax IDs) to separate sheets in a single XLSX workbook via `@nap-sft/tablsx` WorkbookBuilder.
-- **Import** (`importSourceEntity`): Parses multi-sheet workbooks, partitions rows into inserts vs updates (by `id` presence), executes updates with soft-delete/restore logic, bulk inserts new records with auto-generated source records and numbering-service codes, optionally provisions `nap_users` login records (when `appUserProvisioning` is enabled), and imports child sheets with delete-and-reinsert per parent. Returns an extended result: `{ inserted, updated, phones, addresses, taxIds, appUserSkipped }`.
+- **Import** (`importSourceEntity`): Parses multi-sheet workbooks, partitions rows into inserts vs updates (by `id` presence), executes updates with soft-delete/restore logic, bulk inserts new records with auto-generated source records and numbering-service codes, optionally provisions `portal_users` login records (when `appUserProvisioning` is enabled), and imports child sheets with delete-and-reinsert per parent. Returns an extended result: `{ inserted, updated, phones, addresses, taxIds, appUserSkipped }`.
 - **Config-driven**: Each entity defines a `SourceEntityConfig` specifying `entityName`, `sheetName`, `sourceType`, `idType`, `buildLabel`, `boolCols`, `childSheets`, and `appUserProvisioning`.
 
 All other entities (non-source) use the default pg-schemata single-sheet import/export path.
@@ -1776,7 +1776,7 @@ Generated columns are deliberately excluded from pg-schemata schema definitions 
 - `pgschemata.migrations` table tracks applied migrations with primary key `(schema_name, module_name, migration_id)`
 
 **Migration Order:**
-1. `202502110001` — Bootstrap admin (tenants, nap_users, impersonation_logs, match_review_logs). Seeds root tenant + super user. Note: `nap_users` uses polymorphic `entity_type`/`entity_id` instead of `employee_id`; `nap_admin_phones` and `nap_admin_addresses` removed.
+1. `202502110001` — Bootstrap admin (tenants, portal_users, impersonation_logs, match_review_logs). Seeds root tenant + super user. Note: `portal_users` uses polymorphic `entity_type`/`entity_id` instead of `employee_id`; `nap_admin_phones` and `nap_admin_addresses` removed.
 2. `202502110010` — Core RBAC tables (roles, policies, policy_catalog, state_filters, field_group_definitions, field_group_grants, project_members, company_members). Note: `role_members` has been removed — role assignment is stored as a `roles` text array on entity tables.
 3. `202502110011` — Core entity tables (sources, vendors, clients, employees, contacts, addresses, phone_numbers, companies, tax_identifiers). Note: all four entity tables include `roles` (text[]) and `is_app_user`; `contacts` is a first-class entity (miscellaneous payees); `sources` CHECK includes `'contact'` and `'company'`; `clients` includes `email`; `employees` includes `email`, `is_primary_contact`, `is_billing_contact`; `tax_identifiers` replaces the former `tax_id` column on entity tables.
 4. `202502250012` — Numbering system tables (tenant_numbering_config, tenant_number_sequence_state).
@@ -2122,7 +2122,7 @@ const { max_by_groups } = rule;
 
 `src/system/` contains the **core platform modules** that are always required and glue the application together:
 
-- **`auth`** — authentication (login, JWT, session management) **and** admin-schema data layer (schemas, models, migrations, repositories for `tenants`, `nap_users`, `impersonation_logs`, `match_review_logs`). The auth module is registered in the module registry with `scope: 'admin'` and owns the `202502110001_bootstrapAdmin` migration that creates the admin schema.
+- **`auth`** — authentication (login, JWT, session management) **and** admin-schema data layer (schemas, models, migrations, repositories for `tenants`, `portal_users`, `impersonation_logs`, `match_review_logs`). The auth module is registered in the module registry with `scope: 'admin'` and owns the `202502110001_bootstrapAdmin` migration that creates the admin schema.
 - **`tenants`** — API layer for multi-tenant administration (controllers and routes for tenant CRUD, nap-user registration, impersonation, and match review logs). Tenants has **no schemas or models of its own** — controllers resolve models from the `auth` module's repositories via the global `db()` singleton. Routes are mounted at `/api/tenants/v1/`. This module is **not in the module registry** because it has no database artifacts; it is loaded directly in the route aggregator.
 - **`core`** — tables required by all optional modules (sources, vendors, clients, employees, contacts, addresses, companies, RBAC)
 
@@ -2302,8 +2302,8 @@ import { vendorsSchema } from '../schemas/vendorsSchema.js';
 - Never return `password_hash` or internal fields in API responses — use `columnWhitelist` or DTO mapping
 - Environment secrets must never be committed — use `.env` files (gitignored) and validate required vars at startup
 - All authorization must flow through the RBAC policy engine — no role-based bypass in middleware
-- Entity deactivation (employee, vendor, client, or contact) must cascade to lock the corresponding `nap_users` login (business rule in controller, not FK — cross-schema)
-- User creation (`nap_users` insert) requires the entity to already have `roles` assigned and `is_app_user = true`
+- Entity deactivation (employee, vendor, client, or contact) must cascade to lock the corresponding `portal_users` login (business rule in controller, not FK — cross-schema)
+- User creation (`portal_users` insert) requires the entity to already have `roles` assigned and `is_app_user = true`
 - Roles must be assigned to an entity (non-empty `roles` array) before it can be flagged as an app user (`is_app_user`)
 
 ---

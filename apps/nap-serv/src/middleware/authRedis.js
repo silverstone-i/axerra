@@ -102,7 +102,7 @@ export function authRedis() {
       let userRecord = null;
       let tenantRecord = null;
       try {
-        userRecord = await db('napUsers', 'admin').findOneBy([{ id: uid }]);
+        userRecord = await db('portalUsers', 'admin').findOneBy([{ id: uid }]);
         if (userRecord) {
           tenantRecord = await db('tenants', 'admin').findById(userRecord.tenant_id);
         }
@@ -181,7 +181,7 @@ export function authRedis() {
           // Load target user data
           const dbMod2 = await import('../db/db.js');
           const db2 = dbMod2.default || dbMod2.db;
-          const targetUser = await db2('napUsers', 'admin').findOneBy([{ id: parsed.targetUserId }]);
+          const targetUser = await db2('portalUsers', 'admin').findOneBy([{ id: parsed.targetUserId }]);
           if (targetUser) {
             effectiveUser = targetUser;
             effectiveTenantCode = parsed.targetTenantCode || tenantCode;

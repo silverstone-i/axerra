@@ -30,7 +30,7 @@ vi.mock('../../src/db/db.js', () => {
   const mockFindById = vi.fn();
   const mockOneOrNone = vi.fn();
   const mockDb = vi.fn((modelName) => {
-    if (modelName === 'napUsers') return { findOneBy: mockFindOneBy };
+    if (modelName === 'portalUsers') return { findOneBy: mockFindOneBy };
     if (modelName === 'tenants') return { findById: mockFindById };
     return {};
   });

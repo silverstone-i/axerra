@@ -91,7 +91,7 @@ describe('Tenant lifecycle — create, provision, archive, restore', () => {
   });
 
   test('4. Verify admin user was created for the tenant', async () => {
-    const user = await db.oneOrNone('SELECT * FROM admin.nap_users WHERE id = $1', [adminUserId]);
+    const user = await db.oneOrNone('SELECT * FROM admin.portal_users WHERE id = $1', [adminUserId]);
     expect(user).not.toBeNull();
     expect(user.email).toBe('admin@testco.com');
     expect(user.tenant_id).toBe(tenantId);
@@ -123,7 +123,7 @@ describe('Tenant lifecycle — create, provision, archive, restore', () => {
     expect(tenant.deactivated_at).not.toBeNull();
 
     // Verify admin user was cascaded
-    const user = await db.oneOrNone('SELECT * FROM admin.nap_users WHERE id = $1', [adminUserId]);
+    const user = await db.oneOrNone('SELECT * FROM admin.portal_users WHERE id = $1', [adminUserId]);
     expect(user.deactivated_at).not.toBeNull();
   });
 
@@ -151,7 +151,7 @@ describe('Tenant lifecycle — create, provision, archive, restore', () => {
     expect(tenant.deactivated_at).toBeNull();
 
     // User should still be archived (users must be restored individually)
-    const user = await db.oneOrNone('SELECT * FROM admin.nap_users WHERE id = $1', [adminUserId]);
+    const user = await db.oneOrNone('SELECT * FROM admin.portal_users WHERE id = $1', [adminUserId]);
     expect(user.deactivated_at).not.toBeNull();
   });
 });

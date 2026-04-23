@@ -7,40 +7,40 @@
 
 import tenantsController from '../../controllers/tenantsController.js';
 import createRouter from '../../../../lib/createRouter.js';
-import { requireNapsoftTenant } from '../../../../middleware/requireNapsoftTenant.js';
+import { requireRootTenant } from '../../../../middleware/requireRootTenant.js';
 import { withMeta } from '../../../../middleware/withMeta.js';
 
 const meta = withMeta({ module: 'tenants', router: 'tenants' });
 
-// requireNapsoftTenant gates all routes to Vimber users only.
-// RBAC not applied — access control relies on requireNapsoftTenant + moduleEntitlement.
+// requireRootTenant gates all routes to Vimber users only.
+// RBAC not applied — access control relies on requireRootTenant + moduleEntitlement.
 export default createRouter(
   tenantsController,
   (router) => {
     router.get(
       '/:id/modules',
-      requireNapsoftTenant,
+      requireRootTenant,
       meta,
       (req, res) => tenantsController.getAllowedModules(req, res),
     );
     router.get(
       '/:id/contacts',
-      requireNapsoftTenant,
+      requireRootTenant,
       meta,
       (req, res) => tenantsController.getContacts(req, res),
     );
     router.get(
       '/:id/company',
-      requireNapsoftTenant,
+      requireRootTenant,
       meta,
       (req, res) => tenantsController.getCompany(req, res),
     );
   },
   {
-    postMiddlewares: [requireNapsoftTenant, meta],
-    getMiddlewares: [requireNapsoftTenant, meta],
-    putMiddlewares: [requireNapsoftTenant, meta],
-    deleteMiddlewares: [requireNapsoftTenant, meta],
-    patchMiddlewares: [requireNapsoftTenant, meta],
+    postMiddlewares: [requireRootTenant, meta],
+    getMiddlewares: [requireRootTenant, meta],
+    putMiddlewares: [requireRootTenant, meta],
+    deleteMiddlewares: [requireRootTenant, meta],
+    patchMiddlewares: [requireRootTenant, meta],
   },
 );

@@ -110,13 +110,13 @@ class TenantsController extends BaseController {
       // Cascade: deactivate and lock all currently-active users
       if (req.query.id) {
         await db.none(
-          `UPDATE admin.nap_users SET deactivated_at = $1, status = 'locked', updated_by = $2
+          `UPDATE admin.portal_users SET deactivated_at = $1, status = 'locked', updated_by = $2
            WHERE tenant_id = $3 AND deactivated_at IS NULL`,
           [now, req.user?.id || null, req.query.id],
         );
       } else if (req.query.tenant_code) {
         await db.none(
-          `UPDATE admin.nap_users SET deactivated_at = $1, status = 'locked', updated_by = $2
+          `UPDATE admin.portal_users SET deactivated_at = $1, status = 'locked', updated_by = $2
            WHERE tenant_id = (SELECT id FROM admin.tenants WHERE tenant_code = $3)
              AND deactivated_at IS NULL`,
           [now, req.user?.id || null, req.query.tenant_code],

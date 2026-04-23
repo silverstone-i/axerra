@@ -4,7 +4,7 @@
 
 Automate a full database rebuild that:
 
-1. Backs up the `srh` schema and its `admin.nap_users` entries
+1. Backs up the `srh` schema and its `admin.portal_users` entries
 2. Drops all schemas and rebuilds the database from scratch
 3. Re-provisions the SRH tenant with fresh seed data (RBAC, policy catalog, numbering)
 4. Restores business data from the backup
@@ -40,7 +40,7 @@ Run from the monorepo root. Requires `.pgpass` or `PGPASSWORD` for `nap_admin`.
 
 - `pg_dump -Fc --schema=srh` — archival custom dump (timestamped)
 - `pg_dump --schema=srh` — plain SQL dump (used for staging restore)
-- `\COPY` admin.nap_users rows for SRH tenant to CSV (preserves `password_hash`)
+- `\COPY` admin.portal_users rows for SRH tenant to CSV (preserves `password_hash`)
 
 All files written to `tmp/srh_backups/`.
 
@@ -81,10 +81,10 @@ Runs `provisionTenantCli.js` which:
 
 Excluding `policy_catalog` preserves the freshly-seeded data from Step 5.
 
-### Step 7 — Restore nap_users
+### Step 7 — Restore portal_users
 
 Loads the CSV backup into a temp table, remaps `tenant_id` to the new SRH
-tenant UUID, and inserts into `admin.nap_users` with new UUIDs but original
+tenant UUID, and inserts into `admin.portal_users` with new UUIDs but original
 `password_hash` values. Skips emails that already exist.
 
 ### Step 8 — Validate
@@ -94,8 +94,8 @@ Runs integrity checks:
 | Check | Expected |
 |-------|----------|
 | Employees missing tenant reference | 0 |
-| App-user employees missing nap_users | 0 |
-| nap_users pointing to missing employee | 0 |
+| App-user employees missing portal_users | 0 |
+| portal_users pointing to missing employee | 0 |
 | policy_catalog total entries | > 0 |
 | policy_catalog with valid_statuses | > 0 |
 | policy_catalog with available_fields | > 0 |
@@ -140,11 +140,11 @@ cross-env NODE_ENV=development node scripts/db/reseedPolicyCatalog.js --schema n
    (roles, policies, numbering_config) are restored from backup since they
    contain user-customized data.
 
-2. **Preserve passwords** by backing up `admin.nap_users` to CSV before
+2. **Preserve passwords** by backing up `admin.portal_users` to CSV before
    dropping. Employee UUIDs are stable across backup/restore, so `entity_id`
    links remain valid.
 
-3. **`nap_users.id` is regenerated** (`gen_random_uuid()`) to avoid PK
+3. **`portal_users.id` is regenerated** (`gen_random_uuid()`) to avoid PK
    conflicts. Users get new session tokens on next login but keep passwords.
 
 4. **FK-safe ordering** is generated from PostgreSQL metadata (recursive CTE
@@ -170,7 +170,7 @@ cross-env NODE_ENV=development node scripts/db/reseedPolicyCatalog.js --schema n
 |------|---------|
 | `tmp/srh_backups/srh_schema_TIMESTAMP.dump` | Archival custom dump |
 | `tmp/srh_backups/srh_schema.sql` | Plain SQL dump for staging |
-| `tmp/srh_backups/nap_users_srh.csv` | nap_users backup with password hashes |
+| `tmp/srh_backups/nap_users_srh.csv` | portal_users backup with password hashes |
 | `tmp/srh_backups/srh_restore_schema_safe.sql` | Rewritten SQL for staging |
 | `tmp/srh_backups/truncate_srh.sql` | Generated truncate statements |
 | `tmp/srh_backups/insert_srh.sql` | Generated insert statements |
@@ -180,7 +180,7 @@ cross-env NODE_ENV=development node scripts/db/reseedPolicyCatalog.js --schema n
 
 ## Operational notes
 
-- `admin.nap_users.entity_id` is the employee link field, not `employee_id`
+- `admin.portal_users.entity_id` is the employee link field, not `employee_id`
 - App-user filtering uses `is_app_user = true`
 - Schema rewrite only touches executable schema references (not data values)
 - Tenant remap is dynamic across all staged tables with `tenant_id`/`tenant_code`

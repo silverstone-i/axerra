@@ -6,7 +6,7 @@
 # rebuilds the database and restores the data in a single step.
 #
 # Delegates to:
-#   - backup_srh.sh   (backup SRH schema + nap_users)
+#   - backup_srh.sh   (backup SRH schema + portal_users)
 #   - restore_srh.sh  (drop → setupAdmin → provision → restore)
 #
 # Prerequisites:

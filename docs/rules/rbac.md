@@ -4,7 +4,7 @@
 
 1. Roles are stored as `text[]` on entity records
    (employees, clients, vendor_contacts).
-2. `nap_users.entity_type` + `entity_id` links to the
+2. `portal_users.entity_type` + `entity_id` links to the
    entity record in the tenant schema.
 3. Permission loader reads the entity's `roles` array,
    looks up matching role definitions in the `roles` table,

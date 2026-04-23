@@ -38,9 +38,9 @@ describe('Bootstrap admin migration', () => {
     expect(result.table_name).toBe('tenants');
   });
 
-  test('creates admin.nap_users table', async () => {
+  test('creates admin.portal_users table', async () => {
     const result = await db.oneOrNone(
-      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'admin' AND table_name = 'nap_users'",
+      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'admin' AND table_name = 'portal_users'",
     );
     expect(result).not.toBeNull();
   });
@@ -69,7 +69,7 @@ describe('Bootstrap admin migration', () => {
   });
 
   test('seeds root super user', async () => {
-    const user = await db.oneOrNone('SELECT * FROM admin.nap_users WHERE email = $1', [ROOT_EMAIL]);
+    const user = await db.oneOrNone('SELECT * FROM admin.portal_users WHERE email = $1', [ROOT_EMAIL]);
     expect(user).not.toBeNull();
     expect(user.status).toBe('active');
     expect(user.entity_type).toBeNull();
@@ -78,16 +78,16 @@ describe('Bootstrap admin migration', () => {
     expect(user.password_hash.startsWith('$2')).toBe(true); // bcrypt hash
   });
 
-  test('nap_users.tenant_id references the root tenant', async () => {
+  test('portal_users.tenant_id references the root tenant', async () => {
     const tenant = await db.oneOrNone('SELECT id FROM admin.tenants WHERE tenant_code = $1', [ROOT_TENANT_CODE]);
-    const user = await db.oneOrNone('SELECT tenant_id FROM admin.nap_users WHERE email = $1', [ROOT_EMAIL]);
+    const user = await db.oneOrNone('SELECT tenant_id FROM admin.portal_users WHERE email = $1', [ROOT_EMAIL]);
     expect(user).not.toBeNull();
     expect(user.tenant_id).toBe(tenant.id);
   });
 
-  test('nap_users does NOT have tenant_code column (PRD §3.2.2)', async () => {
+  test('portal_users does NOT have tenant_code column (PRD §3.2.2)', async () => {
     const cols = await db.manyOrNone(
-      "SELECT column_name FROM information_schema.columns WHERE table_schema = 'admin' AND table_name = 'nap_users'",
+      "SELECT column_name FROM information_schema.columns WHERE table_schema = 'admin' AND table_name = 'portal_users'",
     );
     const colNames = cols.map((c) => c.column_name);
     expect(colNames).not.toContain('tenant_code');
@@ -96,9 +96,9 @@ describe('Bootstrap admin migration', () => {
     expect(colNames).not.toContain('role');
   });
 
-  test('nap_users has entity_type and entity_id columns (PRD §3.2.2)', async () => {
+  test('portal_users has entity_type and entity_id columns (PRD §3.2.2)', async () => {
     const cols = await db.manyOrNone(
-      "SELECT column_name FROM information_schema.columns WHERE table_schema = 'admin' AND table_name = 'nap_users'",
+      "SELECT column_name FROM information_schema.columns WHERE table_schema = 'admin' AND table_name = 'portal_users'",
     );
     const colNames = cols.map((c) => c.column_name);
     expect(colNames).toContain('entity_type');
@@ -129,7 +129,7 @@ describe('Bootstrap admin migration', () => {
     const tenantCount = await db.one('SELECT COUNT(*)::int AS count FROM admin.tenants');
     expect(tenantCount.count).toBe(1);
 
-    const userCount = await db.one('SELECT COUNT(*)::int AS count FROM admin.nap_users');
+    const userCount = await db.one('SELECT COUNT(*)::int AS count FROM admin.portal_users');
     expect(userCount.count).toBe(1);
   });
 });

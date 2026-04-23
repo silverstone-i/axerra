@@ -1,8 +1,8 @@
 /**
- * @file Contract tests for nap_users endpoints
- * @module tests/contract/napUsers
+ * @file Contract tests for portal_users endpoints
+ * @module tests/contract/portalUsers
  *
- * Tests the nap-users API: register, list, get, update, archive
+ * Tests the portal-users API: register, list, get, update, archive
  * (self-prevention), restore (tenant active check). Uses supertest
  * with the real Express app and test database.
  *
@@ -33,15 +33,15 @@ async function loginRoot() {
   return res.headers['set-cookie'];
 }
 
-describe('GET /api/tenants/v1/nap-users', () => {
+describe('GET /api/tenants/v1/portal-users', () => {
   test('returns 401 without auth', async () => {
-    const res = await request(app).get('/api/tenants/v1/nap-users');
+    const res = await request(app).get('/api/tenants/v1/portal-users');
     expect(res.status).toBe(401);
   });
 
   test('returns user list when authenticated', async () => {
     const cookies = await loginRoot();
-    const res = await request(app).get('/api/tenants/v1/nap-users').set('Cookie', cookies);
+    const res = await request(app).get('/api/tenants/v1/portal-users').set('Cookie', cookies);
 
     expect(res.status).toBe(200);
     const rows = res.body.rows ?? res.body;
@@ -55,7 +55,7 @@ describe('GET /api/tenants/v1/nap-users', () => {
   });
 });
 
-describe('POST /api/tenants/v1/nap-users/register', () => {
+describe('POST /api/tenants/v1/portal-users/register', () => {
   test('registers a new user with valid tenant_code', async () => {
     const cookies = await loginRoot();
     const body = {
@@ -65,7 +65,7 @@ describe('POST /api/tenants/v1/nap-users/register', () => {
     };
 
     const res = await request(app)
-      .post('/api/tenants/v1/nap-users/register')
+      .post('/api/tenants/v1/portal-users/register')
       .set('Cookie', cookies)
       .send(body);
 
@@ -79,7 +79,7 @@ describe('POST /api/tenants/v1/nap-users/register', () => {
   test('returns 400 for missing tenant_code', async () => {
     const cookies = await loginRoot();
     const res = await request(app)
-      .post('/api/tenants/v1/nap-users/register')
+      .post('/api/tenants/v1/portal-users/register')
       .set('Cookie', cookies)
       .send({ email: 'a@b.com', password: 'Pass123!' });
 
@@ -89,7 +89,7 @@ describe('POST /api/tenants/v1/nap-users/register', () => {
   test('returns 400 for invalid tenant', async () => {
     const cookies = await loginRoot();
     const res = await request(app)
-      .post('/api/tenants/v1/nap-users/register')
+      .post('/api/tenants/v1/portal-users/register')
       .set('Cookie', cookies)
       .send({ tenant_code: 'NONEXIST', email: 'x@y.com', password: 'Pass123!' });
 
@@ -100,7 +100,7 @@ describe('POST /api/tenants/v1/nap-users/register', () => {
   test('returns 409 for duplicate email', async () => {
     const cookies = await loginRoot();
     const res = await request(app)
-      .post('/api/tenants/v1/nap-users/register')
+      .post('/api/tenants/v1/portal-users/register')
       .set('Cookie', cookies)
       .send({ tenant_code: 'NAP', email: 'newuser@vimber.io', password: 'Pass123!' });
 
@@ -108,16 +108,16 @@ describe('POST /api/tenants/v1/nap-users/register', () => {
   });
 });
 
-describe('GET /api/tenants/v1/nap-users/:id', () => {
+describe('GET /api/tenants/v1/portal-users/:id', () => {
   test('returns a single user by id without password_hash', async () => {
     const cookies = await loginRoot();
 
-    const listRes = await request(app).get('/api/tenants/v1/nap-users').set('Cookie', cookies);
+    const listRes = await request(app).get('/api/tenants/v1/portal-users').set('Cookie', cookies);
     const rows = listRes.body.rows ?? listRes.body;
     const user = Array.isArray(rows) ? rows[0] : null;
     expect(user).not.toBeNull();
 
-    const res = await request(app).get(`/api/tenants/v1/nap-users/${user.id}`).set('Cookie', cookies);
+    const res = await request(app).get(`/api/tenants/v1/portal-users/${user.id}`).set('Cookie', cookies);
 
     expect(res.status).toBe(200);
     expect(res.body.email).toBeDefined();
@@ -125,7 +125,7 @@ describe('GET /api/tenants/v1/nap-users/:id', () => {
   });
 });
 
-describe('DELETE /api/tenants/v1/nap-users/archive', () => {
+describe('DELETE /api/tenants/v1/portal-users/archive', () => {
   test('prevents self-archival', async () => {
     const cookies = await loginRoot();
 
@@ -134,7 +134,7 @@ describe('DELETE /api/tenants/v1/nap-users/archive', () => {
     const rootUserId = meRes.body.user.id;
 
     const res = await request(app)
-      .delete(`/api/tenants/v1/nap-users/archive?id=${rootUserId}`)
+      .delete(`/api/tenants/v1/portal-users/archive?id=${rootUserId}`)
       .set('Cookie', cookies)
       .send({});
 
@@ -146,13 +146,13 @@ describe('DELETE /api/tenants/v1/nap-users/archive', () => {
     const cookies = await loginRoot();
 
     // Find the user we registered above
-    const listRes = await request(app).get('/api/tenants/v1/nap-users').set('Cookie', cookies);
+    const listRes = await request(app).get('/api/tenants/v1/portal-users').set('Cookie', cookies);
     const rows = listRes.body.rows ?? listRes.body;
     const target = (Array.isArray(rows) ? rows : []).find((u) => u.email === 'newuser@vimber.io');
     expect(target).toBeDefined();
 
     const res = await request(app)
-      .delete(`/api/tenants/v1/nap-users/archive?id=${target.id}`)
+      .delete(`/api/tenants/v1/portal-users/archive?id=${target.id}`)
       .set('Cookie', cookies)
       .send({});
 
@@ -160,20 +160,20 @@ describe('DELETE /api/tenants/v1/nap-users/archive', () => {
   });
 });
 
-describe('PATCH /api/tenants/v1/nap-users/restore', () => {
+describe('PATCH /api/tenants/v1/portal-users/restore', () => {
   test('restores an archived user when tenant is active', async () => {
     const cookies = await loginRoot();
 
     // Find archived user
     const listRes = await request(app)
-      .get('/api/tenants/v1/nap-users?includeDeactivated=true')
+      .get('/api/tenants/v1/portal-users?includeDeactivated=true')
       .set('Cookie', cookies);
     const rows = listRes.body.rows ?? listRes.body;
     const archived = (Array.isArray(rows) ? rows : []).find((u) => u.email === 'newuser@vimber.io');
     expect(archived).toBeDefined();
 
     const res = await request(app)
-      .patch(`/api/tenants/v1/nap-users/restore?id=${archived.id}`)
+      .patch(`/api/tenants/v1/portal-users/restore?id=${archived.id}`)
       .set('Cookie', cookies)
       .send({});
 

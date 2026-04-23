@@ -38,7 +38,7 @@ Token design is intentionally minimal:
 ```
 
 - `sub` identifies the user. All other user data (email, tenant, entity,
-  roles) is hydrated server-side from `nap_users` + Redis permission cache.
+  roles) is hydrated server-side from `portal_users` + Redis permission cache.
 - `ph` (permission hash) enables stale-token detection: if the cached
   permission canon's hash diverges from the JWT claim, the server sends
   `X-Token-Stale: 1` so the client can silently refresh.

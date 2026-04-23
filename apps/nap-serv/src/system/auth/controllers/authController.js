@@ -55,7 +55,7 @@ export const refresh = async (req, res) => {
   }
 
   try {
-    const user = await db('napUsers', 'admin').findOneBy([{ id: decoded.sub }]);
+    const user = await db('portalUsers', 'admin').findOneBy([{ id: decoded.sub }]);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     // Phase 3 will add RBAC permission reload here
@@ -202,7 +202,7 @@ export const changePassword = async (req, res) => {
   }
 
   try {
-    const user = await db('napUsers', 'admin').findOneBy([{ id: userId }]);
+    const user = await db('portalUsers', 'admin').findOneBy([{ id: userId }]);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
@@ -220,7 +220,7 @@ export const changePassword = async (req, res) => {
       setClauses.push("status = 'active'");
     }
 
-    await db.none(`UPDATE admin.nap_users SET ${setClauses.join(', ')} WHERE id = $/id/`, params);
+    await db.none(`UPDATE admin.portal_users SET ${setClauses.join(', ')} WHERE id = $/id/`, params);
 
     return res.json({ message: 'Password changed successfully' });
   } catch {

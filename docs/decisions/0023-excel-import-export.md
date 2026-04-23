@@ -31,7 +31,7 @@ Extend `createRouter` with two auto-generated routes per resource:
 - `BaseController.importXls()` — multer receives the file to `/tmp/uploads/`, calls `model.importFromSpreadsheet()` with a callback that injects `tenant_code` and `created_by`, returns `{ inserted: number }`
 - `ViewController.exportXls()` — calls `model.exportToSpreadsheet()` to a temp file, sends via `res.download()`, cleans up the temp file after transfer
 
-**Core entity override:** The 5 source-linked entities (Vendors, Clients, Employees, Contacts, Companies) override the default pg-schemata methods with custom multi-sheet logic in `spreadsheetHelpers.js`. These handle child tables (phones, addresses, tax identifiers) on separate sheets, soft-delete/restore on update, numbering-service code allocation, and optional `nap_users` provisioning. The import returns an extended result: `{ inserted, updated, phones, addresses, taxIds, appUserSkipped }`. See PRD §4.6.1 for full details.
+**Core entity override:** The 5 source-linked entities (Vendors, Clients, Employees, Contacts, Companies) override the default pg-schemata methods with custom multi-sheet logic in `spreadsheetHelpers.js`. These handle child tables (phones, addresses, tax identifiers) on separate sheets, soft-delete/restore on update, numbering-service code allocation, and optional `portal_users` provisioning. The import returns an extended result: `{ inserted, updated, phones, addresses, taxIds, appUserSkipped }`. See PRD §4.6.1 for full details.
 
 **Disable flags:** `disableImportXls: true` / `disableExportXls: true` in `createRouter` options for resources that should not support file operations.
 

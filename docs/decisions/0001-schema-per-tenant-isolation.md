@@ -31,7 +31,7 @@ Common approaches:
 Use **PostgreSQL schema-per-tenant** isolation. Each tenant gets its own PG
 schema (e.g., `nap`, `acme_construction`) containing identical table
 structures. A shared `admin` schema holds cross-tenant tables (`tenants`,
-`nap_users`, `impersonation_logs`, `match_review_logs`).
+`portal_users`, `impersonation_logs`, `match_review_logs`).
 
 ## Consequences
 

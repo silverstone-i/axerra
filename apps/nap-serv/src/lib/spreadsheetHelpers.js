@@ -414,7 +414,7 @@ export function parseDbImportError(err) {
  * @property {Array<{name: string, derive: Function}>} extraExportCols  Extra columns appended on export
  * @property {string[]} extraImportStrip  Extra column names to strip before insert/update
  * @property {Array<{sheetName: string, modelName: string, headers: string[]}>} childSheets
- * @property {{entityType: string}|null} appUserProvisioning  If non-null, provision nap_users
+ * @property {{entityType: string}|null} appUserProvisioning  If non-null, provision portal_users
  */
 
 /**
@@ -833,7 +833,7 @@ export async function batchHashPasswords(entries) {
 }
 
 /**
- * Create a nap_users login record for an imported app user.
+ * Create a portal_users login record for an imported app user.
  * Sets status = 'invited' so the user must change their password on first login.
  *
  * @param {string} entityId    ID of the parent entity record
@@ -841,14 +841,14 @@ export async function batchHashPasswords(entries) {
  * @param {string} password    Plain text password (will be hashed unless preHash provided)
  * @param {string} tenantId    Tenant UUID
  * @param {string} createdBy   Creator UUID
- * @param {string} entityType  Entity type for nap_users (e.g. 'employee', 'client')
+ * @param {string} entityType  Entity type for portal_users (e.g. 'employee', 'client')
  * @param {Object} t           Transaction object
  * @param {string} [preHash]   Pre-computed bcrypt hash (skips hashing when provided)
  */
 export async function provisionAppUser(entityId, email, password, tenantId, createdBy, entityType, t, preHash = null) {
   // Skip if an active nap_user with this email already exists
   const existing = await t.oneOrNone(
-    'SELECT id FROM admin.nap_users WHERE email = $1 AND deactivated_at IS NULL',
+    'SELECT id FROM admin.portal_users WHERE email = $1 AND deactivated_at IS NULL',
     [email],
   );
   if (existing) return false;
@@ -863,10 +863,10 @@ export async function provisionAppUser(entityId, email, password, tenantId, crea
   }
 
   const { db } = await getDb();
-  const napUsersModel = db('napUsers', 'admin');
-  napUsersModel.tx = t;
+  const portalUsersModel = db('portalUsers', 'admin');
+  portalUsersModel.tx = t;
 
-  await napUsersModel.insert({
+  await portalUsersModel.insert({
     tenant_id: tenantId,
     entity_type: entityType,
     entity_id: entityId,
@@ -1274,7 +1274,7 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
         }
       }
 
-      // Provision nap_users for app-user entities after emails are inserted
+      // Provision portal_users for app-user entities after emails are inserted
       if (config.appUserProvisioning) {
         const crypto = await import('node:crypto');
 

@@ -6,12 +6,12 @@
  */
 
 import Tenants from './models/Tenants.js';
-import NapUsers from './models/NapUsers.js';
+import PortalUsers from './models/PortalUsers.js';
 import ImpersonationLogs from './models/ImpersonationLogs.js';
 import MatchReviewLogs from './models/MatchReviewLogs.js';
 const repositories = {
   tenants: Tenants,
-  napUsers: NapUsers,
+  portalUsers: PortalUsers,
   impersonationLogs: ImpersonationLogs,
   matchReviewLogs: MatchReviewLogs,
 };

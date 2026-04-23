@@ -4,7 +4,7 @@
  *
  * Emails are linked to vendors, clients, employees, contacts, and vendor contacts
  * via the polymorphic sources table (source_id FK with CASCADE delete).
- * The is_login flag marks the email used as the nap_users login credential
+ * The is_login flag marks the email used as the portal_users login credential
  * for entities with is_app_user = true.
  *
  * Copyright (c) 2025 – present Vimber LLC. All rights reserved.

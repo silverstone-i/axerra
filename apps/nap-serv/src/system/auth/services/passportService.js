@@ -1,8 +1,8 @@
 /**
- * @file Passport.js Local Strategy — validates email/password against admin.nap_users
+ * @file Passport.js Local Strategy — validates email/password against admin.portal_users
  * @module auth/services/passportService
  *
- * nap_users is a pure identity table per PRD §3.2.2. Tenant info is
+ * portal_users is a pure identity table per PRD §3.2.2. Tenant info is
  * resolved via join to admin.tenants. Personal info will come from the
  * linked entity once entity tables exist.
  *
@@ -17,7 +17,7 @@ import db from '../../../db/db.js';
 passport.use(
   new LocalStrategy({ usernameField: 'email' }, async (email, password, done) => {
     try {
-      const user = await db('napUsers', 'admin').findOneBy([{ email }]);
+      const user = await db('portalUsers', 'admin').findOneBy([{ email }]);
 
       if (!user) return done(null, false, { message: 'Incorrect email.' });
 

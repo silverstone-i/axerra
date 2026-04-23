@@ -30,7 +30,7 @@ async function deps() {
 /**
  * Provision a brand-new tenant end-to-end: insert tenant record, create schema,
  * run migrations, seed RBAC, create self-company with billing address + tax IDs,
- * create admin employee + nap_users login.
+ * create admin employee + portal_users login.
  *
  * @param {Object} body  Same shape as POST / request body
  * @param {string|null} actorId  UUID of the acting user (created_by)
@@ -110,7 +110,7 @@ export async function provisionNewTenant(body, actorId) {
     throw new Error(`Schema provisioning failed: ${provisionErr.message}`);
   }
 
-  // 3. Create company + address + tax IDs + admin employee + nap_users in a single transaction
+  // 3. Create company + address + tax IDs + admin employee + portal_users in a single transaction
   const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
   const passwordHash = await bcrypt.hash(admin_password, rounds);
   const sch = pgp.as.name(schemaName);
@@ -214,9 +214,9 @@ export async function provisionNewTenant(body, actorId) {
       );
     }
 
-    // 3g. Create nap_users login linked to the employee
+    // 3g. Create portal_users login linked to the employee
     const user = await t.one(
-      `INSERT INTO admin.nap_users
+      `INSERT INTO admin.portal_users
          (tenant_id, entity_type, entity_id, email, password_hash, status, created_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,

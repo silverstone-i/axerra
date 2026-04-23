@@ -5,7 +5,7 @@
  * Each vendor contact gets its own sources record (source_type = 'vendor_contact')
  * so that emails and phone numbers can be linked via the polymorphic pattern.
  *
- * When is_app_user is toggled ON, provisions a nap_users record in admin schema
+ * When is_app_user is toggled ON, provisions a portal_users record in admin schema
  * with entity_type='vendor_contact' and entity_id pointing to the vendor_contact row.
  * When toggled OFF or archived, cascades to lock the linked nap_user.
  *
@@ -27,7 +27,7 @@ class VendorContactsController extends BaseController {
 
   /**
    * POST / — insert a vendor contact and auto-create a linked sources record.
-   * If is_app_user is true, also provisions a nap_users login account.
+   * If is_app_user is true, also provisions a portal_users login account.
    */
   async create(req, res) {
     try {
@@ -53,7 +53,7 @@ class VendorContactsController extends BaseController {
         }
       }
 
-      // Extract password before insert — it's for nap_users, not the vendor_contacts table
+      // Extract password before insert — it's for portal_users, not the vendor_contacts table
       const suppliedPassword = req.body.password;
       delete req.body.password;
 
@@ -99,7 +99,7 @@ class VendorContactsController extends BaseController {
         return { ...contact, source_id: source.id };
       });
 
-      // 5. If is_app_user, create the nap_users login record
+      // 5. If is_app_user, create the portal_users login record
       if (record.is_app_user && suppliedEmail) {
         await this.#provisionAppUser(record, req, suppliedPassword, suppliedEmail);
       }
@@ -141,7 +141,7 @@ class VendorContactsController extends BaseController {
         });
       }
 
-      // Extract password before update — it's for nap_users, not the vendor_contacts table
+      // Extract password before update — it's for portal_users, not the vendor_contacts table
       const suppliedPassword = req.body.password;
       delete req.body.password;
 
@@ -160,7 +160,7 @@ class VendorContactsController extends BaseController {
       // Determine if provisioning is needed (fresh toggle or retry after partial failure)
       const needsProvisioning = isNowAppUser && (
         !wasAppUser || !await db.oneOrNone(
-          `SELECT id FROM admin.nap_users
+          `SELECT id FROM admin.portal_users
            WHERE entity_type = 'vendor_contact' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
           [before.id, req.user?.tenant_id],
         )
@@ -235,7 +235,7 @@ class VendorContactsController extends BaseController {
   }
 
   /**
-   * DELETE /archive — soft-delete vendor contact, cascade to nap_users if is_app_user.
+   * DELETE /archive — soft-delete vendor contact, cascade to portal_users if is_app_user.
    */
   async archive(req, res) {
     const schema = this.getSchema(req);
@@ -261,7 +261,7 @@ class VendorContactsController extends BaseController {
   }
 
   /**
-   * PATCH /restore — restore vendor contact, cascade to nap_users if is_app_user.
+   * PATCH /restore — restore vendor contact, cascade to portal_users if is_app_user.
    */
   async restore(req, res) {
     const schema = this.getSchema(req);
@@ -314,7 +314,7 @@ class VendorContactsController extends BaseController {
     try {
       const tenantId = req.user?.tenant_id;
       const napUser = await db.oneOrNone(
-        `SELECT id FROM admin.nap_users
+        `SELECT id FROM admin.portal_users
          WHERE entity_type = 'vendor_contact' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
         [contactId, tenantId],
       );
@@ -326,7 +326,7 @@ class VendorContactsController extends BaseController {
       const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
       const hash = await bcrypt.hash(password, rounds);
       await db.none(
-        'UPDATE admin.nap_users SET password_hash = $/hash/, updated_by = $/updatedBy/ WHERE id = $/id/',
+        'UPDATE admin.portal_users SET password_hash = $/hash/, updated_by = $/updatedBy/ WHERE id = $/id/',
         { hash, updatedBy: req.user?.id || null, id: napUser.id },
       );
 
@@ -340,7 +340,7 @@ class VendorContactsController extends BaseController {
   /* ── Private helpers ──────────────────────────────────── */
 
   /**
-   * Create or restore a nap_users record for a vendor contact gaining app access.
+   * Create or restore a portal_users record for a vendor contact gaining app access.
    */
   async #provisionAppUser(vendorContact, req, suppliedPassword, loginEmail) {
     const tenantId = req.user?.tenant_id;
@@ -365,7 +365,7 @@ class VendorContactsController extends BaseController {
 
     // Check if an archived nap_user already exists for this vendor contact
     const existing = await db.oneOrNone(
-      `SELECT id, deactivated_at FROM admin.nap_users
+      `SELECT id, deactivated_at FROM admin.portal_users
        WHERE entity_type = 'vendor_contact' AND entity_id = $1 AND tenant_id = $2`,
       [vendorContact.id, tenantId],
     );
@@ -377,7 +377,7 @@ class VendorContactsController extends BaseController {
     if (existing) {
       // Restore the archived record
       await db.none(
-        `UPDATE admin.nap_users
+        `UPDATE admin.portal_users
          SET deactivated_at = NULL, status = 'invited',
              password_hash = $1, email = $2, updated_by = $3
          WHERE id = $4`,
@@ -387,8 +387,8 @@ class VendorContactsController extends BaseController {
       return existing.id;
     }
 
-    // Create a new nap_users record
-    const user = await db('napUsers', 'admin').insert({
+    // Create a new portal_users record
+    const user = await db('portalUsers', 'admin').insert({
       tenant_id: tenantId,
       entity_type: 'vendor_contact',
       entity_id: vendorContact.id,
@@ -403,17 +403,17 @@ class VendorContactsController extends BaseController {
   }
 
   /**
-   * Archive (soft-delete) the nap_users record linked to a vendor contact.
+   * Archive (soft-delete) the portal_users record linked to a vendor contact.
    */
   async #archiveAppUser(vendorContactId, req) {
     const napUser = await db.oneOrNone(
-      `SELECT id FROM admin.nap_users
+      `SELECT id FROM admin.portal_users
        WHERE entity_type = 'vendor_contact' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
       [vendorContactId, req.user?.tenant_id],
     );
     if (napUser) {
       await db.none(
-        `UPDATE admin.nap_users
+        `UPDATE admin.portal_users
          SET deactivated_at = NOW(), status = 'locked', updated_by = $1
          WHERE id = $2`,
         [req.user?.id || null, napUser.id],
@@ -423,17 +423,17 @@ class VendorContactsController extends BaseController {
   }
 
   /**
-   * Restore the nap_users record linked to a vendor contact.
+   * Restore the portal_users record linked to a vendor contact.
    */
   async #restoreAppUser(vendorContactId, req) {
     const napUser = await db.oneOrNone(
-      `SELECT id FROM admin.nap_users
+      `SELECT id FROM admin.portal_users
        WHERE entity_type = 'vendor_contact' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NOT NULL`,
       [vendorContactId, req.user?.tenant_id],
     );
     if (napUser) {
       await db.none(
-        `UPDATE admin.nap_users
+        `UPDATE admin.portal_users
          SET deactivated_at = NULL, status = 'active', updated_by = $1
          WHERE id = $2`,
         [req.user?.id || null, napUser.id],

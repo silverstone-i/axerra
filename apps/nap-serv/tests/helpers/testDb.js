@@ -99,13 +99,13 @@ async function reseedAdmin(db) {
   const tenant = await db.one('SELECT id FROM admin.tenants WHERE tenant_code = $1', [rootTenantCode]);
 
   const existingUser = await db.oneOrNone(
-    'SELECT id FROM admin.nap_users WHERE email = $1 AND deactivated_at IS NULL',
+    'SELECT id FROM admin.portal_users WHERE email = $1 AND deactivated_at IS NULL',
     [rootEmail],
   );
 
   if (!existingUser) {
     await db.none(
-      `INSERT INTO admin.nap_users (tenant_id, entity_type, entity_id, email, password_hash, status)
+      `INSERT INTO admin.portal_users (tenant_id, entity_type, entity_id, email, password_hash, status)
        VALUES ($1, NULL, NULL, $2, $3, 'active')`,
       [tenant.id, rootEmail, passwordHash],
     );

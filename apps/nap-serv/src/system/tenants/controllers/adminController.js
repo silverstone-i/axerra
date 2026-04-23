@@ -38,7 +38,7 @@ export async function startImpersonation(req, res) {
 
   try {
     // Look up target user
-    const targetUser = await db('napUsers', 'admin').findOneBy([{ id: target_user_id }]);
+    const targetUser = await db('portalUsers', 'admin').findOneBy([{ id: target_user_id }]);
     if (!targetUser) return res.status(404).json({ error: 'Target user not found' });
 
     // Look up target user's tenant for schema_name

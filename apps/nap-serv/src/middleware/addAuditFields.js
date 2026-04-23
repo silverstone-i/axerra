@@ -22,7 +22,7 @@ export function addAuditFields(req, res, next) {
   // these controllers explicitly handle tenant_code from req.body. Only audit
   // fields (created_by) should be injected.
   const isTenantCreate = /\/tenants\/?$/.test(path) && req.method === 'POST';
-  const isUserRegister = path.includes('nap-users/register');
+  const isUserRegister = path.includes('portal-users/register');
   const skipTenantCode = isTenantCreate || isUserRegister;
 
   if (!req.body) req.body = {};
