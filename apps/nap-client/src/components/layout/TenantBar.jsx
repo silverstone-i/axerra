@@ -40,7 +40,7 @@ function userInitials(user) {
 }
 
 export default function TenantBar() {
-  const { user, logout, tenant, isNapSoftUser, impersonation } = useAuth();
+  const { user, logout, tenant, isRootTenantUser, impersonation } = useAuth();
   const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = useState(null);
   const [changePwOpen, setChangePwOpen] = useState(false);
@@ -60,7 +60,7 @@ export default function TenantBar() {
       <Toolbar variant="dense" sx={{ px: 2, justifyContent: 'space-between' }}>
         {/* Left: Tenant context */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {isNapSoftUser && !impersonation?.active ? (
+          {isRootTenantUser && !impersonation?.active ? (
             <TenantPicker />
           ) : (
             <Chip
@@ -142,7 +142,7 @@ export default function TenantBar() {
             Change Password
           </MenuItem>
 
-          {isNapSoftUser && !impersonation?.active && (
+          {isRootTenantUser && !impersonation?.active && (
             <>
               <Divider />
               <MenuItem

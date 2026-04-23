@@ -12,7 +12,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useMemo } 
 import authApi from '../services/authApi.js';
 import client, { setAssumedTenant } from '../services/client.js';
 
-const NAPSOFT_TENANT = (import.meta.env.VITE_NAPSOFT_TENANT || 'nap').toLowerCase();
+const ROOT_SCHEMA = (import.meta.env.VITE_ROOT_TENANT_CODE || 'nap').toLowerCase();
 
 const AuthContext = createContext(null);
 
@@ -109,10 +109,10 @@ export function AuthProvider({ children }) {
     await refreshUser();
   }, [refreshUser]);
 
-  const isNapSoftUser = useMemo(
+  const isRootTenantUser = useMemo(
     () =>
-      user?.tenant_code?.toLowerCase() === NAPSOFT_TENANT ||
-      user?.home_tenant?.toLowerCase() === NAPSOFT_TENANT,
+      user?.tenant_code?.toLowerCase() === ROOT_SCHEMA ||
+      user?.home_tenant?.toLowerCase() === ROOT_SCHEMA,
     [user],
   );
 
@@ -137,7 +137,7 @@ export function AuthProvider({ children }) {
       logout,
       refreshUser,
       tenant,
-      isNapSoftUser,
+      isRootTenantUser,
       assumedTenant: assumedTenantState,
       assumeTenant,
       exitAssumption,
@@ -152,7 +152,7 @@ export function AuthProvider({ children }) {
       logout,
       refreshUser,
       tenant,
-      isNapSoftUser,
+      isRootTenantUser,
       assumedTenantState,
       assumeTenant,
       exitAssumption,

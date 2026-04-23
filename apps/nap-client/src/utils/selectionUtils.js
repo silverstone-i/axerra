@@ -6,7 +6,7 @@
  */
 
 /** Root tenant code from env (set in monorepo root .env). */
-export const ROOT_TENANT = (import.meta.env.VITE_NAPSOFT_TENANT || 'NAP').toUpperCase();
+export const ROOT_TENANT = (import.meta.env.VITE_ROOT_TENANT_CODE || 'NAP').toUpperCase();
 
 /**
  * Check whether a row is a root entity that must be mutually exclusive in

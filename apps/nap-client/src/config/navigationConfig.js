@@ -153,7 +153,7 @@ export const NAV_ITEMS = [
     label: 'Tenants',
     icon: BusinessIcon,
     capability: 'tenants::',
-    napsoftOnly: true,
+    rootTenantOnly: true,
     children: [
       { label: 'Manage Tenants', path: '/tenant/manage-tenants', capability: 'tenants::' },
       { label: 'Manage Users', path: '/tenant/manage-users', capability: 'tenants::' },

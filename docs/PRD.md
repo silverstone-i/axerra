@@ -239,7 +239,7 @@ Browser -> Vite Dev Proxy (/api -> :3000) -> Express
 > **Note:** Authentication is against `admin.nap_users` which contains only identity/auth fields (`id`, `tenant_id`, `entity_type`, `entity_id`, `email`, `password_hash`, `status`). Tenant context (`tenant_code`, `schema_name`) and roles are resolved at request time by the `authRedis` middleware via HTTP headers, Redis cache, and database lookup — they are NOT embedded in the JWT. Roles are read from the entity record's `roles` text array (resolved via `entity_type` + `entity_id`), not from a column on `nap_users`.
 
 **Client-Side Auth:**
-- `AuthContext` provides `{ user, loading, login, logout, refreshUser, tenant, isNapSoftUser, assumedTenant, assumeTenant, exitAssumption, impersonation, startImpersonation, endImpersonation }` via React context, where `tenant` is `null` or `{ tenant_code, schema_name }` (when an assumption is active, `tenant` also includes `company` and `is_assumed: true`)
+- `AuthContext` provides `{ user, loading, login, logout, refreshUser, tenant, isRootTenantUser, assumedTenant, assumeTenant, exitAssumption, impersonation, startImpersonation, endImpersonation }` via React context, where `tenant` is `null` or `{ tenant_code, schema_name }` (when an assumption is active, `tenant` also includes `company` and `is_assumed: true`)
 - `LayoutShell` renders loading spinner while `loading=true`, redirects to `/login` if `user=null`
 - All API calls use `credentials: 'include'` for cookie transmission
 - No tokens stored in localStorage — fully cookie-based
@@ -463,7 +463,7 @@ Partial unique index: `(entity_type, entity_id) WHERE deactivated_at IS NULL` �
 - Archiving a user sets `status = 'locked'` (in addition to `deactivated_at`) and cascades to soft-delete the linked entity record (employee/vendor/client/contact) in the tenant schema via `entity_type` + `entity_id`
 - Restoring a user sets `status = 'active'`, clears `deactivated_at`, and cascades to restore the linked entity record in the tenant schema
 - Restoring a user requires the parent tenant to be active — returns 403 if the tenant is deactivated
-- Vimber membership is determined by `tenant_code` comparison: server uses `requireNapsoftTenant` middleware (checks `req.user.tenant_code` against `ROOT_TENANT_CODE` env var); client uses `isNapSoftUser` computed flag in `AuthContext` (checks `tenant_code` against `VITE_NAPSOFT_TENANT`)
+- Vimber membership is determined by `tenant_code` comparison: server uses `requireNapsoftTenant` middleware (checks `req.user.tenant_code` against `ROOT_TENANT_CODE` env var); client uses `isRootTenantUser` computed flag in `AuthContext` (checks `tenant_code` against `VITE_ROOT_TENANT_CODE`)
 
 #### 3.2.3 Admin Operations
 
@@ -1913,12 +1913,12 @@ Primary Group -> Leaf items
     +-- Employees (/core/employees, capability: core::employees)
     +-- Contacts (/core/contacts, capability: core::contacts)
     +-- Roles (/tenant/manage-roles, capability: core::roles)
-  Tenants (BusinessIcon, capability: tenants::, napsoftOnly: true)
+  Tenants (BusinessIcon, capability: tenants::, rootTenantOnly: true)
     +-- Manage Tenants (/tenant/manage-tenants, capability: tenants::)
     +-- Manage Users (/tenant/manage-users, capability: tenants::)
 ```
 
-Extensible design: add new groups/modules to `NAV_ITEMS` array with optional `capability` guards and `napsoftOnly` flag. Groups with `napsoftOnly: true` are only visible to Vimber users. The example above shows only 2 of 14 nav groups — see §7 for the complete navigation structure.
+Extensible design: add new groups/modules to `NAV_ITEMS` array with optional `capability` guards and `rootTenantOnly` flag. Groups with `rootTenantOnly: true` are only visible to Vimber users. The example above shows only 2 of 14 nav groups — see §7 for the complete navigation structure.
 
 ### 6.3 Module Bar (Dynamic Toolbar)
 
@@ -2035,9 +2035,9 @@ Based on the sidebar navigation config (`navigationConfig.js`) and client-side r
 | `COOKIE_SAMESITE` | SameSite cookie policy | `Lax` |
 | `BCRYPT_ROUNDS` | Password hashing cost | 12 |
 | `ROOT_TENANT_CODE` | Vimber tenant code for admin access | `NAP` |
-| `VITE_NAPSOFT_TENANT` | Client-side Vimber tenant code | `NAP` |
-| `VITE_NAPSOFT_COMPANY` | Client-side Vimber company name (reserved, not currently used) | `Vimber` |
-| `VITE_NAPSOFT_EMAIL_DOMAIN` | Client-side Vimber email domain (reserved, not currently used) | `vimber.io` |
+| `VITE_ROOT_TENANT_CODE` | Client-side Vimber tenant code | `NAP` |
+| `VITE_ROOT_COMPANY` | Client-side Vimber company name (reserved, not currently used) | `Vimber` |
+| `VITE_ROOT_EMAIL_DOMAIN` | Client-side Vimber email domain (reserved, not currently used) | `vimber.io` |
 | `PORT` | Express server port | `3000` |
 | `HOST` | Express server host | `localhost` |
 | `NODE_ENV` | Runtime environment (`development`, `test`, `production`) | — |
@@ -2660,9 +2660,9 @@ CORS_ORIGINS=http://localhost:5173
 
 # Vimber identity
 ROOT_TENANT_CODE=NAP
-VITE_NAPSOFT_TENANT=NAP
-VITE_NAPSOFT_COMPANY=Vimber
-VITE_NAPSOFT_EMAIL_DOMAIN=vimber.io
+VITE_ROOT_TENANT_CODE=NAP
+VITE_ROOT_COMPANY=Vimber
+VITE_ROOT_EMAIL_DOMAIN=vimber.io
 ```
 
 **Generate secrets:**
@@ -2860,9 +2860,9 @@ BCRYPT_ROUNDS=12
 
 # Vimber identity
 ROOT_TENANT_CODE=NAP
-VITE_NAPSOFT_TENANT=NAP
-VITE_NAPSOFT_COMPANY=Vimber
-VITE_NAPSOFT_EMAIL_DOMAIN=vimber.io
+VITE_ROOT_TENANT_CODE=NAP
+VITE_ROOT_COMPANY=Vimber
+VITE_ROOT_EMAIL_DOMAIN=vimber.io
 ```
 
 ---

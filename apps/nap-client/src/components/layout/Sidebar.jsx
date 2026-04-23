@@ -44,7 +44,7 @@ export default function Sidebar() {
   const [flyout, setFlyout] = useState({ anchorEl: null, group: null });
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, isNapSoftUser } = useAuth();
+  const { user, isRootTenantUser } = useAuth();
 
   const width = collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED;
 
@@ -59,7 +59,7 @@ export default function Sidebar() {
     if (!user) return [];
     const caps = user.perms?.caps || {};
     const capKeys = Object.keys(caps);
-    if (capKeys.length === 0) return NAV_ITEMS.filter((g) => !g.napsoftOnly || isNapSoftUser);
+    if (capKeys.length === 0) return NAV_ITEMS.filter((g) => !g.rootTenantOnly || isRootTenantUser);
 
     const hasCap = (capability) => {
       if (!capability) return true;
@@ -79,7 +79,7 @@ export default function Sidebar() {
     };
 
     return NAV_ITEMS.filter((group) => {
-      if (group.napsoftOnly && !isNapSoftUser) return false;
+      if (group.rootTenantOnly && !isRootTenantUser) return false;
       return hasCap(group.capability);
     })
       .map((group) => ({
@@ -96,7 +96,7 @@ export default function Sidebar() {
           .filter(Boolean),
       }))
       .filter((group) => group.children.length > 0);
-  }, [user, isNapSoftUser]);
+  }, [user, isRootTenantUser]);
 
   const toggleGroup = (label) => {
     setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));

@@ -175,7 +175,7 @@ The codebase has:
 | `src/config/layoutTokens.js` | SIDEBAR_WIDTH_OPEN=242, SIDEBAR_WIDTH_COLLAPSED=110, TENANT_BAR_HEIGHT=48, MODULE_BAR_HEIGHT=48, fonts, composite sx presets |
 | `src/services/client.js` | Fetch wrapper: credentials:include, x-tenant-code header, auto-refresh on 401 (shared promise), JSON parsing |
 | `src/services/authApi.js` | login, logout, refresh, getMe, check, changePassword — thin wrappers around client.post/get |
-| `src/contexts/AuthContext.jsx` | user, loading, login, logout, refreshUser, tenant, isNapSoftUser. Hydrates on mount via getMe(). |
+| `src/contexts/AuthContext.jsx` | user, loading, login, logout, refreshUser, tenant, isRootTenantUser. Hydrates on mount via getMe(). |
 | `src/pages/Auth/LoginPage.jsx` | Email/password form, error display, forcePasswordChange → ChangePasswordDialog |
 | `src/components/shared/PasswordField.jsx` | TextField with visibility toggle |
 | `src/components/shared/ChangePasswordDialog.jsx` | Current/new/confirm password, 5-rule strength checklist, forced mode |
