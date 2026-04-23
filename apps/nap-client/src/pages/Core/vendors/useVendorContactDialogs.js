@@ -5,7 +5,7 @@
  * Encapsulates all contact dialog state, forms, CRUD handlers,
  * password popover, archive/restore, selection, and filtering.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { useState, useMemo, useCallback } from 'react';

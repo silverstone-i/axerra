@@ -5,7 +5,7 @@
  * Encapsulates the contact email/phone fetching, lookup map construction,
  * and contactColumns definition that were previously inline in VendorsPage.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';

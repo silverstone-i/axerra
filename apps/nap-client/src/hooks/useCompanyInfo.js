@@ -5,7 +5,7 @@
  * Used by Settings → Company Info page. Fetches the company whose code matches
  * the tenant_code, then loads addresses and tax identifiers via source_id.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';

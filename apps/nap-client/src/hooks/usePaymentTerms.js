@@ -2,7 +2,7 @@
  * @file React Query hooks for payment terms data
  * @module nap-client/hooks/usePaymentTerms
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';

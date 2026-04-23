@@ -2,7 +2,7 @@
  * @file Reusable spreadsheet import dialog — file picker + FormDialog wrapper
  * @module nap-client/components/shared/ImportDialog
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { useState, useCallback, useEffect } from 'react';

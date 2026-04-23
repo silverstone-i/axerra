@@ -2,7 +2,7 @@
  * @file Client edit sub-collection management hook
  * @module nap-client/pages/Core/clients/useClientEditCollections
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';

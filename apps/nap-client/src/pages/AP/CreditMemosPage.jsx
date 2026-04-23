@@ -2,7 +2,7 @@
  * @file AP Credit Memos CRUD page — DataTable + create/edit/view/archive/restore
  * @module nap-client/pages/AP/CreditMemosPage
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { useState, useMemo, useCallback } from 'react';

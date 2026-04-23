@@ -2,7 +2,7 @@
  * @file Read-only Employee detail dialog
  * @module nap-client/pages/Core/employees/EmployeeViewDialog
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import Box from '@mui/material/Box';

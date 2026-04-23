@@ -1,11 +1,11 @@
 /**
- * @file TenantPicker — tenant context switcher for NapSoft users
+ * @file TenantPicker — tenant context switcher for Vimber users
  * @module nap-client/components/layout/TenantPicker
  *
  * Fetches available tenants from the admin/schemas endpoint and renders
- * a compact Select dropdown. Only rendered for NapSoft users.
+ * a compact Select dropdown. Only rendered for Vimber users.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { Select, MenuItem, Chip } from '@mui/material';

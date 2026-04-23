@@ -2,7 +2,7 @@
  * @file React Query hooks for email data
  * @module nap-client/hooks/useEmails
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';

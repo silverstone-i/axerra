@@ -4,7 +4,7 @@
  *
  * Wraps App in ThemeProvider, QueryClientProvider, and AuthProvider.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import React, { useMemo } from 'react';

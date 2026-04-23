@@ -2,7 +2,7 @@
  * @file Shared read-only DataGrid wrapper for detail views
  * @module nap-client/components/shared/ReadOnlyDataTable
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { DataGrid } from '@mui/x-data-grid';

@@ -2,7 +2,7 @@
  * @file Shared editable addresses section for entity edit dialogs
  * @module nap-client/components/shared/EditableAddressesSection
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import Box from '@mui/material/Box';

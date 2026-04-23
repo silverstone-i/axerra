@@ -2,7 +2,7 @@
  * @file Shared editable phone numbers section for entity edit dialogs
  * @module nap-client/components/shared/EditablePhoneNumbersSection
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import Divider from '@mui/material/Divider';

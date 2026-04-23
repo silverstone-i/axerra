@@ -5,7 +5,7 @@
  * Replaces the per-page `const [form, setForm] = useState(BLANK)` +
  * `const onField = (f) => (e) => setForm(...)` boilerplate.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { useState, useCallback } from 'react';

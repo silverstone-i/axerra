@@ -5,7 +5,7 @@
  * Handles contact form fields + inline email/phone sub-collection editing.
  * Extracted from VendorsPage contact create/edit sub-dialogs.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import Autocomplete from '@mui/material/Autocomplete';

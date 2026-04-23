@@ -5,7 +5,7 @@
  * Drop-in replacement for useDataGridSelection with full modifier-key support.
  * Designed for use with the DataTable component (disableRowSelectionOnClick).
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { useState, useRef, useCallback, useMemo } from 'react';

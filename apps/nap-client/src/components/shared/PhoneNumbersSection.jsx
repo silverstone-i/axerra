@@ -5,7 +5,7 @@
  * Renders a list of phone numbers with formatted display values resolved
  * from the country placeholder pattern.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import Box from '@mui/material/Box';

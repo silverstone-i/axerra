@@ -6,7 +6,7 @@
  * Snackbar/Alert feedback. Returns a stable `toast` function and
  * props ready to spread onto `<ToastSnackbar>`.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { useState, useCallback } from 'react';

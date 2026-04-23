@@ -2,7 +2,7 @@
  * @file Vendor contacts tab panel — DataTable of vendor contacts for the view dialog
  * @module nap-client/pages/Core/vendors/VendorContactsPanel
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import Box from '@mui/material/Box';

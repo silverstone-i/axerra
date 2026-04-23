@@ -2,7 +2,7 @@
  * @file Edit Client dialog with sub-collection editors
  * @module nap-client/pages/Core/clients/ClientEditDialog
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import Box from '@mui/material/Box';

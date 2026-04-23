@@ -5,7 +5,7 @@
  * Displays an amber warning bar above TenantBar when the current user
  * is impersonating another user. Includes an "Exit Impersonation" button.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { Box, Typography, Button } from '@mui/material';

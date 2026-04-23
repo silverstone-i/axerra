@@ -2,7 +2,7 @@
  * @file KPI summary card component for dashboard
  * @module nap-client/components/shared/SummaryCard
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import Card from '@mui/material/Card';

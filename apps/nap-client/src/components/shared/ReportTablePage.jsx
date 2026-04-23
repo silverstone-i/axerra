@@ -2,7 +2,7 @@
  * @file Shared report page shell with standard title and DataGrid
  * @module nap-client/components/shared/ReportTablePage
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import Alert from '@mui/material/Alert';

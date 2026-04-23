@@ -5,7 +5,7 @@
  * Provides { user, loading, login, logout, tenant, impersonation, ... } to the component tree.
  * On mount, hydrates the session from the httpOnly cookie via getMe().
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
@@ -75,7 +75,7 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
-  // ── Cross-tenant assumption (NapSoft users only) ─────────────────
+  // ── Cross-tenant assumption (Vimber users only) ─────────────────
   const assumeTenant = useCallback(
     async (tenantObj) => {
       setAssumedTenant(tenantObj.tenant_code);
@@ -91,7 +91,7 @@ export function AuthProvider({ children }) {
     await refreshUser();
   }, [refreshUser]);
 
-  // ── Impersonation (NapSoft users only) ───────────────────────────
+  // ── Impersonation (Vimber users only) ───────────────────────────
   const startImpersonation = useCallback(
     async (targetUserId, reason) => {
       const result = await client.post('/tenants/v1/admin/impersonate', {

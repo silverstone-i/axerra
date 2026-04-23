@@ -5,7 +5,7 @@
  * Renders a list of email addresses. Pass `showLogin` for employee pages
  * that display the is_login flag.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import Box from '@mui/material/Box';

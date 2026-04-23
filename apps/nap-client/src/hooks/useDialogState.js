@@ -5,7 +5,7 @@
  * Replaces the per-dialog `const [open, setOpen] = useState(false)` +
  * `const [row, setRow] = useState(null)` pairs.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { useState, useCallback } from 'react';

@@ -2,7 +2,7 @@
  * @file Contact View dialog — read-only display of vendor contact details
  * @module nap-client/pages/Core/vendors/ContactViewDialog
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import Box from '@mui/material/Box';

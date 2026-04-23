@@ -10,7 +10,7 @@
  * Color: light = #2F3E52 (BRAND.navy), dark = #698BB8 (lifted navy-text).
  * Both come from theme — never hardcode.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import Box from '@mui/material/Box';

@@ -2,7 +2,7 @@
  * @file Inline editable email row — reusable across all entity edit forms
  * @module nap-client/components/shared/EmailRow
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import Box from '@mui/material/Box';

@@ -2,7 +2,7 @@
  * @file Journal Entries CRUD page — DataTable + create/edit/view/post/reverse/archive/restore
  * @module nap-client/pages/Accounting/JournalEntriesPage
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { useState, useMemo, useCallback } from 'react';

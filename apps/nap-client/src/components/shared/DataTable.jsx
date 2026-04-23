@@ -11,7 +11,7 @@
  *
  * Styling via theme overrides and className; pages may pass sx through dataGridProps.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { useMemo } from 'react';

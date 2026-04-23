@@ -5,7 +5,7 @@
  * Centralises the default objects used by email, phone, address, and
  * tax-identifier sub-forms across Core entity pages.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 export const BLANK_EMAIL = { email: '', label: 'work', is_primary: false };

@@ -3,7 +3,7 @@
  *       category-account map, company accounts/transactions, internal transfers
  * @module nap-client/services/accountingApi
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { client } from './client.js';

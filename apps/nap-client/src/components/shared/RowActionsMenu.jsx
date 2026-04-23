@@ -6,7 +6,7 @@
  * Visibility on hover is controlled by theme overrides on .row-actions-cell,
  * not inline styles.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { useState } from 'react';

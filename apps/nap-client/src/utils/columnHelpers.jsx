@@ -5,7 +5,7 @@
  * Each helper returns a partial column definition object that can be spread
  * or merged with additional overrides (width, flex, etc.).
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import StatusBadge from '../components/shared/StatusBadge.jsx';

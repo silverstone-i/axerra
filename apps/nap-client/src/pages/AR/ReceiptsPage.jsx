@@ -5,7 +5,7 @@
  * No ar_clients — PRD removed ar_clients table.
  * Receipts reference the unified clients table from core entities.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { useState, useMemo, useCallback } from 'react';
