@@ -12,7 +12,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useMemo } 
 import authApi from '../services/authApi.js';
 import client, { setAssumedTenant } from '../services/client.js';
 
-const ROOT_SCHEMA = (import.meta.env.VITE_ROOT_TENANT_CODE || 'nap').toLowerCase();
+const ROOT_SCHEMA = (import.meta.env.VITE_ROOT_TENANT_CODE || 'vimber').toLowerCase();
 
 const AuthContext = createContext(null);
 
