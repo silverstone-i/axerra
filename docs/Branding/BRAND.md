@@ -812,9 +812,7 @@ All in `/favicons/`:
 The wordmark is implemented as HTML, not an image, so it renders crisp at any size and respects the CSS variables. Use:
 
 ```html
-<span class="wordmark">
-  <span class="wordmark-nap">nap</span><span class="wordmark-soft">soft</span><span class="wordmark-dot"></span>
-</span>
+<span class="wordmark">axerra<span class="wordmark-dot"></span></span>
 ```
 
 ```css
@@ -825,14 +823,12 @@ The wordmark is implemented as HTML, not an image, so it renders crisp at any si
   display: inline-flex;
   align-items: baseline;
   line-height: 1;
+  letter-spacing: -0.02em;
 }
-.wordmark-nap { letter-spacing: -0.055em; }
-.wordmark-soft { letter-spacing: -0.02em; }
 .wordmark-dot {
   display: inline-block;
   background: var(--gold);
   align-self: flex-end;
-  /* Size & spacing scale with font-size — use em units */
   width: 0.19em;
   height: 0.19em;
   margin-left: 0.06em;

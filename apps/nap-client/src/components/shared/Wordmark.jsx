@@ -1,9 +1,9 @@
 /**
- * @file Brand wordmark — `napsoft.` rendered as HTML+CSS, not an image
+ * @file Brand wordmark — `axerra.` rendered as HTML+CSS, not an image
  * @module nap-client/components/shared/Wordmark
  *
  * Implements BRAND.md §"Logo wordmark":
- *   - Three spans: "nap" (-0.055em letter-spacing), "soft" (-0.02em), gold dot
+ *   - Single text node "axerra" with uniform letter-spacing (-0.02em), gold dot
  *   - Inter Medium (500), color from palette.brand.navyText (auto light/dark)
  *   - Dot is a gold square sized in em so it scales with font-size
  *
@@ -20,7 +20,7 @@ export default function Wordmark({ size = 24, sx, ...rest }) {
     <Box
       component="span"
       role="img"
-      aria-label="napsoft"
+      aria-label="axerra"
       sx={[
         {
           display: 'inline-flex',
@@ -29,18 +29,14 @@ export default function Wordmark({ size = 24, sx, ...rest }) {
           fontFamily: 'Inter, sans-serif',
           fontWeight: 500,
           fontSize: size,
+          letterSpacing: '-0.02em',
           color: 'brand.navyText',
         },
         ...(Array.isArray(sx) ? sx : sx ? [sx] : []),
       ]}
       {...rest}
     >
-      <Box component="span" sx={{ letterSpacing: '-0.055em' }}>
-        nap
-      </Box>
-      <Box component="span" sx={{ letterSpacing: '-0.02em' }}>
-        soft
-      </Box>
+      axerra
       <Box
         component="span"
         sx={{

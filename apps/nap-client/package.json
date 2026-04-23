@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "favicons": "node scripts/generate-favicons.js"
   },
   "dependencies": {
     "@emotion/react": "^11.11.1",
@@ -22,9 +23,13 @@
     "react-router-dom": "^7.9.6"
   },
   "devDependencies": {
+    "@fontsource/inter": "^5.2.8",
     "@vitejs/plugin-react": "^4.0.0",
     "eslint": "^8.56.0",
+    "fontkit": "^2.0.4",
+    "png-to-ico": "^3.0.1",
     "prettier": "^3.2.5",
+    "sharp": "^0.34.5",
     "vite": "^7.1.3"
   }
 }
