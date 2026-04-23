@@ -16,7 +16,7 @@ export function requireNapsoftTenant(req, res, next) {
   const userTenant = req.user?.home_tenant?.toLowerCase?.();
 
   if (!req.user || !userTenant || userTenant !== napsoftTenant) {
-    return res.status(403).json({ message: 'Access denied: not a NapSoft user.' });
+    return res.status(403).json({ message: 'Access denied: not a Vimber user.' });
   }
 
   next();

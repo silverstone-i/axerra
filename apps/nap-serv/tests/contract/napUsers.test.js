@@ -60,7 +60,7 @@ describe('POST /api/tenants/v1/nap-users/register', () => {
     const cookies = await loginRoot();
     const body = {
       tenant_code: 'NAP',
-      email: 'newuser@napsoft.com',
+      email: 'newuser@vimber.io',
       password: 'TestPass123!',
     };
 
@@ -71,7 +71,7 @@ describe('POST /api/tenants/v1/nap-users/register', () => {
 
     expect(res.status).toBe(201);
     expect(res.body.user).toBeDefined();
-    expect(res.body.user.email).toBe('newuser@napsoft.com');
+    expect(res.body.user.email).toBe('newuser@vimber.io');
     // password_hash must not be in response
     expect(res.body.user.password_hash).toBeUndefined();
   });
@@ -102,7 +102,7 @@ describe('POST /api/tenants/v1/nap-users/register', () => {
     const res = await request(app)
       .post('/api/tenants/v1/nap-users/register')
       .set('Cookie', cookies)
-      .send({ tenant_code: 'NAP', email: 'newuser@napsoft.com', password: 'Pass123!' });
+      .send({ tenant_code: 'NAP', email: 'newuser@vimber.io', password: 'Pass123!' });
 
     expect(res.status).toBe(409);
   });
@@ -148,7 +148,7 @@ describe('DELETE /api/tenants/v1/nap-users/archive', () => {
     // Find the user we registered above
     const listRes = await request(app).get('/api/tenants/v1/nap-users').set('Cookie', cookies);
     const rows = listRes.body.rows ?? listRes.body;
-    const target = (Array.isArray(rows) ? rows : []).find((u) => u.email === 'newuser@napsoft.com');
+    const target = (Array.isArray(rows) ? rows : []).find((u) => u.email === 'newuser@vimber.io');
     expect(target).toBeDefined();
 
     const res = await request(app)
@@ -169,7 +169,7 @@ describe('PATCH /api/tenants/v1/nap-users/restore', () => {
       .get('/api/tenants/v1/nap-users?includeDeactivated=true')
       .set('Cookie', cookies);
     const rows = listRes.body.rows ?? listRes.body;
-    const archived = (Array.isArray(rows) ? rows : []).find((u) => u.email === 'newuser@napsoft.com');
+    const archived = (Array.isArray(rows) ? rows : []).find((u) => u.email === 'newuser@vimber.io');
     expect(archived).toBeDefined();
 
     const res = await request(app)

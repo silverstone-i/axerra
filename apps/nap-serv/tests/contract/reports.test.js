@@ -23,7 +23,7 @@ process.env.BCRYPT_ROUNDS = '4';
 const testPasswordHash = await bcrypt.hash('TestPassword123!', 4);
 const mockUser = {
   id: '550e8400-e29b-41d4-a716-446655440000',
-  email: 'admin@napsoft.com',
+  email: 'admin@vimber.io',
   password_hash: testPasswordHash,
   tenant_code: 'NAP',
   tenant_id: '660e8400-e29b-41d4-a716-446655440001',
@@ -35,7 +35,7 @@ const mockUser = {
 const mockTenant = {
   id: '660e8400-e29b-41d4-a716-446655440001',
   tenant_code: 'NAP',
-  company: 'NapSoft',
+  company: 'Vimber',
   schema_name: 'nap',
   status: 'active',
   deactivated_at: null,
@@ -132,7 +132,7 @@ beforeAll(async () => {
 });
 
 async function getAuthCookies() {
-  const res = await request.post('/api/auth/login').send({ email: 'admin@napsoft.com', password: 'TestPassword123!' });
+  const res = await request.post('/api/auth/login').send({ email: 'admin@vimber.io', password: 'TestPassword123!' });
   return res.headers['set-cookie'];
 }
 

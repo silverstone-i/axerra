@@ -84,7 +84,7 @@ class TenantsController extends BaseController {
     // Check by tenant_code query param
     const tenantCode = req.query.tenant_code?.toUpperCase?.();
     if (tenantCode === napsoftTenant) {
-      return res.status(403).json({ error: 'Cannot archive the root NapSoft tenant.' });
+      return res.status(403).json({ error: 'Cannot archive the root Vimber tenant.' });
     }
 
     // Check by id if provided
@@ -92,7 +92,7 @@ class TenantsController extends BaseController {
       try {
         const t = await this.model('admin').findById(req.query.id);
         if (t && t.tenant_code?.toUpperCase() === napsoftTenant) {
-          return res.status(403).json({ error: 'Cannot archive the root NapSoft tenant.' });
+          return res.status(403).json({ error: 'Cannot archive the root Vimber tenant.' });
         }
       } catch {
         /* proceed, will fail on updateWhere if not found */

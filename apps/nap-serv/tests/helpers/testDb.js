@@ -31,10 +31,10 @@ while (dir !== dirname(dir)) {
 // Set test env vars for auth
 process.env.ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || 'test-access-secret-32chars-long!!';
 process.env.REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || 'test-refresh-secret-32chars-long!';
-process.env.ROOT_EMAIL = process.env.ROOT_EMAIL || 'admin@napsoft.com';
+process.env.ROOT_EMAIL = process.env.ROOT_EMAIL || 'admin@vimber.io';
 process.env.ROOT_PASSWORD = process.env.ROOT_PASSWORD || 'TestPass123!';
 process.env.ROOT_TENANT_CODE = process.env.ROOT_TENANT_CODE || 'NAP';
-process.env.ROOT_COMPANY = process.env.ROOT_COMPANY || 'NapSoft LLC';
+process.env.ROOT_COMPANY = process.env.ROOT_COMPANY || 'Vimber LLC';
 process.env.BCRYPT_ROUNDS = '4'; // Fast for tests
 
 import { DB } from 'pg-schemata';
@@ -81,9 +81,9 @@ async function getCachedPasswordHash() {
  */
 async function reseedAdmin(db) {
   const rootTenantCode = process.env.ROOT_TENANT_CODE || 'NAP';
-  const rootCompany = process.env.ROOT_COMPANY || 'NapSoft LLC';
+  const rootCompany = process.env.ROOT_COMPANY || 'Vimber LLC';
   const rootSchema = rootTenantCode.toLowerCase();
-  const rootEmail = process.env.ROOT_EMAIL || 'admin@napsoft.com';
+  const rootEmail = process.env.ROOT_EMAIL || 'admin@vimber.io';
   const passwordHash = await getCachedPasswordHash();
 
   const existingTenant = await db.oneOrNone('SELECT id FROM admin.tenants WHERE tenant_code = $1', [rootTenantCode]);

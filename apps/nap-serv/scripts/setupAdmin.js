@@ -96,7 +96,7 @@ async function main() {
   logger.info(`NapSoft tenant schema "${tenantSchema}" provisioned.`);
 
   // ── Seed NapSoft self-company record ─────────────────────────────
-  const rootCompany = process.env.ROOT_COMPANY || 'NapSoft LLC';
+  const rootCompany = process.env.ROOT_COMPANY || 'Vimber LLC';
   const tenant = await db.oneOrNone('SELECT id FROM admin.tenants WHERE tenant_code = $1', [rootTenantCode]);
 
   if (tenant) {

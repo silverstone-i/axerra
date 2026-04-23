@@ -35,7 +35,7 @@ async function loginRoot() {
 }
 
 describe('User registration lifecycle — register → login → verify', () => {
-  const TEST_EMAIL = 'integ-test@napsoft.com';
+  const TEST_EMAIL = 'integ-test@vimber.io';
   const TEST_PASSWORD = 'IntegTest123!';
 
   test('1. Register user via admin endpoint', async () => {

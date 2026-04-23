@@ -130,7 +130,7 @@ describe('authRedis middleware', () => {
 
     mockFindOneBy.mockResolvedValue({
       id: userId,
-      email: 'admin@napsoft.com',
+      email: 'admin@vimber.io',
       entity_type: null,
       entity_id: null,
       status: 'active',
@@ -141,7 +141,7 @@ describe('authRedis middleware', () => {
     mockFindById.mockResolvedValue({
       id: tenantId,
       tenant_code: 'NAP',
-      company: 'NapSoft LLC',
+      company: 'Vimber LLC',
       schema_name: 'nap',
       status: 'active',
     });
@@ -155,7 +155,7 @@ describe('authRedis middleware', () => {
     expect(next).toHaveBeenCalled();
     expect(req.user).toBeDefined();
     expect(req.user.id).toBe(userId);
-    expect(req.user.email).toBe('admin@napsoft.com');
+    expect(req.user.email).toBe('admin@vimber.io');
     expect(req.user.tenant_code).toBe('nap');
     expect(req.user.schema_name).toBe('nap');
   });
@@ -181,7 +181,7 @@ describe('authRedis middleware', () => {
 
     mockFindOneBy.mockResolvedValue({
       id: userId,
-      email: 'admin@napsoft.com',
+      email: 'admin@vimber.io',
       entity_type: null,
       entity_id: null,
       status: 'active',
@@ -213,7 +213,7 @@ describe('authRedis middleware', () => {
 
     mockFindOneBy.mockResolvedValue({
       id: userId,
-      email: 'admin@napsoft.com',
+      email: 'admin@vimber.io',
       entity_type: null,
       entity_id: null,
       status: 'active',

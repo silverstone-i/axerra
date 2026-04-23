@@ -233,13 +233,13 @@ const CATALOG_ENTRIES = [
   { module: 'reports', router: 'margin-analysis', action: null, label: 'Margin Analysis', description: 'Cross-project margin comparison and trending', sort_order: 1070 },
 
   // ── Tenants (NapSoft admin scope) ───────────────────────────────
-  { module: 'tenants', router: null, action: null, label: 'Tenants Module', description: 'Multi-tenant administration (NapSoft only)', sort_order: 1100 },
+  { module: 'tenants', router: null, action: null, label: 'Tenants Module', description: 'Multi-tenant administration (Vimber only)', sort_order: 1100 },
   { module: 'tenants', router: 'tenants', action: null, label: 'Tenants', description: 'Tenant CRUD and provisioning', sort_order: 1110 },
   { module: 'tenants', router: 'tenants', action: 'import', label: 'Import Tenants', description: 'Import tenant records from spreadsheet', sort_order: 1111, policy_required: false },
   { module: 'tenants', router: 'tenants', action: 'export', label: 'Export Tenants', description: 'Export tenant records to spreadsheet', sort_order: 1112, policy_required: false },
-  { module: 'tenants', router: 'nap-users', action: null, label: 'NAP Users', description: 'Application user accounts', sort_order: 1120 },
-  { module: 'tenants', router: 'nap-users', action: 'import', label: 'Import NAP Users', description: 'Import NAP user records from spreadsheet', sort_order: 1121, policy_required: false },
-  { module: 'tenants', router: 'nap-users', action: 'export', label: 'Export NAP Users', description: 'Export NAP user records to spreadsheet', sort_order: 1122, policy_required: false },
+  { module: 'tenants', router: 'nap-users', action: null, label: 'Portal Users', description: 'Application user accounts', sort_order: 1120 },
+  { module: 'tenants', router: 'nap-users', action: 'import', label: 'Import Portal Users', description: 'Import portal user records from spreadsheet', sort_order: 1121, policy_required: false },
+  { module: 'tenants', router: 'nap-users', action: 'export', label: 'Export Portal Users', description: 'Export portal user records to spreadsheet', sort_order: 1122, policy_required: false },
   { module: 'tenants', router: 'admin', action: null, label: 'Admin Operations', description: 'Schema listing, impersonation', sort_order: 1130 },
   { module: 'tenants', router: 'admin', action: 'import', label: 'Import Admin', description: 'Import admin operation records from spreadsheet', sort_order: 1131, policy_required: false },
   { module: 'tenants', router: 'admin', action: 'export', label: 'Export Admin', description: 'Export admin operation records to spreadsheet', sort_order: 1132, policy_required: false },
