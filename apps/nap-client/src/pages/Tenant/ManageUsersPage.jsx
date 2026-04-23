@@ -2,7 +2,7 @@
  * @file Manage Users page — read-only list with status & password management
  * @module nap-client/pages/Tenant/ManageUsersPage
  *
- * nap_users is a pure identity/authentication table. User creation is handled
+ * portal_users is a pure identity/authentication table. User creation is handled
  * at the entity level (e.g. employee is_app_user toggle). This page lets
  * Vimber admins view all app users, change status (active/invited/locked),
  * and reset passwords.

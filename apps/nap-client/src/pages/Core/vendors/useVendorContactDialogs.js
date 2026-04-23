@@ -247,7 +247,7 @@ export function useVendorContactDialogs({
 
       await refreshContactChildren();
       if (contactEditForm.is_app_user !== contactEditRow?.is_app_user) {
-        qc.invalidateQueries({ queryKey: ['nap-users'] });
+        qc.invalidateQueries({ queryKey: ['portal-users'] });
       }
       setContactEditOpen(false);
       setContactEditRow(null);

@@ -64,7 +64,7 @@ export default function ImpersonateDialog({ open, onClose }) {
     (async () => {
       try {
         const list = await client.get(
-          `/tenants/v1/nap-users?tenant_code=${selectedTenant.tenant_code}`,
+          `/tenants/v1/portal-users?tenant_code=${selectedTenant.tenant_code}`,
         );
         const rows = Array.isArray(list) ? list : list?.rows || [];
         if (!cancelled) setUsers(rows);

@@ -1,16 +1,16 @@
 /**
- * @file User API methods — CRUD for nap_users management
+ * @file User API methods — CRUD for portal_users management
  * @module nap-client/services/userApi
  *
  * All update/archive/restore endpoints read identifiers from query params.
- * Base path: /tenants/v1/nap-users
+ * Base path: /tenants/v1/portal-users
  *
  * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
 import { client } from './client.js';
 
-const BASE = '/tenants/v1/nap-users';
+const BASE = '/tenants/v1/portal-users';
 
 /** Build a query-string suffix from a params object. */
 const qs = (params) => {

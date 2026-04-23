@@ -116,7 +116,7 @@ export function useEmployeeEditCollections({
       }
 
       if (editForm.is_app_user !== editRow.is_app_user) {
-        qc.invalidateQueries({ queryKey: ['nap-users'] });
+        qc.invalidateQueries({ queryKey: ['portal-users'] });
       }
       toast('Employee updated');
       return true;

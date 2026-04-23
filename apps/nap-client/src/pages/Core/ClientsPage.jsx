@@ -93,7 +93,7 @@ export default function ClientsPage() {
   const restoreMut = useRestoreClient();
   const resetPwMut = useResetClientPassword();
 
-  const importMut = useImportXls(clientApi.importXls, ['clients'], [['nap-users']]);
+  const importMut = useImportXls(clientApi.importXls, ['clients'], [['portal-users']]);
   const exportMut = useExportXls(clientApi.exportXls, 'clients');
 
   const createEmailMut = useCreateEmail();

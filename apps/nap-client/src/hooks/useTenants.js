@@ -80,7 +80,7 @@ export function useUpdateTenant() {
   });
 }
 
-const USERS_KEY = ['nap-users'];
+const USERS_KEY = ['portal-users'];
 
 /** Archive (soft-delete) a tenant. Expects filter: {id} or {tenant_code}. */
 export function useArchiveTenant() {

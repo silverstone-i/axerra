@@ -13,7 +13,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
  *
  * @param {Function}  importFn       API method that accepts FormData (e.g. vendorApi.importXls)
  * @param {Array}     queryKey       React Query key to invalidate on success (e.g. ['vendors'])
- * @param {Array[]}   [extraKeys=[]] Additional query keys to invalidate (e.g. [['nap-users']])
+ * @param {Array[]}   [extraKeys=[]] Additional query keys to invalidate (e.g. [['portal-users']])
  */
 export function useImportXls(importFn, queryKey, extraKeys = []) {
   const qc = useQueryClient();

@@ -96,7 +96,7 @@ export default function EmployeesPage() {
   const restoreMut = useRestoreEmployee();
   const resetPwMut = useResetEmployeePassword();
 
-  const importMut = useImportXls(employeeApi.importXls, ['employees'], [['nap-users']]);
+  const importMut = useImportXls(employeeApi.importXls, ['employees'], [['portal-users']]);
   const exportMut = useExportXls(employeeApi.exportXls, 'employees');
 
   const createEmailMut = useCreateEmail();

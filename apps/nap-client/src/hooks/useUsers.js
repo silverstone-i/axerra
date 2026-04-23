@@ -1,9 +1,9 @@
 /**
- * @file React Query hooks for nap_users data
+ * @file React Query hooks for portal_users data
  * @module nap-client/hooks/useUsers
  *
  * Provides query and mutation hooks that wrap userApi methods.
- * All mutations invalidate the ['nap-users'] query key on success.
+ * All mutations invalidate the ['portal-users'] query key on success.
  *
  * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
@@ -11,7 +11,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { userApi } from '../services/userApi.js';
 
-const USERS_KEY = ['nap-users'];
+const USERS_KEY = ['portal-users'];
 
 /** Fetch users with cursor-based pagination. */
 export function useUsers(params = { limit: 200 }) {

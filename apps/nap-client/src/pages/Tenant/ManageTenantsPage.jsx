@@ -5,7 +5,7 @@
  * Implements PRD §3.2.1 UI: tenant grid, create / edit / view / archive / restore,
  * toolbar actions via useModuleToolbarRegistration, snackbar feedback.
  *
- * Adapted for pure identity nap_users — no tenant_role admin/billing contacts.
+ * Adapted for pure identity portal_users — no tenant_role admin/billing contacts.
  *
  * Migrated to standardised list-view selection system:
  *   useListSelection + DataTable + RowActionsMenu
