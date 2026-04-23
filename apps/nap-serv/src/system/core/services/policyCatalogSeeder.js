@@ -254,13 +254,13 @@ const CATALOG_ENTRIES = [
  * @param {object} dbInstance pg-promise database connection or transaction
  * @param {object} pgp pg-promise helpers
  * @param {string} schemaName Tenant schema name
- * @param {boolean} [isNapsoft=false] Whether this is the Vimber platform tenant
+ * @param {boolean} [isRootTenant=false] Whether this is the Vimber platform tenant
  */
-export async function seedPolicyCatalog(dbInstance, pgp, schemaName, isNapsoft = false) {
+export async function seedPolicyCatalog(dbInstance, pgp, schemaName, isRootTenant = false) {
   const s = pgp.as.name(schemaName);
   let inserted = 0;
 
-  const entries = isNapsoft ? CATALOG_ENTRIES : CATALOG_ENTRIES.filter((e) => e.module !== 'tenants');
+  const entries = isRootTenant ? CATALOG_ENTRIES : CATALOG_ENTRIES.filter((e) => e.module !== 'tenants');
 
   for (const entry of entries) {
     const existing = await dbInstance.oneOrNone(

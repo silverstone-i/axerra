@@ -22,10 +22,10 @@ const FINANCIAL_MODULES = ['accounting', 'ap', 'ar'];
 
 /**
  * System role definitions.
- * @param {boolean} isNapsoft Whether this is the Vimber platform tenant
+ * @param {boolean} isRootTenant Whether this is the Vimber platform tenant
  * @returns {Array<object>} Role definitions with their policies
  */
-function getSystemRoleDefinitions(isNapsoft) {
+function getSystemRoleDefinitions(isRootTenant) {
   const roles = [];
 
   // admin — seeded in all tenants
@@ -71,7 +71,7 @@ function getSystemRoleDefinitions(isNapsoft) {
     ],
   });
 
-  if (isNapsoft) {
+  if (isRootTenant) {
     // super_user — Vimber only
     roles.push({
       code: 'super_user',
@@ -109,11 +109,11 @@ function getSystemRoleDefinitions(isNapsoft) {
  * @param {object} pgp pg-promise helpers
  * @param {string} schemaName Tenant schema name
  * @param {string} tenantCode Tenant code (e.g., 'nap', 'acme')
- * @param {boolean} isNapsoft Whether this is the Vimber platform tenant
+ * @param {boolean} isRootTenant Whether this is the Vimber platform tenant
  */
-export async function seedSystemRoles(dbInstance, pgp, schemaName, tenantCode, isNapsoft) {
+export async function seedSystemRoles(dbInstance, pgp, schemaName, tenantCode, isRootTenant) {
   const s = pgp.as.name(schemaName);
-  const definitions = getSystemRoleDefinitions(isNapsoft);
+  const definitions = getSystemRoleDefinitions(isRootTenant);
 
   for (const roleDef of definitions) {
     // Check if role already exists (idempotent)

@@ -21,7 +21,7 @@ import { seedNumberingConfig } from '../system/core/services/numberingConfigSeed
 import { seedTenantPreferences } from '../system/core/services/tenantPreferencesSeeder.js';
 import logger from '../lib/logger.js';
 
-const NAPSOFT_TENANT = (process.env.NAPSOFT_TENANT || 'NAP').toUpperCase();
+const ROOT_TENANT_CODE = (process.env.ROOT_TENANT_CODE || 'NAP').toUpperCase();
 
 /**
  * Provision a new tenant schema with all tables and default RBAC data.
@@ -71,10 +71,10 @@ export async function provisionTenant({ schemaName, tenantCode, createdBy: _crea
   logger.info(`Migrations applied for "${normalized}":`, result);
 
   // 4. Seed default RBAC roles and policies
-  const isNapsoft = tenantCode?.toUpperCase() === NAPSOFT_TENANT;
+  const isRootTenant = tenantCode?.toUpperCase() === ROOT_TENANT_CODE;
 
   try {
-    await seedSystemRoles(DB.db, DB.pgp, normalized, tenantCode, isNapsoft);
+    await seedSystemRoles(DB.db, DB.pgp, normalized, tenantCode, isRootTenant);
     logger.info(`RBAC roles seeded for "${normalized}".`);
   } catch (err) {
     logger.warn(`RBAC seeding failed for "${normalized}":`, err?.message || err);
@@ -82,7 +82,7 @@ export async function provisionTenant({ schemaName, tenantCode, createdBy: _crea
 
   // 5. Seed policy catalog (permission discovery for role-config UI)
   try {
-    await seedPolicyCatalog(DB.db, DB.pgp, normalized, isNapsoft);
+    await seedPolicyCatalog(DB.db, DB.pgp, normalized, isRootTenant);
   } catch (err) {
     logger.warn(`Policy catalog seeding failed for "${normalized}":`, err?.message || err);
   }

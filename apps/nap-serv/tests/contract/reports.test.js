@@ -16,7 +16,7 @@ process.env.ACCESS_TOKEN_SECRET = 'test-access-secret-rpt';
 process.env.REFRESH_TOKEN_SECRET = 'test-refresh-secret-rpt';
 process.env.NODE_ENV = 'test';
 process.env.DATABASE_URL_TEST = 'postgres://nap_admin:test@localhost:5432/nap_test';
-process.env.NAPSOFT_TENANT = 'NAP';
+process.env.ROOT_TENANT_CODE = 'NAP';
 process.env.COOKIE_SECURE = 'false';
 process.env.BCRYPT_ROUNDS = '4';
 

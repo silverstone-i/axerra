@@ -12,10 +12,10 @@
  * Express middleware that gates routes to Vimber employees only.
  */
 export function requireNapsoftTenant(req, res, next) {
-  const napsoftTenant = (process.env.NAPSOFT_TENANT || 'nap').toLowerCase();
+  const rootSchema = (process.env.ROOT_TENANT_CODE || 'nap').toLowerCase();
   const userTenant = req.user?.home_tenant?.toLowerCase?.();
 
-  if (!req.user || !userTenant || userTenant !== napsoftTenant) {
+  if (!req.user || !userTenant || userTenant !== rootSchema) {
     return res.status(403).json({ message: 'Access denied: not a Vimber user.' });
   }
 

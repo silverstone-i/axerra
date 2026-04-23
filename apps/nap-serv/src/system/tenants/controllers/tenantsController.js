@@ -79,11 +79,11 @@ class TenantsController extends BaseController {
    * Rejects archival of the root tenant (NAP).
    */
   async archive(req, res) {
-    const napsoftTenant = (process.env.NAPSOFT_TENANT || 'NAP').toUpperCase();
+    const rootTenantCode = (process.env.ROOT_TENANT_CODE || 'NAP').toUpperCase();
 
     // Check by tenant_code query param
     const tenantCode = req.query.tenant_code?.toUpperCase?.();
-    if (tenantCode === napsoftTenant) {
+    if (tenantCode === rootTenantCode) {
       return res.status(403).json({ error: 'Cannot archive the root Vimber tenant.' });
     }
 
@@ -91,7 +91,7 @@ class TenantsController extends BaseController {
     if (req.query.id) {
       try {
         const t = await this.model('admin').findById(req.query.id);
-        if (t && t.tenant_code?.toUpperCase() === napsoftTenant) {
+        if (t && t.tenant_code?.toUpperCase() === rootTenantCode) {
           return res.status(403).json({ error: 'Cannot archive the root Vimber tenant.' });
         }
       } catch {

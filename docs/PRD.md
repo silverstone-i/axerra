@@ -463,7 +463,7 @@ Partial unique index: `(entity_type, entity_id) WHERE deactivated_at IS NULL` â€
 - Archiving a user sets `status = 'locked'` (in addition to `deactivated_at`) and cascades to soft-delete the linked entity record (employee/vendor/client/contact) in the tenant schema via `entity_type` + `entity_id`
 - Restoring a user sets `status = 'active'`, clears `deactivated_at`, and cascades to restore the linked entity record in the tenant schema
 - Restoring a user requires the parent tenant to be active â€” returns 403 if the tenant is deactivated
-- Vimber membership is determined by `tenant_code` comparison: server uses `requireNapsoftTenant` middleware (checks `req.user.tenant_code` against `NAPSOFT_TENANT` env var); client uses `isNapSoftUser` computed flag in `AuthContext` (checks `tenant_code` against `VITE_NAPSOFT_TENANT`)
+- Vimber membership is determined by `tenant_code` comparison: server uses `requireNapsoftTenant` middleware (checks `req.user.tenant_code` against `ROOT_TENANT_CODE` env var); client uses `isNapSoftUser` computed flag in `AuthContext` (checks `tenant_code` against `VITE_NAPSOFT_TENANT`)
 
 #### 3.2.3 Admin Operations
 
@@ -2034,7 +2034,7 @@ Based on the sidebar navigation config (`navigationConfig.js`) and client-side r
 | `COOKIE_SECURE` | Secure cookie flag | `false` (dev) |
 | `COOKIE_SAMESITE` | SameSite cookie policy | `Lax` |
 | `BCRYPT_ROUNDS` | Password hashing cost | 12 |
-| `NAPSOFT_TENANT` | Vimber tenant code for admin access | `NAP` |
+| `ROOT_TENANT_CODE` | Vimber tenant code for admin access | `NAP` |
 | `VITE_NAPSOFT_TENANT` | Client-side Vimber tenant code | `NAP` |
 | `VITE_NAPSOFT_COMPANY` | Client-side Vimber company name (reserved, not currently used) | `Vimber` |
 | `VITE_NAPSOFT_EMAIL_DOMAIN` | Client-side Vimber email domain (reserved, not currently used) | `vimber.io` |
@@ -2659,7 +2659,7 @@ CLIENT_ORIGIN=http://localhost:5173
 CORS_ORIGINS=http://localhost:5173
 
 # Vimber identity
-NAPSOFT_TENANT=NAP
+ROOT_TENANT_CODE=NAP
 VITE_NAPSOFT_TENANT=NAP
 VITE_NAPSOFT_COMPANY=Vimber
 VITE_NAPSOFT_EMAIL_DOMAIN=vimber.io
@@ -2859,7 +2859,7 @@ COOKIE_SAMESITE=Lax
 BCRYPT_ROUNDS=12
 
 # Vimber identity
-NAPSOFT_TENANT=NAP
+ROOT_TENANT_CODE=NAP
 VITE_NAPSOFT_TENANT=NAP
 VITE_NAPSOFT_COMPANY=Vimber
 VITE_NAPSOFT_EMAIL_DOMAIN=vimber.io

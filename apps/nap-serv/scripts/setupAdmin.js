@@ -85,7 +85,7 @@ async function main() {
   logger.info('Admin migrations complete.');
 
   // ── Provision Vimber tenant schema ────────────────────────────────
-  const rootTenantCode = process.env.ROOT_TENANT_CODE || process.env.NAPSOFT_TENANT || 'NAP';
+  const rootTenantCode = process.env.ROOT_TENANT_CODE || 'NAP';
   const tenantSchema = rootTenantCode.toLowerCase();
 
   logger.info(`Provisioning Vimber tenant schema "${tenantSchema}"...`);

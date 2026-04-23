@@ -18,8 +18,8 @@ export default defineMigration({
     if (schema === 'admin') return;
 
     const tenant = await db.oneOrNone('SELECT tenant_code FROM admin.tenants WHERE schema_name = $1', [schema]);
-    const isNapsoft = tenant?.tenant_code === process.env.ROOT_TENANT_CODE;
+    const isRootTenant = tenant?.tenant_code === process.env.ROOT_TENANT_CODE;
 
-    await seedPolicyCatalog(db, pgp, schema, isNapsoft);
+    await seedPolicyCatalog(db, pgp, schema, isRootTenant);
   },
 });
