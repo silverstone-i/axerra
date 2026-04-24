@@ -48,7 +48,7 @@ export const motion = {
 
 /* ── Mode-dependent tokens ───────────────────────────────────── */
 
-export const createTokens = (mode = 'dark') => {
+export const createTokens = (mode = 'light') => {
   const c = getColors(mode);
   const dark = mode === 'dark';
 
