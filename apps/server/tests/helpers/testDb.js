@@ -3,7 +3,7 @@
  * @module tests/helpers/testDb
  *
  * Initializes the test database, runs bootstrap migration, and provides
- * cleanup. Tests must use NODE_ENV=test which resolves to vimber_test database.
+ * cleanup. Tests must use NODE_ENV=test which resolves to axerra_test database.
  *
  * Performance: admin schema + tables are created ONCE per test-suite run
  * (via `adminReady` flag). Between test files only tenant schemas are

@@ -15,7 +15,7 @@ import bcrypt from 'bcrypt';
 process.env.ACCESS_TOKEN_SECRET = 'test-access-secret-rpt';
 process.env.REFRESH_TOKEN_SECRET = 'test-refresh-secret-rpt';
 process.env.NODE_ENV = 'test';
-process.env.DATABASE_URL_TEST = 'postgres://vimber_admin:test@localhost:5432/vimber_test';
+process.env.DATABASE_URL_TEST = 'postgres://axe_admin:test@localhost:5432/axerra_test';
 process.env.ROOT_TENANT_CODE = 'AXERRA';
 process.env.COOKIE_SECURE = 'false';
 process.env.BCRYPT_ROUNDS = '4';
