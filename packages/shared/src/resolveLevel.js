@@ -1,7 +1,7 @@
 /**
  * @file Shared RBAC capability resolution — mirrors the server-side
  *       fallback chain in middleware/rbac.js
- * @module @nap/shared/resolveLevel
+ * @module @vimber/shared/resolveLevel
  *
  * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */

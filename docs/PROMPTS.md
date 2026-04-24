@@ -23,7 +23,7 @@ You are building **NAP**, a multi-tenant construction ERP (PERN monorepo). The P
 
 **Goal:** Establish the monorepo skeleton — package configs, server/client entry points, DB init, migration infrastructure, test framework, and a health endpoint.
 
-#### Server (`apps/nap-serv/`)
+#### Server (`apps/vimber-serv/`)
 
 Create the following files by porting from the `nap` branch (`git show nap:<path>`):
 
@@ -41,7 +41,7 @@ Create the following files by porting from the `nap` branch (`git show nap:<path
 | `src/middleware/errorHandler.js` | Central handler: DatabaseError → 409/422, SchemaDefinitionError → 400, unhandled → 500 |
 | `vitest.config.js` | node env, single thread, setup file |
 
-#### Client (`apps/nap-client/`)
+#### Client (`apps/vimber-client/`)
 
 | File | Purpose |
 |------|---------|
@@ -60,7 +60,7 @@ Create the following files by porting from the `nap` branch (`git show nap:<path
 | `prettier.config.mjs` | singleQuote, trailingComma: all, printWidth: 144, md override: 80 |
 | `.editorconfig` | UTF-8, spaces, 2-indent, LF |
 | `.env.example` | All required var names |
-| `.husky/pre-commit` | lint-staged + mixed commit check (reject commits touching both apps/nap-client/ and apps/nap-serv/) |
+| `.husky/pre-commit` | lint-staged + mixed commit check (reject commits touching both apps/vimber-client/ and apps/vimber-serv/) |
 | `eslint.config.js` | ESLint 9 flat config: @eslint/js recommended, eslint-plugin-import for server, client/server/test globals |
 
 #### Tests
@@ -89,7 +89,7 @@ Create the following files by porting from the `nap` branch (`git show nap:<path
 ```bash
 npm install && npm run dev:serv && npm run dev:client
 curl http://localhost:3000/api/health  # → 200
-npm run lint && npm -w apps/nap-serv test
+npm run lint && npm -w apps/vimber-serv test
 ```
 
 ---
@@ -210,9 +210,9 @@ The codebase has:
 #### Verification
 
 ```bash
-npm -w apps/nap-serv run setupAdmin:dev   # creates admin schema + tables
-npm -w apps/nap-serv test                  # all tests pass
-npm -w apps/nap-client run build           # client builds
+npm -w apps/vimber-serv run setupAdmin:dev   # creates admin schema + tables
+npm -w apps/vimber-serv test                  # all tests pass
+npm -w apps/vimber-client run build           # client builds
 npm run lint                               # clean
 ```
 
@@ -706,7 +706,7 @@ You are continuing the NAP build. Phases 1-9 established the complete transactio
 - **Prettier:** single quotes, trailing commas, 144-char lines (80 for markdown), 2-space indent
 - **ESLint:** `eslint-plugin-react` for client JSX, `eslint-plugin-import` for server
 - **No `Co-Authored-By`** in commit messages
-- **Split commits:** Husky rejects mixed commits touching both `apps/nap-client/` and `apps/nap-serv/`
+- **Split commits:** Husky rejects mixed commits touching both `apps/vimber-client/` and `apps/vimber-serv/`
 
 ### pg-schemata Patterns
 

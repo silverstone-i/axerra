@@ -42,7 +42,7 @@ All commits follow the **Conventional Commits** specification with workspace sco
 
 ### Husky Enforcement
 
-A pre-commit hook blocks commits that touch files in **both** `apps/nap-client/` and `apps/nap-serv/` in the same commit. This ensures clean separation of server and client changes in git history.
+A pre-commit hook blocks commits that touch files in **both** `apps/vimber-client/` and `apps/vimber-serv/` in the same commit. This ensures clean separation of server and client changes in git history.
 
 ## Consequences
 

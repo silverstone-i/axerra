@@ -1,6 +1,6 @@
 /**
  * @file Shared utilities and constants for the NAP monorepo
- * @module @nap/shared
+ * @module @vimber/shared
  *
  * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */

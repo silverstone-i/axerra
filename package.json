@@ -1,5 +1,5 @@
 {
-  "name": "nap",
+  "name": "vimber",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -10,22 +10,22 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev:serv": "npm -w apps/nap-serv run dev",
-    "dev:client": "npm -w apps/nap-client run dev",
+    "dev:serv": "npm -w apps/vimber-serv run dev",
+    "dev:client": "npm -w apps/vimber-client run dev",
     "dev": "npm run dev:serv & npm run dev:client",
-    "build": "npm -w apps/nap-serv run build && npm -w apps/nap-client run build",
+    "build": "npm -w apps/vimber-serv run build && npm -w apps/vimber-client run build",
     "lint": "eslint .",
-    "test": "npm -w apps/nap-serv test",
+    "test": "npm -w apps/vimber-serv test",
     "arch": "node scripts/arch/runAll.js",
     "arch:check": "node scripts/arch/runAll.js --check",
     "arch:ai": "node scripts/arch/aiInterpret.js",
     "prepare": "husky"
   },
   "lint-staged": {
-    "apps/nap-serv/**/*.js": [
+    "apps/vimber-serv/**/*.js": [
       "eslint --fix"
     ],
-    "apps/nap-client/**/*.{js,jsx}": [
+    "apps/vimber-client/**/*.{js,jsx}": [
       "eslint --fix"
     ]
   },

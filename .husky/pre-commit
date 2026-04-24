@@ -7,15 +7,15 @@ set -euo pipefail
 changed="$(git diff --cached --name-only || true)"
 [ -z "$changed" ] && exit 0
 
-filtered="$(echo "$changed" | grep -E '^(apps/nap-serv/|apps/nap-client/)' || true)"
+filtered="$(echo "$changed" | grep -E '^(apps/vimber-serv/|apps/vimber-client/)' || true)"
 [ -z "$filtered" ] && exit 0
 
-client_changed="$(echo "$filtered" | grep -E '^apps/nap-client/' || true)"
-serv_changed="$(echo "$filtered" | grep -E '^apps/nap-serv/' || true)"
+client_changed="$(echo "$filtered" | grep -E '^apps/vimber-client/' || true)"
+serv_changed="$(echo "$filtered" | grep -E '^apps/vimber-serv/' || true)"
 
 if [[ -n "$client_changed" && -n "$serv_changed" ]]; then
   echo "Mixed commit detected:"
-  echo "   Staged changes touch BOTH apps/nap-client and apps/nap-serv."
+  echo "   Staged changes touch BOTH apps/vimber-client and apps/vimber-serv."
   echo "   Split into two commits, or bypass once with: git commit --no-verify"
   exit 1
 fi

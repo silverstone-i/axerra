@@ -48,7 +48,7 @@ Root `package.json` declares:
 | `npm run dev:serv` | Backend | Backend only with 5-second startup delay |
 | `npm run dev:client` | Frontend | Vite HMR dev server |
 | `npm run lint` | All | ESLint 9 flat config across the monorepo |
-| `npm -w apps/nap-serv test` | Backend | Vitest test suites |
+| `npm -w apps/vimber-serv test` | Backend | Vitest test suites |
 
 ### Cross-Workspace Dependencies
 

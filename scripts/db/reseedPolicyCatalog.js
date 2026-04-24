@@ -43,9 +43,9 @@ if (!schemaName) {
 
 async function main() {
   const { DB } = await import('pg-schemata');
-  const { default: repositories } = await import('../../apps/nap-serv/src/db/repositories.js');
-  const { default: logger } = await import('../../apps/nap-serv/src/lib/logger.js');
-  const { getDatabaseUrl } = await import('../../apps/nap-serv/src/lib/envValidator.js');
+  const { default: repositories } = await import('../../apps/vimber-serv/src/db/repositories.js');
+  const { default: logger } = await import('../../apps/vimber-serv/src/lib/logger.js');
+  const { getDatabaseUrl } = await import('../../apps/vimber-serv/src/lib/envValidator.js');
 
   const DATABASE_URL = getDatabaseUrl();
 
@@ -62,7 +62,7 @@ async function main() {
   await db.none(`TRUNCATE TABLE ${s}.policy_catalog`);
 
   // 2. Reseed from code
-  const { seedPolicyCatalog } = await import('../../apps/nap-serv/src/system/core/services/policyCatalogSeeder.js');
+  const { seedPolicyCatalog } = await import('../../apps/vimber-serv/src/system/core/services/policyCatalogSeeder.js');
   await seedPolicyCatalog(db, pgp, schemaName, isNapsoft);
 
   logger.info(`Policy catalog reseeded for ${schemaName}.`);

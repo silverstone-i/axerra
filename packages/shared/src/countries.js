@@ -1,6 +1,6 @@
 /**
  * @file ISO 3166-1 alpha-2 countries reference data
- * @module @nap/shared/countries
+ * @module @vimber/shared/countries
  *
  * Static list of 249 countries used for address, phone, and tax identifier dropdowns.
  * Each entry includes an ITU-T dial code and optional phone number format placeholder.

@@ -21,9 +21,9 @@ export default [
       '**/out/',
       'coverage/',
       '**/coverage/',
-      'apps/nap-serv/html/**',
-      'apps/nap-serv/logs/**',
-      'apps/nap-serv/coverage/**',
+      'apps/vimber-serv/html/**',
+      'apps/vimber-serv/logs/**',
+      'apps/vimber-serv/coverage/**',
       '.nyc_output/',
       'playwright-report/',
       '**/playwright-report/',
@@ -84,7 +84,7 @@ export default [
 
   // Client (React, Vite)
   {
-    files: ['apps/nap-client/**/*.{js,jsx}'],
+    files: ['apps/vimber-client/**/*.{js,jsx}'],
     plugins: {
       react: eslintPluginReact,
     },
@@ -118,7 +118,7 @@ export default [
 
   // Server (Node)
   {
-    files: ['apps/nap-serv/**/*.js'],
+    files: ['apps/vimber-serv/**/*.js'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
@@ -143,21 +143,21 @@ export default [
 
   // Module boundary: cross-module imports must use barrel exports (ADR-0019)
   {
-    files: ['apps/nap-serv/src/modules/**/*.js'],
+    files: ['apps/vimber-serv/src/modules/**/*.js'],
     rules: {
       'import/no-restricted-paths': [
         'error',
         {
           zones: [
             {
-              target: './apps/nap-serv/src/modules/!(accounting)/**',
-              from: './apps/nap-serv/src/modules/accounting',
+              target: './apps/vimber-serv/src/modules/!(accounting)/**',
+              from: './apps/vimber-serv/src/modules/accounting',
               except: ['./services/index.js'],
               message: 'Cross-module: import from accounting through services/index.js barrel (ADR-0019)',
             },
             {
-              target: './apps/nap-serv/src/modules/**',
-              from: './apps/nap-serv/src/system/core',
+              target: './apps/vimber-serv/src/modules/**',
+              from: './apps/vimber-serv/src/system/core',
               except: ['./services/index.js'],
               message: 'Cross-module: import from core through services/index.js barrel (ADR-0019)',
             },

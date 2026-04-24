@@ -2318,8 +2318,8 @@ import { vendorsSchema } from '../schemas/vendorsSchema.js';
 - Base: `@eslint/js` recommended rules
 - Plugin: `eslint-plugin-import` (installed; alias resolver is not currently configured)
 - Three environment-specific rule sets:
-  - **Client** (`apps/nap-client/`): React/Vite globals, JSX support via Espree parser
-  - **Server** (`apps/nap-serv/`): Node.js globals
+  - **Client** (`apps/vimber-client/`): React/Vite globals, JSX support via Espree parser
+  - **Server** (`apps/vimber-serv/`): Node.js globals
   - **Tests** (`**/tests/**`): Vitest globals (`describe`, `it`, `expect`, `vi`, `beforeAll`, etc.)
 - `no-unused-vars`: warning level with `_` prefix exception for intentionally unused params
 - Console statements allowed (production logging handled by Winston)
@@ -2328,7 +2328,7 @@ import { vendorsSchema } from '../schemas/vendorsSchema.js';
 - Server config includes `import/no-unresolved: ['error', { caseSensitive: false }]`
 - Test config disables `no-unused-vars` and `import/no-unresolved`
 
-**Ignored paths:** `node_modules`, `dist`, `build`, `coverage`, `.vite`, `.turbo`, `.rollup.cache`, `out/`, `apps/nap-serv/html/**`, `apps/nap-serv/logs/**`, `docs/`, and others
+**Ignored paths:** `node_modules`, `dist`, `build`, `coverage`, `.vite`, `.turbo`, `.rollup.cache`, `out/`, `apps/vimber-serv/html/**`, `apps/vimber-serv/logs/**`, `docs/`, and others
 
 **Run:** `npm run lint` (root) or `npm run lint` (per-workspace)
 
@@ -2372,7 +2372,7 @@ Ensures consistent whitespace across all editors/IDEs:
 **Pre-commit hook (`.husky/pre-commit`):**
 1. Runs `lint-staged` if available (`eslint --fix` on staged `.js`/`.jsx` files)
 2. Checks for staged changes (skips if nothing staged)
-3. **Enforces commit separation**: rejects commits that touch files in both `apps/nap-client/` and `apps/nap-serv/` simultaneously — forces clean, single-concern commits per workspace
+3. **Enforces commit separation**: rejects commits that touch files in both `apps/vimber-client/` and `apps/vimber-serv/` simultaneously — forces clean, single-concern commits per workspace
 4. Bypass with `--no-verify` when necessary (e.g., monorepo-wide config changes)
 
 **Pre-push hook (`.husky/pre-push`):**
@@ -2394,7 +2394,7 @@ Ensures consistent whitespace across all editors/IDEs:
 
 **Version:** Vitest 3 with `@vitest/coverage-v8`
 
-**Configuration (`apps/nap-serv/vitest.config.js`):**
+**Configuration (`apps/vimber-serv/vitest.config.js`):**
 
 | Option | Value | Rationale |
 |---|---|---|
@@ -2421,7 +2421,7 @@ Ensures consistent whitespace across all editors/IDEs:
 
 **Version:** Vite 7 with `@vitejs/plugin-react`
 
-**Configuration (`apps/nap-client/vite.config.js`):**
+**Configuration (`apps/vimber-client/vite.config.js`):**
 - React plugin with automatic JSX transformation
 - Dev server: port `5173`, auto-opens browser
 - API proxy: `/api` requests forwarded to `http://localhost:3000` (Express backend)
@@ -2443,11 +2443,11 @@ Ensures consistent whitespace across all editors/IDEs:
 | Script | Command | Purpose |
 |---|---|---|
 | `dev` | `dev:serv & dev:client` | Start both server and client in parallel |
-| `dev:serv` | `npm -w apps/nap-serv run dev` | Start Express dev server (nodemon, 5s delay) |
-| `dev:client` | `npm -w apps/nap-client run dev` | Start Vite dev server |
-| `build` | `npm -w apps/nap-serv run build && npm -w apps/nap-client run build` | Production build (note: nap-serv has no `build` script — server-side build will fail) |
+| `dev:serv` | `npm -w apps/vimber-serv run dev` | Start Express dev server (nodemon, 5s delay) |
+| `dev:client` | `npm -w apps/vimber-client run dev` | Start Vite dev server |
+| `build` | `npm -w apps/vimber-serv run build && npm -w apps/vimber-client run build` | Production build (note: nap-serv has no `build` script — server-side build will fail) |
 | `lint` | `eslint .` | Lint entire monorepo |
-| `test` | `npm -w apps/nap-serv test` | Server tests only (no client tests configured) |
+| `test` | `npm -w apps/vimber-serv test` | Server tests only (no client tests configured) |
 | `arch` / `arch:check` / `arch:ai` | Architecture validation scripts | Module boundary and structure checks |
 | `prepare` | `husky` | Install git hooks |
 
@@ -2568,8 +2568,8 @@ chmod +x .husky/pre-commit
 ```
 
 `npm install` at the root automatically installs dependencies for all workspaces:
-- `apps/nap-client/`
-- `apps/nap-serv/`
+- `apps/vimber-client/`
+- `apps/vimber-serv/`
 - `packages/shared/`
 
 ### 12.4 VSCode Configuration
@@ -2688,11 +2688,11 @@ psql -U vimber_admin -d vimber_test -c 'CREATE EXTENSION IF NOT EXISTS "uuid-oss
 psql -U vimber_admin -d vimber_test -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
 # 3. Run migrations and bootstrap the admin schema
-npm -w apps/nap-serv run setupAdmin:dev
+npm -w apps/vimber-serv run setupAdmin:dev
 
 # 4. Seed sample data (optional)
-npm -w apps/nap-serv run seed
-npm -w apps/nap-serv run seed:rbac
+npm -w apps/vimber-serv run seed
+npm -w apps/vimber-serv run seed:rbac
 ```
 
 ### 12.7 Start Development
@@ -2718,13 +2718,13 @@ npm run dev:client    # Vite React on http://localhost:5173
 npm test
 
 # Server tests by category
-npm -w apps/nap-serv run test:unit
-npm -w apps/nap-serv run test:integration
-npm -w apps/nap-serv run test:contract
-npm -w apps/nap-serv run test:rbac
+npm -w apps/vimber-serv run test:unit
+npm -w apps/vimber-serv run test:integration
+npm -w apps/vimber-serv run test:contract
+npm -w apps/vimber-serv run test:rbac
 
 # Coverage report (opens HTML report)
-npm -w apps/nap-serv run test:coverage
+npm -w apps/vimber-serv run test:coverage
 ```
 
 ### 12.9 Daily Development Workflow
@@ -2738,7 +2738,7 @@ git pull origin dev
 git checkout -b feat/serv-cashflow-reports
 
 # 3. Make changes, commit with conventional commits
-git add apps/nap-serv/src/modules/reports/
+git add apps/vimber-serv/src/modules/reports/
 git commit -m "feat(serv): add project profitability SQL views"
 
 # 4. Push and create PR
@@ -2774,8 +2774,8 @@ git branch -d feat/serv-cashflow-reports
 
 | Scope | When to Use |
 |---|---|
-| `serv` | Backend changes (`apps/nap-serv/`) |
-| `client` | Frontend changes (`apps/nap-client/`) |
+| `serv` | Backend changes (`apps/vimber-serv/`) |
+| `client` | Frontend changes (`apps/vimber-client/`) |
 | `shared` | Shared package changes (`packages/shared/`) |
 | `deps` | Dependency updates |
 | (omit) | Root config or cross-cutting changes |
@@ -2794,18 +2794,18 @@ docs: update PRD with cashflow module specification
 
 The pre-commit hook enforces:
 
-1. **No mixed commits** — You cannot stage files from both `apps/nap-client/` and `apps/nap-serv/` in the same commit. This keeps the git history clean and scoped.
+1. **No mixed commits** — You cannot stage files from both `apps/vimber-client/` and `apps/vimber-serv/` in the same commit. This keeps the git history clean and scoped.
 
    ```bash
    # This will be REJECTED:
-   git add apps/nap-serv/src/modules/ar/ apps/nap-client/src/pages/AR/
+   git add apps/vimber-serv/src/modules/ar/ apps/vimber-client/src/pages/AR/
    git commit -m "feat: add AR module"  # ❌ Mixed commit
 
    # Do this instead:
-   git add apps/nap-serv/src/modules/ar/
+   git add apps/vimber-serv/src/modules/ar/
    git commit -m "feat(serv): add AR module API routes and controllers"
 
-   git add apps/nap-client/src/pages/AR/
+   git add apps/vimber-client/src/pages/AR/
    git commit -m "feat(client): add AR invoice list page"
    ```
 

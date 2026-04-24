@@ -1,6 +1,6 @@
 /**
  * @file Tax type constants — country-keyed map of tax identifier types
- * @module @nap/shared/taxTypes
+ * @module @vimber/shared/taxTypes
  *
  * Drives UI dropdowns for tax type selection, filtered by country.
  *
