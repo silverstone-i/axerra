@@ -25,7 +25,7 @@ You are building **AXERRA**, a multi-tenant construction ERP (PERN monorepo). Th
 
 #### Server (`apps/server/`)
 
-Create the following files by porting from the `axerra` branch (`git show vimber:<path>`):
+Create the following files by porting from an earlier branch (`git show <branch>:<path>`):
 
 | File | Purpose |
 |------|---------|
@@ -139,7 +139,7 @@ The codebase has:
 **Models** (in `models/`): Tenants, PortalUsers, ImpersonationLogs, MatchReviewLogs — each extends `TableModel`.
 
 **Services:**
-- `services/tokenService.js` — JWT sign/verify for access (15m, claims: sub, ph, iss=vimber-serv, aud=vimber-serv-api) and refresh (7d, claims: sub only). Secrets from `ACCESS_TOKEN_SECRET` and `REFRESH_TOKEN_SECRET` env vars.
+- `services/tokenService.js` — JWT sign/verify for access (15m, claims: sub, ph, iss=axerra-serv, aud=axerra-serv-api) and refresh (7d, claims: sub only). Secrets from `ACCESS_TOKEN_SECRET` and `REFRESH_TOKEN_SECRET` env vars.
 - `services/passportService.js` — Passport Local Strategy: validates email/password against admin.portal_users, checks user status (active), checks tenant status (active), attaches `user._tenant`.
 
 **Infrastructure:**

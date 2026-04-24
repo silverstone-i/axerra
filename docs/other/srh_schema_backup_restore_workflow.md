@@ -129,7 +129,7 @@ Useful after code changes to `policyCatalogSeeder.js` without re-provisioning.
 
 ```bash
 cross-env NODE_ENV=development node scripts/db/reseedPolicyCatalog.js --schema srh
-cross-env NODE_ENV=development node scripts/db/reseedPolicyCatalog.js --schema vimber --vimbersoft
+cross-env NODE_ENV=development node scripts/db/reseedPolicyCatalog.js --schema axerra --root
 ```
 
 ---

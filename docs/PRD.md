@@ -236,8 +236,8 @@ Browser -> Vite Dev Proxy (/api -> :3000) -> Express
 
 - `sub`: User UUID
 - `ph`: Permissions hash for cache validation (currently hardcoded to `null` — Phase 3 will populate this)
-- `iss`: Issuer (`'vimber-serv'`)
-- `aud`: Audience (`'vimber-serv-api'`)
+- `iss`: Issuer (`'axerra-serv'`)
+- `aud`: Audience (`'axerra-serv-api'`)
 
 > **Note:** Authentication is against `admin.portal_users` which contains only identity/auth fields (`id`, `tenant_id`, `entity_type`, `entity_id`, `email`, `password_hash`, `status`). Tenant context (`tenant_code`, `schema_name`) and roles are resolved at request time by the `authRedis` middleware via HTTP headers, Redis cache, and database lookup — they are NOT embedded in the JWT. Roles are read from the entity record's `roles` text array (resolved via `entity_type` + `entity_id`), not from a column on `portal_users`.
 
