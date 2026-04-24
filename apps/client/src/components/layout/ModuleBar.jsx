@@ -1,0 +1,201 @@
+/**
+ * @file ModuleBar — sticky dynamic toolbar with breadcrumbs and action buttons
+ * @module client/components/layout/ModuleBar
+ *
+ * Dimensions and styling driven by layoutTokens.
+ * Left zone: module name + breadcrumb trail. Right zone: tabs, filters, primary actions.
+ *
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ */
+
+import { useMemo } from 'react';
+import { useLocation, Link as RouterLink } from 'react-router-dom';
+import {
+  Box,
+  Breadcrumbs,
+  Link,
+  Typography,
+  MenuItem,
+  TextField,
+  ToggleButtonGroup,
+  ToggleButton,
+} from '@mui/material';
+import NavigateNextIcon from '@mui/icons-material/NavigateNext';
+import { NAV_ITEMS } from '../../config/navigationConfig.js';
+import { useModuleActions } from '../../contexts/ModuleActionsContext.jsx';
+import { FONT, moduleBarSx } from '../../config/layoutTokens.js';
+import PrimaryButton from '../shared/PrimaryButton.jsx';
+import SecondaryButton from '../shared/SecondaryButton.jsx';
+import TertiaryButton from '../shared/TertiaryButton.jsx';
+
+const VARIANT_TO_BUTTON = {
+  contained: PrimaryButton,
+  outlined: SecondaryButton,
+  text: TertiaryButton,
+};
+
+/**
+ * Resolve the current module name and breadcrumb segments from the route.
+ */
+function useBreadcrumbs() {
+  const { pathname } = useLocation();
+
+  return useMemo(() => {
+    // Find matching nav group and child
+    let moduleName = '';
+    let childLabel = '';
+    for (const group of NAV_ITEMS) {
+      for (const child of group.children) {
+        if (child.children) {
+          for (const leaf of child.children) {
+            if (pathname === leaf.path || pathname.startsWith(`${leaf.path}/`)) {
+              moduleName = group.label;
+              childLabel = leaf.label;
+              break;
+            }
+          }
+        } else if (pathname === child.path || pathname.startsWith(`${child.path}/`)) {
+          moduleName = group.label;
+          childLabel = child.label;
+          break;
+        }
+      }
+      if (moduleName) break;
+    }
+
+    if (!moduleName) {
+      // Derive from pathname
+      const segments = pathname.split('/').filter(Boolean);
+      moduleName = segments[0]
+        ? segments[0].charAt(0).toUpperCase() + segments[0].slice(1).replace(/-/g, ' ')
+        : 'Home';
+    }
+
+    const crumbs = [];
+    if (moduleName) crumbs.push({ label: moduleName, path: null });
+    if (childLabel && childLabel !== moduleName) {
+      crumbs.push({ label: childLabel, path: null });
+    }
+
+    return { moduleName, crumbs };
+  }, [pathname]);
+}
+
+export default function ModuleBar() {
+  const { crumbs } = useBreadcrumbs();
+  const { actions } = useModuleActions();
+
+  return (
+    <Box
+      sx={{
+        ...moduleBarSx,
+        zIndex: (t) => t.zIndex.appBar - 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        px: 2,
+        py: 0.75,
+        gap: 2,
+      }}
+    >
+      {/* Left: Breadcrumbs */}
+      <Breadcrumbs
+        separator={<NavigateNextIcon sx={{ fontSize: 16, color: 'text.disabled' }} />}
+        sx={{ flexShrink: 0 }}
+      >
+        {crumbs.map((crumb, i) => {
+          const isLast = i === crumbs.length - 1;
+          return crumb.path && !isLast ? (
+            <Link
+              key={crumb.label}
+              component={RouterLink}
+              to={crumb.path}
+              underline="hover"
+              color="text.secondary"
+              sx={FONT.breadcrumb}
+            >
+              {crumb.label}
+            </Link>
+          ) : isLast ? (
+            <Typography
+              key={crumb.label}
+              sx={FONT.pageTitle}
+              color="text.primary"
+            >
+              {crumb.label}
+            </Typography>
+          ) : (
+            <Typography
+              key={crumb.label}
+              sx={FONT.breadcrumb}
+              color="text.secondary"
+            >
+              {crumb.label}
+            </Typography>
+          );
+        })}
+      </Breadcrumbs>
+
+      {/* Right: Dynamic toolbar actions */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexShrink: 0 }}>
+        {/* Tabs */}
+        {actions.tabs.length > 0 && (
+          <ToggleButtonGroup size="small" exclusive>
+            {actions.tabs.map((tab) => (
+              <ToggleButton
+                key={tab.value}
+                value={tab.value}
+                selected={tab.selected}
+                onClick={tab.onClick}
+                sx={{ px: 1.5, py: 0.25 }}
+              >
+                {tab.label}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+        )}
+
+        {/* Filters */}
+        {actions.filters.map((filter) => (
+          <TextField
+            key={filter.name}
+            placeholder={filter.placeholder || filter.name}
+            size="small"
+            variant="outlined"
+            value={filter.value || ''}
+            onChange={filter.onChange}
+            select={!!filter.options}
+            SelectProps={filter.options ? { displayEmpty: true } : undefined}
+            sx={{
+              minWidth: 120,
+              '& .MuiInputBase-input': { py: 0.5, ...FONT.toolbarAction },
+            }}
+          >
+            {filter.options?.map((opt) => (
+              <MenuItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </MenuItem>
+            ))}
+          </TextField>
+        ))}
+
+        {/* Primary actions */}
+        {actions.primaryActions.map((action) => {
+          const ButtonComponent = VARIANT_TO_BUTTON[action.variant || 'contained'] || PrimaryButton;
+          return (
+            <ButtonComponent
+              key={action.label}
+              size="small"
+              color={action.color || 'primary'}
+              disabled={!!action.disabled}
+              onClick={action.onClick}
+              startIcon={action.icon || null}
+            >
+              {action.label}
+            </ButtonComponent>
+          );
+        })}
+      </Box>
+    </Box>
+  );
+}
