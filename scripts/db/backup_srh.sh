@@ -65,7 +65,7 @@ echo "  Plain SQL:   srh_schema.sql (derived from dump)"
   WHERE t.tenant_code = '$TENANT_CODE'
     AND t.schema_name = '$SOURCE_SCHEMA'
 ) TO '$BACKUP_DIR/nap_users_srh.csv' WITH (FORMAT csv, HEADER true)"
-echo "  portal_users:   nap_users_srh.csv"
+echo "  portal_users:  portal_users_srh.csv"
 
 echo ""
 echo "Backup complete. Files in: $BACKUP_DIR"

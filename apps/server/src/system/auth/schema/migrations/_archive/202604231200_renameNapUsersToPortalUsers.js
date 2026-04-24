@@ -35,9 +35,7 @@ export default defineMigration({
         WHERE table_schema = 'admin' AND table_name = 'portal_users'`,
     );
     if (hasNew) {
-      throw new Error(
-        'admin.portal_users already exists alongside admin.nap_users — resolve manually before running this migration',
-      );
+      throw new Error('admin.portal_users already exists alongside admin.nap_users — resolve manually before running this migration');
     }
 
     await db.none('ALTER TABLE admin.nap_users RENAME TO portal_users');

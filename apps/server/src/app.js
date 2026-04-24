@@ -46,7 +46,7 @@ app.use('/api', apiRoutes);
 
 // Root route
 app.get('/', (_req, res) => {
-  res.send('NAP API is running');
+  res.send('Vimber API is running');
 });
 
 // 404 handler

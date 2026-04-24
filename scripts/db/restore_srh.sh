@@ -8,7 +8,7 @@
 #
 # Expects a backup dir containing:
 #   - srh_schema.sql   (plain SQL dump of the srh schema)
-#   - nap_users_srh.csv (admin.portal_users rows for SRH)
+#   - portal_users_srh.csv (admin.portal_users rows for SRH)
 #
 # These files are produced by backup_srh.sh.
 #

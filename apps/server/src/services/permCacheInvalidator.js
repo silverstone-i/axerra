@@ -35,7 +35,7 @@ export async function invalidateByRole(schema, roleCode, tenantCode) {
     const s = pgp.as.name(schema);
     const redis = await getRedis();
 
-    // Collect nap_user IDs across all entity tables that carry this role
+    // Collect portal_user IDs across all entity tables that carry this role
     const userIds = [];
 
     for (const table of ENTITY_TABLES) {
@@ -70,7 +70,7 @@ export async function invalidateByRole(schema, roleCode, tenantCode) {
 }
 
 /**
- * Flush permission cache for a single entity's linked nap_user.
+ * Flush permission cache for a single entity's linked portal_user.
  *
  * @param {string} entityType e.g. 'employee'
  * @param {string} entityId   UUID of the entity record
@@ -101,7 +101,7 @@ export async function invalidateByEntity(entityType, entityId, tenantCode) {
  * Flush all permission cache keys for a specific user (across all tenants).
  * Used on logout to ensure a clean slate on next login.
  *
- * @param {string} userId UUID of the nap_user
+ * @param {string} userId UUID of the portal_user
  */
 export async function invalidateByUser(userId) {
   try {

@@ -7,7 +7,7 @@
  *
  * When is_app_user is toggled ON, provisions a portal_users record in admin schema
  * with entity_type='vendor_contact' and entity_id pointing to the vendor_contact row.
- * When toggled OFF or archived, cascades to lock the linked nap_user.
+ * When toggled OFF or archived, cascades to lock the linked portal_user.
  *
  * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
@@ -76,10 +76,11 @@ class VendorContactsController extends BaseController {
         });
 
         // 3. Link the source back
-        await t.none(
-          `UPDATE ${s}.vendor_contacts SET source_id = $1, updated_by = $2 WHERE id = $3`,
-          [source.id, req.body.created_by || null, contact.id],
-        );
+        await t.none(`UPDATE ${s}.vendor_contacts SET source_id = $1, updated_by = $2 WHERE id = $3`, [
+          source.id,
+          req.body.created_by || null,
+          contact.id,
+        ]);
 
         // 4. Create email record if provided
         if (suppliedEmail) {
@@ -158,13 +159,14 @@ class VendorContactsController extends BaseController {
       const resolvedEmail = suppliedEmail || loginEmail?.email;
 
       // Determine if provisioning is needed (fresh toggle or retry after partial failure)
-      const needsProvisioning = isNowAppUser && (
-        !wasAppUser || !await db.oneOrNone(
-          `SELECT id FROM admin.portal_users
+      const needsProvisioning =
+        isNowAppUser &&
+        (!wasAppUser ||
+          !(await db.oneOrNone(
+            `SELECT id FROM admin.portal_users
            WHERE entity_type = 'vendor_contact' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
-          [before.id, req.user?.tenant_id],
-        )
-      );
+            [before.id, req.user?.tenant_id],
+          )));
 
       if (needsProvisioning) {
         const roles = req.body.roles || before.roles || [];
@@ -181,7 +183,7 @@ class VendorContactsController extends BaseController {
       if (!count) return res.status(404).json({ error: `${this.errorLabel} not found` });
 
       if (needsProvisioning) {
-        // Toggled ON: provision or restore nap_user
+        // Toggled ON: provision or restore portal_user
         if (suppliedEmail && !loginEmail) {
           // Check if the email already exists (without is_login/is_primary flags)
           const existingEmail = await db.oneOrNone(
@@ -189,10 +191,10 @@ class VendorContactsController extends BaseController {
             [before.source_id, suppliedEmail],
           );
           if (existingEmail) {
-            await db.none(
-              `UPDATE ${s}.emails SET is_login = true, is_primary = true, updated_by = $1 WHERE id = $2`,
-              [req.user?.id || null, existingEmail.id],
-            );
+            await db.none(`UPDATE ${s}.emails SET is_login = true, is_primary = true, updated_by = $1 WHERE id = $2`, [
+              req.user?.id || null,
+              existingEmail.id,
+            ]);
           } else {
             const emailsModel = db('emails', schema);
             await emailsModel.insert({
@@ -207,18 +209,18 @@ class VendorContactsController extends BaseController {
           }
         } else if (loginEmail && !hasLoginEmail) {
           const updatedBy = req.user?.id || null;
-          const emailUpdate = suppliedEmail && suppliedEmail !== loginEmail.email
-            ? `UPDATE ${s}.emails SET is_login = true, email = $2, updated_by = $3 WHERE id = $1`
-            : `UPDATE ${s}.emails SET is_login = true, updated_by = $2 WHERE id = $1`;
-          const emailParams = suppliedEmail && suppliedEmail !== loginEmail.email
-            ? [loginEmail.id, suppliedEmail, updatedBy]
-            : [loginEmail.id, updatedBy];
+          const emailUpdate =
+            suppliedEmail && suppliedEmail !== loginEmail.email
+              ? `UPDATE ${s}.emails SET is_login = true, email = $2, updated_by = $3 WHERE id = $1`
+              : `UPDATE ${s}.emails SET is_login = true, updated_by = $2 WHERE id = $1`;
+          const emailParams =
+            suppliedEmail && suppliedEmail !== loginEmail.email ? [loginEmail.id, suppliedEmail, updatedBy] : [loginEmail.id, updatedBy];
           await db.none(emailUpdate, emailParams);
         }
         const updatedContact = { ...before, ...req.body, id: before.id };
         await this.#provisionAppUser(updatedContact, req, suppliedPassword, resolvedEmail);
       } else if (wasAppUser && !isNowAppUser) {
-        // Toggled OFF: archive the linked nap_user
+        // Toggled OFF: archive the linked portal_user
         await this.#archiveAppUser(before.id, req);
       }
 
@@ -243,7 +245,7 @@ class VendorContactsController extends BaseController {
 
     req.body.deactivated_at = new Date();
     try {
-      // Cascade to nap_user before archiving vendor contact
+      // Cascade to portal_user before archiving vendor contact
       if (contactId) {
         const contact = await this.model(schema).findById(contactId);
         if (contact?.is_app_user) {
@@ -274,7 +276,7 @@ class VendorContactsController extends BaseController {
       const count = await this.model(schema).updateWhere(filters, req.body, { includeDeactivated: true });
       if (!count) return res.status(404).json({ error: `${this.errorLabel} not found or already active` });
 
-      // Cascade restore to nap_user if vendor contact is an app user
+      // Cascade restore to portal_user if vendor contact is an app user
       if (contactId) {
         const contact = await this.model(schema).findById(contactId);
         if (contact?.is_app_user) {
@@ -325,12 +327,13 @@ class VendorContactsController extends BaseController {
 
       const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
       const hash = await bcrypt.hash(password, rounds);
-      await db.none(
-        'UPDATE admin.portal_users SET password_hash = $/hash/, updated_by = $/updatedBy/ WHERE id = $/id/',
-        { hash, updatedBy: req.user?.id || null, id: napUser.id },
-      );
+      await db.none('UPDATE admin.portal_users SET password_hash = $/hash/, updated_by = $/updatedBy/ WHERE id = $/id/', {
+        hash,
+        updatedBy: req.user?.id || null,
+        id: napUser.id,
+      });
 
-      logger.info(`Admin reset password for nap_user ${napUser.id} (vendor_contact ${contactId})`);
+      logger.info(`Admin reset password for portal_user ${napUser.id} (vendor_contact ${contactId})`);
       res.json({ message: 'Password reset successfully' });
     } catch (err) {
       this.handleError(err, res, 'resetting password for', this.errorLabel);
@@ -363,7 +366,7 @@ class VendorContactsController extends BaseController {
       }
     }
 
-    // Check if an archived nap_user already exists for this vendor contact
+    // Check if an archived portal_user already exists for this vendor contact
     const existing = await db.oneOrNone(
       `SELECT id, deactivated_at FROM admin.portal_users
        WHERE entity_type = 'vendor_contact' AND entity_id = $1 AND tenant_id = $2`,
@@ -383,7 +386,7 @@ class VendorContactsController extends BaseController {
          WHERE id = $4`,
         [passwordHash, loginEmail, req.user?.id || null, existing.id],
       );
-      logger.info(`Restored nap_user ${existing.id} for vendor_contact ${vendorContact.id}`);
+      logger.info(`Restored portal_user ${existing.id} for vendor_contact ${vendorContact.id}`);
       return existing.id;
     }
 
@@ -398,7 +401,7 @@ class VendorContactsController extends BaseController {
       created_by: req.user?.id || null,
     });
 
-    logger.info(`Provisioned nap_user ${user.id} for vendor_contact ${vendorContact.id}`);
+    logger.info(`Provisioned portal_user ${user.id} for vendor_contact ${vendorContact.id}`);
     return user.id;
   }
 
@@ -418,7 +421,7 @@ class VendorContactsController extends BaseController {
          WHERE id = $2`,
         [req.user?.id || null, napUser.id],
       );
-      logger.info(`Archived nap_user ${napUser.id} for vendor_contact ${vendorContactId}`);
+      logger.info(`Archived portal_user ${napUser.id} for vendor_contact ${vendorContactId}`);
     }
   }
 
@@ -438,7 +441,7 @@ class VendorContactsController extends BaseController {
          WHERE id = $2`,
         [req.user?.id || null, napUser.id],
       );
-      logger.info(`Restored nap_user ${napUser.id} for vendor_contact ${vendorContactId}`);
+      logger.info(`Restored portal_user ${napUser.id} for vendor_contact ${vendorContactId}`);
     }
   }
 }

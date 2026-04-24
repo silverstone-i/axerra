@@ -4,7 +4,7 @@
  *
  * Usage:
  *   cross-env NODE_ENV=development node scripts/db/reseedPolicyCatalog.js --schema srh
- *   cross-env NODE_ENV=development node scripts/db/reseedPolicyCatalog.js --schema nap --napsoft
+ *   cross-env NODE_ENV=development node scripts/db/reseedPolicyCatalog.js --schema vimber --root
  *
  * Copyright (c) 2025 Vimber LLC. All rights reserved.
  */
@@ -28,16 +28,16 @@ while (dir !== dirname(dir)) {
 const { values } = parseArgs({
   options: {
     schema: { type: 'string' },
-    napsoft: { type: 'boolean', default: false },
+    root: { type: 'boolean', default: false },
   },
   strict: true,
 });
 
 const schemaName = values['schema'];
-const isNapsoft = values['napsoft'];
+const isRootTenant = values['root'];
 
 if (!schemaName) {
-  console.error('Usage: reseedPolicyCatalog.js --schema <name> [--napsoft]');
+  console.error('Usage: reseedPolicyCatalog.js --schema <name> [--root]');
   process.exit(1);
 }
 
@@ -63,7 +63,7 @@ async function main() {
 
   // 2. Reseed from code
   const { seedPolicyCatalog } = await import('../../apps/server/src/system/core/services/policyCatalogSeeder.js');
-  await seedPolicyCatalog(db, pgp, schemaName, isNapsoft);
+  await seedPolicyCatalog(db, pgp, schemaName, isRootTenant);
 
   logger.info(`Policy catalog reseeded for ${schemaName}.`);
   await db.$pool.end();

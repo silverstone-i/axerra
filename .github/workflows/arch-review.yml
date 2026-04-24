@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [dev, main]
     paths:
-      - 'apps/nap-serv/src/**'
+      - 'apps/server/src/**'
       - 'scripts/arch/**'
 
 jobs:
@@ -35,7 +35,7 @@ jobs:
         id: ai-review
         continue-on-error: true
         run: |
-          git diff origin/${{ github.base_ref }}...HEAD -- apps/nap-serv/src/ \
+          git diff origin/${{ github.base_ref }}...HEAD -- apps/server/src/ \
             | node scripts/arch/aiInterpret.js \
               --provider ${{ vars.AI_PROVIDER || 'claude' }} \
             > /tmp/ai-review.md

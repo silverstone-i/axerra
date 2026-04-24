@@ -247,7 +247,7 @@ describe('authRedis middleware', () => {
     expect(next).toHaveBeenCalled();
     expect(req.user.tenant_code).toBe('acme');
     expect(req.user.schema_name).toBe('acme');
-    // req.ctx.tenant must reflect the effective (ACME) tenant, not the home (NAP) tenant
+    // req.ctx.tenant must reflect the effective (ACME) tenant, not the home (VIMBER) tenant
     expect(req.ctx.tenant.tenant_code).toBe('ACME');
     expect(req.ctx.tenant.id).toBe(acmeTenantId);
     expect(req.ctx.tenant.allowed_modules).toEqual(['projects']);

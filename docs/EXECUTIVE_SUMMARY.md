@@ -1,6 +1,6 @@
 # VIMBER — Executive Summary
 
-**VIMBER (a Next Generation Accounting Platform)** is a multi-tenant, modular ERP for any business that runs on projects. It unifies project management, cost control, and double-entry accounting in one system, so operators can see project-level cashflow and profitability in real time — not as a month-end reconciliation exercise.
+**VIMBER** is a multi-tenant, modular ERP for any business that runs on projects. It unifies project management, cost control, and double-entry accounting in one system, so operators can see project-level cashflow and profitability in real time — not as a month-end reconciliation exercise.
 
 ## Who it's for
 

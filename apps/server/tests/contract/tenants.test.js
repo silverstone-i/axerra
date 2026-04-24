@@ -45,11 +45,11 @@ describe('GET /api/tenants/v1/tenants', () => {
     const res = await request(app).get('/api/tenants/v1/tenants').set('Cookie', cookies);
 
     expect(res.status).toBe(200);
-    // Should have at least the root NAP tenant from bootstrap
+    // Should have at least the root Vimber tenant from bootstrap
     const rows = res.body.rows ?? res.body;
     expect(rows.length).toBeGreaterThanOrEqual(1);
-    const nap = (Array.isArray(rows) ? rows : []).find((t) => t.tenant_code === 'VIMBER');
-    expect(nap).toBeDefined();
+    const rootTenant = (Array.isArray(rows) ? rows : []).find((t) => t.tenant_code === 'VIMBER');
+    expect(rootTenant).toBeDefined();
   });
 });
 
@@ -119,16 +119,16 @@ describe('GET /api/tenants/v1/tenants/:id', () => {
 });
 
 describe('DELETE /api/tenants/v1/tenants/archive', () => {
-  test('rejects archival of root NAP tenant', async () => {
+  test('rejects archival of root Vimber tenant', async () => {
     const cookies = await loginRoot();
 
-    // Find NAP tenant id
+    // Find Vimber tenant id
     const listRes = await request(app).get('/api/tenants/v1/tenants').set('Cookie', cookies);
     const rows = listRes.body.rows ?? listRes.body;
-    const nap = (Array.isArray(rows) ? rows : []).find((t) => t.tenant_code === 'VIMBER');
+    const rootTenant = (Array.isArray(rows) ? rows : []).find((t) => t.tenant_code === 'VIMBER');
 
     const res = await request(app)
-      .delete(`/api/tenants/v1/tenants/archive?id=${nap.id}`)
+      .delete(`/api/tenants/v1/tenants/archive?id=${rootTenant.id}`)
       .set('Cookie', cookies)
       .send({});
 
@@ -185,10 +185,10 @@ describe('GET /api/tenants/v1/tenants/:id/modules', () => {
 
     const listRes = await request(app).get('/api/tenants/v1/tenants').set('Cookie', cookies);
     const rows = listRes.body.rows ?? listRes.body;
-    const nap = (Array.isArray(rows) ? rows : []).find((t) => t.tenant_code === 'VIMBER');
+    const rootTenant = (Array.isArray(rows) ? rows : []).find((t) => t.tenant_code === 'VIMBER');
 
     const res = await request(app)
-      .get(`/api/tenants/v1/tenants/${nap.id}/modules`)
+      .get(`/api/tenants/v1/tenants/${rootTenant.id}/modules`)
       .set('Cookie', cookies);
 
     expect(res.status).toBe(200);

@@ -5,7 +5,7 @@
  * Overrides:
  *   create → inserts tenant record, provisions schema, seeds RBAC, creates admin user
  *   importXls → passes created_by only (each row carries its own tenant_code)
- *   archive → cascades deactivation to all tenant users; rejects root tenant (NAP)
+ *   archive → cascades deactivation to all tenant users; rejects root tenant (Vimber)
  *   restore → reactivates tenant (users remain archived until individually restored)
  *
  * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
@@ -76,7 +76,7 @@ class TenantsController extends BaseController {
 
   /**
    * DELETE /archive — soft-delete tenant and cascade to all users.
-   * Rejects archival of the root tenant (NAP).
+   * Rejects archival of the root tenant (Vimber).
    */
   async archive(req, res) {
     const rootTenantCode = (process.env.ROOT_TENANT_CODE || 'VIMBER').toUpperCase();

@@ -49,8 +49,8 @@ describe('tokenService', () => {
     test('includes iss and aud claims', () => {
       const token = signAccessToken(mockUser);
       const decoded = jwt.decode(token);
-      expect(decoded.iss).toBe('server');
-      expect(decoded.aud).toBe('server-api');
+      expect(decoded.iss).toBe('vimber-serv');
+      expect(decoded.aud).toBe('vimber-serv-api');
     });
 
     test('expires in 15 minutes', () => {

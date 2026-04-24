@@ -2,9 +2,9 @@
  * @file Integration test — entity lifecycle: employee is_app_user provisioning
  * @module tests/integration/entityLifecycle
  *
- * Verifies: Create tenant → create employee → set is_app_user → verify nap_user
- * in admin.portal_users → archive employee → verify nap_user status=locked →
- * restore employee → verify nap_user restored.
+ * Verifies: Create tenant → create employee → set is_app_user → verify portal_user
+ * in admin.portal_users → archive employee → verify portal_user status=locked →
+ * restore employee → verify portal_user restored.
  *
  * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
@@ -56,14 +56,12 @@ describe('Entity lifecycle — employee is_app_user with portal_users cascade', 
     expect(res.status).toBe(201);
 
     // Login as tenant admin
-    const loginRes = await request(app)
-      .post('/api/auth/login')
-      .send({ email: 'admin@eltest.com', password: 'EltestPass123!' });
+    const loginRes = await request(app).post('/api/auth/login').send({ email: 'admin@eltest.com', password: 'EltestPass123!' });
     tenantCookies = loginRes.headers['set-cookie'];
     expect(tenantCookies).toBeDefined();
   }, 30000);
 
-  test('2. Create employee with is_app_user=true provisions nap_user', async () => {
+  test('2. Create employee with is_app_user=true provisions portal_user', async () => {
     const res = await request(app)
       .post('/api/core/v1/employees')
       .set('Cookie', tenantCookies)
@@ -79,7 +77,7 @@ describe('Entity lifecycle — employee is_app_user with portal_users cascade', 
     expect(res.status).toBe(201);
     employeeId = res.body.id;
 
-    // Verify nap_user exists
+    // Verify portal_user exists
     const napUser = await db.oneOrNone(
       `SELECT id, entity_type, entity_id, email, status
        FROM admin.portal_users
@@ -91,15 +89,12 @@ describe('Entity lifecycle — employee is_app_user with portal_users cascade', 
     expect(napUser.status).toBe('invited');
   });
 
-  test('3. Archive employee cascades to lock nap_user', async () => {
-    const res = await request(app)
-      .delete(`/api/core/v1/employees/archive?id=${employeeId}`)
-      .set('Cookie', tenantCookies)
-      .send({});
+  test('3. Archive employee cascades to lock portal_user', async () => {
+    const res = await request(app).delete(`/api/core/v1/employees/archive?id=${employeeId}`).set('Cookie', tenantCookies).send({});
 
     expect(res.status).toBe(200);
 
-    // Verify nap_user is locked
+    // Verify portal_user is locked
     const napUser = await db.oneOrNone(
       `SELECT status, deactivated_at FROM admin.portal_users
        WHERE entity_type = 'employee' AND entity_id = $1`,
@@ -110,23 +105,18 @@ describe('Entity lifecycle — employee is_app_user with portal_users cascade', 
   });
 
   test('4. Archived employee login fails', async () => {
-    const res = await request(app)
-      .post('/api/auth/login')
-      .send({ email: 'alice@eltest.com', password: 'anything' });
+    const res = await request(app).post('/api/auth/login').send({ email: 'alice@eltest.com', password: 'anything' });
 
     // Login should fail (user is deactivated)
     expect(res.status).not.toBe(200);
   });
 
-  test('5. Restore employee cascades to restore nap_user', async () => {
-    const res = await request(app)
-      .patch(`/api/core/v1/employees/restore?id=${employeeId}`)
-      .set('Cookie', tenantCookies)
-      .send({});
+  test('5. Restore employee cascades to restore portal_user', async () => {
+    const res = await request(app).patch(`/api/core/v1/employees/restore?id=${employeeId}`).set('Cookie', tenantCookies).send({});
 
     expect(res.status).toBe(200);
 
-    // Verify nap_user is restored
+    // Verify portal_user is restored
     const napUser = await db.oneOrNone(
       `SELECT status, deactivated_at FROM admin.portal_users
        WHERE entity_type = 'employee' AND entity_id = $1`,
@@ -138,16 +128,12 @@ describe('Entity lifecycle — employee is_app_user with portal_users cascade', 
 
   test('6. Source record was created for employee', async () => {
     // Verify that a source record exists linking to this employee
-    const employee = await request(app)
-      .get(`/api/core/v1/employees/${employeeId}`)
-      .set('Cookie', tenantCookies);
+    const employee = await request(app).get(`/api/core/v1/employees/${employeeId}`).set('Cookie', tenantCookies);
 
     expect(employee.body.source_id).toBeDefined();
 
     // Verify source record
-    const source = await request(app)
-      .get(`/api/core/v1/sources/${employee.body.source_id}`)
-      .set('Cookie', tenantCookies);
+    const source = await request(app).get(`/api/core/v1/sources/${employee.body.source_id}`).set('Cookie', tenantCookies);
 
     expect(source.status).toBe(200);
     expect(source.body.source_type).toBe('employee');

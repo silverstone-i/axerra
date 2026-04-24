@@ -7,7 +7,7 @@
  * columns — those live on entity records (Phase 5).
  *
  * Overrides:
- *   register → validates tenant active, bcrypt hashes password, creates nap_user
+ *   register → validates tenant active, bcrypt hashes password, creates portal_user
  *   getById  → strips password_hash
  *   update   → supports password reset via raw SQL
  *   archive  → prevents self-archival, sets status='locked', cascades to linked entity
@@ -63,9 +63,7 @@ class PortalUsersController extends BaseController {
 
     try {
       // Validate tenant exists and is active
-      const tenant = await db('tenants', 'admin').findOneBy([
-        { tenant_code: tenant_code.toUpperCase(), deactivated_at: null },
-      ]);
+      const tenant = await db('tenants', 'admin').findOneBy([{ tenant_code: tenant_code.toUpperCase(), deactivated_at: null }]);
 
       if (!tenant) {
         return res.status(400).json({ error: 'Invalid or inactive tenant' });
@@ -208,12 +206,12 @@ class PortalUsersController extends BaseController {
     }
 
     try {
-      // Look up the nap_user to cascade to linked entity
+      // Look up the portal_user to cascade to linked entity
       const filter = targetId ? { id: targetId } : targetEmail ? { email: targetEmail } : { ...req.query };
       const napUser = await this.model('admin').findOneBy([filter]);
       if (!napUser) return res.status(404).json({ error: `${this.errorLabel} not found or already inactive` });
 
-      // Archive the nap_user with status='locked'
+      // Archive the portal_user with status='locked'
       await db.none(
         `UPDATE admin.portal_users
          SET deactivated_at = NOW(), status = 'locked', updated_by = $1, updated_at = NOW()
@@ -237,11 +235,7 @@ class PortalUsersController extends BaseController {
    * cascades to restore linked entity in tenant schema.
    */
   async restore(req, res) {
-    const filter = req.query.email
-      ? { email: req.query.email }
-      : req.query.id
-        ? { id: req.query.id }
-        : null;
+    const filter = req.query.email ? { email: req.query.email } : req.query.id ? { id: req.query.id } : null;
     if (!filter) {
       return res.status(400).json({ error: 'email or id query parameter required' });
     }
@@ -278,7 +272,7 @@ class PortalUsersController extends BaseController {
   /* ── Private helpers ──────────────────────────────────── */
 
   /**
-   * Archive the entity (e.g. employee) linked to a nap_user in its tenant schema.
+   * Archive the entity (e.g. employee) linked to a portal_user in its tenant schema.
    */
   async #archiveLinkedEntity(napUser, req) {
     const tenant = await db('tenants', 'admin').findOneBy([{ id: napUser.tenant_id }]);
@@ -297,7 +291,7 @@ class PortalUsersController extends BaseController {
   }
 
   /**
-   * Restore the entity (e.g. employee) linked to a nap_user in its tenant schema.
+   * Restore the entity (e.g. employee) linked to a portal_user in its tenant schema.
    */
   async #restoreLinkedEntity(napUser, tenant, req) {
     if (!tenant?.schema_name) return;

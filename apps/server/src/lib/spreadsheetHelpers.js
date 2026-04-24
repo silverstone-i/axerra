@@ -17,14 +17,20 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** Columns stripped from every exported sheet (id is kept for upsert) */
-const INTERNAL_COLS = new Set([
-  'tenant_id', 'source_id',
-  'created_at', 'created_by', 'updated_at', 'updated_by', 'deactivated_at',
-]);
+const INTERNAL_COLS = new Set(['tenant_id', 'source_id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'deactivated_at']);
 
 /** Default headers for empty child sheets */
 export const PHONE_HEADERS = ['country_code', 'phone_type', 'phone_number', 'is_primary'];
-export const ADDRESS_HEADERS = ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'];
+export const ADDRESS_HEADERS = [
+  'label',
+  'address_line_1',
+  'address_line_2',
+  'address_line_3',
+  'city',
+  'state_province',
+  'postal_code',
+  'country_code',
+];
 export const TAX_ID_HEADERS = ['country_code', 'tax_type', 'tax_value'];
 export const EMAIL_HEADERS = ['email', 'label', 'is_primary', 'is_login'];
 export const CONTACT_EMAIL_HEADERS = ['email', 'label', 'is_primary'];
@@ -233,8 +239,9 @@ export function formatExportRow(row, phoneCol, phoneCtryCol, taxCol, taxCtryCol,
   if (row[phoneCol]) {
     const cc = (row[phoneCtryCol] || '').trim().toUpperCase();
     const normalizedCc = cc.replace(/^\+/, '');
-    const country = COUNTRIES.find((c) => c.code === cc)
-      || COUNTRIES.find((c) => c.placeholder && (c.dial_code === cc || c.dial_code === `+${normalizedCc}`));
+    const country =
+      COUNTRIES.find((c) => c.code === cc) ||
+      COUNTRIES.find((c) => c.placeholder && (c.dial_code === cc || c.dial_code === `+${normalizedCc}`));
     if (country?.placeholder) row[phoneCol] = formatByPattern(String(row[phoneCol]), country.placeholder);
   }
   if (taxCol && row[taxCol]) {
@@ -285,7 +292,10 @@ export function validateImportGroups(groups, opts) {
 
   for (const c of conflicts) {
     errors.push({
-      sheet: sheetName, row: c.row, column: c.column, value: c.value,
+      sheet: sheetName,
+      row: c.row,
+      column: c.column,
+      value: c.value,
       message: `Conflicting value — row ${c.existingRow} has "${c.existingValue}"`,
     });
   }
@@ -299,14 +309,28 @@ export function validateImportGroups(groups, opts) {
     // Required fields
     for (const field of requiredFields) {
       if (!p[field] || (typeof p[field] === 'string' && !p[field].trim())) {
-        errors.push({ sheet: sheetName, row: p._rowNum || null, column: field, value: p[field] ?? '', message: `${field.replace(/_/g, ' ')} is required` });
+        errors.push({
+          sheet: sheetName,
+          row: p._rowNum || null,
+          column: field,
+          value: p[field] ?? '',
+          message: `${field.replace(/_/g, ' ')} is required`,
+        });
       }
     }
 
     // Status
-    const status = String(p.status ?? '').toLowerCase().trim();
+    const status = String(p.status ?? '')
+      .toLowerCase()
+      .trim();
     if (!VALID_STATUSES.has(status)) {
-      errors.push({ sheet: sheetName, row: p._rowNum || null, column: 'status', value: p.status, message: 'Status must be "active" or "archived"' });
+      errors.push({
+        sheet: sheetName,
+        row: p._rowNum || null,
+        column: 'status',
+        value: p.status,
+        message: 'Status must be "active" or "archived"',
+      });
     }
 
     // Code uniqueness
@@ -321,7 +345,13 @@ export function validateImportGroups(groups, opts) {
       if (code) {
         const prev = codeCounts.get(code);
         if (prev) {
-          errors.push({ sheet: sheetName, row: p._rowNum || null, column: 'code', value: code, message: `Duplicate code — also appears on row ${prev}` });
+          errors.push({
+            sheet: sheetName,
+            row: p._rowNum || null,
+            column: 'code',
+            value: code,
+            message: `Duplicate code — also appears on row ${prev}`,
+          });
         } else {
           codeCounts.set(code, p._rowNum || '?');
         }
@@ -358,7 +388,9 @@ export function parseDbImportError(err) {
   if (pgCode === '23502') {
     const colMatch = message.match(/column "(\w+)"/);
     const column = colMatch ? colMatch[1] : null;
-    return [{ sheet: null, row: null, column, value: null, message: `${column ? column.replace(/_/g, ' ') : 'A required field'} cannot be empty` }];
+    return [
+      { sheet: null, row: null, column, value: null, message: `${column ? column.replace(/_/g, ' ') : 'A required field'} cannot be empty` },
+    ];
   }
 
   // Unique violation (23505)
@@ -439,9 +471,7 @@ export async function buildExportWorkbook(model, where, joinType, options, confi
 
   const mainSheet = wb.sheet(config.sheetName);
   if (!rows.length) {
-    const schemaHeaders = (model._schema?.columns || [])
-      .map((c) => c.name)
-      .filter((n) => !INTERNAL_COLS.has(n));
+    const schemaHeaders = (model._schema?.columns || []).map((c) => c.name).filter((n) => !INTERNAL_COLS.has(n));
     const extraHeaders = config.extraExportCols.map((c) => c.name);
     mainSheet.setHeaders([...schemaHeaders, ...extraHeaders]);
     for (const child of config.childSheets) {
@@ -541,10 +571,9 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
   let tenantId;
   const sampleRow = callbackFn ? await callbackFn({}) : {};
   if (sampleRow.tenant_code) {
-    const tenantRec = await db.oneOrNone(
-      `SELECT id FROM admin.tenants WHERE tenant_code = $1 AND deactivated_at IS NULL`,
-      [sampleRow.tenant_code.toUpperCase()],
-    );
+    const tenantRec = await db.oneOrNone(`SELECT id FROM admin.tenants WHERE tenant_code = $1 AND deactivated_at IS NULL`, [
+      sampleRow.tenant_code.toUpperCase(),
+    ]);
     tenantId = tenantRec?.id;
   }
 
@@ -552,187 +581,201 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
   const stripCols = ['status', 'deactivated_at', 'password', ...(config.extraImportStrip || [])];
 
   try {
-  await db.tx(async (t) => {
-    model.tx = t;
+    await db.tx(async (t) => {
+      model.tx = t;
 
-    // ── 1. Partition rows into updates vs inserts ──────────────────────
-    const uuidIds = parentRows.filter((r) => isUuid(r.id)).map((r) => r.id);
-    const existingSet = new Set();
-    if (uuidIds.length) {
-      const existing = await t.any(
-        `SELECT id, source_id FROM ${s}.${pgp.as.name(config.entityName)} WHERE id IN ($1:csv)`,
-        [uuidIds],
-      );
-      for (const row of existing) {
-        existingSet.add(row.id);
-        refToSourceId.set(row.id, row.source_id);
-      }
-    }
-
-    const toUpdate = [];
-    const toInsert = [];
-    for (const row of parentRows) {
-      const isArchived = String(row.status).toLowerCase() === 'archived';
-      const password = row.password || null;
-      // Strip ephemeral columns
-      for (const col of stripCols) delete row[col];
-      const transformed = callbackFn ? await callbackFn({ ...row }) : { ...row };
-      for (const col of stripCols) delete transformed[col];
-      delete transformed.tenant_code;
-      if (tenantId) transformed.tenant_id = tenantId;
-      coerceRow(transformed, config.boolCols, config.hasRoles);
-
-      if (existingSet.has(row.id)) {
-        transformed._archive = isArchived;
-        toUpdate.push(transformed);
-      } else {
-        transformed._ref = row.id || null;
-        transformed._archive = isArchived;
-        transformed._password = password;
-        delete transformed.id;
-        toInsert.push(transformed);
-      }
-    }
-
-    // ── 2. Run updates ────────────────────────────────────────────────
-    for (const row of toUpdate) {
-      const { id, tenant_code: _tc, _archive, ...changes } = row;
-      await model.updateWhere([{ id }], changes, { includeDeactivated: true });
-      if (_archive) {
-        await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET deactivated_at = NOW() WHERE id = $1 AND deactivated_at IS NULL`, [id]);
-      } else {
-        await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET deactivated_at = NULL WHERE id = $1 AND deactivated_at IS NOT NULL`, [id]);
-      }
-      updatedCount++;
-    }
-
-    // ── 3. Run inserts + create sources ───────────────────────────────
-    if (toInsert.length) {
-      // Strip internal flags; disable is_app_user if provisioning enabled but missing password/email
-      const cleanInserts = toInsert.map(({ _ref, _archive, _password, tenant_code: _tc, ...rest }) => {
-        if (config.appUserProvisioning && rest.is_app_user && (!_password || !rest.email)) {
-          appUserSkipped++;
-          return { ...rest, is_app_user: false };
+      // ── 1. Partition rows into updates vs inserts ──────────────────────
+      const uuidIds = parentRows.filter((r) => isUuid(r.id)).map((r) => r.id);
+      const existingSet = new Set();
+      if (uuidIds.length) {
+        const existing = await t.any(`SELECT id, source_id FROM ${s}.${pgp.as.name(config.entityName)} WHERE id IN ($1:csv)`, [uuidIds]);
+        for (const row of existing) {
+          existingSet.add(row.id);
+          refToSourceId.set(row.id, row.source_id);
         }
-        return rest;
-      });
+      }
 
-      // Clear codes that already exist to avoid unique constraint violations
-      if (!config.codeRequired) {
-        const insertCodes = cleanInserts.map((r) => r.code).filter(Boolean);
-        if (insertCodes.length) {
-          const existingCodes = await t.any(
-            `SELECT code FROM ${s}.${pgp.as.name(config.entityName)} WHERE code IN ($1:csv)`,
-            [insertCodes],
+      const toUpdate = [];
+      const toInsert = [];
+      for (const row of parentRows) {
+        const isArchived = String(row.status).toLowerCase() === 'archived';
+        const password = row.password || null;
+        // Strip ephemeral columns
+        for (const col of stripCols) delete row[col];
+        const transformed = callbackFn ? await callbackFn({ ...row }) : { ...row };
+        for (const col of stripCols) delete transformed[col];
+        delete transformed.tenant_code;
+        if (tenantId) transformed.tenant_id = tenantId;
+        coerceRow(transformed, config.boolCols, config.hasRoles);
+
+        if (existingSet.has(row.id)) {
+          transformed._archive = isArchived;
+          toUpdate.push(transformed);
+        } else {
+          transformed._ref = row.id || null;
+          transformed._archive = isArchived;
+          transformed._password = password;
+          delete transformed.id;
+          toInsert.push(transformed);
+        }
+      }
+
+      // ── 2. Run updates ────────────────────────────────────────────────
+      for (const row of toUpdate) {
+        const { id, tenant_code: _tc, _archive, ...changes } = row;
+        await model.updateWhere([{ id }], changes, { includeDeactivated: true });
+        if (_archive) {
+          await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET deactivated_at = NOW() WHERE id = $1 AND deactivated_at IS NULL`, [
+            id,
+          ]);
+        } else {
+          await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET deactivated_at = NULL WHERE id = $1 AND deactivated_at IS NOT NULL`, [
+            id,
+          ]);
+        }
+        updatedCount++;
+      }
+
+      // ── 3. Run inserts + create sources ───────────────────────────────
+      if (toInsert.length) {
+        // Strip internal flags; disable is_app_user if provisioning enabled but missing password/email
+        const cleanInserts = toInsert.map(({ _ref, _archive, _password, tenant_code: _tc, ...rest }) => {
+          if (config.appUserProvisioning && rest.is_app_user && (!_password || !rest.email)) {
+            appUserSkipped++;
+            return { ...rest, is_app_user: false };
+          }
+          return rest;
+        });
+
+        // Clear codes that already exist to avoid unique constraint violations
+        if (!config.codeRequired) {
+          const insertCodes = cleanInserts.map((r) => r.code).filter(Boolean);
+          if (insertCodes.length) {
+            const existingCodes = await t.any(`SELECT code FROM ${s}.${pgp.as.name(config.entityName)} WHERE code IN ($1:csv)`, [insertCodes]);
+            const takenCodes = new Set(existingCodes.map((r) => r.code));
+            for (const row of cleanInserts) {
+              if (row.code && takenCodes.has(row.code)) row.code = null;
+            }
+          }
+        }
+
+        const insertResults = await model.bulkInsert(cleanInserts, config.returningCols);
+        insertedCount = insertResults.length;
+
+        // Create sources records
+        const sourcesModel = db('sources', schema);
+        sourcesModel.tx = t;
+
+        const tid = cleanInserts[0]?.tenant_id;
+        const createdBy = cleanInserts[0]?.created_by || null;
+
+        const sourceRecords = insertResults.map((rec) => ({
+          tenant_id: tid,
+          table_id: rec.id,
+          source_type: config.sourceType,
+          label: config.buildLabel(rec),
+          created_by: createdBy,
+        }));
+
+        const sourceResults = await sourcesModel.bulkInsert(sourceRecords, ['id', 'table_id']);
+
+        // Link source_id back to parent and build ref map
+        const sourceByParentId = new Map(sourceResults.map((sr) => [sr.table_id, sr.id]));
+        const tbl = pgp.as.name(config.entityName);
+
+        // ── Batch: link source_id ────────────────────────────────────
+        const sourceLinks = insertResults.map((rec) => ({ id: rec.id, source_id: sourceByParentId.get(rec.id) })).filter((r) => r.source_id);
+        if (sourceLinks.length) {
+          const vals = sourceLinks.map((r) => pgp.as.format('($1::uuid, $2::uuid)', [r.id, r.source_id])).join(', ');
+          await t.none(
+            `UPDATE ${s}.${tbl} AS v SET source_id = vals.source_id FROM (VALUES ${vals}) AS vals(id, source_id) WHERE v.id = vals.id`,
           );
-          const takenCodes = new Set(existingCodes.map((r) => r.code));
-          for (const row of cleanInserts) {
-            if (row.code && takenCodes.has(row.code)) row.code = null;
+        }
+
+        // ── Batch: allocate codes ────────────────────────────────────
+        if (config.idType) {
+          const needCodeIndices = [];
+          for (let i = 0; i < cleanInserts.length; i++) {
+            if (!cleanInserts[i].code) needCodeIndices.push(i);
+          }
+          if (needCodeIndices.length) {
+            const codes = await allocateNumbers(schema, config.idType, needCodeIndices.length, null, new Date(), t);
+            if (codes) {
+              const codeUpdates = needCodeIndices.map((idx, ci) => ({
+                id: insertResults[idx].id,
+                code: codes[ci].displayId,
+              }));
+              const codeVals = codeUpdates.map((r) => pgp.as.format('($1::uuid, $2)', [r.id, r.code])).join(', ');
+              await t.none(`UPDATE ${s}.${tbl} AS v SET code = vals.code FROM (VALUES ${codeVals}) AS vals(id, code) WHERE v.id = vals.id`);
+            }
           }
         }
-      }
 
-      const insertResults = await model.bulkInsert(cleanInserts, config.returningCols);
-      insertedCount = insertResults.length;
-
-      // Create sources records
-      const sourcesModel = db('sources', schema);
-      sourcesModel.tx = t;
-
-      const tid = cleanInserts[0]?.tenant_id;
-      const createdBy = cleanInserts[0]?.created_by || null;
-
-      const sourceRecords = insertResults.map((rec) => ({
-        tenant_id: tid,
-        table_id: rec.id,
-        source_type: config.sourceType,
-        label: config.buildLabel(rec),
-        created_by: createdBy,
-      }));
-
-      const sourceResults = await sourcesModel.bulkInsert(sourceRecords, ['id', 'table_id']);
-
-      // Link source_id back to parent and build ref map
-      const sourceByParentId = new Map(sourceResults.map((sr) => [sr.table_id, sr.id]));
-      const tbl = pgp.as.name(config.entityName);
-
-      // ── Batch: link source_id ────────────────────────────────────
-      const sourceLinks = insertResults
-        .map((rec) => ({ id: rec.id, source_id: sourceByParentId.get(rec.id) }))
-        .filter((r) => r.source_id);
-      if (sourceLinks.length) {
-        const vals = sourceLinks.map((r) => pgp.as.format('($1::uuid, $2::uuid)', [r.id, r.source_id])).join(', ');
-        await t.none(`UPDATE ${s}.${tbl} AS v SET source_id = vals.source_id FROM (VALUES ${vals}) AS vals(id, source_id) WHERE v.id = vals.id`);
-      }
-
-      // ── Batch: allocate codes ────────────────────────────────────
-      if (config.idType) {
-        const needCodeIndices = [];
-        for (let i = 0; i < cleanInserts.length; i++) {
-          if (!cleanInserts[i].code) needCodeIndices.push(i);
-        }
-        if (needCodeIndices.length) {
-          const codes = await allocateNumbers(schema, config.idType, needCodeIndices.length, null, new Date(), t);
-          if (codes) {
-            const codeUpdates = needCodeIndices.map((idx, ci) => ({
-              id: insertResults[idx].id,
-              code: codes[ci].displayId,
-            }));
-            const codeVals = codeUpdates.map((r) => pgp.as.format('($1::uuid, $2)', [r.id, r.code])).join(', ');
-            await t.none(`UPDATE ${s}.${tbl} AS v SET code = vals.code FROM (VALUES ${codeVals}) AS vals(id, code) WHERE v.id = vals.id`);
-          }
-        }
-      }
-
-      // Build ref map (JS only, no DB)
-      for (let i = 0; i < insertResults.length; i++) {
-        const ref = toInsert[i]._ref;
-        const sourceId = sourceByParentId.get(insertResults[i].id);
-        if (ref && sourceId) refToSourceId.set(ref, sourceId);
-      }
-
-      // ── Batch: archive inserted rows whose status was 'archived' ─
-      const archiveIds = insertResults.filter((_, i) => toInsert[i]._archive).map((r) => r.id);
-      if (archiveIds.length) {
-        await t.none(`UPDATE ${s}.${tbl} SET deactivated_at = NOW() WHERE id IN ($1:csv)`, [archiveIds]);
-      }
-
-      // ── Provision app users (bcrypt hashed in parallel, DB inserts sequential) ─
-      if (config.appUserProvisioning) {
-        const appUserEntries = [];
+        // Build ref map (JS only, no DB)
         for (let i = 0; i < insertResults.length; i++) {
-          if (cleanInserts[i].is_app_user && cleanInserts[i].email && toInsert[i]._password) {
-            appUserEntries.push({ index: i, password: toInsert[i]._password });
-          }
+          const ref = toInsert[i]._ref;
+          const sourceId = sourceByParentId.get(insertResults[i].id);
+          if (ref && sourceId) refToSourceId.set(ref, sourceId);
         }
-        if (appUserEntries.length) {
-          const hashMap = await batchHashPasswords(appUserEntries);
-          for (const { index } of appUserEntries) {
-            const created = await provisionAppUser(
-              insertResults[index].id, cleanInserts[index].email, toInsert[index]._password,
-              tid, createdBy, config.appUserProvisioning.entityType, t, hashMap.get(index),
-            );
-            if (!created) {
-              await t.none(`UPDATE ${s}.${tbl} SET is_app_user = false WHERE id = $1`, [insertResults[index].id]);
-              appUserSkipped++;
+
+        // ── Batch: archive inserted rows whose status was 'archived' ─
+        const archiveIds = insertResults.filter((_, i) => toInsert[i]._archive).map((r) => r.id);
+        if (archiveIds.length) {
+          await t.none(`UPDATE ${s}.${tbl} SET deactivated_at = NOW() WHERE id IN ($1:csv)`, [archiveIds]);
+        }
+
+        // ── Provision app users (bcrypt hashed in parallel, DB inserts sequential) ─
+        if (config.appUserProvisioning) {
+          const appUserEntries = [];
+          for (let i = 0; i < insertResults.length; i++) {
+            if (cleanInserts[i].is_app_user && cleanInserts[i].email && toInsert[i]._password) {
+              appUserEntries.push({ index: i, password: toInsert[i]._password });
+            }
+          }
+          if (appUserEntries.length) {
+            const hashMap = await batchHashPasswords(appUserEntries);
+            for (const { index } of appUserEntries) {
+              const created = await provisionAppUser(
+                insertResults[index].id,
+                cleanInserts[index].email,
+                toInsert[index]._password,
+                tid,
+                createdBy,
+                config.appUserProvisioning.entityType,
+                t,
+                hashMap.get(index),
+              );
+              if (!created) {
+                await t.none(`UPDATE ${s}.${tbl} SET is_app_user = false WHERE id = $1`, [insertResults[index].id]);
+                appUserSkipped++;
+              }
             }
           }
         }
       }
-    }
 
-    // ── 4. Import child sheets ────────────────────────────────────────
-    for (let ci = 0; ci < config.childSheets.length; ci++) {
-      const sheetIdx = ci + 1;
-      if (reader.sheetCount > sheetIdx) {
-        const count = await importChildSheet(reader, sheetIdx, refToSourceId, config.childSheets[ci].modelName, schema, config.linkColName, callbackFn, tenantId, t);
-        // Map child model names to result keys
-        if (config.childSheets[ci].modelName === 'phoneNumbers') phonesCount = count;
-        else if (config.childSheets[ci].modelName === 'addresses') addressesCount = count;
-        else if (config.childSheets[ci].modelName === 'taxIdentifiers') taxIdsCount = count;
+      // ── 4. Import child sheets ────────────────────────────────────────
+      for (let ci = 0; ci < config.childSheets.length; ci++) {
+        const sheetIdx = ci + 1;
+        if (reader.sheetCount > sheetIdx) {
+          const count = await importChildSheet(
+            reader,
+            sheetIdx,
+            refToSourceId,
+            config.childSheets[ci].modelName,
+            schema,
+            config.linkColName,
+            callbackFn,
+            tenantId,
+            t,
+          );
+          // Map child model names to result keys
+          if (config.childSheets[ci].modelName === 'phoneNumbers') phonesCount = count;
+          else if (config.childSheets[ci].modelName === 'addresses') addressesCount = count;
+          else if (config.childSheets[ci].modelName === 'taxIdentifiers') taxIdsCount = count;
+        }
       }
-    }
-  });
+    });
   } catch (err) {
     const dataErrors = parseDbImportError(err);
     if (dataErrors) return { errors: dataErrors };
@@ -801,10 +844,9 @@ export async function importChildSheet(reader, sheetIndex, refToSourceId, modelN
   // Soft-delete existing child rows for affected parents
   const tableName = childModel._schema?.table || modelName;
   const sourceIdArray = [...affectedSourceIds];
-  await t.none(
-    `UPDATE ${s}.${pgp.as.name(tableName)} SET deactivated_at = NOW() WHERE source_id IN ($1:csv) AND deactivated_at IS NULL`,
-    [sourceIdArray],
-  );
+  await t.none(`UPDATE ${s}.${pgp.as.name(tableName)} SET deactivated_at = NOW() WHERE source_id IN ($1:csv) AND deactivated_at IS NULL`, [
+    sourceIdArray,
+  ]);
 
   // Insert all rows from the sheet
   const result = await childModel.bulkInsert(toInsert);
@@ -846,11 +888,8 @@ export async function batchHashPasswords(entries) {
  * @param {string} [preHash]   Pre-computed bcrypt hash (skips hashing when provided)
  */
 export async function provisionAppUser(entityId, email, password, tenantId, createdBy, entityType, t, preHash = null) {
-  // Skip if an active nap_user with this email already exists
-  const existing = await t.oneOrNone(
-    'SELECT id FROM admin.portal_users WHERE email = $1 AND deactivated_at IS NULL',
-    [email],
-  );
+  // Skip if an active portal_user with this email already exists
+  const existing = await t.oneOrNone('SELECT id FROM admin.portal_users WHERE email = $1 AND deactivated_at IS NULL', [email]);
   if (existing) return false;
 
   let passwordHash;
@@ -915,7 +954,12 @@ export const FLAT_CHILD_PHONES = {
   key: 'phones',
   modelName: 'phoneNumbers',
   test: (r) => !!r.phone_number,
-  extract: (r) => ({ country_code: r.phone_country_code, phone_type: r.phone_type, phone_number: r.phone_number, is_primary: r.phone_is_primary }),
+  extract: (r) => ({
+    country_code: r.phone_country_code,
+    phone_type: r.phone_type,
+    phone_number: r.phone_number,
+    is_primary: r.phone_is_primary,
+  }),
   cols: ['country_code', 'phone_type', 'phone_number', 'is_primary'],
   flatCols: ['phone_country_code', 'phone_type', 'phone_number', 'phone_is_primary'],
 };
@@ -926,12 +970,26 @@ export const FLAT_CHILD_ADDRESSES = {
   modelName: 'addresses',
   test: (r) => !!r.address_line_1,
   extract: (r) => ({
-    label: r.address_label, address_line_1: r.address_line_1, address_line_2: r.address_line_2,
-    address_line_3: r.address_line_3, city: r.address_city, state_province: r.address_state_province,
-    postal_code: r.address_postal_code, country_code: r.address_country_code,
+    label: r.address_label,
+    address_line_1: r.address_line_1,
+    address_line_2: r.address_line_2,
+    address_line_3: r.address_line_3,
+    city: r.address_city,
+    state_province: r.address_state_province,
+    postal_code: r.address_postal_code,
+    country_code: r.address_country_code,
   }),
   cols: ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'],
-  flatCols: ['address_label', 'address_line_1', 'address_line_2', 'address_line_3', 'address_city', 'address_state_province', 'address_postal_code', 'address_country_code'],
+  flatCols: [
+    'address_label',
+    'address_line_1',
+    'address_line_2',
+    'address_line_3',
+    'address_city',
+    'address_state_province',
+    'address_postal_code',
+    'address_country_code',
+  ],
 };
 
 /** @type {FlatChildDescriptor} */
@@ -1045,10 +1103,9 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
   let tenantId;
   const sampleRow = callbackFn ? await callbackFn({}) : {};
   if (sampleRow.tenant_code) {
-    const tenantRec = await db.oneOrNone(
-      'SELECT id FROM admin.tenants WHERE tenant_code = $1 AND deactivated_at IS NULL',
-      [sampleRow.tenant_code.toUpperCase()],
-    );
+    const tenantRec = await db.oneOrNone('SELECT id FROM admin.tenants WHERE tenant_code = $1 AND deactivated_at IS NULL', [
+      sampleRow.tenant_code.toUpperCase(),
+    ]);
     tenantId = tenantRec?.id;
   }
 
@@ -1069,7 +1126,10 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
   // Surface conflicting parent fields across rows in the same group
   for (const c of conflicts) {
     errors.push({
-      sheet: sheetName, row: c.row, column: c.column, value: c.value,
+      sheet: sheetName,
+      row: c.row,
+      column: c.column,
+      value: c.value,
       message: `Conflicts with row ${c.existingRow} which has "${c.existingValue}"`,
     });
   }
@@ -1103,7 +1163,13 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
           if (!validValues.has(normalized)) {
             const flatCol = cfg.flatCols?.[cfg.cols.indexOf(colName)] || colName;
             const options = [...validValues].join(', ');
-            errors.push({ sheet: sheetName, row: row._rowNum || null, column: flatCol, value: val, message: `Invalid value — must be one of: ${options}` });
+            errors.push({
+              sheet: sheetName,
+              row: row._rowNum || null,
+              column: flatCol,
+              value: val,
+              message: `Invalid value — must be one of: ${options}`,
+            });
           }
         }
       }
@@ -1117,7 +1183,13 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
     if (code) {
       const prev = codeCounts.get(code);
       if (prev) {
-        errors.push({ sheet: sheetName, row: group.parent._rowNum || null, column: 'code', value: code, message: `Duplicate code — also appears on row ${prev}` });
+        errors.push({
+          sheet: sheetName,
+          row: group.parent._rowNum || null,
+          column: 'code',
+          value: code,
+          message: `Duplicate code — also appears on row ${prev}`,
+        });
       } else {
         codeCounts.set(code, group.parent._rowNum || '?');
       }
@@ -1129,17 +1201,37 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
   for (const group of groups) {
     for (const field of config.flat.nameFields) {
       if (!group.parent[field] || (typeof group.parent[field] === 'string' && !group.parent[field].trim())) {
-        errors.push({ sheet: sheetName, row: group.parent._rowNum || null, column: field, value: group.parent[field] ?? '', message: `${field.replace(/_/g, ' ')} is required` });
+        errors.push({
+          sheet: sheetName,
+          row: group.parent._rowNum || null,
+          column: field,
+          value: group.parent[field] ?? '',
+          message: `${field.replace(/_/g, ' ')} is required`,
+        });
       }
     }
-    const status = String(group.parent.status ?? '').toLowerCase().trim();
+    const status = String(group.parent.status ?? '')
+      .toLowerCase()
+      .trim();
     if (!VALID_STATUSES.has(status)) {
-      errors.push({ sheet: sheetName, row: group.parent._rowNum || null, column: 'status', value: group.parent.status, message: 'Status must be "active" or "archived"' });
+      errors.push({
+        sheet: sheetName,
+        row: group.parent._rowNum || null,
+        column: 'status',
+        value: group.parent.status,
+        message: 'Status must be "active" or "archived"',
+      });
     }
     if (config.codeRequired) {
       const code = typeof group.parent.code === 'string' ? group.parent.code.trim() : '';
       if (!code) {
-        errors.push({ sheet: sheetName, row: group.parent._rowNum || null, column: 'code', value: group.parent.code ?? '', message: 'Code is required' });
+        errors.push({
+          sheet: sheetName,
+          row: group.parent._rowNum || null,
+          column: 'code',
+          value: group.parent.code ?? '',
+          message: 'Code is required',
+        });
       }
     }
   }
@@ -1151,162 +1243,168 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
   let appUserSkipped = 0;
 
   try {
-  await db.tx(async (t) => {
-    model.tx = t;
+    await db.tx(async (t) => {
+      model.tx = t;
 
-    // ── Phase 1: Partition into updates vs inserts ──────────────────────
-    const uuidIds = groups.filter((g) => isUuid(g.parent.id)).map((g) => g.parent.id);
-    const existingEntities = new Map();
-    if (uuidIds.length) {
-      const existing = await t.any(
-        `SELECT id, source_id FROM ${s}.${pgp.as.name(config.entityName)} WHERE id IN ($1:csv)`,
-        [uuidIds],
-      );
-      for (const row of existing) existingEntities.set(row.id, row.source_id);
-    }
-
-    const toUpdate = [];
-    const toInsert = [];
-    const stripCols = ['status', 'deactivated_at', 'password'];
-
-    for (const group of groups) {
-      const { parent } = group;
-      const isArchived = String(parent.status).toLowerCase() === 'archived';
-      const password = parent.password || null;
-      const { _rowNum: _rn, ...entityData } = { ...parent };
-      for (const col of stripCols) delete entityData[col];
-
-      const transformed = callbackFn ? await callbackFn({ ...entityData }) : { ...entityData };
-      for (const col of stripCols) delete transformed[col];
-      delete transformed.tenant_code;
-      if (tenantId) transformed.tenant_id = tenantId;
-      coerceRow(transformed, config.boolCols, config.hasRoles);
-      // Normalize empty-string codes to null
-      if (typeof transformed.code === 'string' && !transformed.code.trim()) transformed.code = null;
-
-      if (existingEntities.has(parent.id)) {
-        toUpdate.push({ transformed, isArchived, group });
-      } else {
-        toInsert.push({ transformed, isArchived, group, ref: parent.id || null, password });
+      // ── Phase 1: Partition into updates vs inserts ──────────────────────
+      const uuidIds = groups.filter((g) => isUuid(g.parent.id)).map((g) => g.parent.id);
+      const existingEntities = new Map();
+      if (uuidIds.length) {
+        const existing = await t.any(`SELECT id, source_id FROM ${s}.${pgp.as.name(config.entityName)} WHERE id IN ($1:csv)`, [uuidIds]);
+        for (const row of existing) existingEntities.set(row.id, row.source_id);
       }
-    }
 
-    // ── Phase 2: Run updates ───────────────────────────────────────────
-    for (const { transformed, isArchived, group } of toUpdate) {
-      const { id, ...changes } = transformed;
-      await model.updateWhere([{ id }], changes, { includeDeactivated: true });
-      if (isArchived) {
-        await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET deactivated_at = NOW() WHERE id = $1 AND deactivated_at IS NULL`, [id]);
-      } else {
-        await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET deactivated_at = NULL WHERE id = $1 AND deactivated_at IS NOT NULL`, [id]);
-      }
-      updatedCount++;
+      const toUpdate = [];
+      const toInsert = [];
+      const stripCols = ['status', 'deactivated_at', 'password'];
 
-      // Upsert children for updated entity
-      const sourceId = existingEntities.get(id);
-      if (sourceId) {
-        await _upsertFlatChildren(t, s, schema, db, pgp, sourceId, group.children, config.flat.children, callbackFn, tenantId);
-      }
-    }
+      for (const group of groups) {
+        const { parent } = group;
+        const isArchived = String(parent.status).toLowerCase() === 'archived';
+        const password = parent.password || null;
+        const { _rowNum: _rn, ...entityData } = { ...parent };
+        for (const col of stripCols) delete entityData[col];
 
-    // ── Phase 3: Run inserts ───────────────────────────────────────────
-    if (toInsert.length) {
-      const cleanInserts = toInsert.map(({ transformed }) => {
-        const { id: _id, ...clean } = transformed;
-        if (typeof clean.code === 'string' && !clean.code.trim()) clean.code = null;
-        return clean;
-      });
+        const transformed = callbackFn ? await callbackFn({ ...entityData }) : { ...entityData };
+        for (const col of stripCols) delete transformed[col];
+        delete transformed.tenant_code;
+        if (tenantId) transformed.tenant_id = tenantId;
+        coerceRow(transformed, config.boolCols, config.hasRoles);
+        // Normalize empty-string codes to null
+        if (typeof transformed.code === 'string' && !transformed.code.trim()) transformed.code = null;
 
-      // Clear codes that already exist in the DB
-      if (!config.codeRequired) {
-        const insertCodes = cleanInserts.map((r) => r.code).filter(Boolean);
-        if (insertCodes.length) {
-          const existingCodes = await t.any(
-            `SELECT code FROM ${s}.${pgp.as.name(config.entityName)} WHERE code IN ($1:csv)`,
-            [insertCodes],
-          );
-          const takenCodes = new Set(existingCodes.map((r) => r.code));
-          for (const row of cleanInserts) {
-            if (row.code && takenCodes.has(row.code)) row.code = null;
-          }
+        if (existingEntities.has(parent.id)) {
+          toUpdate.push({ transformed, isArchived, group });
+        } else {
+          toInsert.push({ transformed, isArchived, group, ref: parent.id || null, password });
         }
       }
 
-      const insertResults = await model.bulkInsert(cleanInserts, config.returningCols);
-      insertedCount = insertResults.length;
+      // ── Phase 2: Run updates ───────────────────────────────────────────
+      for (const { transformed, isArchived, group } of toUpdate) {
+        const { id, ...changes } = transformed;
+        await model.updateWhere([{ id }], changes, { includeDeactivated: true });
+        if (isArchived) {
+          await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET deactivated_at = NOW() WHERE id = $1 AND deactivated_at IS NULL`, [
+            id,
+          ]);
+        } else {
+          await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET deactivated_at = NULL WHERE id = $1 AND deactivated_at IS NOT NULL`, [
+            id,
+          ]);
+        }
+        updatedCount++;
 
-      // Create sources records
-      const sourcesModel = db('sources', schema);
-      sourcesModel.tx = t;
-      const tid = cleanInserts[0]?.tenant_id;
-      const createdBy = cleanInserts[0]?.created_by || null;
-
-      const sourceRecords = insertResults.map((rec) => ({
-        tenant_id: tid,
-        table_id: rec.id,
-        source_type: config.sourceType,
-        label: config.buildLabel(rec),
-        created_by: createdBy,
-      }));
-      const sourceResults = await sourcesModel.bulkInsert(sourceRecords, ['id', 'table_id']);
-      const sourceByParentId = new Map(sourceResults.map((sr) => [sr.table_id, sr.id]));
-
-      for (let i = 0; i < insertResults.length; i++) {
-        const rec = insertResults[i];
-        const sourceId = sourceByParentId.get(rec.id);
+        // Upsert children for updated entity
+        const sourceId = existingEntities.get(id);
         if (sourceId) {
-          await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET source_id = $1 WHERE id = $2`, [sourceId, rec.id]);
+          await _upsertFlatChildren(t, s, schema, db, pgp, sourceId, group.children, config.flat.children, callbackFn, tenantId);
         }
-        if (!cleanInserts[i].code && config.idType) {
-          const numbering = await allocateNumber(schema, config.idType, null, new Date(), t);
-          if (numbering) {
-            await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET code = $1 WHERE id = $2`, [numbering.displayId, rec.id]);
+      }
+
+      // ── Phase 3: Run inserts ───────────────────────────────────────────
+      if (toInsert.length) {
+        const cleanInserts = toInsert.map(({ transformed }) => {
+          const { id: _id, ...clean } = transformed;
+          if (typeof clean.code === 'string' && !clean.code.trim()) clean.code = null;
+          return clean;
+        });
+
+        // Clear codes that already exist in the DB
+        if (!config.codeRequired) {
+          const insertCodes = cleanInserts.map((r) => r.code).filter(Boolean);
+          if (insertCodes.length) {
+            const existingCodes = await t.any(`SELECT code FROM ${s}.${pgp.as.name(config.entityName)} WHERE code IN ($1:csv)`, [insertCodes]);
+            const takenCodes = new Set(existingCodes.map((r) => r.code));
+            for (const row of cleanInserts) {
+              if (row.code && takenCodes.has(row.code)) row.code = null;
+            }
           }
         }
 
-        if (toInsert[i].isArchived) {
-          await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET deactivated_at = NOW() WHERE id = $1`, [rec.id]);
-        }
+        const insertResults = await model.bulkInsert(cleanInserts, config.returningCols);
+        insertedCount = insertResults.length;
 
-        // Insert children for new entity
-        if (sourceId) {
-          await _upsertFlatChildren(t, s, schema, db, pgp, sourceId, toInsert[i].group.children, config.flat.children, callbackFn, tenantId);
-        }
-      }
+        // Create sources records
+        const sourcesModel = db('sources', schema);
+        sourcesModel.tx = t;
+        const tid = cleanInserts[0]?.tenant_id;
+        const createdBy = cleanInserts[0]?.created_by || null;
 
-      // Provision portal_users for app-user entities after emails are inserted
-      if (config.appUserProvisioning) {
-        const crypto = await import('node:crypto');
+        const sourceRecords = insertResults.map((rec) => ({
+          tenant_id: tid,
+          table_id: rec.id,
+          source_type: config.sourceType,
+          label: config.buildLabel(rec),
+          created_by: createdBy,
+        }));
+        const sourceResults = await sourcesModel.bulkInsert(sourceRecords, ['id', 'table_id']);
+        const sourceByParentId = new Map(sourceResults.map((sr) => [sr.table_id, sr.id]));
 
         for (let i = 0; i < insertResults.length; i++) {
-          if (!cleanInserts[i].is_app_user) continue;
-
           const rec = insertResults[i];
           const sourceId = sourceByParentId.get(rec.id);
-          if (!sourceId) continue;
-
-          const loginEmail = await t.oneOrNone(
-            `SELECT email FROM ${s}.emails
-             WHERE source_id = $1 AND deactivated_at IS NULL
-             ORDER BY is_login DESC, is_primary DESC, created_at LIMIT 1`,
-            [sourceId],
-          );
-          if (!loginEmail) {
-            await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET is_app_user = false WHERE id = $1`, [rec.id]);
-            appUserSkipped++;
-            continue;
+          if (sourceId) {
+            await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET source_id = $1 WHERE id = $2`, [sourceId, rec.id]);
+          }
+          if (!cleanInserts[i].code && config.idType) {
+            const numbering = await allocateNumber(schema, config.idType, null, new Date(), t);
+            if (numbering) {
+              await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET code = $1 WHERE id = $2`, [numbering.displayId, rec.id]);
+            }
           }
 
-          const clearPassword = toInsert[i].password || crypto.randomBytes(12).toString('base64url');
-          const created = await provisionAppUser(rec.id, loginEmail.email, clearPassword, tid, createdBy, config.appUserProvisioning.entityType, t);
-          if (!created) {
-            await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET is_app_user = false WHERE id = $1`, [rec.id]);
-            appUserSkipped++;
+          if (toInsert[i].isArchived) {
+            await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET deactivated_at = NOW() WHERE id = $1`, [rec.id]);
+          }
+
+          // Insert children for new entity
+          if (sourceId) {
+            await _upsertFlatChildren(t, s, schema, db, pgp, sourceId, toInsert[i].group.children, config.flat.children, callbackFn, tenantId);
+          }
+        }
+
+        // Provision portal_users for app-user entities after emails are inserted
+        if (config.appUserProvisioning) {
+          const crypto = await import('node:crypto');
+
+          for (let i = 0; i < insertResults.length; i++) {
+            if (!cleanInserts[i].is_app_user) continue;
+
+            const rec = insertResults[i];
+            const sourceId = sourceByParentId.get(rec.id);
+            if (!sourceId) continue;
+
+            const loginEmail = await t.oneOrNone(
+              `SELECT email FROM ${s}.emails
+             WHERE source_id = $1 AND deactivated_at IS NULL
+             ORDER BY is_login DESC, is_primary DESC, created_at LIMIT 1`,
+              [sourceId],
+            );
+            if (!loginEmail) {
+              await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET is_app_user = false WHERE id = $1`, [rec.id]);
+              appUserSkipped++;
+              continue;
+            }
+
+            const clearPassword = toInsert[i].password || crypto.randomBytes(12).toString('base64url');
+            const created = await provisionAppUser(
+              rec.id,
+              loginEmail.email,
+              clearPassword,
+              tid,
+              createdBy,
+              config.appUserProvisioning.entityType,
+              t,
+            );
+            if (!created) {
+              await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET is_app_user = false WHERE id = $1`, [rec.id]);
+              appUserSkipped++;
+            }
           }
         }
       }
-    }
-  });
+    });
   } catch (err) {
     const dataErrors = parseDbImportError(err);
     if (dataErrors) return { errors: dataErrors };
@@ -1336,10 +1434,9 @@ async function _upsertFlatChildren(t, s, schema, db, pgp, sourceId, children, ch
     const tableName = childModel._schema?.table || cfg.modelName;
 
     // Soft-delete existing children
-    await t.none(
-      `UPDATE ${s}.${pgp.as.name(tableName)} SET deactivated_at = NOW() WHERE source_id = $1 AND deactivated_at IS NULL`,
-      [sourceId],
-    );
+    await t.none(`UPDATE ${s}.${pgp.as.name(tableName)} SET deactivated_at = NOW() WHERE source_id = $1 AND deactivated_at IS NULL`, [
+      sourceId,
+    ]);
 
     // Insert new children
     const toInsert = [];
@@ -1424,10 +1521,12 @@ export function groupFlatRows(rows, keyFn, parentCols, childExtractors) {
 
   for (const row of rows) {
     // Detect continuation rows: all parent columns are null/empty → attach to previous group
-    const isContinuation = lastGroup && parentCols.every((col) => {
-      const v = row[col];
-      return v == null || v === '' || (typeof v === 'string' && !v.trim());
-    });
+    const isContinuation =
+      lastGroup &&
+      parentCols.every((col) => {
+        const v = row[col];
+        return v == null || v === '' || (typeof v === 'string' && !v.trim());
+      });
 
     let group;
     if (isContinuation) {
@@ -1471,7 +1570,13 @@ export function groupFlatRows(rows, keyFn, parentCols, childExtractors) {
         const { _rowNum: _, ...vals } = child;
         const key = JSON.stringify(vals);
         const existing = group.children[ext.name];
-        if (existing.some((c) => { const { _rowNum: __, ...v } = c; return JSON.stringify(v) === key; })) continue;
+        if (
+          existing.some((c) => {
+            const { _rowNum: __, ...v } = c;
+            return JSON.stringify(v) === key;
+          })
+        )
+          continue;
         if (row._rowNum != null) child._rowNum = row._rowNum;
         existing.push(child);
       }
