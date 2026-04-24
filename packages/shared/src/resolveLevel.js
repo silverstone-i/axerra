@@ -3,7 +3,7 @@
  *       fallback chain in middleware/rbac.js
  * @module @vimber/shared/resolveLevel
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 /**

@@ -5,7 +5,7 @@
  * Renders a list of tax identifiers with formatted display values resolved
  * from the TAX_TYPES placeholder pattern.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import Box from '@mui/material/Box';

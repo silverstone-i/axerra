@@ -2,7 +2,7 @@
  * @file Client edit sub-collection management hook
  * @module client/pages/Core/clients/useClientEditCollections
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';

@@ -36,7 +36,7 @@
  * BRAND.navy (#2F3E52) and body text uses light.text.primary (#1A2332).
  * Don't swap them.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 /* ── Mode-independent brand constants ────────────────────────── */

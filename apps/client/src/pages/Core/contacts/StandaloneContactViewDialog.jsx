@@ -2,7 +2,7 @@
  * @file Read-only standalone Contact detail dialog
  * @module client/pages/Core/contacts/StandaloneContactViewDialog
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import Box from '@mui/material/Box';

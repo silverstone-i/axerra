@@ -5,7 +5,7 @@
  * Replaces the per-entity `updateEmail`, `addEmail`, `removeEmail`
  * (and phone / address / taxId equivalents) boilerplate.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { useState, useCallback, useMemo } from 'react';

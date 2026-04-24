@@ -5,14 +5,14 @@
  * Provides { user, loading, login, logout, tenant, impersonation, ... } to the component tree.
  * On mount, hydrates the session from the httpOnly cookie via getMe().
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import authApi from '../services/authApi.js';
 import client, { setAssumedTenant } from '../services/client.js';
 
-const ROOT_SCHEMA = (import.meta.env.VITE_ROOT_TENANT_CODE || 'vimber').toLowerCase();
+const ROOT_SCHEMA = (import.meta.env.VITE_ROOT_TENANT_CODE || 'axerra').toLowerCase();
 
 const AuthContext = createContext(null);
 
@@ -75,7 +75,7 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
-  // ── Cross-tenant assumption (Vimber users only) ─────────────────
+  // ── Cross-tenant assumption (Axerra users only) ─────────────────
   const assumeTenant = useCallback(
     async (tenantObj) => {
       setAssumedTenant(tenantObj.tenant_code);
@@ -91,7 +91,7 @@ export function AuthProvider({ children }) {
     await refreshUser();
   }, [refreshUser]);
 
-  // ── Impersonation (Vimber users only) ───────────────────────────
+  // ── Impersonation (Axerra users only) ───────────────────────────
   const startImpersonation = useCallback(
     async (targetUserId, reason) => {
       const result = await client.post('/tenants/v1/admin/impersonate', {

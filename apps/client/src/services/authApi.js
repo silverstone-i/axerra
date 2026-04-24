@@ -2,7 +2,7 @@
  * @file Auth API methods — login, logout, refresh, getMe, check, changePassword
  * @module client/services/authApi
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import client from './client.js';

@@ -2,7 +2,7 @@
  * @file React Query hooks for AP module (invoices, invoice lines, payments, credit memos)
  * @module client/hooks/useAp
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';

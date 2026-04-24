@@ -6,7 +6,7 @@
  * Token-first: every magic number traces back to tokens.js.
  * Layout dimensions live in config/layoutTokens.js.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { alpha, createTheme } from '@mui/material/styles';

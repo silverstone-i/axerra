@@ -10,7 +10,7 @@
  *   entityId      – UUID of the entity whose app-user password is being reset
  *   entityName    – display name for the dialog subtitle (e.g., "John Smith")
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { useState, useMemo } from 'react';

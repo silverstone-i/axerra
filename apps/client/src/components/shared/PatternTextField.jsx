@@ -9,7 +9,7 @@
  * Validates that the raw digit count matches the number of X positions in the pattern
  * and shows an error state when the length is incorrect.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { useMemo } from 'react';

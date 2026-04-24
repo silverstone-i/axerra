@@ -3,7 +3,7 @@
  *       category-account map, company accounts/transactions, internal transfers)
  * @module client/hooks/useAccounting
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';

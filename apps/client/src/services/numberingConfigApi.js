@@ -2,7 +2,7 @@
  * @file API service for tenant numbering configuration
  * @module client/services/numberingConfigApi
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { client } from './client.js';

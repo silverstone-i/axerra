@@ -2,11 +2,11 @@
  * @file Multi-select helpers — root-entity mutual exclusion & derived state
  * @module client/utils/selectionUtils
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 /** Root tenant code from env (set in monorepo root .env). */
-export const ROOT_TENANT = (import.meta.env.VITE_ROOT_TENANT_CODE || 'VIMBER').toUpperCase();
+export const ROOT_TENANT = (import.meta.env.VITE_ROOT_TENANT_CODE || 'AXERRA').toUpperCase();
 
 /**
  * Check whether a row is a root entity that must be mutually exclusive in

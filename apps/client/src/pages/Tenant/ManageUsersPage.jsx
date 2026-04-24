@@ -4,13 +4,13 @@
  *
  * portal_users is a pure identity/authentication table. User creation is handled
  * at the entity level (e.g. employee is_app_user toggle). This page lets
- * Vimber admins view all app users, change status (active/invited/locked),
+ * Axerra admins view all app users, change status (active/invited/locked),
  * and reset passwords.
  *
  * Migrated to standardised list-view selection system:
  *   useListSelection + DataTable + RowActionsMenu
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { useState, useMemo, useCallback } from 'react';

@@ -2,7 +2,7 @@
  * @file Projects CRUD page — DataTable + create/edit/view/archive/restore
  * @module client/pages/Projects/ProjectsPage
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { useState, useMemo, useCallback } from 'react';

@@ -2,7 +2,7 @@
  * @file Shared read-only detail dialog shell
  * @module client/components/shared/DetailDialog
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import Box from '@mui/material/Box';

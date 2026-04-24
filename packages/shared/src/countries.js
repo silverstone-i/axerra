@@ -5,7 +5,7 @@
  * Static list of 249 countries used for address, phone, and tax identifier dropdowns.
  * Each entry includes an ITU-T dial code and optional phone number format placeholder.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 export const COUNTRIES = [

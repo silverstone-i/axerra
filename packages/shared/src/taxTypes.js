@@ -4,7 +4,7 @@
  *
  * Drives UI dropdowns for tax type selection, filtered by country.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 /**

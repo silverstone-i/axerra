@@ -6,7 +6,7 @@
  * the admin can copy/share, or edit to their own value. Validates strength
  * before allowing confirm.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { useState, useMemo, useCallback, useEffect } from 'react';

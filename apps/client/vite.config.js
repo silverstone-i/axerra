@@ -2,7 +2,7 @@
  * @file Vite configuration for client
  * @module client/vite.config
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { defineConfig } from 'vite';

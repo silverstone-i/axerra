@@ -5,7 +5,7 @@
  * Card-based layout following NumberingConfigPage pattern. Displays the tenant's
  * self-company (code === tenant_code) with editable addresses and tax identifiers.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { useState, useMemo, useCallback, useEffect } from 'react';

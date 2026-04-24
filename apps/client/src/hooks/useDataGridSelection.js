@@ -2,7 +2,7 @@
  * @file DataGrid multi-select hook — encapsulates selectionModel state + derived selection state
  * @module client/hooks/useDataGridSelection
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { useState } from 'react';

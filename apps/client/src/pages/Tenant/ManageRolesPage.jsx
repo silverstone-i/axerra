@@ -11,7 +11,7 @@
  * Migrated to standardised list-view selection system:
  *   useListSelection + DataTable + RowActionsMenu
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { useState, useMemo, useCallback, useEffect } from 'react';

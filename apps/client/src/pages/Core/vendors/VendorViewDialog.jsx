@@ -2,7 +2,7 @@
  * @file VendorViewDialog — read-only view dialog for a vendor with Vendor / Contacts tabs
  * @module client/pages/Core/vendors/VendorViewDialog
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { useState } from 'react';

@@ -2,7 +2,7 @@
  * @file Shared editable emails section for entity edit dialogs
  * @module client/components/shared/EditableEmailsSection
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import Divider from '@mui/material/Divider';

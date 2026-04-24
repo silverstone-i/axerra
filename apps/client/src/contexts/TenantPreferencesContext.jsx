@@ -6,7 +6,7 @@
  * values (e.g. defaultPageSize) through context so shared components like
  * DataTable can read them without prop-drilling.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { createContext, useContext, useMemo } from 'react';

@@ -2,7 +2,7 @@
  * @file Currency display component for DataGrid cells
  * @module client/components/shared/CurrencyCell
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import Typography from '@mui/material/Typography';

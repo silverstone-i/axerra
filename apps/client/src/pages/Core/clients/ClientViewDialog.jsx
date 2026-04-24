@@ -2,7 +2,7 @@
  * @file Read-only Client detail dialog
  * @module client/pages/Core/clients/ClientViewDialog
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import Box from '@mui/material/Box';

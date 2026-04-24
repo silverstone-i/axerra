@@ -5,7 +5,7 @@
  * Implements PRD §3.10.6 — executive summary with AR outstanding,
  * AP outstanding, net cashflow, and active project count.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { useMemo } from 'react';

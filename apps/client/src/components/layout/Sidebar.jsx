@@ -6,7 +6,7 @@
  * Active state uses MUI `selected` prop — theme handles the accent bar via ::before.
  * Layout dimensions via layoutTokens.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { useState, useMemo } from 'react';

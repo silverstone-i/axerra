@@ -2,7 +2,7 @@
  * @file KPI summary card component for dashboard
  * @module client/components/shared/SummaryCard
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import Card from '@mui/material/Card';

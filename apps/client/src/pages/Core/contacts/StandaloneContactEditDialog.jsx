@@ -2,7 +2,7 @@
  * @file Edit standalone Contact dialog with sub-collection editors
  * @module client/pages/Core/contacts/StandaloneContactEditDialog
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import Box from '@mui/material/Box';

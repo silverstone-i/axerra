@@ -2,7 +2,7 @@
  * @file Ledger Balances read-only page — DataGrid showing account balances
  * @module client/pages/Accounting/LedgerPage
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import Box from '@mui/material/Box';

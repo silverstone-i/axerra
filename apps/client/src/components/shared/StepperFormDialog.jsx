@@ -5,7 +5,7 @@
  * Extends the FormDialog pattern with step navigation.
  * Pages inject step content as children and control navigation externally.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import Box from '@mui/material/Box';

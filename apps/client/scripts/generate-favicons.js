@@ -1,18 +1,18 @@
 /**
- * @file Generate the full vimber favicon asset set from Inter Medium.
+ * @file Generate the full axerra favicon asset set from Inter Medium.
  * @module client/scripts/generate-favicons
  *
- * Reads Inter Medium from @fontsource/inter, extracts the lowercase "v" glyph
- * as an SVG path, composes a path-based favicon.svg (navy "v" + gold square
+ * Reads Inter Medium from @fontsource/inter, extracts the lowercase "a" glyph
+ * as an SVG path, composes a path-based favicon.svg (navy "a" + gold square
  * dot on an off-white rounded square), rasterizes it with sharp to every
  * required PNG size, and composes favicon.ico from 16/32/48.
  *
  * Outputs land in both `apps/client/public/` (runtime) and
- * `docs/Branding/files/` (docs reference for the preview HTML).
+ * `docs/branding/files/` (docs reference for the preview HTML).
  *
  * Run: `npm -w apps/client run favicons`
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { fileURLToPath } from 'node:url';
@@ -28,7 +28,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const CLIENT_ROOT = resolve(__dirname, '..');
 const PUBLIC_DIR = resolve(CLIENT_ROOT, 'public');
-const DOCS_DIR = resolve(CLIENT_ROOT, '../../docs/Branding/files');
+const DOCS_DIR = resolve(CLIENT_ROOT, '../../docs/branding/files');
 
 const FONT_PATH = require.resolve('@fontsource/inter/files/inter-latin-500-normal.woff');
 
@@ -49,14 +49,14 @@ const BG_RADIUS = CANVAS * 0.22;
  */
 function composeSvg({ dotRatio }) {
   const font = openFontSync(FONT_PATH);
-  const run = font.layout('v');
+  const run = font.layout('a');
   const glyph = run.glyphs[0];
   const bbox = glyph.bbox;
 
   const glyphHeightFU = bbox.maxY - bbox.minY;
   const glyphWidthFU = bbox.maxX - bbox.minX;
 
-  // Target: "v" occupies ~60% of canvas height, visually centered.
+  // Target: "a" occupies ~60% of canvas height, visually centered.
   const targetGlyphHeight = CANVAS * 0.6;
   const scale = targetGlyphHeight / glyphHeightFU;
 

@@ -2,7 +2,7 @@
  * @file Company cashflow summary page — summary cards + bar chart + monthly grid
  * @module client/pages/Dashboard/CompanyCashflowPage
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { useMemo } from 'react';

@@ -4,7 +4,7 @@
  *
  * Pure functions used across pages for consistent text formatting.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { COUNTRIES } from '@vimber/shared';

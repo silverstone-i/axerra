@@ -2,7 +2,7 @@
  * @file Journal Entries CRUD page — DataTable + create/edit/view/post/reverse/archive/restore
  * @module client/pages/Accounting/JournalEntriesPage
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { useState, useMemo, useCallback } from 'react';

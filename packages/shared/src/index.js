@@ -1,8 +1,8 @@
 /**
- * @file Shared utilities and constants for the Vimber monorepo
+ * @file Shared utilities and constants for the Axerra monorepo
  * @module @vimber/shared
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 export { resolveLevel } from './resolveLevel.js';

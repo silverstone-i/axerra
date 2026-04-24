@@ -2,7 +2,7 @@
  * @file Companies CRUD page — coordinator component
  * @module client/pages/Core/CompaniesPage
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { useState, useMemo, useCallback } from 'react';

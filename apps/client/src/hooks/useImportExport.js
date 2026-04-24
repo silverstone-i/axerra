@@ -2,7 +2,7 @@
  * @file Reusable TanStack Query hooks for spreadsheet import/export
  * @module client/hooks/useImportExport
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
