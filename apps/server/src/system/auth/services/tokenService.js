@@ -28,8 +28,8 @@ export function signAccessToken(user, extras = {}) {
   const payload = {
     sub: extras.sub || user.id,
     ph: extras.ph || null,
-    iss: 'vimber-serv',
-    aud: 'vimber-serv-api',
+    iss: 'axerra-serv',
+    aud: 'axerra-serv-api',
   };
   return jwt.sign(payload, getAccessSecret(), { expiresIn: '15m' });
 }
@@ -43,8 +43,8 @@ export function signAccessToken(user, extras = {}) {
 export function signRefreshToken(user, extras = {}) {
   const payload = {
     sub: extras.sub || user.id,
-    iss: 'vimber-serv',
-    aud: 'vimber-serv-api',
+    iss: 'axerra-serv',
+    aud: 'axerra-serv-api',
   };
   return jwt.sign(payload, getRefreshSecret(), { expiresIn: '7d' });
 }
