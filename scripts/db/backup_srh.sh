@@ -10,19 +10,19 @@
 #   DUMP=$(bash backup_srh.sh | grep '^DUMP_FILE=' | cut -d= -f2-)
 #
 # Prerequisites:
-#   - .pgpass or PGPASSWORD configured for vimber_admin
+#   - .pgpass or PGPASSWORD configured for axe_admin
 #   - Run from the monorepo root
 #
 # Usage:
 #   bash scripts/db/backup_srh.sh
 #
-# Copyright (c) 2025 Vimber LLC. All rights reserved.
+# Copyright (c) 2025 Axerra LLC. All rights reserved.
 # ────────────────────────────────────────────────────────────────────
 set -Eeuo pipefail
 
 # ─── Configuration ────────────────────────────────────────────────
-DB_NAME="vimber_dev"
-DB_USER="vimber_admin"
+DB_NAME="axerra_dev"
+DB_USER="axe_admin"
 SOURCE_SCHEMA="srh"
 TENANT_CODE="SRH"
 

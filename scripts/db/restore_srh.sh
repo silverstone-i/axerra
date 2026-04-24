@@ -2,7 +2,7 @@
 # ────────────────────────────────────────────────────────────────────
 # restore_srh.sh
 #
-# Rebuilds the entire database from scratch (admin + Vimber root +
+# Rebuilds the entire database from scratch (admin + Axerra root +
 # SRH tenant) then restores SRH business data from a backup while
 # keeping a freshly-seeded policy_catalog.
 #
@@ -13,7 +13,7 @@
 # These files are produced by backup_srh.sh.
 #
 # Prerequisites:
-#   - .pgpass or PGPASSWORD configured for vimber_admin
+#   - .pgpass or PGPASSWORD configured for axe_admin
 #   - Node >= 20, npm workspaces installed
 #   - Run from the monorepo root
 #
@@ -23,13 +23,13 @@
 #   backup_dir  Path to directory with backup files.
 #               Defaults to tmp/srh_backups.
 #
-# Copyright (c) 2025 Vimber LLC. All rights reserved.
+# Copyright (c) 2025 Axerra LLC. All rights reserved.
 # ────────────────────────────────────────────────────────────────────
 set -Eeuo pipefail
 
 # ─── Configuration ────────────────────────────────────────────────
-DB_NAME="vimber_dev"
-DB_USER="vimber_admin"
+DB_NAME="axerra_dev"
+DB_USER="axe_admin"
 SOURCE_SCHEMA="srh"
 STAGE_SCHEMA="srh_restore"
 TENANT_CODE="SRH"

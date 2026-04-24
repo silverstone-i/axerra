@@ -10,14 +10,14 @@
 #   - restore_srh.sh  (drop → setupAdmin → provision → restore)
 #
 # Prerequisites:
-#   - .pgpass or PGPASSWORD configured for vimber_admin
+#   - .pgpass or PGPASSWORD configured for axe_admin
 #   - Node >= 20, npm workspaces installed
 #   - Run from the monorepo root
 #
 # Usage:
 #   bash scripts/db/rebuild_and_restore_srh.sh
 #
-# Copyright (c) 2025 Vimber LLC. All rights reserved.
+# Copyright (c) 2025 Axerra LLC. All rights reserved.
 # ────────────────────────────────────────────────────────────────────
 set -Eeuo pipefail
 

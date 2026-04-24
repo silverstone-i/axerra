@@ -4,9 +4,9 @@
  *
  * Usage:
  *   cross-env NODE_ENV=development node scripts/db/reseedPolicyCatalog.js --schema srh
- *   cross-env NODE_ENV=development node scripts/db/reseedPolicyCatalog.js --schema vimber --root
+ *   cross-env NODE_ENV=development node scripts/db/reseedPolicyCatalog.js --schema axerra --root
  *
- * Copyright (c) 2025 Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 Axerra LLC. All rights reserved.
  */
 
 import { resolve, dirname } from 'node:path';
