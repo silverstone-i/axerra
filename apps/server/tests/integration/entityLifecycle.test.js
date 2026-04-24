@@ -78,15 +78,15 @@ describe('Entity lifecycle — employee is_app_user with portal_users cascade', 
     employeeId = res.body.id;
 
     // Verify portal_user exists
-    const napUser = await db.oneOrNone(
+    const portalUser = await db.oneOrNone(
       `SELECT id, entity_type, entity_id, email, status
        FROM admin.portal_users
        WHERE entity_type = 'employee' AND entity_id = $1`,
       [employeeId],
     );
-    expect(napUser).not.toBeNull();
-    expect(napUser.email).toBe('alice@eltest.com');
-    expect(napUser.status).toBe('invited');
+    expect(portalUser).not.toBeNull();
+    expect(portalUser.email).toBe('alice@eltest.com');
+    expect(portalUser.status).toBe('invited');
   });
 
   test('3. Archive employee cascades to lock portal_user', async () => {
@@ -95,13 +95,13 @@ describe('Entity lifecycle — employee is_app_user with portal_users cascade', 
     expect(res.status).toBe(200);
 
     // Verify portal_user is locked
-    const napUser = await db.oneOrNone(
+    const portalUser = await db.oneOrNone(
       `SELECT status, deactivated_at FROM admin.portal_users
        WHERE entity_type = 'employee' AND entity_id = $1`,
       [employeeId],
     );
-    expect(napUser.status).toBe('locked');
-    expect(napUser.deactivated_at).not.toBeNull();
+    expect(portalUser.status).toBe('locked');
+    expect(portalUser.deactivated_at).not.toBeNull();
   });
 
   test('4. Archived employee login fails', async () => {
@@ -117,13 +117,13 @@ describe('Entity lifecycle — employee is_app_user with portal_users cascade', 
     expect(res.status).toBe(200);
 
     // Verify portal_user is restored
-    const napUser = await db.oneOrNone(
+    const portalUser = await db.oneOrNone(
       `SELECT status, deactivated_at FROM admin.portal_users
        WHERE entity_type = 'employee' AND entity_id = $1`,
       [employeeId],
     );
-    expect(napUser.status).toBe('active');
-    expect(napUser.deactivated_at).toBeNull();
+    expect(portalUser.status).toBe('active');
+    expect(portalUser.deactivated_at).toBeNull();
   });
 
   test('6. Source record was created for employee', async () => {

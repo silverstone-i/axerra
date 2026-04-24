@@ -208,20 +208,20 @@ class PortalUsersController extends BaseController {
     try {
       // Look up the portal_user to cascade to linked entity
       const filter = targetId ? { id: targetId } : targetEmail ? { email: targetEmail } : { ...req.query };
-      const napUser = await this.model('admin').findOneBy([filter]);
-      if (!napUser) return res.status(404).json({ error: `${this.errorLabel} not found or already inactive` });
+      const portalUser = await this.model('admin').findOneBy([filter]);
+      if (!portalUser) return res.status(404).json({ error: `${this.errorLabel} not found or already inactive` });
 
       // Archive the portal_user with status='locked'
       await db.none(
         `UPDATE admin.portal_users
          SET deactivated_at = NOW(), status = 'locked', updated_by = $1, updated_at = NOW()
          WHERE id = $2`,
-        [req.user?.id || null, napUser.id],
+        [req.user?.id || null, portalUser.id],
       );
 
       // Cascade to linked entity in tenant schema
-      if (napUser.entity_type && napUser.entity_id) {
-        await this.#archiveLinkedEntity(napUser, req);
+      if (portalUser.entity_type && portalUser.entity_id) {
+        await this.#archiveLinkedEntity(portalUser, req);
       }
 
       res.status(200).json({ message: `${this.errorLabel} marked as inactive` });
@@ -274,38 +274,38 @@ class PortalUsersController extends BaseController {
   /**
    * Archive the entity (e.g. employee) linked to a portal_user in its tenant schema.
    */
-  async #archiveLinkedEntity(napUser, req) {
-    const tenant = await db('tenants', 'admin').findOneBy([{ id: napUser.tenant_id }]);
+  async #archiveLinkedEntity(portalUser, req) {
+    const tenant = await db('tenants', 'admin').findOneBy([{ id: portalUser.tenant_id }]);
     if (!tenant?.schema_name) return;
 
-    const table = this.#entityTable(napUser.entity_type);
+    const table = this.#entityTable(portalUser.entity_type);
     if (!table) return;
 
     await db.none(
       `UPDATE ${pgp.as.name(tenant.schema_name)}.${pgp.as.name(table)}
        SET deactivated_at = NOW(), updated_by = $1, updated_at = NOW()
        WHERE id = $2 AND deactivated_at IS NULL`,
-      [req.user?.id || null, napUser.entity_id],
+      [req.user?.id || null, portalUser.entity_id],
     );
-    logger.info(`Cascaded archive to ${tenant.schema_name}.${table} ${napUser.entity_id}`);
+    logger.info(`Cascaded archive to ${tenant.schema_name}.${table} ${portalUser.entity_id}`);
   }
 
   /**
    * Restore the entity (e.g. employee) linked to a portal_user in its tenant schema.
    */
-  async #restoreLinkedEntity(napUser, tenant, req) {
+  async #restoreLinkedEntity(portalUser, tenant, req) {
     if (!tenant?.schema_name) return;
 
-    const table = this.#entityTable(napUser.entity_type);
+    const table = this.#entityTable(portalUser.entity_type);
     if (!table) return;
 
     await db.none(
       `UPDATE ${pgp.as.name(tenant.schema_name)}.${pgp.as.name(table)}
        SET deactivated_at = NULL, updated_by = $1, updated_at = NOW()
        WHERE id = $2 AND deactivated_at IS NOT NULL`,
-      [req.user?.id || null, napUser.entity_id],
+      [req.user?.id || null, portalUser.entity_id],
     );
-    logger.info(`Cascaded restore to ${tenant.schema_name}.${table} ${napUser.entity_id}`);
+    logger.info(`Cascaded restore to ${tenant.schema_name}.${table} ${portalUser.entity_id}`);
   }
 
   /**

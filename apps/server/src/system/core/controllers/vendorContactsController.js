@@ -315,13 +315,13 @@ class VendorContactsController extends BaseController {
 
     try {
       const tenantId = req.user?.tenant_id;
-      const napUser = await db.oneOrNone(
+      const portalUser = await db.oneOrNone(
         `SELECT id FROM admin.portal_users
          WHERE entity_type = 'vendor_contact' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
         [contactId, tenantId],
       );
 
-      if (!napUser) {
+      if (!portalUser) {
         return res.status(404).json({ error: 'No active app user account found for this vendor contact' });
       }
 
@@ -330,10 +330,10 @@ class VendorContactsController extends BaseController {
       await db.none('UPDATE admin.portal_users SET password_hash = $/hash/, updated_by = $/updatedBy/ WHERE id = $/id/', {
         hash,
         updatedBy: req.user?.id || null,
-        id: napUser.id,
+        id: portalUser.id,
       });
 
-      logger.info(`Admin reset password for portal_user ${napUser.id} (vendor_contact ${contactId})`);
+      logger.info(`Admin reset password for portal_user ${portalUser.id} (vendor_contact ${contactId})`);
       res.json({ message: 'Password reset successfully' });
     } catch (err) {
       this.handleError(err, res, 'resetting password for', this.errorLabel);
@@ -409,19 +409,19 @@ class VendorContactsController extends BaseController {
    * Archive (soft-delete) the portal_users record linked to a vendor contact.
    */
   async #archiveAppUser(vendorContactId, req) {
-    const napUser = await db.oneOrNone(
+    const portalUser = await db.oneOrNone(
       `SELECT id FROM admin.portal_users
        WHERE entity_type = 'vendor_contact' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
       [vendorContactId, req.user?.tenant_id],
     );
-    if (napUser) {
+    if (portalUser) {
       await db.none(
         `UPDATE admin.portal_users
          SET deactivated_at = NOW(), status = 'locked', updated_by = $1
          WHERE id = $2`,
-        [req.user?.id || null, napUser.id],
+        [req.user?.id || null, portalUser.id],
       );
-      logger.info(`Archived portal_user ${napUser.id} for vendor_contact ${vendorContactId}`);
+      logger.info(`Archived portal_user ${portalUser.id} for vendor_contact ${vendorContactId}`);
     }
   }
 
@@ -429,19 +429,19 @@ class VendorContactsController extends BaseController {
    * Restore the portal_users record linked to a vendor contact.
    */
   async #restoreAppUser(vendorContactId, req) {
-    const napUser = await db.oneOrNone(
+    const portalUser = await db.oneOrNone(
       `SELECT id FROM admin.portal_users
        WHERE entity_type = 'vendor_contact' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NOT NULL`,
       [vendorContactId, req.user?.tenant_id],
     );
-    if (napUser) {
+    if (portalUser) {
       await db.none(
         `UPDATE admin.portal_users
          SET deactivated_at = NULL, status = 'active', updated_by = $1
          WHERE id = $2`,
-        [req.user?.id || null, napUser.id],
+        [req.user?.id || null, portalUser.id],
       );
-      logger.info(`Restored portal_user ${napUser.id} for vendor_contact ${vendorContactId}`);
+      logger.info(`Restored portal_user ${portalUser.id} for vendor_contact ${vendorContactId}`);
     }
   }
 }

@@ -105,13 +105,13 @@ describe('Employee CRUD — /api/core/v1/employees', () => {
     expect(res.body.is_app_user).toBe(true);
 
     // Verify portal_user was created in admin schema
-    const napUser = await db.oneOrNone(
+    const portalUser = await db.oneOrNone(
       `SELECT id, entity_type, entity_id, status FROM admin.portal_users
        WHERE entity_type = 'employee' AND entity_id = $1`,
       [res.body.id],
     );
-    expect(napUser).not.toBeNull();
-    expect(napUser.status).toBe('invited');
+    expect(portalUser).not.toBeNull();
+    expect(portalUser.status).toBe('invited');
   });
 
   test('toggling is_app_user OFF archives portal_user', async () => {
@@ -125,13 +125,13 @@ describe('Employee CRUD — /api/core/v1/employees', () => {
     expect(res.status).toBe(200);
 
     // Verify portal_user was archived
-    const napUser = await db.oneOrNone(
+    const portalUser = await db.oneOrNone(
       `SELECT status, deactivated_at FROM admin.portal_users
        WHERE entity_type = 'employee' AND entity_id = $1`,
       [bob.id],
     );
-    expect(napUser.status).toBe('locked');
-    expect(napUser.deactivated_at).not.toBeNull();
+    expect(portalUser.status).toBe('locked');
+    expect(portalUser.deactivated_at).not.toBeNull();
   });
 
   test('archives and restores an employee', async () => {
