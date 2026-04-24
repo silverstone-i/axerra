@@ -1,0 +1,28 @@
+/**
+ * @file Vite configuration for vimber-client
+ * @module vimber-client/vite.config
+ *
+ * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ */
+
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  envDir: '../../',
+  server: {
+    port: 5173,
+    open: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
+  },
+  build: {
+    sourcemap: true,
+  },
+});
