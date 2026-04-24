@@ -1,4 +1,4 @@
-# Dialog Field Audit — NAP Frontend
+# Dialog Field Audit — AXERRA Frontend
 
 **Generated:** 2026-03-18
 **Auditor:** Claude Code
@@ -10,7 +10,7 @@
 
 ## Vendors — Create/Edit Dialog
 
-**File:** `apps/nap-client/src/pages/Core/VendorsPage.jsx`
+**File:** `apps/client/src/pages/Core/VendorsPage.jsx`
 **Branch:** `fix/dialog-vendor-fields`
 
 ### Fields Present
@@ -47,7 +47,7 @@
 
 ## Vendors — View Dialog
 
-**File:** `apps/nap-client/src/pages/Core/VendorsPage.jsx`
+**File:** `apps/client/src/pages/Core/VendorsPage.jsx`
 **Branch:** `fix/dialog-vendor-fields`
 
 ### Fields Present
@@ -81,7 +81,7 @@
 
 ## Clients — Create/Edit Dialog
 
-**File:** `apps/nap-client/src/pages/Core/ClientsPage.jsx`
+**File:** `apps/client/src/pages/Core/ClientsPage.jsx`
 **Branch:** `fix/dialog-client-fields`
 
 ### Fields Present
@@ -99,7 +99,7 @@
 | ------------------ | ------------ | -------------------------------------- | ---------------------------------------------- |
 | `email`          | varchar(128) | TextField (type=email)                 | PRD §3.3.2 defines email on clients table     |
 | `roles`          | text[]       | Autocomplete (multiple, from useRoles) | Required for RBAC                              |
-| `is_app_user`    | boolean      | Checkbox                               | Required before nap_users login can be created |
+| `is_app_user`    | boolean      | Checkbox                               | Required before portal_users login can be created |
 | `is_active`      | boolean      | Checkbox or Select                     | User-facing toggle                             |
 | `address_line_3` | varchar(255) | TextField                              | Missing from address section                   |
 
@@ -121,7 +121,7 @@
 
 ## Clients — View Dialog
 
-**File:** `apps/nap-client/src/pages/Core/ClientsPage.jsx`
+**File:** `apps/client/src/pages/Core/ClientsPage.jsx`
 **Branch:** `fix/dialog-client-fields`
 
 ### Fields Present
@@ -157,7 +157,7 @@
 
 ## Employees — Create Dialog
 
-**File:** `apps/nap-client/src/pages/Core/EmployeesPage.jsx`
+**File:** `apps/client/src/pages/Core/EmployeesPage.jsx`
 **Branch:** `fix/dialog-employee-fields`
 
 ### Fields Present
@@ -187,7 +187,7 @@
 
 ## Employees — Edit Dialog
 
-**File:** `apps/nap-client/src/pages/Core/EmployeesPage.jsx`
+**File:** `apps/client/src/pages/Core/EmployeesPage.jsx`
 **Branch:** `fix/dialog-employee-fields`
 
 ### Fields Present
@@ -219,7 +219,7 @@
 | Field              | Notes                                                        |
 | ------------------ | ------------------------------------------------------------ |
 | Email `label`    | Not in PRD phone/address schema — may be an extension       |
-| Email `is_login` | Not in PRD — custom UX for linking email to nap_users login |
+| Email `is_login` | Not in PRD — custom UX for linking email to portal_users login |
 
 ### Fix Checklist
 
@@ -230,7 +230,7 @@
 
 ## Employees — View Dialog
 
-**File:** `apps/nap-client/src/pages/Core/EmployeesPage.jsx`
+**File:** `apps/client/src/pages/Core/EmployeesPage.jsx`
 **Branch:** `fix/dialog-employee-fields`
 
 ### Fields Present
@@ -261,7 +261,7 @@
 
 ## Contacts — Create/Edit Dialog
 
-**File:** `apps/nap-client/src/pages/Core/ContactsPage.jsx`
+**File:** `apps/client/src/pages/Core/ContactsPage.jsx`
 **Branch:** `fix/dialog-contact-fields`
 
 Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC, no login.
@@ -297,7 +297,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Contacts — View Dialog
 
-**File:** `apps/nap-client/src/pages/Core/ContactsPage.jsx`
+**File:** `apps/client/src/pages/Core/ContactsPage.jsx`
 **Branch:** `fix/dialog-contact-fields`
 
 ### Fields Present
@@ -324,7 +324,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Companies — Create/Edit Dialog
 
-**File:** `apps/nap-client/src/pages/Core/CompaniesPage.jsx`
+**File:** `apps/client/src/pages/Core/CompaniesPage.jsx`
 **Branch:** `fix/dialog-company-fields`
 
 ### Fields Present
@@ -359,7 +359,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Companies — View Dialog
 
-**File:** `apps/nap-client/src/pages/Core/CompaniesPage.jsx`
+**File:** `apps/client/src/pages/Core/CompaniesPage.jsx`
 **Branch:** `fix/dialog-company-fields`
 
 ### Fields Present
@@ -390,7 +390,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Tenants — Create Dialog (CreateTenantWizard)
 
-**File:** `apps/nap-client/src/pages/Tenant/CreateTenantWizard.jsx`
+**File:** `apps/client/src/pages/Tenant/CreateTenantWizard.jsx`
 **Branch:** `fix/dialog-tenant-fields`
 
 ### Fields Present
@@ -431,7 +431,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Tenants — Edit Dialog
 
-**File:** `apps/nap-client/src/pages/Tenant/ManageTenantsPage.jsx`
+**File:** `apps/client/src/pages/Tenant/ManageTenantsPage.jsx`
 **Branch:** `fix/dialog-tenant-fields`
 
 ### Fields Present
@@ -459,7 +459,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Tenants — View Details Dialog
 
-**File:** `apps/nap-client/src/pages/Tenant/ManageTenantsPage.jsx`
+**File:** `apps/client/src/pages/Tenant/ManageTenantsPage.jsx`
 **Branch:** `fix/dialog-tenant-fields`
 
 ### Fields Present
@@ -490,9 +490,9 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ---
 
-## nap_users — Edit Dialog
+## portal_users — Edit Dialog
 
-**File:** `apps/nap-client/src/pages/Tenant/ManageUsersPage.jsx`
+**File:** `apps/client/src/pages/Tenant/ManageUsersPage.jsx`
 **Branch:** `fix/dialog-user-fields`
 
 ### Fields Present
@@ -513,7 +513,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 | Field        | Notes                                                                                              |
 | ------------ | -------------------------------------------------------------------------------------------------- |
-| `password` | Not in PRD nap_users Edit — PRD uses separate reset-password endpoint. May be acceptable admin UX |
+| `password` | Not in PRD portal_users Edit — PRD uses separate reset-password endpoint. May be acceptable admin UX |
 
 ### Fix Checklist
 
@@ -523,9 +523,9 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ---
 
-## nap_users — View Dialog
+## portal_users — View Dialog
 
-**File:** `apps/nap-client/src/pages/Tenant/ManageUsersPage.jsx`
+**File:** `apps/client/src/pages/Tenant/ManageUsersPage.jsx`
 **Branch:** `fix/dialog-user-fields`
 
 ### Fields Present
@@ -552,7 +552,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Projects — Create/Edit Dialog
 
-**File:** `apps/nap-client/src/pages/Projects/ProjectsPage.jsx`
+**File:** `apps/client/src/pages/Projects/ProjectsPage.jsx`
 **Branch:** `fix/dialog-project-fields`
 
 ### Fields Present
@@ -581,7 +581,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Projects — View Dialog
 
-**File:** `apps/nap-client/src/pages/Projects/ProjectsPage.jsx`
+**File:** `apps/client/src/pages/Projects/ProjectsPage.jsx`
 **Branch:** `fix/dialog-project-fields`
 
 ### Fields Present
@@ -619,7 +619,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Units — Create/Edit Dialog
 
-**File:** `apps/nap-client/src/pages/Projects/ProjectDetailPage.jsx` (inline)
+**File:** `apps/client/src/pages/Projects/ProjectDetailPage.jsx` (inline)
 **Branch:** `fix/dialog-unit-fields`
 
 ### Fields Present
@@ -647,7 +647,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Tasks — Create/Edit Dialog
 
-**File:** `apps/nap-client/src/pages/Projects/ProjectDetailPage.jsx` (inline)
+**File:** `apps/client/src/pages/Projects/ProjectDetailPage.jsx` (inline)
 **Branch:** `fix/dialog-task-fields`
 
 ### Fields Present
@@ -674,7 +674,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Cost Items — Create/Edit Dialog
 
-**File:** `apps/nap-client/src/pages/Projects/ProjectDetailPage.jsx` (inline)
+**File:** `apps/client/src/pages/Projects/ProjectDetailPage.jsx` (inline)
 **Branch:** `fix/dialog-cost-item-fields`
 
 ### Fields Present
@@ -702,7 +702,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Change Orders — Create/Edit Dialog
 
-**File:** `apps/nap-client/src/pages/Projects/ChangeOrdersPage.jsx`
+**File:** `apps/client/src/pages/Projects/ChangeOrdersPage.jsx`
 **Branch:** `fix/dialog-change-order-fields`
 
 ### Fields Present
@@ -728,7 +728,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Change Orders — View Dialog
 
-**File:** `apps/nap-client/src/pages/Projects/ChangeOrdersPage.jsx`
+**File:** `apps/client/src/pages/Projects/ChangeOrdersPage.jsx`
 **Branch:** `fix/dialog-change-order-fields`
 
 ### Fields Present
@@ -756,7 +756,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Categories — Create/Edit/View Dialog
 
-**File:** `apps/nap-client/src/pages/Activities/CategoriesPage.jsx`
+**File:** `apps/client/src/pages/Activities/CategoriesPage.jsx`
 **Branch:** `fix/dialog-category-fields`
 
 ✅ No missing or extra fields detected. All PRD §3.5.1 fields present in all dialog variants.
@@ -765,7 +765,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Activities — Create/Edit/View Dialog
 
-**File:** `apps/nap-client/src/pages/Activities/ActivitiesPage.jsx`
+**File:** `apps/client/src/pages/Activities/ActivitiesPage.jsx`
 **Branch:** `fix/dialog-activity-fields`
 
 ✅ No missing or extra fields detected. All PRD §3.5.1 fields present in all dialog variants.
@@ -774,7 +774,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Deliverables — Create/Edit/View Dialog
 
-**File:** `apps/nap-client/src/pages/Activities/DeliverablesPage.jsx`
+**File:** `apps/client/src/pages/Activities/DeliverablesPage.jsx`
 **Branch:** `fix/dialog-deliverable-fields`
 
 ✅ No missing or extra fields detected. All PRD §3.5.2 fields present in all dialog variants.
@@ -789,7 +789,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Budgets — Create/Edit Dialog
 
-**File:** `apps/nap-client/src/pages/Activities/BudgetManagementPage.jsx`
+**File:** `apps/client/src/pages/Activities/BudgetManagementPage.jsx`
 **Branch:** `fix/dialog-budget-fields`
 
 ### Fields Present
@@ -821,7 +821,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Budgets — View Dialog
 
-**File:** `apps/nap-client/src/pages/Activities/BudgetManagementPage.jsx`
+**File:** `apps/client/src/pages/Activities/BudgetManagementPage.jsx`
 **Branch:** `fix/dialog-budget-fields`
 
 ### Fields Present
@@ -860,7 +860,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Actual Costs — Create/Edit Dialog
 
-**File:** `apps/nap-client/src/pages/Activities/CostTrackingPage.jsx`
+**File:** `apps/client/src/pages/Activities/CostTrackingPage.jsx`
 **Branch:** `fix/dialog-actual-cost-fields`
 
 ### Fields Present
@@ -895,7 +895,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Actual Costs — View Dialog
 
-**File:** `apps/nap-client/src/pages/Activities/CostTrackingPage.jsx`
+**File:** `apps/client/src/pages/Activities/CostTrackingPage.jsx`
 **Branch:** `fix/dialog-actual-cost-fields`
 
 ### Fields Present
@@ -929,7 +929,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Catalog SKUs — Create/Edit/View Dialog
 
-**File:** `apps/nap-client/src/pages/BOM/CatalogPage.jsx`
+**File:** `apps/client/src/pages/BOM/CatalogPage.jsx`
 **Branch:** `fix/dialog-catalog-sku-fields`
 
 ✅ No missing or extra fields detected. System fields (`description_normalized`, `model`, `embedding`) are expected absent.
@@ -950,7 +950,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## AP Invoices — Create/Edit Dialog
 
-**File:** `apps/nap-client/src/pages/AP/ApInvoicesPage.jsx`
+**File:** `apps/client/src/pages/AP/ApInvoicesPage.jsx`
 **Branch:** `fix/dialog-ap-invoice-fields`
 
 ### Fields Present
@@ -992,7 +992,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## AP Invoices — View Dialog
 
-**File:** `apps/nap-client/src/pages/AP/ApInvoicesPage.jsx`
+**File:** `apps/client/src/pages/AP/ApInvoicesPage.jsx`
 **Branch:** `fix/dialog-ap-invoice-fields`
 
 ### Fields Present
@@ -1033,7 +1033,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Payments — Create/Edit Dialog
 
-**File:** `apps/nap-client/src/pages/AP/PaymentsPage.jsx`
+**File:** `apps/client/src/pages/AP/PaymentsPage.jsx`
 **Branch:** `fix/dialog-payment-fields`
 
 ### Fields Present
@@ -1066,7 +1066,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Payments — View Dialog
 
-**File:** `apps/nap-client/src/pages/AP/PaymentsPage.jsx`
+**File:** `apps/client/src/pages/AP/PaymentsPage.jsx`
 **Branch:** `fix/dialog-payment-fields`
 
 ### Fields Present
@@ -1096,7 +1096,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## AP Credit Memos — Create/Edit Dialog
 
-**File:** `apps/nap-client/src/pages/AP/CreditMemosPage.jsx`
+**File:** `apps/client/src/pages/AP/CreditMemosPage.jsx`
 **Branch:** `fix/dialog-credit-memo-fields`
 
 ### Fields Present
@@ -1129,7 +1129,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## AP Credit Memos — View Dialog
 
-**File:** `apps/nap-client/src/pages/AP/CreditMemosPage.jsx`
+**File:** `apps/client/src/pages/AP/CreditMemosPage.jsx`
 **Branch:** `fix/dialog-credit-memo-fields`
 
 ### Fields Present
@@ -1158,7 +1158,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## AR Invoices — Create/Edit Dialog
 
-**File:** `apps/nap-client/src/pages/AR/ArInvoicesPage.jsx`
+**File:** `apps/client/src/pages/AR/ArInvoicesPage.jsx`
 **Branch:** `fix/dialog-ar-invoice-fields`
 
 ### Fields Present
@@ -1202,7 +1202,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## AR Invoices — View Dialog
 
-**File:** `apps/nap-client/src/pages/AR/ArInvoicesPage.jsx`
+**File:** `apps/client/src/pages/AR/ArInvoicesPage.jsx`
 **Branch:** `fix/dialog-ar-invoice-fields`
 
 ### Fields Present
@@ -1245,7 +1245,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Receipts — Create/Edit Dialog
 
-**File:** `apps/nap-client/src/pages/AR/ReceiptsPage.jsx`
+**File:** `apps/client/src/pages/AR/ReceiptsPage.jsx`
 **Branch:** `fix/dialog-receipt-fields`
 
 ### Fields Present
@@ -1278,7 +1278,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Receipts — View Dialog
 
-**File:** `apps/nap-client/src/pages/AR/ReceiptsPage.jsx`
+**File:** `apps/client/src/pages/AR/ReceiptsPage.jsx`
 **Branch:** `fix/dialog-receipt-fields`
 
 ### Fields Present
@@ -1308,7 +1308,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Chart of Accounts — Create/Edit Dialog
 
-**File:** `apps/nap-client/src/pages/Accounting/ChartOfAccountsPage.jsx`
+**File:** `apps/client/src/pages/Accounting/ChartOfAccountsPage.jsx`
 **Branch:** `fix/dialog-chart-of-accounts-fields`
 
 ### Fields Present
@@ -1347,7 +1347,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Chart of Accounts — View Dialog
 
-**File:** `apps/nap-client/src/pages/Accounting/ChartOfAccountsPage.jsx`
+**File:** `apps/client/src/pages/Accounting/ChartOfAccountsPage.jsx`
 **Branch:** `fix/dialog-chart-of-accounts-fields`
 
 ### Fields Present
@@ -1379,7 +1379,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Journal Entries — Create/Edit Dialog
 
-**File:** `apps/nap-client/src/pages/Accounting/JournalEntriesPage.jsx`
+**File:** `apps/client/src/pages/Accounting/JournalEntriesPage.jsx`
 **Branch:** `fix/dialog-journal-entry-fields`
 
 ### Fields Present
@@ -1409,7 +1409,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Journal Entries — View Dialog
 
-**File:** `apps/nap-client/src/pages/Accounting/JournalEntriesPage.jsx`
+**File:** `apps/client/src/pages/Accounting/JournalEntriesPage.jsx`
 **Branch:** `fix/dialog-journal-entry-fields`
 
 ### Fields Present
@@ -1460,7 +1460,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 
 ## Numbering Config — Settings Page
 
-**File:** `apps/nap-client/src/pages/Settings/NumberingConfigPage.jsx`
+**File:** `apps/client/src/pages/Settings/NumberingConfigPage.jsx`
 
 ### Fields Present (per entity type card)
 
@@ -1497,8 +1497,8 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 | Tenant                 | Create (Wizard) | 1                            | 0            | ⚠️ Needs Fix                        |
 | Tenant                 | Edit            | 1                            | 0            | ⚠️ Needs Fix                        |
 | Tenant                 | View            | 1                            | 0            | ⚠️ Needs Fix                        |
-| nap_users              | Edit            | 3                            | 1            | ⚠️ Needs Fix                        |
-| nap_users              | View            | 2                            | 0            | ⚠️ Needs Fix                        |
+| portal_users              | Edit            | 3                            | 1            | ⚠️ Needs Fix                        |
+| portal_users              | View            | 2                            | 0            | ⚠️ Needs Fix                        |
 | Project                | Create/Edit     | 3                            | 0            | ⚠️ Needs Fix                        |
 | Project                | View            | 4                            | 0            | ⚠️ Needs Fix                        |
 | Project Clients        | —              | —                           | —           | 🔴 Not Implemented                    |
@@ -1553,7 +1553,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 | `fix/dialog-contact-fields`           | Contact Create/Edit/View                                 | 14           |
 | `fix/dialog-company-fields`           | Company Create/Edit/View + address & tax-id sub-sections | 7            |
 | `fix/dialog-tenant-fields`            | Tenant Create (Wizard), Edit, View                       | 3            |
-| `fix/dialog-user-fields`              | nap_users Edit/View                                      | 5            |
+| `fix/dialog-user-fields`              | portal_users Edit/View                                      | 5            |
 | `fix/dialog-project-fields`           | Project Create/Edit/View                                 | 7            |
 | `fix/dialog-unit-fields`              | Unit Create/Edit (inline in ProjectDetailPage)           | 3            |
 | `fix/dialog-task-fields`              | Task Create/Edit (inline in ProjectDetailPage)           | 2            |
@@ -1642,7 +1642,7 @@ The following components and hooks are used by multiple dialog branches. Branche
 
 ## Payment Terms — Create/Edit Dialog
 
-**File:** `apps/nap-client/src/pages/Settings/PaymentTermsPage.jsx`
+**File:** `apps/client/src/pages/Settings/PaymentTermsPage.jsx`
 **Branch:** `fix/dialog-fields`
 
 ### Fields Present
@@ -1658,7 +1658,7 @@ The following components and hooks are used by multiple dialog branches. Branche
 
 ## Payment Terms — View Dialog
 
-**File:** `apps/nap-client/src/pages/Settings/PaymentTermsPage.jsx`
+**File:** `apps/client/src/pages/Settings/PaymentTermsPage.jsx`
 **Branch:** `fix/dialog-fields`
 
 ### Fields Present

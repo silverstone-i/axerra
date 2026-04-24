@@ -1,6 +1,6 @@
 /**
  * @file Pattern-based display formatter for phone numbers and tax identifiers
- * @module @nap/shared/formatByPattern
+ * @module @axerra/shared/formatByPattern
  *
  * Formats a raw value using a placeholder pattern where `X` represents an input
  * character and all other characters are literal separators inserted automatically.
@@ -10,7 +10,7 @@
  *   formatByPattern('111005555',  'XXX-XX-XXXX')     → '111-00-5555'
  *   formatByPattern('123456789',  'XX-XXXXXXX')      → '12-3456789'
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 /**

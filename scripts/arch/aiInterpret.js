@@ -6,7 +6,7 @@
  *
  * Usage:
  *   # Pipe diff via stdin
- *   git diff main...HEAD -- apps/nap-serv/src/ | node scripts/arch/aiInterpret.js
+ *   git diff main...HEAD -- apps/server/src/ | node scripts/arch/aiInterpret.js
  *
  *   # Or specify artifacts path explicitly
  *   node scripts/arch/aiInterpret.js --artifacts docs/architecture/report.json

@@ -31,8 +31,8 @@ Intra-module imports are unrestricted. System-to-system imports (e.g., `system/t
 
 ```json
 "lint-staged": {
-  "apps/nap-serv/**/*.js": ["eslint --fix"],
-  "apps/nap-client/**/*.{js,jsx}": ["eslint --fix"]
+  "apps/server/**/*.js": ["eslint --fix"],
+  "apps/client/**/*.{js,jsx}": ["eslint --fix"]
 }
 ```
 

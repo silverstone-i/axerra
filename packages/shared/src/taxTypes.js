@@ -1,10 +1,10 @@
 /**
  * @file Tax type constants — country-keyed map of tax identifier types
- * @module @nap/shared/taxTypes
+ * @module @axerra/shared/taxTypes
  *
  * Drives UI dropdowns for tax type selection, filtered by country.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 /**

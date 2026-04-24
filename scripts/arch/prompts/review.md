@@ -1,6 +1,6 @@
 # Architecture Review Prompt
 
-You are reviewing a pull request for a multi-tenant Node.js/Express monorepo (NAP).
+You are reviewing a pull request for a multi-tenant Node.js/Express monorepo (AXERRA).
 
 ## Architecture Rules
 

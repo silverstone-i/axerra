@@ -2,18 +2,18 @@
 # ────────────────────────────────────────────────────────────────────
 # restore_srh.sh
 #
-# Rebuilds the entire database from scratch (admin + NapSoft root +
+# Rebuilds the entire database from scratch (admin + Axerra root +
 # SRH tenant) then restores SRH business data from a backup while
 # keeping a freshly-seeded policy_catalog.
 #
 # Expects a backup dir containing:
 #   - srh_schema.sql   (plain SQL dump of the srh schema)
-#   - nap_users_srh.csv (admin.nap_users rows for SRH)
+#   - portal_users_srh.csv (admin.portal_users rows for SRH)
 #
 # These files are produced by backup_srh.sh.
 #
 # Prerequisites:
-#   - .pgpass or PGPASSWORD configured for nap_admin
+#   - .pgpass or PGPASSWORD configured for axe_admin
 #   - Node >= 20, npm workspaces installed
 #   - Run from the monorepo root
 #
@@ -23,13 +23,13 @@
 #   backup_dir  Path to directory with backup files.
 #               Defaults to tmp/srh_backups.
 #
-# Copyright (c) 2025 NapSoft LLC. All rights reserved.
+# Copyright (c) 2025 Axerra LLC. All rights reserved.
 # ────────────────────────────────────────────────────────────────────
 set -Eeuo pipefail
 
 # ─── Configuration ────────────────────────────────────────────────
-DB_NAME="nap_dev"
-DB_USER="nap_admin"
+DB_NAME="axerra_dev"
+DB_USER="axe_admin"
 SOURCE_SCHEMA="srh"
 STAGE_SCHEMA="srh_restore"
 TENANT_CODE="SRH"
@@ -37,7 +37,7 @@ COMPANY="Sterling Ridge Homes, LLC"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-SERV_DIR="$REPO_ROOT/apps/nap-serv"
+SERV_DIR="$REPO_ROOT/apps/server"
 BACKUP_DIR="${1:-$REPO_ROOT/tmp/srh_backups}"
 
 # Validate backup files exist
@@ -46,8 +46,8 @@ if [ ! -f "$BACKUP_DIR/srh_schema.sql" ]; then
   echo "Run backup_srh.sh first to create the backup files."
   exit 1
 fi
-if [ ! -f "$BACKUP_DIR/nap_users_srh.csv" ]; then
-  echo "ERROR: $BACKUP_DIR/nap_users_srh.csv not found."
+if [ ! -f "$BACKUP_DIR/portal_users_srh.csv" ]; then
+  echo "ERROR: $BACKUP_DIR/portal_users_srh.csv not found."
   echo "Run backup_srh.sh first to create the backup files."
   exit 1
 fi
@@ -410,9 +410,9 @@ BACKFILL
 echo ""
 
 # ══════════════════════════════════════════════════════════════════
-# Step 6: Restore admin.nap_users for SRH
+# Step 6: Restore admin.portal_users for SRH
 # ══════════════════════════════════════════════════════════════════
-echo "=== Step 6: Restore admin.nap_users for SRH ==="
+echo "=== Step 6: Restore admin.portal_users for SRH ==="
 
 NEW_TENANT_ID=$("${PSQL[@]}" -At -c "
   SELECT id FROM admin.tenants
@@ -429,13 +429,13 @@ echo "  New SRH tenant_id: $NEW_TENANT_ID"
 # 6a. Try to restore from CSV backup (preserves password hashes)
 #     Use LIKE to match real column order (avoids positional mismatch with \COPY)
 CSV_ROWS=$("${PSQL[@]}" -At <<USERS_CSV_SQL
-CREATE TEMP TABLE _nap_users_restore (LIKE admin.nap_users INCLUDING DEFAULTS);
+CREATE TEMP TABLE _portal_users_restore (LIKE admin.portal_users INCLUDING DEFAULTS);
 
-\\COPY _nap_users_restore FROM '$BACKUP_DIR/nap_users_srh.csv' WITH (FORMAT csv, HEADER true)
+\\COPY _portal_users_restore FROM '$BACKUP_DIR/portal_users_srh.csv' WITH (FORMAT csv, HEADER true)
 
-UPDATE _nap_users_restore SET tenant_id = '${NEW_TENANT_ID}'::uuid;
+UPDATE _portal_users_restore SET tenant_id = '${NEW_TENANT_ID}'::uuid;
 
-INSERT INTO admin.nap_users
+INSERT INTO admin.portal_users
   (id, tenant_id, entity_type, entity_id, email, password_hash, status,
    created_at, created_by, updated_at, updated_by, deactivated_at)
 SELECT
@@ -443,25 +443,25 @@ SELECT
   r.email, r.password_hash, r.status,
   r.created_at, r.created_by, r.updated_at, r.updated_by,
   r.deactivated_at
-FROM _nap_users_restore r
+FROM _portal_users_restore r
 WHERE NOT EXISTS (
-  SELECT 1 FROM admin.nap_users u
+  SELECT 1 FROM admin.portal_users u
   WHERE u.email = r.email AND u.deactivated_at IS NULL
 );
 
-SELECT count(*) FROM _nap_users_restore;
+SELECT count(*) FROM _portal_users_restore;
 
-DROP TABLE _nap_users_restore;
+DROP TABLE _portal_users_restore;
 USERS_CSV_SQL
 )
 
 echo "  CSV rows loaded: $CSV_ROWS"
 
-# 6b. Create nap_users for any app-user employees still missing
+# 6b. Create portal_users for any app-user employees still missing
 #     (covers fresh provisions or empty CSV backups)
 CREATED=$("${PSQL[@]}" -At <<'USERS_FALLBACK_SQL'
 WITH inserted AS (
-  INSERT INTO admin.nap_users
+  INSERT INTO admin.portal_users
     (tenant_id, entity_type, entity_id, email, password_hash, status)
   SELECT
     t.id,
@@ -478,7 +478,7 @@ WITH inserted AS (
   WHERE e.is_app_user = true
     AND e.deactivated_at IS NULL
     AND NOT EXISTS (
-      SELECT 1 FROM admin.nap_users u
+      SELECT 1 FROM admin.portal_users u
       WHERE u.email = e.email AND u.deactivated_at IS NULL
     )
   RETURNING id
@@ -488,9 +488,9 @@ USERS_FALLBACK_SQL
 )
 
 if [ "$CREATED" -gt 0 ]; then
-  echo "  Created $CREATED nap_users entries (PENDING_RESET) for app-user employees"
+  echo "  Created $CREATED portal_users entries (PENDING_RESET) for app-user employees"
 else
-  echo "  All app-user employees already have nap_users entries"
+  echo "  All app-user employees already have portal_users entries"
 fi
 
 echo ""
@@ -510,9 +510,9 @@ FROM (
 
   UNION ALL
 
-  SELECT 'app-user employees missing nap_users', count(*)
+  SELECT 'app-user employees missing portal_users', count(*)
   FROM srh.employees e
-  LEFT JOIN admin.nap_users u
+  LEFT JOIN admin.portal_users u
     ON u.entity_type = 'employee'
    AND u.entity_id = e.id
    AND u.deactivated_at IS NULL
@@ -522,8 +522,8 @@ FROM (
 
   UNION ALL
 
-  SELECT 'nap_users pointing to missing employee', count(*)
-  FROM admin.nap_users u
+  SELECT 'portal_users pointing to missing employee', count(*)
+  FROM admin.portal_users u
   LEFT JOIN srh.employees e ON e.id = u.entity_id
   WHERE u.tenant_id = (
     SELECT id FROM admin.tenants
@@ -557,7 +557,7 @@ echo "$VALIDATION"
 echo ""
 
 # Check for integrity issues
-ISSUES=$(echo "$VALIDATION" | grep -E '^(employees missing|app-user|nap_users pointing)' | grep -v ': 0$' || true)
+ISSUES=$(echo "$VALIDATION" | grep -E '^(employees missing|app-user|portal_users pointing)' | grep -v ': 0$' || true)
 if [ -n "$ISSUES" ]; then
   echo "WARNING: Validation found issues:"
   echo "$ISSUES"

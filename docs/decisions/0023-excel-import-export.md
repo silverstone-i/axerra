@@ -5,7 +5,7 @@
 
 ## Context
 
-All NAP resource entities need bulk data import and export via Excel (XLSX). Rather than implementing import/export routes per-module, we needed a standardised, RBAC-aware pattern that integrates with the existing `createRouter` factory, pg-schemata's `TableModel`, and the client-side toolbar system.
+All AXERRA resource entities need bulk data import and export via Excel (XLSX). Rather than implementing import/export routes per-module, we needed a standardised, RBAC-aware pattern that integrates with the existing `createRouter` factory, pg-schemata's `TableModel`, and the client-side toolbar system.
 
 Key requirements:
 - Every `createRouter`-generated resource gets import/export endpoints automatically
@@ -31,7 +31,7 @@ Extend `createRouter` with two auto-generated routes per resource:
 - `BaseController.importXls()` — multer receives the file to `/tmp/uploads/`, calls `model.importFromSpreadsheet()` with a callback that injects `tenant_code` and `created_by`, returns `{ inserted: number }`
 - `ViewController.exportXls()` — calls `model.exportToSpreadsheet()` to a temp file, sends via `res.download()`, cleans up the temp file after transfer
 
-**Core entity override:** The 5 source-linked entities (Vendors, Clients, Employees, Contacts, Companies) override the default pg-schemata methods with custom multi-sheet logic in `spreadsheetHelpers.js`. These handle child tables (phones, addresses, tax identifiers) on separate sheets, soft-delete/restore on update, numbering-service code allocation, and optional `nap_users` provisioning. The import returns an extended result: `{ inserted, updated, phones, addresses, taxIds, appUserSkipped }`. See PRD §4.6.1 for full details.
+**Core entity override:** The 5 source-linked entities (Vendors, Clients, Employees, Contacts, Companies) override the default pg-schemata methods with custom multi-sheet logic in `spreadsheetHelpers.js`. These handle child tables (phones, addresses, tax identifiers) on separate sheets, soft-delete/restore on update, numbering-service code allocation, and optional `portal_users` provisioning. The import returns an extended result: `{ inserted, updated, phones, addresses, taxIds, appUserSkipped }`. See PRD §4.6.1 for full details.
 
 **Disable flags:** `disableImportXls: true` / `disableExportXls: true` in `createRouter` options for resources that should not support file operations.
 

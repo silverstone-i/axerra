@@ -1,12 +1,12 @@
 /**
  * @file CLI script to truncate + reseed policy_catalog for a given schema
- * @module nap-serv/scripts/db/reseedPolicyCatalog
+ * @module server/scripts/db/reseedPolicyCatalog
  *
  * Usage:
  *   cross-env NODE_ENV=development node scripts/db/reseedPolicyCatalog.js --schema srh
- *   cross-env NODE_ENV=development node scripts/db/reseedPolicyCatalog.js --schema nap --napsoft
+ *   cross-env NODE_ENV=development node scripts/db/reseedPolicyCatalog.js --schema axerra --root
  *
- * Copyright (c) 2025 NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 Axerra LLC. All rights reserved.
  */
 
 import { resolve, dirname } from 'node:path';
@@ -28,24 +28,24 @@ while (dir !== dirname(dir)) {
 const { values } = parseArgs({
   options: {
     schema: { type: 'string' },
-    napsoft: { type: 'boolean', default: false },
+    root: { type: 'boolean', default: false },
   },
   strict: true,
 });
 
 const schemaName = values['schema'];
-const isNapsoft = values['napsoft'];
+const isRootTenant = values['root'];
 
 if (!schemaName) {
-  console.error('Usage: reseedPolicyCatalog.js --schema <name> [--napsoft]');
+  console.error('Usage: reseedPolicyCatalog.js --schema <name> [--root]');
   process.exit(1);
 }
 
 async function main() {
   const { DB } = await import('pg-schemata');
-  const { default: repositories } = await import('../../apps/nap-serv/src/db/repositories.js');
-  const { default: logger } = await import('../../apps/nap-serv/src/lib/logger.js');
-  const { getDatabaseUrl } = await import('../../apps/nap-serv/src/lib/envValidator.js');
+  const { default: repositories } = await import('../../apps/server/src/db/repositories.js');
+  const { default: logger } = await import('../../apps/server/src/lib/logger.js');
+  const { getDatabaseUrl } = await import('../../apps/server/src/lib/envValidator.js');
 
   const DATABASE_URL = getDatabaseUrl();
 
@@ -62,8 +62,8 @@ async function main() {
   await db.none(`TRUNCATE TABLE ${s}.policy_catalog`);
 
   // 2. Reseed from code
-  const { seedPolicyCatalog } = await import('../../apps/nap-serv/src/system/core/services/policyCatalogSeeder.js');
-  await seedPolicyCatalog(db, pgp, schemaName, isNapsoft);
+  const { seedPolicyCatalog } = await import('../../apps/server/src/system/core/services/policyCatalogSeeder.js');
+  await seedPolicyCatalog(db, pgp, schemaName, isRootTenant);
 
   logger.info(`Policy catalog reseeded for ${schemaName}.`);
   await db.$pool.end();

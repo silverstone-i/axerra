@@ -1,11 +1,11 @@
 /**
  * @file ISO 3166-1 alpha-2 countries reference data
- * @module @nap/shared/countries
+ * @module @axerra/shared/countries
  *
  * Static list of 249 countries used for address, phone, and tax identifier dropdowns.
  * Each entry includes an ITU-T dial code and optional phone number format placeholder.
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 export const COUNTRIES = [

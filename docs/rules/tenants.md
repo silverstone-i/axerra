@@ -2,7 +2,7 @@
  * @file Tenant management business rules
  * @module docs/rules
  *
- * Copyright (c) 2025 NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 Axerra LLC. All rights reserved.
  */
 
 # Tenant Management Rules
@@ -13,12 +13,12 @@ Creating a tenant is a three-step atomic operation:
 
 1. **Insert tenant record** in `admin.tenants`
 2. **Provision schema** — creates a PostgreSQL schema, runs tenant-scope
-   migrations, seeds system RBAC roles (`admin` only; NapSoft also gets
+   migrations, seeds system RBAC roles (`admin` only; Axerra also gets
    `super_user` and `support`), seeds policy catalog, and seeds
    `tenant_numbering_config` rows (all `is_enabled = false`)
 3. **Create admin user** — inserts an `employees` record with
    `roles: ['admin']`, `is_app_user: true`, and `is_primary_contact: true`,
-   then a linked `nap_user` with the provided email and password. The
+   then a linked `portal_user` with the provided email and password. The
    admin employee starts with `code = NULL`; numbering is configured and
    backfilled later via Settings (see PRD §3.13.9). Note: the admin
    employee is created via raw SQL (not through `employeesController`),
@@ -31,7 +31,7 @@ rollback. The caller receives a 500 with the provisioning error.
 ## Contact Designation
 
 Primary and billing contacts are designated via boolean flags on the
-`employees` table — not via `nap_users` roles or a separate join table:
+`employees` table — not via `portal_users` roles or a separate join table:
 
 - `is_primary_contact` — tenant's main point of contact
 - `is_billing_contact` — tenant's billing/invoicing contact
@@ -56,7 +56,7 @@ Schema names are derived from `tenant_code` (lowercased, underscored).
 
 ## Root Tenant Protection
 
-The root NapSoft tenant (code `NAP`) has special protections:
+The root Axerra tenant (code `AXERRA`) has special protections:
 
 - **Cannot be archived** — archive requests return `403 Forbidden`
 - **Cannot be deleted** — there is no hard-delete endpoint
@@ -69,9 +69,9 @@ Before a user can be registered:
 
 1. A valid `tenant_id` must be provided (or resolved from `tenant_code`)
 2. The target tenant must be **active** (`deactivated_at IS NULL`)
-3. The email must be unique across all `nap_users` (active and archived)
+3. The email must be unique across all `portal_users` (active and archived)
 
-Registration creates a `nap_user` with `status: 'active'`. The user can
+Registration creates a `portal_user` with `status: 'active'`. The user can
 log in immediately after registration.
 
 ## Archive / Restore Cascade Rules
@@ -80,7 +80,7 @@ log in immediately after registration.
 
 When a tenant is archived:
 
-- All **active** `nap_users` belonging to that tenant are deactivated
+- All **active** `portal_users` belonging to that tenant are deactivated
   (their `deactivated_at` is set to `NOW()`)
 - Archived users cannot log in (login checks `deactivated_at IS NULL`)
 - The tenant's PostgreSQL schema is **not** dropped — data is preserved
@@ -110,7 +110,7 @@ When a tenant is restored:
 
 ## Cross-Tenant Access (Assumed Tenant)
 
-NapSoft users (those belonging to the `NAP` tenant) can assume the
+Axerra users (those belonging to the `AXERRA` tenant) can assume the
 context of another tenant:
 
 - The `x-tenant-code` header on API requests switches the active tenant
@@ -122,7 +122,7 @@ context of another tenant:
 
 ## Impersonation
 
-NapSoft admins can impersonate other users for support and debugging:
+Axerra admins can impersonate other users for support and debugging:
 
 ### Starting Impersonation
 
@@ -153,7 +153,7 @@ NapSoft admins can impersonate other users for support and debugging:
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
-| `ROOT_TENANT_CODE` | No | `NAP` | Root tenant identifier |
-| `ROOT_COMPANY` | No | `NapSoft LLC` | Root tenant company name |
+| `ROOT_TENANT_CODE` | No | `AXERRA` | Root tenant identifier |
+| `ROOT_COMPANY` | No | `Axerra LLC` | Root tenant company name |
 | `ROOT_EMAIL` | Yes | — | Bootstrap admin email |
 | `ROOT_PASSWORD` | Yes | — | Bootstrap admin password |

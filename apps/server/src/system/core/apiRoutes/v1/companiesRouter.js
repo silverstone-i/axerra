@@ -1,0 +1,20 @@
+/**
+ * @file Companies router — /api/core/v1/companies
+ * @module core/apiRoutes/v1/companiesRouter
+ *
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ */
+
+import createRouter from '../../../../lib/createRouter.js';
+import companiesController from '../../controllers/companiesController.js';
+import { withMeta } from '../../../../middleware/withMeta.js';
+
+const meta = withMeta({ module: 'core', router: 'companies' });
+
+export default createRouter(companiesController, null, {
+  getMiddlewares: [meta],
+  postMiddlewares: [meta],
+  putMiddlewares: [meta],
+  deleteMiddlewares: [meta],
+  patchMiddlewares: [meta],
+});

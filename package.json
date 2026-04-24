@@ -1,5 +1,5 @@
 {
-  "name": "nap",
+  "name": "axerra",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -10,22 +10,22 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev:serv": "npm -w apps/nap-serv run dev",
-    "dev:client": "npm -w apps/nap-client run dev",
+    "dev:serv": "npm -w apps/server run dev",
+    "dev:client": "npm -w apps/client run dev",
     "dev": "npm run dev:serv & npm run dev:client",
-    "build": "npm -w apps/nap-serv run build && npm -w apps/nap-client run build",
+    "build": "npm -w apps/server run build && npm -w apps/client run build",
     "lint": "eslint .",
-    "test": "npm -w apps/nap-serv test",
+    "test": "npm -w apps/server test",
     "arch": "node scripts/arch/runAll.js",
     "arch:check": "node scripts/arch/runAll.js --check",
     "arch:ai": "node scripts/arch/aiInterpret.js",
     "prepare": "husky"
   },
   "lint-staged": {
-    "apps/nap-serv/**/*.js": [
+    "apps/server/**/*.js": [
       "eslint --fix"
     ],
-    "apps/nap-client/**/*.{js,jsx}": [
+    "apps/client/**/*.{js,jsx}": [
       "eslint --fix"
     ]
   },

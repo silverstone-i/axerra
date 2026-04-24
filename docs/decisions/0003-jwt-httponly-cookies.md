@@ -2,7 +2,7 @@
  * @file ADR-0003: JWT in httpOnly cookies
  * @module docs/decisions
  *
- * Copyright (c) 2025 NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 Axerra LLC. All rights reserved.
  */
 
 # ADR-0003: JWT in httpOnly Cookies
@@ -32,13 +32,13 @@ Token design is intentionally minimal:
 
 ```json
 {
-  "sub": "<nap_user uuid>",
+  "sub": "<portal_user uuid>",
   "ph": "<SHA-256 of permission canon>"
 }
 ```
 
 - `sub` identifies the user. All other user data (email, tenant, entity,
-  roles) is hydrated server-side from `nap_users` + Redis permission cache.
+  roles) is hydrated server-side from `portal_users` + Redis permission cache.
 - `ph` (permission hash) enables stale-token detection: if the cached
   permission canon's hash diverges from the JWT claim, the server sends
   `X-Token-Stale: 1` so the client can silently refresh.

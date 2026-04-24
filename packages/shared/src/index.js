@@ -1,8 +1,8 @@
 /**
- * @file Shared utilities and constants for the NAP monorepo
- * @module @nap/shared
+ * @file Shared utilities and constants for the Axerra monorepo
+ * @module @axerra/shared
  *
- * Copyright (c) 2025 – present NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 export { resolveLevel } from './resolveLevel.js';
