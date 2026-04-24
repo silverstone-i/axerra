@@ -1,5 +1,5 @@
  {
-  "name": "server",
+  "name": "@axerra/server",
   "version": "0.1.0",
   "description": "Axerra backend — project costing, profitability, and payments with double-entry accounting.",
   "license": "MIT",
