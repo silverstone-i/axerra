@@ -11,7 +11,7 @@
 
 import { writeFileSync, readFileSync } from 'node:fs';
 import { allocateNumber, allocateNumbers } from '../system/core/services/numberingService.js';
-import { stripFormatting, formatByPattern, COUNTRIES, TAX_TYPES } from '@nap/shared';
+import { stripFormatting, formatByPattern, COUNTRIES, TAX_TYPES } from '@vimber/shared';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
