@@ -45,7 +45,7 @@ const BG_RADIUS = CANVAS * 0.22;
  * Compose a favicon SVG for the given dot-ratio.
  *
  * @param {number} dotRatio Proportion of glyph height used for the gold dot
- *   (≈0.19 for default sizes, lifted at 16px so the accent survives downsampling).
+ *   (≈0.21 for default sizes, lifted at 16px so the accent survives downsampling).
  */
 function composeSvg({ dotRatio }) {
   const font = openFontSync(FONT_PATH);
@@ -56,8 +56,8 @@ function composeSvg({ dotRatio }) {
   const glyphHeightFU = bbox.maxY - bbox.minY;
   const glyphWidthFU = bbox.maxX - bbox.minX;
 
-  // Target: "a" occupies ~60% of canvas height, visually centered.
-  const targetGlyphHeight = CANVAS * 0.6;
+  // Target: "a" occupies ~50% of canvas height, visually centered.
+  const targetGlyphHeight = CANVAS * 0.5;
   const scale = targetGlyphHeight / glyphHeightFU;
 
   const scaledGlyphWidth = glyphWidthFU * scale;
@@ -104,8 +104,8 @@ async function main() {
   await mkdir(PUBLIC_DIR, { recursive: true });
   await mkdir(DOCS_DIR, { recursive: true });
 
-  const defaultSvg = composeSvg({ dotRatio: 0.19 });
-  const tinySvg = composeSvg({ dotRatio: 0.24 }); // 16px size-adaptive variant
+  const defaultSvg = composeSvg({ dotRatio: 0.21 });
+  const tinySvg = composeSvg({ dotRatio: 0.27 }); // 16px size-adaptive variant
 
   await writeBoth('favicon.svg', Buffer.from(defaultSvg));
 
