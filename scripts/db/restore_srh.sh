@@ -46,8 +46,8 @@ if [ ! -f "$BACKUP_DIR/srh_schema.sql" ]; then
   echo "Run backup_srh.sh first to create the backup files."
   exit 1
 fi
-if [ ! -f "$BACKUP_DIR/nap_users_srh.csv" ]; then
-  echo "ERROR: $BACKUP_DIR/nap_users_srh.csv not found."
+if [ ! -f "$BACKUP_DIR/portal_users_srh.csv" ]; then
+  echo "ERROR: $BACKUP_DIR/portal_users_srh.csv not found."
   echo "Run backup_srh.sh first to create the backup files."
   exit 1
 fi
@@ -431,7 +431,7 @@ echo "  New SRH tenant_id: $NEW_TENANT_ID"
 CSV_ROWS=$("${PSQL[@]}" -At <<USERS_CSV_SQL
 CREATE TEMP TABLE _nap_users_restore (LIKE admin.portal_users INCLUDING DEFAULTS);
 
-\\COPY _nap_users_restore FROM '$BACKUP_DIR/nap_users_srh.csv' WITH (FORMAT csv, HEADER true)
+\\COPY _nap_users_restore FROM '$BACKUP_DIR/portal_users_srh.csv' WITH (FORMAT csv, HEADER true)
 
 UPDATE _nap_users_restore SET tenant_id = '${NEW_TENANT_ID}'::uuid;
 
