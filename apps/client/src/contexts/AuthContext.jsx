@@ -12,7 +12,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useMemo } 
 import authApi from '../services/authApi.js';
 import client, { setAssumedTenant } from '../services/client.js';
 
-const ROOT_SCHEMA = (import.meta.env.VITE_ROOT_TENANT_CODE || 'axerra').toLowerCase();
+const ROOT_TENANT_CODE = (import.meta.env.VITE_ROOT_TENANT_CODE || 'axerra').toLowerCase();
 
 const AuthContext = createContext(null);
 
@@ -111,8 +111,8 @@ export function AuthProvider({ children }) {
 
   const isRootTenantUser = useMemo(
     () =>
-      user?.tenant_code?.toLowerCase() === ROOT_SCHEMA ||
-      user?.home_tenant?.toLowerCase() === ROOT_SCHEMA,
+      user?.tenant_code?.toLowerCase() === ROOT_TENANT_CODE ||
+      user?.home_tenant?.toLowerCase() === ROOT_TENANT_CODE,
     [user],
   );
 

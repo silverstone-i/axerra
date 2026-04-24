@@ -19,8 +19,6 @@ export default function Wordmark({ size = 24, sx, ...rest }) {
   return (
     <Box
       component="span"
-      role="img"
-      aria-label="axerra"
       sx={[
         {
           display: 'inline-flex',

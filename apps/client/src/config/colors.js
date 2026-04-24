@@ -1,5 +1,5 @@
 /**
- * @file Brand color source of truth — derived from docs/Branding/BRAND.md
+ * @file Brand color source of truth — derived from docs/branding/BRAND.md
  * @module client/config/colors
  *
  * The single, definitive set of color values for light and dark mode. Every
