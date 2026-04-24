@@ -3,7 +3,7 @@
 ## Git & Commits
 
 - **Never add `Co-Authored-By` lines** to commit messages — suppress the default trailer entirely
-- Husky pre-commit rejects mixed commits touching both `apps/vimber-client/` and `apps/vimber-serv/` — split into separate commits
+- Husky pre-commit rejects mixed commits touching both `apps/client/` and `apps/server/` — split into separate commits
 - Working branch: `dev`; PRs target `dev` (PRs to `main` only for releases)
 
 ## Project Overview
@@ -12,8 +12,8 @@ PERN monorepo for multi-tenant project costing / profitability / payments with d
 
 | Workspace | Stack | Entry |
 |---|---|---|
-| `apps/vimber-serv` | Express 5, pg-schemata, Passport, Redis, Winston | `server.js` |
-| `apps/vimber-client` | React 18, Vite, MUI 5, MUI X Data Grid v6, TanStack Query | `src/main.jsx` |
+| `apps/server` | Express 5, pg-schemata, Passport, Redis, Winston | `server.js` |
+| `apps/client` | React 18, Vite, MUI 5, MUI X Data Grid v6, TanStack Query | `src/main.jsx` |
 | `packages/shared` | Shared constants and utilities | — |
 
 ## Key Commands
@@ -27,17 +27,17 @@ npm run dev:client     # Vite HMR
 # Lint
 npm run lint           # ESLint 9 flat config, full monorepo
 
-# Tests (nap-serv — Vitest, Node single-thread)
-npm -w apps/vimber-serv test              # all suites
-npm -w apps/vimber-serv run test:unit
-npm -w apps/vimber-serv run test:contract # supertest API tests
-npm -w apps/vimber-serv run test:integration
-npm -w apps/vimber-serv run test:rbac
+# Tests (server — Vitest, Node single-thread)
+npm -w apps/server test              # all suites
+npm -w apps/server run test:unit
+npm -w apps/server run test:contract # supertest API tests
+npm -w apps/server run test:integration
+npm -w apps/server run test:rbac
 
 # Database
-npm -w apps/vimber-serv run setupAdmin:dev   # bootstrap admin schema
-npm -w apps/vimber-serv run migrate:dev      # run migrations
-npm -w apps/vimber-serv run seed             # seed dev data
+npm -w apps/server run setupAdmin:dev   # bootstrap admin schema
+npm -w apps/server run migrate:dev      # run migrations
+npm -w apps/server run seed             # seed dev data
 ```
 
 ## Architecture

@@ -6,7 +6,7 @@
 
 ## Context
 
-A monorepo with multiple workspaces (`nap-serv`, `nap-client`, `shared`) needs clear commit history that identifies which workspace and which type of change each commit represents.
+A monorepo with multiple workspaces (`server`, `client`, `shared`) needs clear commit history that identifies which workspace and which type of change each commit represents.
 
 ## Decision
 
@@ -35,14 +35,14 @@ All commits follow the **Conventional Commits** specification with workspace sco
 
 | Scope | Workspace |
 |-------|-----------|
-| `nap-serv` | Backend server |
-| `nap-client` | Frontend client |
+| `server` | Backend server |
+| `client` | Frontend client |
 | `shared` | Shared package |
 | *(none)* | Root configs, monorepo tooling |
 
 ### Husky Enforcement
 
-A pre-commit hook blocks commits that touch files in **both** `apps/vimber-client/` and `apps/vimber-serv/` in the same commit. This ensures clean separation of server and client changes in git history.
+A pre-commit hook blocks commits that touch files in **both** `apps/client/` and `apps/server/` in the same commit. This ensures clean separation of server and client changes in git history.
 
 ## Consequences
 

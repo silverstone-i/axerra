@@ -1,6 +1,6 @@
 /**
  * @file CLI script to provision a tenant — inserts tenant record and calls provisionTenant()
- * @module nap-serv/scripts/db/provisionTenantCli
+ * @module server/scripts/db/provisionTenantCli
  *
  * Usage:
  *   cross-env NODE_ENV=development node scripts/db/provisionTenantCli.js \
@@ -51,9 +51,9 @@ if (!tenantCode || !company || !schemaName) {
 
 async function main() {
   const { DB } = await import('pg-schemata');
-  const { default: repositories } = await import('../../apps/vimber-serv/src/db/repositories.js');
-  const { default: logger } = await import('../../apps/vimber-serv/src/lib/logger.js');
-  const { getDatabaseUrl } = await import('../../apps/vimber-serv/src/lib/envValidator.js');
+  const { default: repositories } = await import('../../apps/server/src/db/repositories.js');
+  const { default: logger } = await import('../../apps/server/src/lib/logger.js');
+  const { getDatabaseUrl } = await import('../../apps/server/src/lib/envValidator.js');
 
   const DATABASE_URL = getDatabaseUrl();
   logger.info(`Provisioning tenant "${tenantCode}" on ${process.env.NODE_ENV || 'development'} database...`);
@@ -93,7 +93,7 @@ async function main() {
   }
 
   // 2. Provision schema (drops existing, creates fresh tables + seeds)
-  const { provisionTenant } = await import('../../apps/vimber-serv/src/services/tenantProvisioning.js');
+  const { provisionTenant } = await import('../../apps/server/src/services/tenantProvisioning.js');
   await provisionTenant({ schemaName: normalizedSchema, tenantCode: upperCode });
 
   logger.info(`Tenant "${upperCode}" fully provisioned.`);

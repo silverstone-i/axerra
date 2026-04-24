@@ -17,8 +17,8 @@
   - `sub` — nap_user UUID (primary key of `admin.portal_users`)
   - `ph` — SHA-256 hex hash of the user's permission canon (null in
     Phase 2; populated once RBAC is active)
-  - `iss` — `nap-serv`
-  - `aud` — `nap-serv-api`
+  - `iss` — `vimber-serv`
+  - `aud` — `vimber-serv-api`
 - **Secret:** `ACCESS_TOKEN_SECRET` env var (minimum 32 characters)
 
 ### Refresh Token (JWT)

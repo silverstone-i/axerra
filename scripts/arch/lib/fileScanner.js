@@ -7,7 +7,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const ROOT = resolve(import.meta.dirname, '..', '..', '..');
-const SRC = join(ROOT, 'apps', 'nap-serv', 'src');
+const SRC = join(ROOT, 'apps', 'server', 'src');
 
 /**
  * Recursively collect all .js files under a directory.

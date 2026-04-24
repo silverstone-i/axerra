@@ -37,7 +37,7 @@ COMPANY="Sterling Ridge Homes, LLC"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-SERV_DIR="$REPO_ROOT/apps/vimber-serv"
+SERV_DIR="$REPO_ROOT/apps/server"
 BACKUP_DIR="${1:-$REPO_ROOT/tmp/srh_backups}"
 
 # Validate backup files exist
