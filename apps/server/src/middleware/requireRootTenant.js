@@ -12,11 +12,11 @@
  * Express middleware that gates routes to Axerra employees only.
  */
 export function requireRootTenant(req, res, next) {
-  const rootSchema = (process.env.ROOT_TENANT_CODE || 'axerra').toLowerCase();
-  const userTenant = req.user?.home_tenant?.toLowerCase?.();
+  const rootTenantCode = (process.env.ROOT_TENANT_CODE || 'axerra').toLowerCase();
+  const userTenantCode = req.user?.home_tenant?.toLowerCase?.();
 
-  if (!req.user || !userTenant || userTenant !== rootSchema) {
-    return res.status(403).json({ message: 'Access denied: not a Axerra user.' });
+  if (!req.user || !userTenantCode || userTenantCode !== rootTenantCode) {
+    return res.status(403).json({ message: 'Access denied: not an Axerra user.' });
   }
 
   next();
