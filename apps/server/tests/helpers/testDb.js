@@ -10,7 +10,7 @@
  * dropped and admin data is reset to the root-only bootstrap state,
  * avoiding expensive repeated DDL operations.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { resolve, dirname } from 'node:path';
@@ -31,10 +31,10 @@ while (dir !== dirname(dir)) {
 // Set test env vars for auth
 process.env.ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || 'test-access-secret-32chars-long!!';
 process.env.REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || 'test-refresh-secret-32chars-long!';
-process.env.ROOT_EMAIL = process.env.ROOT_EMAIL || 'admin@vimber.io';
+process.env.ROOT_EMAIL = process.env.ROOT_EMAIL || 'admin@axerra.io';
 process.env.ROOT_PASSWORD = process.env.ROOT_PASSWORD || 'TestPass123!';
-process.env.ROOT_TENANT_CODE = process.env.ROOT_TENANT_CODE || 'VIMBER';
-process.env.ROOT_COMPANY = process.env.ROOT_COMPANY || 'Vimber LLC';
+process.env.ROOT_TENANT_CODE = process.env.ROOT_TENANT_CODE || 'AXERRA';
+process.env.ROOT_COMPANY = process.env.ROOT_COMPANY || 'Axerra LLC';
 process.env.BCRYPT_ROUNDS = '4'; // Fast for tests
 
 import { DB } from 'pg-schemata';
@@ -80,10 +80,10 @@ async function getCachedPasswordHash() {
  * admin schema. Called by bootstrapAdmin when adminReady is true.
  */
 async function reseedAdmin(db) {
-  const rootTenantCode = process.env.ROOT_TENANT_CODE || 'VIMBER';
-  const rootCompany = process.env.ROOT_COMPANY || 'Vimber LLC';
+  const rootTenantCode = process.env.ROOT_TENANT_CODE || 'AXERRA';
+  const rootCompany = process.env.ROOT_COMPANY || 'Axerra LLC';
   const rootSchema = rootTenantCode.toLowerCase();
-  const rootEmail = process.env.ROOT_EMAIL || 'admin@vimber.io';
+  const rootEmail = process.env.ROOT_EMAIL || 'admin@axerra.io';
   const passwordHash = await getCachedPasswordHash();
 
   const existingTenant = await db.oneOrNone('SELECT id FROM admin.tenants WHERE tenant_code = $1', [rootTenantCode]);

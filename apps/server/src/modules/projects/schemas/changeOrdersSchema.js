@@ -5,7 +5,7 @@
  * Change orders belong to a unit.
  * Status workflow: draft → submitted → approved | rejected.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 /** @type {import('pg-schemata').TableSchema} */

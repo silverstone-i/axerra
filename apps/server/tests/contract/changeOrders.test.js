@@ -5,7 +5,7 @@
  * Tests change orders scoped to a unit: create, list, getById, update,
  * archive, restore.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';

@@ -2,7 +2,7 @@
  * @file Contract tests for company CRUD endpoints
  * @module tests/contract/companies
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';

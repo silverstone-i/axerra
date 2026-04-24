@@ -2,7 +2,7 @@
  * @file Creates a migrator bound to the application's module registry
  * @module server/db/migrations/createMigrator
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import crypto from 'node:crypto';

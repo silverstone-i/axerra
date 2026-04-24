@@ -9,7 +9,7 @@
  * The cost_lines.amount GENERATED column is added via ALTER TABLE
  * after table creation to keep it out of pg-schemata ColumnSets.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { defineMigration } from '../../../../db/migrations/defineMigration.js';

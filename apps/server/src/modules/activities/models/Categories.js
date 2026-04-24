@@ -2,7 +2,7 @@
  * @file Categories model — extends TableModel for cost category entities
  * @module activities/models/Categories
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { TableModel } from 'pg-schemata';

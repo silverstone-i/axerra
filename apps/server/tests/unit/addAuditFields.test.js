@@ -2,7 +2,7 @@
  * @file Unit tests for addAuditFields middleware
  * @module tests/unit/addAuditFields
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -28,7 +28,7 @@ describe('addAuditFields', () => {
   it('injects created_by on POST', () => {
     const req = {
       method: 'POST',
-      user: { id: 'uuid-123', tenant_code: 'vimber' },
+      user: { id: 'uuid-123', tenant_code: 'axerra' },
       body: { name: 'test' },
       originalUrl: '/api/core/v1/roles',
     };
@@ -38,14 +38,14 @@ describe('addAuditFields', () => {
     addAuditFields(req, res, next);
 
     expect(req.body.created_by).toBe('uuid-123');
-    expect(req.body.tenant_code).toBe('vimber');
+    expect(req.body.tenant_code).toBe('axerra');
     expect(next).toHaveBeenCalledOnce();
   });
 
   it('injects updated_by on PUT', () => {
     const req = {
       method: 'PUT',
-      user: { id: 'uuid-456', tenant_code: 'vimber' },
+      user: { id: 'uuid-456', tenant_code: 'axerra' },
       body: { name: 'updated' },
       originalUrl: '/api/core/v1/roles/update',
     };
@@ -62,7 +62,7 @@ describe('addAuditFields', () => {
   it('injects updated_by on DELETE', () => {
     const req = {
       method: 'DELETE',
-      user: { id: 'uuid-789', tenant_code: 'vimber' },
+      user: { id: 'uuid-789', tenant_code: 'axerra' },
       body: {},
       originalUrl: '/api/core/v1/roles/archive',
     };
@@ -107,7 +107,7 @@ describe('addAuditFields', () => {
   it('uses body tenant_code for tenant creation path', () => {
     const req = {
       method: 'POST',
-      user: { id: 'uuid-123', tenant_code: 'vimber' },
+      user: { id: 'uuid-123', tenant_code: 'axerra' },
       body: { tenant_code: 'acme', company: 'Acme Inc' },
       originalUrl: '/api/tenants/v1/tenants',
     };

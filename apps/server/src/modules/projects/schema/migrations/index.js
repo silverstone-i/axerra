@@ -2,7 +2,7 @@
  * @file Migration index for the projects module
  * @module projects/schema/migrations
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import projectEntities from './202502110020_projectEntities.js';

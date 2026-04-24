@@ -2,7 +2,7 @@
  * @file JournalEntryLines model — extends TableModel
  * @module accounting/models/JournalEntryLines
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { TableModel } from 'pg-schemata';

@@ -6,7 +6,7 @@
  * for child data (addresses, tax identifiers — no emails or phones).
  * Legacy multi-sheet workbooks (>1 sheet) are auto-detected on import.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { readFileSync } from 'node:fs';

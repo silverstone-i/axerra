@@ -5,10 +5,10 @@
  * Overrides:
  *   create → inserts tenant record, provisions schema, seeds RBAC, creates admin user
  *   importXls → passes created_by only (each row carries its own tenant_code)
- *   archive → cascades deactivation to all tenant users; rejects root tenant (Vimber)
+ *   archive → cascades deactivation to all tenant users; rejects root tenant (Axerra)
  *   restore → reactivates tenant (users remain archived until individually restored)
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import fs from 'node:fs';
@@ -76,15 +76,15 @@ class TenantsController extends BaseController {
 
   /**
    * DELETE /archive — soft-delete tenant and cascade to all users.
-   * Rejects archival of the root tenant (Vimber).
+   * Rejects archival of the root tenant (Axerra).
    */
   async archive(req, res) {
-    const rootTenantCode = (process.env.ROOT_TENANT_CODE || 'VIMBER').toUpperCase();
+    const rootTenantCode = (process.env.ROOT_TENANT_CODE || 'AXERRA').toUpperCase();
 
     // Check by tenant_code query param
     const tenantCode = req.query.tenant_code?.toUpperCase?.();
     if (tenantCode === rootTenantCode) {
-      return res.status(403).json({ error: 'Cannot archive the root Vimber tenant.' });
+      return res.status(403).json({ error: 'Cannot archive the root Axerra tenant.' });
     }
 
     // Check by id if provided
@@ -92,7 +92,7 @@ class TenantsController extends BaseController {
       try {
         const t = await this.model('admin').findById(req.query.id);
         if (t && t.tenant_code?.toUpperCase() === rootTenantCode) {
-          return res.status(403).json({ error: 'Cannot archive the root Vimber tenant.' });
+          return res.status(403).json({ error: 'Cannot archive the root Axerra tenant.' });
         }
       } catch {
         /* proceed, will fail on updateWhere if not found */

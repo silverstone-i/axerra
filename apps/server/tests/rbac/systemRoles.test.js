@@ -2,7 +2,7 @@
  * @file RBAC tests for system role definitions
  * @module tests/rbac/systemRoles
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -51,15 +51,15 @@ describe('System Role Seeding', () => {
     expect(admin.scope).toBe('all_projects');
   });
 
-  it('does NOT seed super_user or support for non-Vimber tenants', async () => {
+  it('does NOT seed super_user or support for non-Axerra tenants', async () => {
     await seedSystemRoles(mockDb, mockPgp, 'acme', 'ACME', false);
 
     expect(insertedRoles.find((r) => r.code === 'super_user')).toBeUndefined();
     expect(insertedRoles.find((r) => r.code === 'support')).toBeUndefined();
   });
 
-  it('seeds super_user, admin, and support for Vimber tenant', async () => {
-    await seedSystemRoles(mockDb, mockPgp, 'vimber', 'VIMBER', true);
+  it('seeds super_user, admin, and support for Axerra tenant', async () => {
+    await seedSystemRoles(mockDb, mockPgp, 'axerra', 'AXERRA', true);
 
     expect(insertedRoles.find((r) => r.code === 'super_user')).toBeDefined();
     expect(insertedRoles.find((r) => r.code === 'admin')).toBeDefined();
@@ -67,14 +67,14 @@ describe('System Role Seeding', () => {
   });
 
   it('super_user gets full access policy for all modules', async () => {
-    await seedSystemRoles(mockDb, mockPgp, 'vimber', 'VIMBER', true);
+    await seedSystemRoles(mockDb, mockPgp, 'axerra', 'AXERRA', true);
 
     const superPolicies = insertedPolicies.filter((p) => p.role_id === 'role-super_user');
     expect(superPolicies.some((p) => p.module === '' && p.level === 'full')).toBe(true);
   });
 
   it('support gets none for financial modules', async () => {
-    await seedSystemRoles(mockDb, mockPgp, 'vimber', 'VIMBER', true);
+    await seedSystemRoles(mockDb, mockPgp, 'axerra', 'AXERRA', true);
 
     const supportPolicies = insertedPolicies.filter((p) => p.role_id === 'role-support');
     const financialDenied = supportPolicies.filter(
@@ -94,7 +94,7 @@ describe('System Role Seeding', () => {
   });
 
   it('system roles use correct scopes', async () => {
-    await seedSystemRoles(mockDb, mockPgp, 'vimber', 'VIMBER', true);
+    await seedSystemRoles(mockDb, mockPgp, 'axerra', 'AXERRA', true);
 
     for (const role of insertedRoles) {
       if (role.code === 'vendor_contact' || role.code === 'client') {

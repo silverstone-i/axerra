@@ -13,7 +13,7 @@
  *   company_transactions → journal_entries
  *   internal_transfers → chart_of_accounts
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { defineMigration } from '../../../../db/migrations/defineMigration.js';

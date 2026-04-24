@@ -2,7 +2,7 @@
  * @file Policies controller — CRUD + bulk sync for role permission grants
  * @module core/controllers/policiesController
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import BaseController from '../../../lib/BaseController.js';

@@ -2,7 +2,7 @@
  * @file Unit tests for environment variable validation
  * @module server/tests/unit/envValidator
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { describe, it, expect } from 'vitest';

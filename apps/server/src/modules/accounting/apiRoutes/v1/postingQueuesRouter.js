@@ -4,7 +4,7 @@
  *
  * Includes custom POST /retry endpoint for retrying failed posting queue entries.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { Router } from 'express';

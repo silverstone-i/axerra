@@ -2,7 +2,7 @@
  * @file Repository map for the Reports module (tenant-scope, empty — views only)
  * @module reports/reportsRepositories
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 const repositories = {};

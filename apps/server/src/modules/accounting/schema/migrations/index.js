@@ -2,7 +2,7 @@
  * @file Accounting module migrations index
  * @module accounting/schema/migrations
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import accountingTables from './202502110070_accountingTables.js';

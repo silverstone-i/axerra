@@ -2,7 +2,7 @@
  * @file Repository map for the activities module (tenant-scope)
  * @module activities/activitiesRepositories
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import Categories from './models/Categories.js';

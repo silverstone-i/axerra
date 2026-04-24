@@ -6,13 +6,13 @@
  * - admin (all tenants): full access all modules
  * - vendor_contact (all tenants): self-scoped portal access for vendor contacts
  * - client (all tenants): self-scoped portal access for clients
- * - super_user (Vimber only): full access all modules, cross-tenant, impersonation
- * - support (Vimber only): full non-financial, cross-tenant, impersonation
+ * - super_user (Axerra only): full access all modules, cross-tenant, impersonation
+ * - support (Axerra only): full non-financial, cross-tenant, impersonation
  *
  * All system roles go through full RBAC resolution — no bypass.
  * Called during tenant provisioning (Phase 4).
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import logger from '../../../lib/logger.js';
@@ -22,7 +22,7 @@ const FINANCIAL_MODULES = ['accounting', 'ap', 'ar'];
 
 /**
  * System role definitions.
- * @param {boolean} isRootTenant Whether this is the Vimber platform tenant
+ * @param {boolean} isRootTenant Whether this is the Axerra platform tenant
  * @returns {Array<object>} Role definitions with their policies
  */
 function getSystemRoleDefinitions(isRootTenant) {
@@ -72,7 +72,7 @@ function getSystemRoleDefinitions(isRootTenant) {
   });
 
   if (isRootTenant) {
-    // super_user — Vimber only
+    // super_user — Axerra only
     roles.push({
       code: 'super_user',
       name: 'Super User',
@@ -83,7 +83,7 @@ function getSystemRoleDefinitions(isRootTenant) {
       policies: [{ module: '', router: null, action: null, level: 'full' }],
     });
 
-    // support — Vimber only
+    // support — Axerra only
     roles.push({
       code: 'support',
       name: 'Support',
@@ -108,8 +108,8 @@ function getSystemRoleDefinitions(isRootTenant) {
  * @param {object} dbInstance pg-promise database connection or transaction
  * @param {object} pgp pg-promise helpers
  * @param {string} schemaName Tenant schema name
- * @param {string} tenantCode Tenant code (e.g., 'vimber', 'acme')
- * @param {boolean} isRootTenant Whether this is the Vimber platform tenant
+ * @param {string} tenantCode Tenant code (e.g., 'axerra', 'acme')
+ * @param {boolean} isRootTenant Whether this is the Axerra platform tenant
  */
 export async function seedSystemRoles(dbInstance, pgp, schemaName, tenantCode, isRootTenant) {
   const s = pgp.as.name(schemaName);

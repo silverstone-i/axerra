@@ -5,7 +5,7 @@
  * Status workflow: open → approved → paid → voided
  * On approval: GL journal entry (debit Expense/WIP, credit AP Liability)
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import BaseController from '../../../lib/BaseController.js';

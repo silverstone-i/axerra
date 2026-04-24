@@ -2,7 +2,7 @@
  * @file Central error handler — maps error types to HTTP status codes
  * @module server/middleware/errorHandler
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import logger from '../lib/logger.js';

@@ -2,7 +2,7 @@
  * @file Express application setup — middleware chain, auth, and route mounting
  * @module server/app
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import express from 'express';
@@ -46,7 +46,7 @@ app.use('/api', apiRoutes);
 
 // Root route
 app.get('/', (_req, res) => {
-  res.send('Vimber API is running');
+  res.send('Axerra API is running');
 });
 
 // 404 handler

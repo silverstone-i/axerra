@@ -5,7 +5,7 @@
  * No ar_clients — PRD removed ar_clients table.
  * AR invoices reference the unified clients table from core entities.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';

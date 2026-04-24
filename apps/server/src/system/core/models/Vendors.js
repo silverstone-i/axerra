@@ -6,7 +6,7 @@
  * vendor + vendor_contacts export/import. The combined format uses a flat
  * 2-sheet layout with repeated rows (one row per child record).
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { writeFileSync, readFileSync } from 'node:fs';

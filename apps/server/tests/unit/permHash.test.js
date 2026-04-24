@@ -2,7 +2,7 @@
  * @file Unit tests for permission hash utility
  * @module tests/unit/permHash
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { describe, test, expect } from 'vitest';

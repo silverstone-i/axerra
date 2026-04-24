@@ -2,7 +2,7 @@
  * @file Schema definition for tenant-scope policies table (RBAC)
  * @module core/schemas/policiesSchema
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 /** @type {import('pg-schemata').TableSchema} */

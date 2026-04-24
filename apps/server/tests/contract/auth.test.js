@@ -5,7 +5,7 @@
  * Tests the auth API endpoints against the real Express app with a test
  * database. Verifies login, me, check, logout, refresh, change-password.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
@@ -14,8 +14,8 @@ import { bootstrapAdmin, cleanupTestDb } from '../helpers/testDb.js';
 
 const ROOT_EMAIL = process.env.ROOT_EMAIL;
 const ROOT_PASSWORD = process.env.ROOT_PASSWORD;
-const ROOT_TENANT_CODE = process.env.ROOT_TENANT_CODE || 'VIMBER';
-const ROOT_COMPANY = process.env.ROOT_COMPANY || 'Vimber LLC';
+const ROOT_TENANT_CODE = process.env.ROOT_TENANT_CODE || 'AXERRA';
+const ROOT_COMPANY = process.env.ROOT_COMPANY || 'Axerra LLC';
 
 // Must bootstrap DB before importing app (app imports db.js which calls DB.init)
 let db;

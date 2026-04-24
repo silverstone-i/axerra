@@ -1,8 +1,8 @@
 /**
- * @file Tenants router — Vimber-only CRUD for tenant management per PRD §3.2.1
+ * @file Tenants router — Axerra-only CRUD for tenant management per PRD §3.2.1
  * @module tenants/apiRoutes/v1/tenantsRouter
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import tenantsController from '../../controllers/tenantsController.js';
@@ -12,7 +12,7 @@ import { withMeta } from '../../../../middleware/withMeta.js';
 
 const meta = withMeta({ module: 'tenants', router: 'tenants' });
 
-// requireRootTenant gates all routes to Vimber users only.
+// requireRootTenant gates all routes to Axerra users only.
 // RBAC not applied — access control relies on requireRootTenant + moduleEntitlement.
 export default createRouter(
   tenantsController,

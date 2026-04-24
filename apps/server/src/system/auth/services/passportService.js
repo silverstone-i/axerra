@@ -6,7 +6,7 @@
  * resolved via join to admin.tenants. Personal info will come from the
  * linked entity once entity tables exist.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import passport from 'passport';

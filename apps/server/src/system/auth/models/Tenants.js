@@ -6,7 +6,7 @@
  * a single row. Import supports both update (rows with id) and create (rows
  * without id trigger full provisioning via provisionNewTenant).
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { writeFileSync, readFileSync } from 'node:fs';
@@ -42,7 +42,7 @@ export default class Tenants extends TableModel {
    * Cross-schema joins fetch billing address + primary tax identifier per tenant.
    */
   async exportToSpreadsheet(filePath, where = [], joinType = 'AND', options = {}) {
-    const rootTenantCode = (process.env.ROOT_TENANT_CODE || 'VIMBER').toUpperCase();
+    const rootTenantCode = (process.env.ROOT_TENANT_CODE || 'AXERRA').toUpperCase();
     const allTenants = await this.findWhere(where, joinType, options);
     const tenants = allTenants.filter((t) => t.tenant_code?.toUpperCase() !== rootTenantCode);
     const { WorkbookBuilder, writeXlsx } = await import('@nap-sft/tablsx');

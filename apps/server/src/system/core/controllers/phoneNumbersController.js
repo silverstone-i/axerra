@@ -2,7 +2,7 @@
  * @file Phone numbers controller — CRUD with single-primary enforcement
  * @module core/controllers/phoneNumbersController
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import BaseController from '../../../lib/BaseController.js';

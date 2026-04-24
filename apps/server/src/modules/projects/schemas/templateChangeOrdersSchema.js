@@ -5,7 +5,7 @@
  * Template change orders belong to a template_unit and define
  * reusable change order blueprints.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 /** @type {import('pg-schemata').TableSchema} */

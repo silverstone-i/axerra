@@ -2,7 +2,7 @@
  * @file Aggregated repository map built from module registry
  * @module server/db/repositories
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import moduleRegistry from './moduleRegistry.js';

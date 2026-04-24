@@ -2,7 +2,7 @@
  * @file Contract test for health endpoint
  * @module server/tests/contract/health
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { describe, it, expect } from 'vitest';

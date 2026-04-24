@@ -2,7 +2,7 @@
  * @file Contract tests for tax identifier CRUD endpoints
  * @module tests/contract/taxIdentifiers
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';

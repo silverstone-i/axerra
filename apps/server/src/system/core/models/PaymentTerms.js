@@ -2,7 +2,7 @@
  * @file PaymentTerms model — lookup table for standardised vendor payment terms
  * @module core/models/PaymentTerms
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';

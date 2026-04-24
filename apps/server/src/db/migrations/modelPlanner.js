@@ -2,7 +2,7 @@
  * @file Dependency-aware table creation/dropping utilities
  * @module server/db/migrations/modelPlanner
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 /**

@@ -4,7 +4,7 @@
  *
  * Routes are added here as each phase is implemented.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { Router } from 'express';
@@ -24,7 +24,7 @@ const router = Router();
 // Auth routes (public: login/refresh/logout; protected: me/check/change-password)
 router.use('/auth', authRouter);
 
-// Tenant management routes (Vimber-only: tenants, portal-users, admin operations)
+// Tenant management routes (Axerra-only: tenants, portal-users, admin operations)
 router.use('/tenants', tenantsApiRoutes);
 
 // Core entity routes (tenant-scope: vendors, clients, employees, contacts, etc.)

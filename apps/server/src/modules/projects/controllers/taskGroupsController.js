@@ -2,7 +2,7 @@
  * @file Task groups controller — CRUD for tenant-level task categories
  * @module projects/controllers/taskGroupsController
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import BaseController from '../../../lib/BaseController.js';

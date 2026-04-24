@@ -9,7 +9,7 @@
  * with entity_type='vendor_contact' and entity_id pointing to the vendor_contact row.
  * When toggled OFF or archived, cascades to lock the linked portal_user.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import bcrypt from 'bcrypt';

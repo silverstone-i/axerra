@@ -1,15 +1,15 @@
 /**
- * @file Bootstrap admin schema and Vimber tenant — creates tables and seeds root tenant + super user
+ * @file Bootstrap admin schema and Axerra tenant — creates tables and seeds root tenant + super user
  * @module server/scripts/setupAdmin
  *
  * Usage: npm -w apps/server run setupAdmin:dev
  *
  * Steps:
  *   1. Creates admin schema + runs admin-scope migrations (tenants, portal_users, etc.)
- *   2. Provisions the Vimber tenant schema (CREATE SCHEMA + tenant-scope migrations + RBAC)
- *   3. Seeds the root super user employee in the Vimber tenant schema and links it to admin.portal_users
+ *   2. Provisions the Axerra tenant schema (CREATE SCHEMA + tenant-scope migrations + RBAC)
+ *   3. Seeds the root super user employee in the Axerra tenant schema and links it to admin.portal_users
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { resolve, dirname } from 'node:path';
@@ -84,19 +84,19 @@ async function main() {
   }
   logger.info('Admin migrations complete.');
 
-  // ── Provision Vimber tenant schema ────────────────────────────────
-  const rootTenantCode = process.env.ROOT_TENANT_CODE || 'VIMBER';
+  // ── Provision Axerra tenant schema ────────────────────────────────
+  const rootTenantCode = process.env.ROOT_TENANT_CODE || 'AXERRA';
   const tenantSchema = rootTenantCode.toLowerCase();
 
-  logger.info(`Provisioning Vimber tenant schema "${tenantSchema}"...`);
+  logger.info(`Provisioning Axerra tenant schema "${tenantSchema}"...`);
 
   const { provisionTenant } = await import('../src/services/tenantProvisioning.js');
   await provisionTenant({ schemaName: tenantSchema, tenantCode: rootTenantCode });
 
-  logger.info(`Vimber tenant schema "${tenantSchema}" provisioned.`);
+  logger.info(`Axerra tenant schema "${tenantSchema}" provisioned.`);
 
-  // ── Seed Vimber self-company record ─────────────────────────────
-  const rootCompany = process.env.ROOT_COMPANY || 'Vimber LLC';
+  // ── Seed Axerra self-company record ─────────────────────────────
+  const rootCompany = process.env.ROOT_COMPANY || 'Axerra LLC';
   const tenant = await db.oneOrNone('SELECT id FROM admin.tenants WHERE tenant_code = $1', [rootTenantCode]);
 
   if (tenant) {
@@ -120,7 +120,7 @@ async function main() {
 
         await t.none(`UPDATE ${s}.companies SET source_id = $1 WHERE id = $2`, [source.id, comp.id]);
       });
-      logger.info(`Vimber self-company seeded (code=${rootTenantCode}, name=${rootCompany}).`);
+      logger.info(`Axerra self-company seeded (code=${rootTenantCode}, name=${rootCompany}).`);
     } else {
       // Backfill missing source record for existing companies
       const needsSource = await db.oneOrNone(
@@ -138,7 +138,7 @@ async function main() {
         });
         logger.info(`Backfilled source record for self-company (code=${rootTenantCode}).`);
       } else {
-        logger.info('Vimber self-company already exists with source, skipping.');
+        logger.info('Axerra self-company already exists with source, skipping.');
       }
     }
   }

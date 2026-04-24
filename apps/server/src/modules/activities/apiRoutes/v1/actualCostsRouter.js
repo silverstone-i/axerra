@@ -2,7 +2,7 @@
  * @file ActualCosts router — /api/activities/v1/actual-costs
  * @module activities/apiRoutes/v1/actualCostsRouter
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import createRouter from '../../../../lib/createRouter.js';

@@ -6,7 +6,7 @@
  * while employee is_app_user. (portal_users sync is exercised implicitly but not
  * asserted directly — cross-schema assertions deferred to integration tests.)
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';

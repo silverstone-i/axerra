@@ -2,7 +2,7 @@
  * @file Emails router — /api/core/v1/emails
  * @module core/apiRoutes/v1/emailsRouter
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import createRouter from '../../../../lib/createRouter.js';

@@ -4,7 +4,7 @@
  *
  * Adds: create, update, archive (soft-delete), restore, bulkInsert, bulkUpdate, importXls
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import fs from 'node:fs';

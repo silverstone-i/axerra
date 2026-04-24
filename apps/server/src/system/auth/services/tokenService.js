@@ -5,7 +5,7 @@
  * Token claims: sub (user UUID), ph (permission hash), iss, aud.
  * Access token: 15-minute expiry. Refresh token: 7-day expiry.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import jwt from 'jsonwebtoken';

@@ -2,7 +2,7 @@
  * @file Repository map for the auth module (admin-scope tables)
  * @module auth/authRepositories
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import Tenants from './models/Tenants.js';

@@ -2,7 +2,7 @@
  * @file Tenants admin router — schema listing, impersonation per PRD §3.2.3
  * @module tenants/apiRoutes/v1/adminRouter
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { Router } from 'express';

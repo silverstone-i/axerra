@@ -2,7 +2,7 @@
  * @file Repository map for the projects module (tenant-scope)
  * @module projects/projectsRepositories
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 // Template tables

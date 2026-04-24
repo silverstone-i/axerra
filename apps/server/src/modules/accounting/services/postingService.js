@@ -5,7 +5,7 @@
  * All posting operations use db.tx() for transactional atomicity.
  * Provides hooks for AP, AR, and actual cost modules to create GL entries.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import db, { pgp } from '../../../db/db.js';

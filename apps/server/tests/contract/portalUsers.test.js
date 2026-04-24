@@ -6,7 +6,7 @@
  * (self-prevention), restore (tenant active check). Uses supertest
  * with the real Express app and test database.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
@@ -59,8 +59,8 @@ describe('POST /api/tenants/v1/portal-users/register', () => {
   test('registers a new user with valid tenant_code', async () => {
     const cookies = await loginRoot();
     const body = {
-      tenant_code: 'VIMBER',
-      email: 'newuser@vimber.io',
+      tenant_code: 'AXERRA',
+      email: 'newuser@axerra.io',
       password: 'TestPass123!',
     };
 
@@ -71,7 +71,7 @@ describe('POST /api/tenants/v1/portal-users/register', () => {
 
     expect(res.status).toBe(201);
     expect(res.body.user).toBeDefined();
-    expect(res.body.user.email).toBe('newuser@vimber.io');
+    expect(res.body.user.email).toBe('newuser@axerra.io');
     // password_hash must not be in response
     expect(res.body.user.password_hash).toBeUndefined();
   });
@@ -102,7 +102,7 @@ describe('POST /api/tenants/v1/portal-users/register', () => {
     const res = await request(app)
       .post('/api/tenants/v1/portal-users/register')
       .set('Cookie', cookies)
-      .send({ tenant_code: 'VIMBER', email: 'newuser@vimber.io', password: 'Pass123!' });
+      .send({ tenant_code: 'AXERRA', email: 'newuser@axerra.io', password: 'Pass123!' });
 
     expect(res.status).toBe(409);
   });
@@ -148,7 +148,7 @@ describe('DELETE /api/tenants/v1/portal-users/archive', () => {
     // Find the user we registered above
     const listRes = await request(app).get('/api/tenants/v1/portal-users').set('Cookie', cookies);
     const rows = listRes.body.rows ?? listRes.body;
-    const target = (Array.isArray(rows) ? rows : []).find((u) => u.email === 'newuser@vimber.io');
+    const target = (Array.isArray(rows) ? rows : []).find((u) => u.email === 'newuser@axerra.io');
     expect(target).toBeDefined();
 
     const res = await request(app)
@@ -169,7 +169,7 @@ describe('PATCH /api/tenants/v1/portal-users/restore', () => {
       .get('/api/tenants/v1/portal-users?includeDeactivated=true')
       .set('Cookie', cookies);
     const rows = listRes.body.rows ?? listRes.body;
-    const archived = (Array.isArray(rows) ? rows : []).find((u) => u.email === 'newuser@vimber.io');
+    const archived = (Array.isArray(rows) ? rows : []).find((u) => u.email === 'newuser@axerra.io');
     expect(archived).toBeDefined();
 
     const res = await request(app)

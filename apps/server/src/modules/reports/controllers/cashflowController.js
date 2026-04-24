@@ -7,7 +7,7 @@
  *   GET /project-cashflow/:projectId/forecast   — 6-month forecast based on open invoices + burn rate
  *   GET /company-cashflow                       — company-wide monthly cashflow aggregation
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import db, { pgp } from '../../../db/db.js';

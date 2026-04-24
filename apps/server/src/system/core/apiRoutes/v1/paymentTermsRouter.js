@@ -2,7 +2,7 @@
  * @file Payment terms router — /api/core/v1/payment-terms
  * @module core/apiRoutes/v1/paymentTermsRouter
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import createRouter from '../../../../lib/createRouter.js';

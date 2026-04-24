@@ -5,7 +5,7 @@
  * Receipt records against AR invoices. Supports partial payments,
  * method tracking (check/ach/wire), and GL posting hooks.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 /** @type {import('pg-schemata').TableSchema} */

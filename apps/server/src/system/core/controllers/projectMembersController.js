@@ -2,7 +2,7 @@
  * @file Project members controller — CRUD for RBAC Layer 2 project scope assignments
  * @module core/controllers/projectMembersController
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import BaseController from '../../../lib/BaseController.js';

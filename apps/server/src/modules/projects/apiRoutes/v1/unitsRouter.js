@@ -2,7 +2,7 @@
  * @file Units router — /api/projects/v1/units
  * @module projects/apiRoutes/v1/unitsRouter
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import createRouter from '../../../../lib/createRouter.js';

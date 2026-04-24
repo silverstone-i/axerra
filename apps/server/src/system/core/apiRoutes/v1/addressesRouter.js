@@ -2,7 +2,7 @@
  * @file Addresses router — /api/core/v1/addresses
  * @module core/apiRoutes/v1/addressesRouter
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import createRouter from '../../../../lib/createRouter.js';

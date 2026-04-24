@@ -6,7 +6,7 @@
  * update, archive (root tenant rejected), restore. Uses supertest with
  * the real Express app and test database.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
@@ -45,10 +45,10 @@ describe('GET /api/tenants/v1/tenants', () => {
     const res = await request(app).get('/api/tenants/v1/tenants').set('Cookie', cookies);
 
     expect(res.status).toBe(200);
-    // Should have at least the root Vimber tenant from bootstrap
+    // Should have at least the root Axerra tenant from bootstrap
     const rows = res.body.rows ?? res.body;
     expect(rows.length).toBeGreaterThanOrEqual(1);
-    const rootTenant = (Array.isArray(rows) ? rows : []).find((t) => t.tenant_code === 'VIMBER');
+    const rootTenant = (Array.isArray(rows) ? rows : []).find((t) => t.tenant_code === 'AXERRA');
     expect(rootTenant).toBeDefined();
   });
 });
@@ -119,13 +119,13 @@ describe('GET /api/tenants/v1/tenants/:id', () => {
 });
 
 describe('DELETE /api/tenants/v1/tenants/archive', () => {
-  test('rejects archival of root Vimber tenant', async () => {
+  test('rejects archival of root Axerra tenant', async () => {
     const cookies = await loginRoot();
 
-    // Find Vimber tenant id
+    // Find Axerra tenant id
     const listRes = await request(app).get('/api/tenants/v1/tenants').set('Cookie', cookies);
     const rows = listRes.body.rows ?? listRes.body;
-    const rootTenant = (Array.isArray(rows) ? rows : []).find((t) => t.tenant_code === 'VIMBER');
+    const rootTenant = (Array.isArray(rows) ? rows : []).find((t) => t.tenant_code === 'AXERRA');
 
     const res = await request(app)
       .delete(`/api/tenants/v1/tenants/archive?id=${rootTenant.id}`)
@@ -185,7 +185,7 @@ describe('GET /api/tenants/v1/tenants/:id/modules', () => {
 
     const listRes = await request(app).get('/api/tenants/v1/tenants').set('Cookie', cookies);
     const rows = listRes.body.rows ?? listRes.body;
-    const rootTenant = (Array.isArray(rows) ? rows : []).find((t) => t.tenant_code === 'VIMBER');
+    const rootTenant = (Array.isArray(rows) ? rows : []).find((t) => t.tenant_code === 'AXERRA');
 
     const res = await request(app)
       .get(`/api/tenants/v1/tenants/${rootTenant.id}/modules`)

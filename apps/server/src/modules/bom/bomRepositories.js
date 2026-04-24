@@ -2,7 +2,7 @@
  * @file Repository map for the BOM module (tenant-scope)
  * @module bom/bomRepositories
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import CatalogSkus from './models/CatalogSkus.js';

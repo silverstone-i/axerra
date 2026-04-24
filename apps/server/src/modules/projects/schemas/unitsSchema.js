@@ -5,7 +5,7 @@
  * Units belong to a project and may reference a template_unit.
  * Status workflow: draft → in_progress → complete.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 /** @type {import('pg-schemata').TableSchema} */

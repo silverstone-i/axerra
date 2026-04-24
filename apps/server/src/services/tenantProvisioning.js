@@ -9,7 +9,7 @@
  *   4. Seeds default RBAC roles and policies
  *   5. Seeds policy catalog (permission discovery for role-config UI)
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { DB } from 'pg-schemata';
@@ -21,7 +21,7 @@ import { seedNumberingConfig } from '../system/core/services/numberingConfigSeed
 import { seedTenantPreferences } from '../system/core/services/tenantPreferencesSeeder.js';
 import logger from '../lib/logger.js';
 
-const ROOT_TENANT_CODE = (process.env.ROOT_TENANT_CODE || 'VIMBER').toUpperCase();
+const ROOT_TENANT_CODE = (process.env.ROOT_TENANT_CODE || 'AXERRA').toUpperCase();
 
 /**
  * Provision a new tenant schema with all tables and default RBAC data.

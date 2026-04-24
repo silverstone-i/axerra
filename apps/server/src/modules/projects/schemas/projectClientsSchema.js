@@ -5,7 +5,7 @@
  * Associates multiple clients with a project contract, replacing the former
  * single client_id FK on projects. Supports roles (buyer, co-buyer, guarantor).
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 /** @type {import('pg-schemata').TableSchema} */

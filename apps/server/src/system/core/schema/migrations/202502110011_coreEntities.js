@@ -7,7 +7,7 @@
  * These tables are FK-ordered via orderModels (sources first, then entities
  * that reference it, then contacts/addresses that reference sources).
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { defineMigration } from '../../../../db/migrations/defineMigration.js';

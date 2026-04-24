@@ -4,7 +4,7 @@
  *
  * Tests the middleware in isolation using mocked JWT and DB.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
@@ -130,7 +130,7 @@ describe('authRedis middleware', () => {
 
     mockFindOneBy.mockResolvedValue({
       id: userId,
-      email: 'admin@vimber.io',
+      email: 'admin@axerra.io',
       entity_type: null,
       entity_id: null,
       status: 'active',
@@ -140,9 +140,9 @@ describe('authRedis middleware', () => {
 
     mockFindById.mockResolvedValue({
       id: tenantId,
-      tenant_code: 'VIMBER',
-      company: 'Vimber LLC',
-      schema_name: 'vimber',
+      tenant_code: 'AXERRA',
+      company: 'Axerra LLC',
+      schema_name: 'axerra',
       status: 'active',
     });
 
@@ -155,9 +155,9 @@ describe('authRedis middleware', () => {
     expect(next).toHaveBeenCalled();
     expect(req.user).toBeDefined();
     expect(req.user.id).toBe(userId);
-    expect(req.user.email).toBe('admin@vimber.io');
-    expect(req.user.tenant_code).toBe('vimber');
-    expect(req.user.schema_name).toBe('vimber');
+    expect(req.user.email).toBe('admin@axerra.io');
+    expect(req.user.tenant_code).toBe('axerra');
+    expect(req.user.schema_name).toBe('axerra');
   });
 
   test('returns 401 when user not found in DB', async () => {
@@ -181,7 +181,7 @@ describe('authRedis middleware', () => {
 
     mockFindOneBy.mockResolvedValue({
       id: userId,
-      email: 'admin@vimber.io',
+      email: 'admin@axerra.io',
       entity_type: null,
       entity_id: null,
       status: 'active',
@@ -190,8 +190,8 @@ describe('authRedis middleware', () => {
 
     mockFindById.mockResolvedValue({
       id: tenantId,
-      tenant_code: 'VIMBER',
-      schema_name: 'vimber',
+      tenant_code: 'AXERRA',
+      schema_name: 'axerra',
     });
 
     const req = makeReq({
@@ -213,7 +213,7 @@ describe('authRedis middleware', () => {
 
     mockFindOneBy.mockResolvedValue({
       id: userId,
-      email: 'admin@vimber.io',
+      email: 'admin@axerra.io',
       entity_type: null,
       entity_id: null,
       status: 'active',
@@ -222,8 +222,8 @@ describe('authRedis middleware', () => {
 
     mockFindById.mockResolvedValue({
       id: homeTenantId,
-      tenant_code: 'VIMBER',
-      schema_name: 'vimber',
+      tenant_code: 'AXERRA',
+      schema_name: 'axerra',
       allowed_modules: ['projects', 'accounting'],
     });
 
@@ -247,12 +247,12 @@ describe('authRedis middleware', () => {
     expect(next).toHaveBeenCalled();
     expect(req.user.tenant_code).toBe('acme');
     expect(req.user.schema_name).toBe('acme');
-    // req.ctx.tenant must reflect the effective (ACME) tenant, not the home (VIMBER) tenant
+    // req.ctx.tenant must reflect the effective (ACME) tenant, not the home (AXERRA) tenant
     expect(req.ctx.tenant.tenant_code).toBe('ACME');
     expect(req.ctx.tenant.id).toBe(acmeTenantId);
     expect(req.ctx.tenant.allowed_modules).toEqual(['projects']);
     // req.user.tenant_id must reflect assumed tenant, not home tenant
     expect(req.user.tenant_id).toBe(acmeTenantId);
-    expect(req.user.home_tenant).toBe('vimber');
+    expect(req.user.home_tenant).toBe('axerra');
   });
 });

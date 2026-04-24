@@ -2,7 +2,7 @@
  * @file RBAC tests for 4-level policy resolution hierarchy
  * @module tests/rbac/policyResolution
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { describe, it, expect } from 'vitest';

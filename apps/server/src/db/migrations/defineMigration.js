@@ -2,7 +2,7 @@
  * @file Migration definition helper — normalizes config and attaches checksums
  * @module server/db/migrations/defineMigration
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import crypto from 'node:crypto';

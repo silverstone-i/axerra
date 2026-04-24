@@ -2,7 +2,7 @@
  * @file Ledger Balances controller — read-only queries
  * @module accounting/controllers/ledgerBalancesController
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import ViewController from '../../../lib/ViewController.js';

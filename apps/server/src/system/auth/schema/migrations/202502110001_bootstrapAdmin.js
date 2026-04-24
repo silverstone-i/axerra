@@ -3,11 +3,11 @@
  * @module auth/schema/migrations/202502110001_bootstrapAdmin
  *
  * Creates admin schema tables (tenants, portal_users, impersonation_logs,
- * match_review_logs). Seeds the Vimber root tenant and a bootstrap
+ * match_review_logs). Seeds the Axerra root tenant and a bootstrap
  * super user. The entity link (entity_type, entity_id) is set by
  * setupAdmin.js after tenant provisioning creates the employees table.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import bcrypt from 'bcrypt';
@@ -40,8 +40,8 @@ export default defineMigration({
     }
 
     // ── Seed root tenant ──────────────────────────────────────────
-    const rootTenantCode = process.env.ROOT_TENANT_CODE || 'VIMBER';
-    const rootCompany = process.env.ROOT_COMPANY || 'Vimber LLC';
+    const rootTenantCode = process.env.ROOT_TENANT_CODE || 'AXERRA';
+    const rootCompany = process.env.ROOT_COMPANY || 'Axerra LLC';
     const rootSchema = rootTenantCode.toLowerCase();
 
     // Check if root tenant already exists (idempotent)

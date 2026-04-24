@@ -2,7 +2,7 @@
  * @file VendorParts router — /api/activities/v1/vendor-parts
  * @module activities/apiRoutes/v1/vendorPartsRouter
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import createRouter from '../../../../lib/createRouter.js';

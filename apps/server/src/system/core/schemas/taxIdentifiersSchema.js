@@ -2,7 +2,7 @@
  * @file Tax identifiers schema — typed tax IDs linked to entities via sources
  * @module core/schemas/taxIdentifiersSchema
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 const taxIdentifiersSchema = {

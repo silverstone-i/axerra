@@ -2,7 +2,7 @@
  * @file MatchReviewLogs model — extends TableModel for admin.match_review_logs
  * @module auth/models/MatchReviewLogs
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { TableModel } from 'pg-schemata';

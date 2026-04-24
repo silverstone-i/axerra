@@ -2,7 +2,7 @@
  * @file Unit tests for permissionLoader
  * @module tests/unit/permissionLoader
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -40,7 +40,7 @@ describe('loadPermissions', () => {
 
   it('returns empty canon when entityType is null (bootstrap user)', async () => {
     const result = await loadPermissions({
-      schemaName: 'vimber',
+      schemaName: 'axerra',
       userId: 'u1',
       entityType: null,
       entityId: null,

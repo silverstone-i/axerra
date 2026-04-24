@@ -2,7 +2,7 @@
  * @file Winston logger with structured JSON output
  * @module server/lib/logger
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { createLogger, format, transports } from 'winston';

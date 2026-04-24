@@ -6,7 +6,7 @@
  * to the policy_catalog table for granular RBAC control. Uses the
  * idempotent seedPolicyCatalog service so re-runs are safe.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { defineMigration } from '../../../../db/migrations/defineMigration.js';

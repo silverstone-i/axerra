@@ -2,7 +2,7 @@
  * @file TaskGroups model
  * @module projects/models/TaskGroups
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { TableModel } from 'pg-schemata';

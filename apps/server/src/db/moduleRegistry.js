@@ -6,7 +6,7 @@
  * specifies its scope (admin or tenant), its repository map, and its
  * migration list.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import authRepositories from '../system/auth/authRepositories.js';

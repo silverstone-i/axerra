@@ -6,7 +6,7 @@
  * root tenant, verify they can log in and access /me, and that
  * password_hash is never exposed.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
@@ -15,7 +15,7 @@ import { bootstrapAdmin, cleanupTestDb } from '../helpers/testDb.js';
 
 const ROOT_EMAIL = process.env.ROOT_EMAIL;
 const ROOT_PASSWORD = process.env.ROOT_PASSWORD;
-const ROOT_TENANT_CODE = process.env.ROOT_TENANT_CODE || 'VIMBER';
+const ROOT_TENANT_CODE = process.env.ROOT_TENANT_CODE || 'AXERRA';
 
 let db;
 beforeAll(async () => {
@@ -35,7 +35,7 @@ async function loginRoot() {
 }
 
 describe('User registration lifecycle — register → login → verify', () => {
-  const TEST_EMAIL = 'integ-test@vimber.io';
+  const TEST_EMAIL = 'integ-test@axerra.io';
   const TEST_PASSWORD = 'IntegTest123!';
 
   test('1. Register user via admin endpoint', async () => {

@@ -7,7 +7,7 @@
  * The is_login flag marks the email used as the portal_users login credential
  * for entities with is_app_user = true.
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 /** @type {import('pg-schemata').TableSchema} */
