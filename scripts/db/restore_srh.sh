@@ -429,11 +429,11 @@ echo "  New SRH tenant_id: $NEW_TENANT_ID"
 # 6a. Try to restore from CSV backup (preserves password hashes)
 #     Use LIKE to match real column order (avoids positional mismatch with \COPY)
 CSV_ROWS=$("${PSQL[@]}" -At <<USERS_CSV_SQL
-CREATE TEMP TABLE _nap_users_restore (LIKE admin.portal_users INCLUDING DEFAULTS);
+CREATE TEMP TABLE _portal_users_restore (LIKE admin.portal_users INCLUDING DEFAULTS);
 
-\\COPY _nap_users_restore FROM '$BACKUP_DIR/portal_users_srh.csv' WITH (FORMAT csv, HEADER true)
+\\COPY _portal_users_restore FROM '$BACKUP_DIR/portal_users_srh.csv' WITH (FORMAT csv, HEADER true)
 
-UPDATE _nap_users_restore SET tenant_id = '${NEW_TENANT_ID}'::uuid;
+UPDATE _portal_users_restore SET tenant_id = '${NEW_TENANT_ID}'::uuid;
 
 INSERT INTO admin.portal_users
   (id, tenant_id, entity_type, entity_id, email, password_hash, status,
@@ -443,15 +443,15 @@ SELECT
   r.email, r.password_hash, r.status,
   r.created_at, r.created_by, r.updated_at, r.updated_by,
   r.deactivated_at
-FROM _nap_users_restore r
+FROM _portal_users_restore r
 WHERE NOT EXISTS (
   SELECT 1 FROM admin.portal_users u
   WHERE u.email = r.email AND u.deactivated_at IS NULL
 );
 
-SELECT count(*) FROM _nap_users_restore;
+SELECT count(*) FROM _portal_users_restore;
 
-DROP TABLE _nap_users_restore;
+DROP TABLE _portal_users_restore;
 USERS_CSV_SQL
 )
 

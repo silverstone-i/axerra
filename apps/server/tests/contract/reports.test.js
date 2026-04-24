@@ -90,7 +90,7 @@ vi.mock('../../src/db/db.js', () => {
 
   const modelNames = [
     'tenants', 'portalUsers', 'roles', 'roleMembers', 'policies', 'policyCatalog',
-    'napUserPhones', 'napUserAddresses',
+    'portalUserPhones', 'portalUserAddresses',
     'projects', 'units', 'tasks', 'taskGroups', 'tasksMaster',
     'costItems', 'changeOrders',
     'templateUnits', 'templateTasks', 'templateCostItems', 'templateChangeOrders',
