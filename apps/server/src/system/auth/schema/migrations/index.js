@@ -6,6 +6,5 @@
  */
 
 import bootstrapAdmin from './202502110001_bootstrapAdmin.js';
-import rebrandToAxerra from './202604240002_rebrandToAxerra.js';
 
-export default [bootstrapAdmin, rebrandToAxerra];
+export default [bootstrapAdmin];
