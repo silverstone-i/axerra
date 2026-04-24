@@ -31,7 +31,7 @@ import { useArchiveRestore } from '../../hooks/useArchiveRestore.js';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import ImportDialog from '../../components/shared/ImportDialog.jsx';
-import { resolveLevel } from '@vimber/shared';
+import { resolveLevel } from '@axerra/shared';
 import { paymentApi } from '../../services/apApi.js';
 import { useToast } from '../../hooks/useToast.js';
 import { capSnake, fmtDate, errMsg } from '../../utils/format.js';

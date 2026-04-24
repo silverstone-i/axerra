@@ -1,7 +1,7 @@
 /**
  * @file Shared RBAC capability resolution — mirrors the server-side
  *       fallback chain in middleware/rbac.js
- * @module @vimber/shared/resolveLevel
+ * @module @axerra/shared/resolveLevel
  *
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */

@@ -19,7 +19,7 @@ import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import PatternTextField from '../../components/shared/PatternTextField.jsx';
-import { TAX_TYPES } from '@vimber/shared';
+import { TAX_TYPES } from '@axerra/shared';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 

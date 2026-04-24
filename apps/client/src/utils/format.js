@@ -7,8 +7,8 @@
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
-import { COUNTRIES } from '@vimber/shared';
-import { formatByPattern } from '@vimber/shared';
+import { COUNTRIES } from '@axerra/shared';
+import { formatByPattern } from '@axerra/shared';
 
 /**
  * Capitalise the first letter of a string.

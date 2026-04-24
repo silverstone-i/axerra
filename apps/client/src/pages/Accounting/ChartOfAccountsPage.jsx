@@ -33,7 +33,7 @@ import {
   useChartOfAccounts, useCreateAccount, useUpdateAccount, useArchiveAccount, useRestoreAccount,
 } from '../../hooks/useAccounting.js';
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
-import { resolveLevel } from '@vimber/shared';
+import { resolveLevel } from '@axerra/shared';
 import { chartOfAccountsApi } from '../../services/accountingApi.js';
 import { pageContainerSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx, flexColumnSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';

@@ -1,6 +1,6 @@
 /**
  * @file Shared utilities and constants for the Axerra monorepo
- * @module @vimber/shared
+ * @module @axerra/shared
  *
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */

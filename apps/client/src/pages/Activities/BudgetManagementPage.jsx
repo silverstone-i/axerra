@@ -34,7 +34,7 @@ import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useBudgets, useCreateBudget, useUpdateBudget, useArchiveBudget, useCreateBudgetVersion } from '../../hooks/useBudgets.js';
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
-import { resolveLevel } from '@vimber/shared';
+import { resolveLevel } from '@axerra/shared';
 import { budgetApi } from '../../services/budgetApi.js';
 import { useDeliverables } from '../../hooks/useDeliverables.js';
 import { useActivities } from '../../hooks/useActivities.js';

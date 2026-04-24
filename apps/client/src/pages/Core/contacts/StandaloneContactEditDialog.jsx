@@ -21,7 +21,7 @@ import FormDialog from '../../../components/shared/FormDialog.jsx';
 import PatternTextField from '../../../components/shared/PatternTextField.jsx';
 import EmailRow from '../../../components/shared/EmailRow.jsx';
 import PhoneRow from '../../../components/shared/PhoneRow.jsx';
-import { TAX_TYPES, COUNTRIES } from '@vimber/shared';
+import { TAX_TYPES, COUNTRIES } from '@axerra/shared';
 import { formGridSx, formGroupCardSx, formFullSpanSx, flexBetweenSx } from '../../../config/layoutTokens.js';
 
 export default function StandaloneContactEditDialog({

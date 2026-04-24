@@ -32,7 +32,7 @@ import {
   useArchiveJournalEntry, useRestoreJournalEntry,
 } from '../../hooks/useAccounting.js';
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
-import { resolveLevel } from '@vimber/shared';
+import { resolveLevel } from '@axerra/shared';
 import { journalEntryApi } from '../../services/accountingApi.js';
 import { pageContainerSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';

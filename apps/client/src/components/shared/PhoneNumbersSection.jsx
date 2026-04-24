@@ -12,7 +12,7 @@ import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import Typography from '@mui/material/Typography';
 
-import { COUNTRIES, formatByPattern } from '@vimber/shared';
+import { COUNTRIES, formatByPattern } from '@axerra/shared';
 import FieldRow from './FieldRow.jsx';
 import { detailGridSx } from '../../config/layoutTokens.js';
 

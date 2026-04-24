@@ -19,7 +19,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 
 import FormDialog from '../../../components/shared/FormDialog.jsx';
 import PatternTextField from '../../../components/shared/PatternTextField.jsx';
-import { TAX_TYPES, COUNTRIES } from '@vimber/shared';
+import { TAX_TYPES, COUNTRIES } from '@axerra/shared';
 import { formGridSx, formGroupCardSx, formFullSpanSx, flexBetweenSx } from '../../../config/layoutTokens.js';
 
 export default function CompanyEditDialog({

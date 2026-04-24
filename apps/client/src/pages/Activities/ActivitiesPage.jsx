@@ -41,7 +41,7 @@ import {
 import { useCategories } from '../../hooks/useCategories.js';
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
-import { resolveLevel } from '@vimber/shared';
+import { resolveLevel } from '@axerra/shared';
 import { activityApi } from '../../services/activityApi.js';
 import { pageContainerSx, formGridSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx, flexColumnSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';

@@ -16,7 +16,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import PatternTextField from './PatternTextField.jsx';
 import { cap } from '../../utils/format.js';
 import { PHONE_TYPES } from '../../utils/formConstants.js';
-import { COUNTRIES } from '@vimber/shared';
+import { COUNTRIES } from '@axerra/shared';
 
 export default function PhoneRow({ item, index, onUpdate, onRemove }) {
   const countryCode = item.country_code?.trim() || 'US';
