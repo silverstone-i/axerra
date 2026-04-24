@@ -16,7 +16,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import PatternTextField from './PatternTextField.jsx';
 import CollectionSectionHeader from './CollectionSectionHeader.jsx';
 import { formGroupCardSx } from '../../config/layoutTokens.js';
-import { TAX_TYPES, COUNTRIES } from '@nap/shared';
+import { TAX_TYPES, COUNTRIES } from '@vimber/shared';
 
 const taxRowSx = {
   display: 'flex',

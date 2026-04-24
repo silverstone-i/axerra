@@ -40,7 +40,7 @@ import {
 } from '../../hooks/useCategories.js';
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
-import { resolveLevel } from '@nap/shared';
+import { resolveLevel } from '@vimber/shared';
 import { categoryApi } from '../../services/categoryApi.js';
 import { pageContainerSx, formGridSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx, flexColumnSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';

@@ -29,7 +29,7 @@ import { useCreateTaxIdentifier, useUpdateTaxIdentifier, useArchiveTaxIdentifier
 import { useAddresses } from '../../hooks/useAddresses.js';
 import { useTaxIdentifiers } from '../../hooks/useTaxIdentifiers.js';
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
-import { resolveLevel } from '@nap/shared';
+import { resolveLevel } from '@vimber/shared';
 import { useToast } from '../../hooks/useToast.js';
 import { errMsg } from '../../utils/format.js';
 import { statusColumn } from '../../utils/columnHelpers.jsx';

@@ -39,7 +39,7 @@ import {
 } from '../../hooks/useDeliverables.js';
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
-import { resolveLevel } from '@nap/shared';
+import { resolveLevel } from '@vimber/shared';
 import { deliverableApi } from '../../services/deliverableApi.js';
 import { pageContainerSx, formGridSx, dialogHeaderSx, dialogActionBoxSx, formFullSpanSx, detailGridSx, flexColumnSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';

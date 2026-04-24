@@ -31,7 +31,7 @@ import {
 } from '../../hooks/useProjects.js';
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
-import { resolveLevel } from '@nap/shared';
+import { resolveLevel } from '@vimber/shared';
 import { projectApi } from '../../services/projectApi.js';
 import { pageContainerSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx } from '../../config/layoutTokens.js';
 import { useListSelection } from '../../hooks/useListSelection.js';

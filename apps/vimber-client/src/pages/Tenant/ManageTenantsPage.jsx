@@ -34,7 +34,7 @@ import FormDialog from '../../components/shared/FormDialog.jsx';
 import ImportDialog from '../../components/shared/ImportDialog.jsx';
 import ReadOnlyDataTable from '../../components/shared/ReadOnlyDataTable.jsx';
 import CreateTenantWizard from './CreateTenantWizard.jsx';
-import { COUNTRIES, formatByPattern } from '@nap/shared';
+import { COUNTRIES, formatByPattern } from '@vimber/shared';
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import { tenantApi } from '../../services/tenantApi.js';

@@ -30,7 +30,7 @@ import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useActualCosts, useCreateActualCost, useUpdateActualCost, useArchiveActualCost } from '../../hooks/useActualCosts.js';
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
-import { resolveLevel } from '@nap/shared';
+import { resolveLevel } from '@vimber/shared';
 import { actualCostApi } from '../../services/actualCostApi.js';
 import { useActivities } from '../../hooks/useActivities.js';
 import { pageContainerSx, formGridSx, dialogHeaderSx, dialogActionBoxSx, formFullSpanSx, detailGridSx } from '../../config/layoutTokens.js';

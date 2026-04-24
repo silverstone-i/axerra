@@ -45,7 +45,7 @@ import {
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import { useActivePaymentTerms } from '../../hooks/usePaymentTerms.js';
 import { useRoles } from '../../hooks/useRoles.js';
-import { resolveLevel } from '@nap/shared';
+import { resolveLevel } from '@vimber/shared';
 import { useToast } from '../../hooks/useToast.js';
 import { errMsg } from '../../utils/format.js';
 import { statusColumn } from '../../utils/columnHelpers.jsx';

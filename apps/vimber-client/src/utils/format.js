@@ -7,8 +7,8 @@
  * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
  */
 
-import { COUNTRIES } from '@nap/shared';
-import { formatByPattern } from '@nap/shared';
+import { COUNTRIES } from '@vimber/shared';
+import { formatByPattern } from '@vimber/shared';
 
 /**
  * Capitalise the first letter of a string.
