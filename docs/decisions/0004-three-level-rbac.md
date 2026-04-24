@@ -6,7 +6,7 @@
 
 ## Context
 
-NAP requires role-based access control to restrict what users
+VIMBER requires role-based access control to restrict what users
 can do within their tenant. The initial design used three
 permission levels: none, view, and full.
 

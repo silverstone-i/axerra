@@ -1,6 +1,6 @@
-# NAP — Executive Summary
+# VIMBER — Executive Summary
 
-**NAP (Next Generation Accounting Platform)** is a multi-tenant, modular ERP for any business that runs on projects. It unifies project management, cost control, and double-entry accounting in one system, so operators can see project-level cashflow and profitability in real time — not as a month-end reconciliation exercise.
+**VIMBER (a Next Generation Accounting Platform)** is a multi-tenant, modular ERP for any business that runs on projects. It unifies project management, cost control, and double-entry accounting in one system, so operators can see project-level cashflow and profitability in real time — not as a month-end reconciliation exercise.
 
 ## Who it's for
 
@@ -16,7 +16,7 @@ Personas range from platform operators down to AP/AR clerks, with a four-layer R
 
 ## What it does
 
-NAP covers the full project-to-cash lifecycle:
+VIMBER covers the full project-to-cash lifecycle:
 
 - **Projects & budgets** — projects, units/phases, budgets, change orders, and actual-cost tracking
 - **Procurement & BOM** — catalog SKUs, vendor SKU matching (pgvector + OpenAI embeddings), vendor pricing

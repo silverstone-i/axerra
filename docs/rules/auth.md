@@ -14,7 +14,7 @@
 - **Storage:** httpOnly, Secure, SameSite=Lax cookie named `auth_token`
 - **TTL:** 15 minutes
 - **Claims:**
-  - `sub` — nap_user UUID (primary key of `admin.portal_users`)
+  - `sub` — vimber_user UUID (primary key of `admin.portal_users`)
   - `ph` — SHA-256 hex hash of the user's permission canon (null in
     Phase 2; populated once RBAC is active)
   - `iss` — `vimber-serv`

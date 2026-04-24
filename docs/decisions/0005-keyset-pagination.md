@@ -20,7 +20,7 @@ List endpoints need pagination. Two primary strategies:
 | Offset/limit (`OFFSET 5000 LIMIT 50`) | Degrades — DB scans skipped rows | Unstable — inserts shift pages | Low |
 | Keyset/cursor (`WHERE id > $cursor`) | Constant — index seek | Stable — cursor is absolute | Medium |
 
-NAP has tables (cost items, vendor SKUs, journal entry lines) that can
+VIMBER has tables (cost items, vendor SKUs, journal entry lines) that can
 grow to hundreds of thousands of rows per tenant. Offset pagination
 becomes progressively slower as users page deeper.
 

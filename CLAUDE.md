@@ -42,9 +42,9 @@ npm -w apps/server run seed             # seed dev data
 
 ## Architecture
 
-- **Multi-tenant**: schema-per-tenant isolation via pg-schemata; admin schema holds `tenants`, `nap_users`
+- **Multi-tenant**: schema-per-tenant isolation via pg-schemata; admin schema holds `tenants`, `vimber_users`
 - **RBAC**: 4-layer model — policies → data scope → state filters → field groups (see `docs/decisions/0013-four-layer-scoped-rbac.md`)
-- **Auth**: Minimal JWT (sub + ph only) in httpOnly cookies; `authRedis` middleware hydrates `req.user` from nap_users + Redis permission cache
+- **Auth**: Minimal JWT (sub + ph only) in httpOnly cookies; `authRedis` middleware hydrates `req.user` from vimber_users + Redis permission cache
 - **Soft delete**: `deactivated_at` column convention; most tables use pg-schemata `softDelete: true`
 - **Audit fields**: `created_by`, `updated_by` (uuid, nullable), `created_at`, `updated_at`
 

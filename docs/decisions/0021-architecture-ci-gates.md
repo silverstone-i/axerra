@@ -5,7 +5,7 @@
 
 ## Context
 
-Architecture boundaries in the NAP monorepo (barrel exports, module registry, middleware chains, migration naming) were enforced only by convention. No CI pipeline existed — all checks were local (Husky pre-commit blocking mixed client/server commits). This meant violations could reach `dev` or `main` undetected.
+Architecture boundaries in the VIMBER monorepo (barrel exports, module registry, middleware chains, migration naming) were enforced only by convention. No CI pipeline existed — all checks were local (Husky pre-commit blocking mixed client/server commits). This meant violations could reach `dev` or `main` undetected.
 
 ## Decision
 

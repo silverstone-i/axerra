@@ -21,7 +21,7 @@ Extract three composable utilities that eliminate per-page duplication while kee
 | `deriveSelectionState(selectionModel, rows, entityType?)` | Returns `{ selectedRows, selected, isSingle, hasSelection, hasRootSelected, allActive, allArchived }` |
 | `buildMutualExclusionHandler(opts)` | Returns an `onRowSelectionModelChange` handler that enforces root-entity mutual exclusion (tenant/user pages only) |
 | `buildBulkActions(opts)` | Returns `[{ label, variant, color, disabled, onClick }]` for Archive/Restore toolbar buttons with count labels and correct disabled states |
-| `isRootEntity(row, entityType)` | Checks if a row is the root tenant (NAP) entity |
+| `isRootEntity(row, entityType)` | Checks if a row is the root tenant (VIMBER) entity |
 
 ### 2. `useDataGridSelection(rows, entityType?)` — State hook
 

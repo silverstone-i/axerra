@@ -13,7 +13,7 @@ Accepted
 
 ## Context
 
-NAP is a multi-tenant construction ERP handling sensitive financial data
+VIMBER is a multi-tenant construction ERP handling sensitive financial data
 (AP/AR invoices, journal entries, budgets) for multiple independent tenants.
 We need a tenancy strategy that provides strong data isolation while keeping
 operational complexity manageable.
@@ -29,7 +29,7 @@ Common approaches:
 ## Decision
 
 Use **PostgreSQL schema-per-tenant** isolation. Each tenant gets its own PG
-schema (e.g., `nap`, `acme_construction`) containing identical table
+schema (e.g., `vimber`, `acme_construction`) containing identical table
 structures. A shared `admin` schema holds cross-tenant tables (`tenants`,
 `portal_users`, `impersonation_logs`, `match_review_logs`).
 

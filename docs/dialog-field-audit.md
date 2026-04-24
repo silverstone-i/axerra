@@ -1,4 +1,4 @@
-# Dialog Field Audit — NAP Frontend
+# Dialog Field Audit — VIMBER Frontend
 
 **Generated:** 2026-03-18
 **Auditor:** Claude Code

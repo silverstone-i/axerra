@@ -18,7 +18,7 @@ Creating a tenant is a three-step atomic operation:
    `tenant_numbering_config` rows (all `is_enabled = false`)
 3. **Create admin user** — inserts an `employees` record with
    `roles: ['admin']`, `is_app_user: true`, and `is_primary_contact: true`,
-   then a linked `nap_user` with the provided email and password. The
+   then a linked `vimber_user` with the provided email and password. The
    admin employee starts with `code = NULL`; numbering is configured and
    backfilled later via Settings (see PRD §3.13.9). Note: the admin
    employee is created via raw SQL (not through `employeesController`),
@@ -71,7 +71,7 @@ Before a user can be registered:
 2. The target tenant must be **active** (`deactivated_at IS NULL`)
 3. The email must be unique across all `portal_users` (active and archived)
 
-Registration creates a `nap_user` with `status: 'active'`. The user can
+Registration creates a `vimber_user` with `status: 'active'`. The user can
 log in immediately after registration.
 
 ## Archive / Restore Cascade Rules

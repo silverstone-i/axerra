@@ -5,7 +5,7 @@
 
 ## Context
 
-All NAP resource entities need bulk data import and export via Excel (XLSX). Rather than implementing import/export routes per-module, we needed a standardised, RBAC-aware pattern that integrates with the existing `createRouter` factory, pg-schemata's `TableModel`, and the client-side toolbar system.
+All VIMBER resource entities need bulk data import and export via Excel (XLSX). Rather than implementing import/export routes per-module, we needed a standardised, RBAC-aware pattern that integrates with the existing `createRouter` factory, pg-schemata's `TableModel`, and the client-side toolbar system.
 
 Key requirements:
 - Every `createRouter`-generated resource gets import/export endpoints automatically

@@ -24,7 +24,7 @@ All primary entities use **soft deletes** via a nullable `deactivated_at` timest
 - **Archive** sets `deactivated_at = NOW()` and `updated_by` to the acting user. For `portal_users` records, archive also sets `status = 'locked'`.
 - **Restore** sets `deactivated_at = NULL`. For `portal_users` records, restore also sets `status = 'active'`.
 - **Cascade rules**: Archiving a tenant cascades deactivation (and `status = 'locked'`) to all its active `portal_users` — whether archived by `?id=` or `?tenant_code=`. Restoring a tenant does **not** cascade — users must be individually restored.
-- **Root entity protection**: The root Vimber tenant (`NAP`) cannot be archived (returns 403).
+- **Root entity protection**: The root Vimber tenant (`VIMBER`) cannot be archived (returns 403).
 
 ### Alternatives Considered
 

@@ -1,5 +1,5 @@
 /**
- * @file Build prompts for each phase of the NAP greenfield implementation
+ * @file Build prompts for each phase of the VIMBER greenfield implementation
  * @module docs/PROMPTS
  *
  * Each prompt is self-contained with enough context from prior phases
@@ -9,7 +9,7 @@
  * Copyright (c) 2025 Vimber LLC. All rights reserved.
  */
 
-# NAP Build Prompts
+# VIMBER Build Prompts
 
 > **Usage:** Each prompt below can be given to an AI coding assistant (or human developer) to implement that phase. Each prompt includes the necessary context from previous phases so it can stand alone.
 
@@ -19,13 +19,13 @@
 
 ### Prompt
 
-You are building **NAP**, a multi-tenant construction ERP (PERN monorepo). The PRD at `docs/PRD.md` is the source of truth. The `nap` branch contains a prior implementation with established patterns — port and adapt that code rather than rewriting from scratch.
+You are building **VIMBER**, a multi-tenant construction ERP (PERN monorepo). The PRD at `docs/PRD.md` is the source of truth. The `vimber` branch contains a prior implementation with established patterns — port and adapt that code rather than rewriting from scratch.
 
 **Goal:** Establish the monorepo skeleton — package configs, server/client entry points, DB init, migration infrastructure, test framework, and a health endpoint.
 
 #### Server (`apps/server/`)
 
-Create the following files by porting from the `nap` branch (`git show nap:<path>`):
+Create the following files by porting from the `vimber` branch (`git show vimber:<path>`):
 
 | File | Purpose |
 |------|---------|
@@ -49,7 +49,7 @@ Create the following files by porting from the `nap` branch (`git show nap:<path
 | `vite.config.js` | react plugin, envDir ../../, proxy /api → :3000, port 5173 |
 | `index.html` | SPA entry |
 | `src/main.jsx` | ReactDOM.createRoot, basic App render |
-| `src/App.jsx` | Placeholder rendering "NAP" text |
+| `src/App.jsx` | Placeholder rendering "VIMBER" text |
 
 #### Root
 
@@ -98,7 +98,7 @@ npm run lint && npm -w apps/server test
 
 ### Prompt
 
-You are continuing the NAP build. Phase 1 established the monorepo skeleton with Express 5 server, Vite React client, pg-schemata DB init, migration infrastructure, and a health endpoint.
+You are continuing the VIMBER build. Phase 1 established the monorepo skeleton with Express 5 server, Vite React client, pg-schemata DB init, migration infrastructure, and a health endpoint.
 
 **Goal:** Admin schema tables, bootstrap root tenant + super user, full auth flow, and a working client login page.
 
@@ -156,7 +156,7 @@ The codebase has:
 - `apiRoutes/v1/authRouter.js` — POST login/refresh/logout/change-password, GET me/check.
 
 **Bootstrap Migration:**
-- `schema/migrations/202502110001_bootstrapAdmin.js` — Uses modelPlanner to order table creation. Seeds NAP tenant (tenant_code: ROOT_TENANT_CODE, company: ROOT_COMPANY, tier: enterprise, schema_name: lowercase tenant code). Seeds super user (entity_type: null, entity_id: null — entity tables don't exist until Phase 5). Idempotent: checks by tenant_code and email before insert.
+- `schema/migrations/202502110001_bootstrapAdmin.js` — Uses modelPlanner to order table creation. Seeds VIMBER tenant (tenant_code: ROOT_TENANT_CODE, company: ROOT_COMPANY, tier: enterprise, schema_name: lowercase tenant code). Seeds super user (entity_type: null, entity_id: null — entity tables don't exist until Phase 5). Idempotent: checks by tenant_code and email before insert.
 
 **Wiring:**
 - `src/apiRoutes.js` — Mount authRouter at `/auth`
@@ -222,7 +222,7 @@ npm run lint                               # clean
 
 ### Prompt
 
-You are continuing the NAP build. Phases 1-2 established the monorepo, admin schema (tenants, portal_users, impersonation_logs, match_review_logs), JWT auth flow, and client login page.
+You are continuing the VIMBER build. Phases 1-2 established the monorepo, admin schema (tenants, portal_users, impersonation_logs, match_review_logs), JWT auth flow, and client login page.
 
 **Goal:** 4-layer RBAC — policies, data scope, state filters, field groups. Permission loading + Redis caching. Middleware enforcement. System role seeding. Base controller/router infrastructure.
 
@@ -268,7 +268,7 @@ Migration: `202502110010_coreRbac.js` — Creates all RBAC tables in tenant sche
 
 **Update `authRedis.js`:** Full permission loading from entity record's roles array, Redis cache read/write, stale token detection (X-Token-Stale: 1 header when ph diverges), permission hash computation.
 
-**System Role Seeding:** super_user (Vimber nap schema only: full access all modules + cross-tenant + impersonation), admin (all tenants: full access all modules), support (Vimber only: full non-financial + cross-tenant + impersonation). ALL go through full RBAC resolution — no bypass.
+**System Role Seeding:** super_user (Vimber vimber schema only: full access all modules + cross-tenant + impersonation), admin (all tenants: full access all modules), support (Vimber only: full non-financial + cross-tenant + impersonation). ALL go through full RBAC resolution — no bypass.
 
 **No RBAC Bypass:** The middleware does NOT short-circuit for super_user or admin. All users resolve through entity roles → policies.
 
@@ -298,7 +298,7 @@ Migration: `202502110010_coreRbac.js` — Creates all RBAC tables in tenant sche
 
 ### Prompt
 
-You are continuing the NAP build. Phases 1-3 established the monorepo, admin schema, JWT auth, and 4-layer RBAC with permission loading, Redis caching, base controller/router infrastructure, and system role seeding.
+You are continuing the VIMBER build. Phases 1-3 established the monorepo, admin schema, JWT auth, and 4-layer RBAC with permission loading, Redis caching, base controller/router infrastructure, and system role seeding.
 
 **Goal:** Tenant lifecycle (create/provision/archive/restore), user management (register/CRUD), admin operations (impersonation, cross-tenant). Full client shell with layout chrome, theme, sidebar, and tenant/user management pages.
 
@@ -317,8 +317,8 @@ You are continuing the NAP build. Phases 1-3 established the monorepo, admin sch
 #### Server — Tenants Module (`src/system/tenants/`)
 
 **Controllers:**
-- `tenantsController.js` — create (provisions schema: bootstrap tables + seed RBAC + seed admin role + create admin employee + create nap_user login in single tx), list (cursor pagination), get, update, archive (cascade deactivate all users), restore (reactivate users). Root tenant (NAP) cannot be archived → 403.
-- `portalUsersController.js` — register (validate entity exists with roles assigned + is_app_user = true, bcrypt hash password, create nap_user), list, get, update, archive (prevent self-archival, super_user unarchivable), restore (check tenant active).
+- `tenantsController.js` — create (provisions schema: bootstrap tables + seed RBAC + seed admin role + create admin employee + create vimber_user login in single tx), list (cursor pagination), get, update, archive (cascade deactivate all users), restore (reactivate users). Root tenant (VIMBER) cannot be archived → 403.
+- `portalUsersController.js` — register (validate entity exists with roles assigned + is_app_user = true, bcrypt hash password, create vimber_user), list, get, update, archive (prevent self-archival, super_user unarchivable), restore (check tenant active).
 - `adminController.js` — schemas list, impersonate (start), exit-impersonation, impersonation-status.
 - `services/provisioningService.js` — bootstrap() new tenant schema → create all tables → seed RBAC + system roles + admin policies for all enabled modules.
 
@@ -349,7 +349,7 @@ You are continuing the NAP build. Phases 1-3 established the monorepo, admin sch
 
 - `tests/integration/tenantLifecycle.test.js` — Create → verify schema/tables/roles → archive → users deactivated → restore → reactivated
 - `tests/integration/userRegistration.test.js` — Register (valid entity) → login → verify; reject without roles/is_app_user
-- `tests/contract/tenants.test.js` — CRUD endpoints, root tenant (NAP) cannot be archived (403)
+- `tests/contract/tenants.test.js` — CRUD endpoints, root tenant (VIMBER) cannot be archived (403)
 - `tests/contract/portalUsers.test.js` — Register, CRUD, self-archival prevention, super_user unarchivable
 - `tests/contract/admin.test.js` — schemas list, impersonation start/stop/status
 - `tests/integration/impersonation.test.js` — start → req.user swap → audit log → concurrent rejected (409) → end
@@ -365,7 +365,7 @@ You are continuing the NAP build. Phases 1-3 established the monorepo, admin sch
 
 ### Prompt
 
-You are continuing the NAP build. Phases 1-4 established the monorepo, admin schema, JWT auth, 4-layer RBAC, tenant provisioning, user management, full client layout shell (Sidebar, TenantBar, ModuleBar), and tenant/user management pages.
+You are continuing the VIMBER build. Phases 1-4 established the monorepo, admin schema, JWT auth, 4-layer RBAC, tenant provisioning, user management, full client layout shell (Sidebar, TenantBar, ModuleBar), and tenant/user management pages.
 
 **Goal:** Shared reference data — vendors, clients, employees, contacts with polymorphic sources, addresses, phone numbers, and companies. Full management UI for employees and roles.
 
@@ -411,9 +411,9 @@ Migration: `202502110011_coreEntities.js`
 #### Tests
 
 - Contract tests for vendors, clients, employees, contacts, sources, addresses, phoneNumbers, companies
-- `tests/integration/entityCascade.test.js` — deactivate employee → nap_user locked → cannot login
-- `tests/integration/rolesAssignment.test.js` — assign roles → set is_app_user → register nap_user → login
-- `tests/integration/rolesValidation.test.js` — reject is_app_user without roles, reject nap_user without is_app_user
+- `tests/integration/entityCascade.test.js` — deactivate employee → vimber_user locked → cannot login
+- `tests/integration/rolesAssignment.test.js` — assign roles → set is_app_user → register vimber_user → login
+- `tests/integration/rolesValidation.test.js` — reject is_app_user without roles, reject vimber_user without is_app_user
 
 ---
 
@@ -421,7 +421,7 @@ Migration: `202502110011_coreEntities.js`
 
 ### Prompt
 
-You are continuing the NAP build. Phases 1-5 established the full platform foundation: admin schema, auth, RBAC, tenant management, and core entities (vendors, clients, employees, contacts, sources, addresses, phones, companies).
+You are continuing the VIMBER build. Phases 1-5 established the full platform foundation: admin schema, auth, RBAC, tenant management, and core entities (vendors, clients, employees, contacts, sources, addresses, phones, companies).
 
 **Goal:** Project management — projects, units, tasks, cost items, change orders, and templates. Full project management UI.
 
@@ -472,7 +472,7 @@ Migration: `202502110020_projectTables.js`
 
 ### Prompt
 
-You are continuing the NAP build. Phases 1-6 established admin, auth, RBAC, tenants, core entities, and the projects module (projects, units, tasks, cost items, change orders, templates).
+You are continuing the VIMBER build. Phases 1-6 established admin, auth, RBAC, tenants, core entities, and the projects module (projects, units, tasks, cost items, change orders, templates).
 
 **Goal:** Categorical cost tracking — categories, activities, deliverables, budgets, cost lines, actual costs, vendor parts. Budget approval workflow.
 
@@ -518,7 +518,7 @@ Migration: `202502110040_activityTables.js`
 
 ### Prompt
 
-You are continuing the NAP build. Phases 1-7 established admin, auth, RBAC, tenants, core entities, projects, and activities/cost management.
+You are continuing the VIMBER build. Phases 1-7 established admin, auth, RBAC, tenants, core entities, projects, and activities/cost management.
 
 **Goal:** Bill of materials — catalog SKUs, vendor SKUs with pgvector embeddings, vendor pricing, AI-powered similarity matching, match review.
 
@@ -558,7 +558,7 @@ Migration: `202502110030_bomTables.js` — includes `CREATE EXTENSION IF NOT EXI
 
 ### Prompt
 
-You are continuing the NAP build. Phases 1-8 established admin, auth, RBAC, tenants, core entities, projects, activities/cost management, and BOM.
+You are continuing the VIMBER build. Phases 1-8 established admin, auth, RBAC, tenants, core entities, projects, activities/cost management, and BOM.
 
 **Goal:** Accounts payable (invoices, payments, credit memos), accounts receivable (invoices, receipts), general ledger (chart of accounts, journal entries, posting, intercompany). GL hooks wire AP/AR into double-entry accounting.
 
@@ -639,7 +639,7 @@ Migration: `202502110070_accountingTables.js`
 
 ### Prompt
 
-You are continuing the NAP build. Phases 1-9 established the complete transactional system: admin, auth, RBAC, tenants, core entities, projects, activities, BOM, AP, AR, and accounting with GL hooks.
+You are continuing the VIMBER build. Phases 1-9 established the complete transactional system: admin, auth, RBAC, tenants, core entities, projects, activities, BOM, AP, AR, and accounting with GL hooks.
 
 **Goal:** SQL views for profitability, cashflow, aging. Report API endpoints. Full dashboard with MUI X Charts. Export views.
 

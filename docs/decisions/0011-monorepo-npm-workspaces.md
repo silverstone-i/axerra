@@ -15,7 +15,7 @@ Organise the project as a **monorepo** using **npm workspaces** (built into npm 
 ### Directory Layout
 
 ```
-nap/
+vimber/
 ├── apps/
 │   ├── server/      # Express 5 backend
 │   └── client/    # React 18 + Vite frontend

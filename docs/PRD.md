@@ -1,44 +1,44 @@
-# NAP - Product Requirements Document
+# VIMBER - Product Requirements Document
 
 ## 1. Overview
 
 ### 1.1 Product Vision
 
-NAP (Next Generation Accounting Platform) is a **multi-tenant, modular construction and project management ERP** designed for property development, homebuilding, and general contracting companies. It provides end-to-end management of projects, budgets, cost tracking, vendor relationships, accounts payable/receivable, general ledger accounting, intercompany operations, and **project-level cashflow and profitability analysis** — all within a schema-isolated multi-tenant architecture.
+VIMBER (a Next Generation Accounting Platform) is a **multi-tenant, modular construction and project management ERP** designed for property development, homebuilding, and general contracting companies. It provides end-to-end management of projects, budgets, cost tracking, vendor relationships, accounts payable/receivable, general ledger accounting, intercompany operations, and **project-level cashflow and profitability analysis** — all within a schema-isolated multi-tenant architecture.
 
-> **Build Approach:** This application is built from scratch (greenfield). All server-side data access, schema management, migrations, and CRUD operations leverage **pg-schemata 1.3.0** — an owned, extensible PostgreSQL ORM layer. Since Vimber owns the pg-schemata repository, features can be added and bugs fixed as needed to support NAP requirements.
+> **Build Approach:** This application is built from scratch (greenfield). All server-side data access, schema management, migrations, and CRUD operations leverage **pg-schemata 1.3.0** — an owned, extensible PostgreSQL ORM layer. Since Vimber owns the pg-schemata repository, features can be added and bugs fixed as needed to support VIMBER requirements.
 
 ### 1.2 Target Users
 
-| Persona | Description |
-|---|---|
-| **Vimber Super User** | Platform operator with full access to Vimber data, cross-tenant access, impersonation, and tenant management |
-| **Vimber Support** | Cross-tenant access, impersonation, and tenant management. No access to Vimber financial data |
-| **Administrator** | Full access within their tenant's data. Same role meaning in every schema |
-| **Project Manager** | Creates/manages projects, units, budgets, cost lines, change orders, and actual costs |
-| **Accountant / Controller** | Manages chart of accounts, journal entries, AP/AR invoices, and intercompany transactions |
-| **AP/AR Clerk** | Processes vendor invoices, payments, client invoices, and receipts |
-| **Procurement / BOM Manager** | Manages catalog SKUs, vendor SKU matching, and vendor pricing |
-| **CFO / Financial Analyst** | Reviews cashflow dashboards, project profitability reports, and margin analysis |
+| Persona                             | Description                                                                                                  |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| **Vimber Super User**         | Platform operator with full access to Vimber data, cross-tenant access, impersonation, and tenant management |
+| **Vimber Support**            | Cross-tenant access, impersonation, and tenant management. No access to Vimber financial data                |
+| **Administrator**             | Full access within their tenant's data. Same role meaning in every schema                                    |
+| **Project Manager**           | Creates/manages projects, units, budgets, cost lines, change orders, and actual costs                        |
+| **Accountant / Controller**   | Manages chart of accounts, journal entries, AP/AR invoices, and intercompany transactions                    |
+| **AP/AR Clerk**               | Processes vendor invoices, payments, client invoices, and receipts                                           |
+| **Procurement / BOM Manager** | Manages catalog SKUs, vendor SKU matching, and vendor pricing                                                |
+| **CFO / Financial Analyst**   | Reviews cashflow dashboards, project profitability reports, and margin analysis                              |
 
 ### 1.3 Technology Stack
 
-| Layer | Technology |
-|---|---|
-| **Frontend** | React 18, Vite 7, Material UI 5, React Router 7, TanStack React Query 5 |
-| **Backend** | Node.js 20+, Express 5, ES Modules |
-| **Database** | PostgreSQL 15+ with schema-per-tenant isolation via `pg-schemata` 1.3.0 |
-| **ORM / Data Layer** | `pg-schemata` 1.3.0 (owned) — TableModel, QueryModel, MigrationManager, bootstrap |
-| **Caching** | Redis (permission caching, token staleness detection) |
-| **Auth** | JWT (HS256) in httpOnly cookies, Passport.js Local Strategy, bcrypt |
-| **AI/ML** | pgvector + OpenAI embeddings (text-embedding-3-large) for SKU matching |
-| **Testing** | Vitest (unit, integration, contract, RBAC suites) |
-| **Tooling** | npm workspaces monorepo, ESLint 9 flat config (root-level, covers all workspaces), Prettier, Husky pre-commit hooks |
+| Layer                      | Technology                                                                                                          |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| **Frontend**         | React 18, Vite 7, Material UI 5, React Router 7, TanStack React Query 5                                             |
+| **Backend**          | Node.js 20+, Express 5, ES Modules                                                                                  |
+| **Database**         | PostgreSQL 15+ with schema-per-tenant isolation via `pg-schemata` 1.3.0                                           |
+| **ORM / Data Layer** | `pg-schemata` 1.3.0 (owned) — TableModel, QueryModel, MigrationManager, bootstrap                                |
+| **Caching**          | Redis (permission caching, token staleness detection)                                                               |
+| **Auth**             | JWT (HS256) in httpOnly cookies, Passport.js Local Strategy, bcrypt                                                 |
+| **AI/ML**            | pgvector + OpenAI embeddings (text-embedding-3-large) for SKU matching                                              |
+| **Testing**          | Vitest (unit, integration, contract, RBAC suites)                                                                   |
+| **Tooling**          | npm workspaces monorepo, ESLint 9 flat config (root-level, covers all workspaces), Prettier, Husky pre-commit hooks |
 
 ### 1.4 Monorepo Structure
 
 ```
-nap/
+vimber/
   apps/
     client/     # React SPA frontend
     server/       # Express API backend
@@ -53,49 +53,49 @@ nap/
 
 ### 2.1 Multi-Tenant Model
 
-NAP uses **PostgreSQL schema-per-tenant** isolation powered by pg-schemata:
+VIMBER uses **PostgreSQL schema-per-tenant** isolation powered by pg-schemata:
 
 - **`admin` schema**: System-wide tables (`tenants`, `portal_users`, `match_review_logs`, `impersonation_logs`)
-- **Tenant schemas** (e.g., `acme`, `nap`): Each customer gets a dedicated PostgreSQL schema containing all business tables (vendors, projects, accounting, etc.)
+- **Tenant schemas** (e.g., `acme`, `vimber`): Each customer gets a dedicated PostgreSQL schema containing all business tables (vendors, projects, accounting, etc.)
 - Tenant resolution is performed per-request: `authRedis` looks up the user's home tenant from their `portal_users` record (via JWT `sub`), optionally overridden by the `x-tenant-code` header
 - All database access is schema-aware via pg-schemata's `setSchemaName()` — models bind queries to the correct tenant schema dynamically
 
 ### 2.2 pg-schemata Integration (Owned Dependency)
 
-NAP is built entirely on **pg-schemata 1.3.0**. Since Vimber owns the pg-schemata repository, the library can be extended with new features or patched as NAP requirements evolve.
+VIMBER is built entirely on **pg-schemata 1.3.0**. Since Vimber owns the pg-schemata repository, the library can be extended with new features or patched as VIMBER requirements evolve.
 
 #### 2.2.1 Core Capabilities Used
 
-| pg-schemata Feature | NAP Usage |
-|---|---|
-| **DB.init()** | Singleton database initialization with all model repositories |
-| **TableModel** | Base class for all writable business models — provides insert, update, delete, bulk operations, upsert, soft delete, import/export |
-| **QueryModel** | Base class for read-only views — provides findById, findWhere, findAfterCursor (keyset pagination), countWhere, exists, countAll |
-| **Schema Definitions** | All table structures defined as JavaScript schema objects with columns, constraints, indexes, and foreign keys |
-| **Audit Fields** | `hasAuditFields: { enabled: true, userFields: { type: 'uuid' } }` — auto-managed created_at/by, updated_at/by |
-| **Soft Delete** | `softDelete: true` — deactivated_at column with automatic filtering on reads |
-| **Zod Validation** | Auto-generated insert/update validators from schema definitions via `generateZodFromTableSchema()` |
-| **ColumnSet Caching** | LRU cache (20K entries, 1-hour TTL) for pg-promise ColumnSets |
-| **Excel Import/Export** | `importFromSpreadsheet()` / `exportToSpreadsheet()` built into TableModel |
-| **Error Classes** | `DatabaseError` (PG error codes: 23505 unique, 23503 FK) and `SchemaDefinitionError` |
+| pg-schemata Feature           | VIMBER Usage                                                                                                                        |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **DB.init()**           | Singleton database initialization with all model repositories                                                                       |
+| **TableModel**          | Base class for all writable business models — provides insert, update, delete, bulk operations, upsert, soft delete, import/export |
+| **QueryModel**          | Base class for read-only views — provides findById, findWhere, findAfterCursor (keyset pagination), countWhere, exists, countAll   |
+| **Schema Definitions**  | All table structures defined as JavaScript schema objects with columns, constraints, indexes, and foreign keys                      |
+| **Audit Fields**        | `hasAuditFields: { enabled: true, userFields: { type: 'uuid' } }` — auto-managed created_at/by, updated_at/by                    |
+| **Soft Delete**         | `softDelete: true` — deactivated_at column with automatic filtering on reads                                                     |
+| **Zod Validation**      | Auto-generated insert/update validators from schema definitions via `generateZodFromTableSchema()`                                |
+| **ColumnSet Caching**   | LRU cache (20K entries, 1-hour TTL) for pg-promise ColumnSets                                                                       |
+| **Excel Import/Export** | `importFromSpreadsheet()` / `exportToSpreadsheet()` built into TableModel                                                       |
+| **Error Classes**       | `DatabaseError` (PG error codes: 23505 unique, 23503 FK) and `SchemaDefinitionError`                                            |
 
 #### 2.2.2 WHERE Clause Query Operators
 
 All models inherit pg-schemata's rich query builder:
 
-| Modifier | SQL | Example |
-|---|---|---|
-| `$like` | LIKE | `{ name: { $like: '%lumber%' } }` |
-| `$ilike` | ILIKE | `{ name: { $ilike: '%lumber%' } }` |
-| `$from` / `$to` | >= / <= | `{ created_at: { $from: '2025-01-01', $to: '2025-12-31' } }` |
-| `$in` | IN | `{ status: { $in: ['active', 'pending'] } }` |
-| `$eq` / `$ne` | = / != | `{ status: { $ne: null } }` |
-| `$is` / `$not` | IS NULL / IS NOT NULL | `{ deleted_at: { $is: null } }` |
-| `$and` / `$or` | Nested boolean | `{ $or: [{ status: 'open' }, { status: 'sent' }] }` |
+| Modifier                                                      | SQL                   | Example                                                        |
+| ------------------------------------------------------------- | --------------------- | -------------------------------------------------------------- |
+| `$like` | LIKE | `{ name: { $like: '%lumber%' } }`        |                       |                                                                |
+| `$ilike` | ILIKE | `{ name: { $ilike: '%lumber%' } }`     |                       |                                                                |
+| `$from` / `$to`                                           | >= / <=               | `{ created_at: { $from: '2025-01-01', $to: '2025-12-31' } }` |
+| `$in` | IN | `{ status: { $in: ['active', 'pending'] } }` |                       |                                                                |
+| `$eq` / `$ne`                                             | = / !=                | `{ status: { $ne: null } }`                                  |
+| `$is` / `$not`                                            | IS NULL / IS NOT NULL | `{ deleted_at: { $is: null } }`                              |
+| `$and` / `$or`                                            | Nested boolean        | `{ $or: [{ status: 'open' }, { status: 'sent' }] }`          |
 
 #### 2.2.3 Model Definition Pattern
 
-Every NAP model follows this pattern:
+Every VIMBER model follows this pattern:
 
 ```javascript
 import { TableModel } from 'pg-schemata';
@@ -159,15 +159,15 @@ const db = createCallDb(rawDb);
 
 #### 2.2.5 Potential pg-schemata Enhancements (Owned Repo)
 
-Features that may need to be added to pg-schemata to support NAP:
+Features that may need to be added to pg-schemata to support VIMBER:
 
-| Enhancement | Purpose |
-|---|---|
-| **Aggregate query helpers** | Built-in SUM/AVG/GROUP BY support for profitability rollups |
-| **Raw SQL escape hatch** | Safe parameterized raw query method for complex reporting views |
-| **Batch schema operations** | Create/drop multiple tenant schemas in a single call |
-| **Event hooks** | Pre/post insert/update hooks for GL posting triggers |
-| **Connection tagging** | Tag connections with tenant context for pg_stat monitoring |
+| Enhancement                       | Purpose                                                         |
+| --------------------------------- | --------------------------------------------------------------- |
+| **Aggregate query helpers** | Built-in SUM/AVG/GROUP BY support for profitability rollups     |
+| **Raw SQL escape hatch**    | Safe parameterized raw query method for complex reporting views |
+| **Batch schema operations** | Create/drop multiple tenant schemas in a single call            |
+| **Event hooks**             | Pre/post insert/update hooks for GL posting triggers            |
+| **Connection tagging**      | Tag connections with tenant context for pg_stat monitoring      |
 
 ### 2.3 Application Layout
 
@@ -212,6 +212,7 @@ Browser -> Vite Dev Proxy (/api -> :3000) -> Express
 #### 3.1.1 Authentication
 
 **Login Flow:**
+
 1. User submits email/password on `LoginPage`
 2. Client calls `POST /api/auth/login` via `authApi.login()`
 3. Server validates via Passport Local Strategy (bcrypt hash comparison against `admin.portal_users`)
@@ -221,16 +222,18 @@ Browser -> Vite Dev Proxy (/api -> :3000) -> Express
 7. `AuthContext` stores user state; `LayoutShell` guards authenticated routes
 
 **Endpoints:**
-| Method | Path | Purpose |
-|---|---|---|
-| `POST` | `/api/auth/login` | Authenticate with email/password |
-| `POST` | `/api/auth/refresh` | Rotate tokens (full rotation) |
-| `POST` | `/api/auth/logout` | Clear auth cookies |
-| `POST` | `/api/auth/change-password` | Change password (validates current password, enforces strength rules) |
-| `GET` | `/api/auth/me` | Get current user context, tenant, roles, permissions, impersonation state |
-| `GET` | `/api/auth/check` | Lightweight session validation |
+
+| Method   | Path                          | Purpose                                                                   |
+| -------- | ----------------------------- | ------------------------------------------------------------------------- |
+| `POST` | `/api/auth/login`           | Authenticate with email/password                                          |
+| `POST` | `/api/auth/refresh`         | Rotate tokens (full rotation)                                             |
+| `POST` | `/api/auth/logout`          | Clear auth cookies                                                        |
+| `POST` | `/api/auth/change-password` | Change password (validates current password, enforces strength rules)     |
+| `GET`  | `/api/auth/me`              | Get current user context, tenant, roles, permissions, impersonation state |
+| `GET`  | `/api/auth/check`           | Lightweight session validation                                            |
 
 **Token Claims:**
+
 - `sub`: User UUID
 - `ph`: Permissions hash for cache validation (currently hardcoded to `null` — Phase 3 will populate this)
 - `iss`: Issuer (`'vimber-serv'`)
@@ -239,6 +242,7 @@ Browser -> Vite Dev Proxy (/api -> :3000) -> Express
 > **Note:** Authentication is against `admin.portal_users` which contains only identity/auth fields (`id`, `tenant_id`, `entity_type`, `entity_id`, `email`, `password_hash`, `status`). Tenant context (`tenant_code`, `schema_name`) and roles are resolved at request time by the `authRedis` middleware via HTTP headers, Redis cache, and database lookup — they are NOT embedded in the JWT. Roles are read from the entity record's `roles` text array (resolved via `entity_type` + `entity_id`), not from a column on `portal_users`.
 
 **Client-Side Auth:**
+
 - `AuthContext` provides `{ user, loading, login, logout, refreshUser, tenant, isRootTenantUser, assumedTenant, assumeTenant, exitAssumption, impersonation, startImpersonation, endImpersonation }` via React context, where `tenant` is `null` or `{ tenant_code, schema_name }` (when an assumption is active, `tenant` also includes `company` and `is_assumed: true`)
 - `LayoutShell` renders loading spinner while `loading=true`, redirects to `/login` if `user=null`
 - All API calls use `credentials: 'include'` for cookie transmission
@@ -250,29 +254,33 @@ Browser -> Vite Dev Proxy (/api -> :3000) -> Express
 
 RBAC uses a four-layer model where each layer narrows what the previous layer grants. Layers 2-4 never expand access beyond what Layer 1 allows.
 
-| Layer | Question | Mechanism |
-|-------|----------|-----------|
-| **1 — Role Policies** | What can this role DO? | `policies` table — `none`/`view`/`full` levels |
-| **2 — Data Scope** | HOW MUCH data? | `roles.scope` + `project_members` + `company_members` tables |
-| **3 — State Filters** | Which record STATES? | `state_filters` table |
-| **4 — Field Groups** | Which COLUMNS? | `field_group_definitions` + `field_group_grants` tables |
+| Layer                        | Question               | Mechanism                                                          |
+| ---------------------------- | ---------------------- | ------------------------------------------------------------------ |
+| **1 — Role Policies** | What can this role DO? | `policies` table — `none`/`view`/`full` levels            |
+| **2 — Data Scope**    | HOW MUCH data?         | `roles.scope` + `project_members` + `company_members` tables |
+| **3 — State Filters** | Which record STATES?   | `state_filters` table                                            |
+| **4 — Field Groups**  | Which COLUMNS?         | `field_group_definitions` + `field_group_grants` tables        |
 
 **Layer 1 — Data Model:**
+
 - `roles`: Role definitions with `code`, `name`, `description` (optional), `is_system`, `is_immutable`, `scope` (`all_projects`, `assigned_companies`, `assigned_projects`, or `self`), plus `tenant_code`
 - `policies`: Permission grants with `(role_id, module, router, action, level)` dimensions, plus `tenant_code`
 
 > **Role Assignment:** Roles are stored as a `roles` text array directly on each entity table (employees, clients, vendor_contacts) — there is no `role_members` junction table. The permission loader reads the `roles` array from the entity record (resolved via `portal_users.entity_type` + `entity_id`), then queries `policies` for matching role IDs. A SQL view can reconstruct "members by role" across entity tables when needed for admin reporting.
 
 **Layer 2 — Data Model:**
+
 - `project_members`: Maps `(project_id, user_id)` with a `role` label (e.g., `member`, `lead`). When `roles.scope = 'assigned_projects'`, only data from the user's assigned projects is visible.
 - `company_members`: Maps `(company_id, user_id)`. When `roles.scope = 'assigned_companies'`, only data from projects belonging to the user's assigned companies is visible. The permission loader eagerly resolves both `companyIds` and corresponding `projectIds`.
 - **`self` scope:** When `roles.scope = 'self'`, the permission loader reads `entity_type` and `entity_id` from `portal_users`. The canon includes `entityType` and `entityId`. `_applyRbacFilters()` maps the entity type to the appropriate FK column on the queried resource (e.g., `vendor_id` for AP invoices, `client_id` for AR invoices, `employee_id` for timecards). This enables portal access where vendors/clients see only their own records.
 - `policy_catalog`: Registry of valid `(module, router, action)` combinations for role configuration UI discovery. Includes `label` (varchar(128), human-readable name), `description` (varchar(512), optional explanation), `sort_order` (integer, display ordering), `valid_statuses` (text[], valid status values for state filter UI), `available_fields` (text[], columns available for field group UI), and `policy_required` (boolean, default true — whether a policy must exist for this combination). Seed-only reference data — no audit fields, no tenant_code.
 
 **Layer 3 — Data Model:**
+
 - `state_filters`: `(role_id, module, router, visible_statuses[])`. Restricts which record statuses are visible per role per resource. Empty = no filtering (all statuses visible).
 
 **Layer 4 — Data Model:**
+
 - `field_group_definitions`: Named column groups per resource — e.g., `(module, router, group_name, columns[], is_default)`.
 - `field_group_grants`: Assigns field groups to roles. Definitions with `is_default = true` are granted to all roles automatically. Empty = all columns visible.
 
@@ -281,6 +289,7 @@ RBAC uses a four-layer model where each layer narrows what the previous layer gr
 **Permission Levels (Layer 1):** `none` (0) < `view` (1) < `full` (2)
 
 **Policy Resolution (most specific to least):**
+
 1. `module::router::action` (e.g., `ar::ar-invoices::approve`)
 2. `module::router::` (e.g., `ar::ar-invoices::`)
 3. `module::::` (e.g., `ar::::`)
@@ -288,6 +297,7 @@ RBAC uses a four-layer model where each layer narrows what the previous layer gr
 5. Default: `none`
 
 **Multi-role Merge:**
+
 - Layer 2 scope: most permissive wins — four-tier hierarchy: `all_projects` > `assigned_companies` > `assigned_projects` > `self`
 - Layer 3 statuses: union of visible statuses across roles
 - Layer 4 columns: union of granted columns across roles
@@ -296,22 +306,24 @@ RBAC uses a four-layer model where each layer narrows what the previous layer gr
 
 All roles — including system roles — go through the full RBAC policy resolution. There are no bypass or short-circuit paths in the middleware.
 
-- `super_user` (Vimber `nap` schema only): Full access to all Vimber data + cross-tenant access + impersonation + tenant management. Seeded with `level: 'full'` policies for all modules plus cross-tenant and impersonation policies. Goes through full RBAC policy resolution — no bypass.
+- `super_user` (Vimber `vimber` schema only): Full access to all Vimber data + cross-tenant access + impersonation + tenant management. Seeded with `level: 'full'` policies for all modules plus cross-tenant and impersonation policies. Goes through full RBAC policy resolution — no bypass.
 - `admin` (all tenant schemas): Full access within that tenant's data. Seeded with `level: 'full'` policies for all modules. Same meaning in every schema. Goes through full RBAC policy resolution — no bypass.
-- `support` (Vimber `nap` schema only): Cross-tenant access + impersonation + tenant management. No access to Vimber financial modules (accounting, AR, AP). Seeded with `level: 'none'` for financial modules + `level: 'full'` for non-financial modules + cross-tenant and impersonation policies. Goes through full RBAC policy resolution.
+- `support` (Vimber `vimber` schema only): Cross-tenant access + impersonation + tenant management. No access to Vimber financial modules (accounting, AR, AP). Seeded with `level: 'none'` for financial modules + `level: 'full'` for non-financial modules + cross-tenant and impersonation policies. Goes through full RBAC policy resolution.
 
 > **No RBAC Bypass:** The middleware does NOT short-circuit for `super_user` or `admin`. All users are authorized through the same entity `roles` array → `policies` resolution path. This ensures all access is auditable, configurable, and consistent.
 
 **Seeded Tenant Roles:**
+
 - `admin`: Tenant-level administrator, `scope: 'all_projects'`. Seeded with explicit `level: 'full'` policies for ALL modules. When new modules are added to the platform, the module migration seeds admin policies for all existing tenants (see Admin Policy Auto-Seeding below).
 
 > **Note:** Only `admin`, `super_user`, and `support` are seeded by the system role seeder. Additional roles (e.g., `project_manager`, `controller`) are tenant-configurable and must be created by tenant admins via the ManageRolesPage UI.
 
-**Vimber-Only Policies:** Cross-tenant and impersonation policies are ONLY seeded in the `nap` schema on `super_user` and `support` roles. These policies cannot be assigned to other tenants' schemas.
+**Vimber-Only Policies:** Cross-tenant and impersonation policies are ONLY seeded in the `vimber` schema on `super_user` and `support` roles. These policies cannot be assigned to other tenants' schemas.
 
 **Tenant Configurability:** All roles except `super_user`, `admin`, and `support` are tenant-configurable. Tenants define their own roles, assign scopes, create state filters, and build field groups.
 
 **Permission Canon (cached in Redis):**
+
 - Canonical form: `{ caps, scope, projectIds, companyIds, entityType, entityId, stateFilters, fieldGroups }`
 - Stored at `perm:{userId}:{tenantCode}`
 - SHA-256 permission hash designed for JWT (`ph` claim) — currently hardcoded to `null` in `authController.js` (Phase 3 deferred). The `X-Token-Stale: 1` stale-detection logic exists in `authRedis` but never fires because `ph` is always falsy
@@ -319,6 +331,7 @@ All roles — including system roles — go through the full RBAC policy resolut
 - `entityType` and `entityId` are included in the canon for `self` scope resolution
 
 **Module Entitlements:**
+
 - `admin.tenants.allowed_modules` (jsonb array of module names) controls which modules a tenant can access
 - Enforced by middleware after auth and before RBAC: if `req.resource.module` is not in the tenant's `allowed_modules`, return 403
 - Cached in Redis alongside tenant metadata
@@ -326,27 +339,29 @@ All roles — including system roles — go through the full RBAC policy resolut
 - Managed by Vimber `super_user` / `support` via tenant management UI
 
 **Enforcement:**
+
 - **Module Entitlement (middleware):** `moduleEntitlement` is auto-applied by `createRouter` on all routes. Checks `tenants.allowed_modules` — if the tenant doesn't have the module enabled, returns 403 regardless of user permissions. Empty array means all modules allowed.
 - **Layer 1 (opt-in middleware):** `withMeta({ module, router, action })` annotates `req.resource`. `rbac(requiredLevel)` can be explicitly added to routes that need per-action permission checks — it resolves the user's policy level from `caps` and returns 403 if insufficient. GET/HEAD default to `view`; mutations default to `full`. `createRouter` auto-applies `rbac()` on import/export routes: `rbac('full')` on `/import-xls` (with `setImportAction` overriding `req.resource.action = 'import'`) and `rbac('view')` on `/export-xls` (with `setExportAction` overriding `req.resource.action = 'export'`). For custom endpoints, `rbac()` is manually added (e.g., `employees/:id/reset-password`, `ar-invoices/approve`). Standard CRUD routes (POST, GET, PUT, DELETE, PATCH) from `createRouter` do **not** include `rbac()` — they rely on `moduleEntitlement` for access control. Permissions are resolved from entity `roles` array → `policies` for ALL users — no role-based bypass or short-circuit.
 - **Layers 2-4 (service layer):** `ViewController._applyRbacFilters()` applies scope, state, and field filters. Controllers opt in via `this.rbacConfig = { module, router, scopeColumn, entityScopeColumns }`. The `entityScopeColumns` mapping tells the `self` scope which FK column to filter for each entity type (e.g., `{ vendor: 'vendor_id', client: 'client_id', employee: 'employee_id' }`).
 
 **Admin Policy Auto-Seeding:**
+
 - When a new module is added to the platform, its migration seeds `level: 'full'` policies for the `admin` role in every existing tenant schema
 - Ensures `admin` always has complete access without manual intervention
 - New tenant provisioning includes admin policies for all modules enabled by the tenant's `allowed_modules`
 
 **RBAC Management Endpoints (tenant-scope, under `/api/core/v1/`):**
 
-| Method | Path | Purpose |
-|---|---|---|
-| Standard CRUD | `/api/core/v1/roles` | Manage tenant roles (code, name, scope, is_system, is_immutable) |
-| Standard CRUD | `/api/core/v1/policies` | Manage per-role permission grants (module, router, action, level) |
-| Standard CRUD | `/api/core/v1/policy-catalog` | Read-only catalog of valid (module, router, action) combinations |
-| Standard CRUD | `/api/core/v1/state-filters` | Manage Layer 3 state visibility filters per role/resource |
-| Standard CRUD | `/api/core/v1/field-group-definitions` | Manage Layer 4 named column groups per resource |
-| Standard CRUD | `/api/core/v1/field-group-grants` | Assign field groups to roles |
-| Standard CRUD | `/api/core/v1/project-members` | Manage Layer 2 user↔project assignments |
-| Standard CRUD | `/api/core/v1/company-members` | Manage Layer 2 user↔company assignments |
+| Method        | Path                                     | Purpose                                                           |
+| ------------- | ---------------------------------------- | ----------------------------------------------------------------- |
+| Standard CRUD | `/api/core/v1/roles`                   | Manage tenant roles (code, name, scope, is_system, is_immutable)  |
+| Standard CRUD | `/api/core/v1/policies`                | Manage per-role permission grants (module, router, action, level) |
+| Standard CRUD | `/api/core/v1/policy-catalog`          | Read-only catalog of valid (module, router, action) combinations  |
+| Standard CRUD | `/api/core/v1/state-filters`           | Manage Layer 3 state visibility filters per role/resource         |
+| Standard CRUD | `/api/core/v1/field-group-definitions` | Manage Layer 4 named column groups per resource                   |
+| Standard CRUD | `/api/core/v1/field-group-grants`      | Assign field groups to roles                                      |
+| Standard CRUD | `/api/core/v1/project-members`         | Manage Layer 2 user↔project assignments                          |
+| Standard CRUD | `/api/core/v1/company-members`         | Manage Layer 2 user↔company assignments                          |
 
 > **Role Assignment:** Roles are managed via entity CRUD endpoints (update the `roles` array on the employee/vendor-contact/client/contact record). There is no separate `/role-members` endpoint.
 
@@ -354,12 +369,12 @@ All roles — including system roles — go through the full RBAC policy resolut
 
 **RBAC Management UI (`ManageRolesPage`):** The Manage Roles page at `/tenant/manage-roles` uses a master-detail layout. The left panel lists roles in a DataTable; the right panel has tabbed editors for the four RBAC layers:
 
-| Tab | Component | Purpose |
-|---|---|---|
-| Policies | `PolicyEditor` | Accordion-based policy matrix — reads `policy_catalog` for structure, renders level selectors (none/view/full) per module/router/action |
-| State Filters | `StateFilterEditor` | Configure Layer 3 status visibility filters per role/resource — restrict which record statuses a role can see |
-| Field Groups | `FieldGroupEditor` | Toggle Layer 4 field group grants per role — displays all definitions grouped by module/router, admins toggle which groups are granted |
-| Field Definitions | `FieldGroupDefinitionEditor` | CRUD for field group definitions — create/edit/delete named column groups per resource |
+| Tab               | Component                      | Purpose                                                                                                                                    |
+| ----------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Policies          | `PolicyEditor`               | Accordion-based policy matrix — reads `policy_catalog` for structure, renders level selectors (none/view/full) per module/router/action |
+| State Filters     | `StateFilterEditor`          | Configure Layer 3 status visibility filters per role/resource — restrict which record statuses a role can see                             |
+| Field Groups      | `FieldGroupEditor`           | Toggle Layer 4 field group grants per role — displays all definitions grouped by module/router, admins toggle which groups are granted    |
+| Field Definitions | `FieldGroupDefinitionEditor` | CRUD for field group definitions — create/edit/delete named column groups per resource                                                    |
 
 Roles with `is_immutable = true` OR `is_system = true` are read-only across all detail tabs. Only `is_immutable` hides the row-level Edit action in the master list.
 
@@ -377,20 +392,21 @@ Roles with `is_immutable = true` OR `is_system = true` are read-only across all 
 
 **Data Model (`admin.tenants`):**
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | Primary key |
-| `tenant_code` | varchar(6) | Unique short code (e.g., `NAP`, `CAL`) |
-| `company` | varchar(128) | Company name |
-| `schema_name` | varchar(63) | PostgreSQL schema name |
-| `status` | varchar(20) | `active`, `trial`, `suspended`, `pending` |
-| `tier` | varchar(20) | `enterprise`, `growth`, `starter` |
-| `region` | varchar(64) | Geographic region |
-| `allowed_modules` | jsonb | Module access whitelist (enforced by module entitlement middleware — see §3.1.2) |
-| `max_users` | integer | User limit (default 5) |
-| `notes` | text | Internal notes |
+| Field               | Type         | Description                                                                        |
+| ------------------- | ------------ | ---------------------------------------------------------------------------------- |
+| `id`              | uuid         | Primary key                                                                        |
+| `tenant_code`     | varchar(6)   | Unique short code (e.g.,`VIMBER`, `CAL`)                                       |
+| `company`         | varchar(128) | Company name                                                                       |
+| `schema_name`     | varchar(63)  | PostgreSQL schema name                                                             |
+| `status`          | varchar(20)  | `active`, `trial`, `suspended`, `pending`                                  |
+| `tier`            | varchar(20)  | `enterprise`, `growth`, `starter`                                            |
+| `region`          | varchar(64)  | Geographic region                                                                  |
+| `allowed_modules` | jsonb        | Module access whitelist (enforced by module entitlement middleware — see §3.1.2) |
+| `max_users`       | integer      | User limit (default 5)                                                             |
+| `notes`           | text         | Internal notes                                                                     |
 
 **Tenant Provisioning:**
+
 - Raw `CREATE SCHEMA` DDL creates the new tenant schema
 - Extensions (e.g., `pgcrypto`, `vector`) are created per-schema as needed
 - `createMigrator` runs all pending migrations against the new schema (not `bootstrap()` or `MigrationManager`)
@@ -399,6 +415,7 @@ Roles with `is_immutable = true` OR `is_system = true` are read-only across all 
 - **Contact Designation:** Primary and billing contacts are designated via `employees.is_primary_contact` and `employees.is_billing_contact` flags — there is no `tenant_role` column on `portal_users`.
 
 **UI Requirements:**
+
 - Data grid displaying: Code, Tenant Name, Status, Tier, Region, Active columns
 - Row selection with checkbox (single and multi-select)
 - Module Bar actions: **Create Tenant**, **View Details**, **Edit Tenant**, **Archive**, **Restore**
@@ -406,21 +423,22 @@ Roles with `is_immutable = true` OR `is_system = true` are read-only across all 
 - Create tenant form includes admin user fields: first name, last name, email, and password (used to create the tenant's Administrator user and linked employee record)
 - Pagination with configurable rows-per-page (powered by `findAfterCursor()`)
 - Archive cascades to deactivate all currently-active associated `portal_users` (sets `deactivated_at`, `status = 'locked'`, and `updated_by`) — works for both `?id=` and `?tenant_code=` query params.
-- The root tenant (Vimber, `NAP`) cannot be archived — server rejects the request with 403
+- The root tenant (Vimber, `VIMBER`) cannot be archived — server rejects the request with 403
 - Restore reactivates the tenant only — users remain archived and must be individually restored by an admin
 - **View Details dialog** (`maxWidth="md"`): displays tenant fields in a responsive 3-column grid of `FieldRow` components (label:value pairs). Fields: Code, Tier, Region, Status (rendered as `StatusBadge` chip), Max Users, Schema (monospace), Created, Updated, Notes (full-width). Below a divider, two `DataGrid` tables display **Primary Contacts** and **Billing Contacts** with Name, Email (mailto link), and Phone columns. Contact data is fetched via `useTenantContacts(tenantId)` hook.
 
 **Endpoints:**
-| Method | Path | Purpose |
-|---|---|---|
-| `POST` | `/api/tenants/v1/tenants` | Create tenant (provisions schema, creates employee with `roles: ['admin']` + portal_users login in single transaction) |
-| `GET` | `/api/tenants/v1/tenants` | List tenants (cursor-based pagination) |
-| `GET` | `/api/tenants/v1/tenants/:id` | Get tenant by ID |
-| `PUT` | `/api/tenants/v1/tenants/update` | Update tenant |
-| `DELETE` | `/api/tenants/v1/tenants/archive` | Soft-delete tenant (cascades to users) |
-| `PATCH` | `/api/tenants/v1/tenants/restore` | Restore archived tenant |
-| `GET` | `/api/tenants/v1/tenants/:id/modules` | Get tenant's allowed modules |
-| `GET` | `/api/tenants/v1/tenants/:id/contacts` | Get primary and billing contacts with phone/address (cross-schema query into tenant's employees) |
+
+| Method     | Path                                     | Purpose                                                                                                                  |
+| ---------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `POST`   | `/api/tenants/v1/tenants`              | Create tenant (provisions schema, creates employee with `roles: ['admin']` + portal_users login in single transaction) |
+| `GET`    | `/api/tenants/v1/tenants`              | List tenants (cursor-based pagination)                                                                                   |
+| `GET`    | `/api/tenants/v1/tenants/:id`          | Get tenant by ID                                                                                                         |
+| `PUT`    | `/api/tenants/v1/tenants/update`       | Update tenant                                                                                                            |
+| `DELETE` | `/api/tenants/v1/tenants/archive`      | Soft-delete tenant (cascades to users)                                                                                   |
+| `PATCH`  | `/api/tenants/v1/tenants/restore`      | Restore archived tenant                                                                                                  |
+| `GET`    | `/api/tenants/v1/tenants/:id/modules`  | Get tenant's allowed modules                                                                                             |
+| `GET`    | `/api/tenants/v1/tenants/:id/contacts` | Get primary and billing contacts with phone/address (cross-schema query into tenant's employees)                         |
 
 #### 3.2.2 Manage Users
 
@@ -428,33 +446,35 @@ Roles with `is_immutable = true` OR `is_system = true` are read-only across all 
 
 `portal_users` is a pure identity/authentication table. All personal information (name, phone, address) lives on the linked entity record (employee, vendor, vendor contact, client, or contact) in the tenant schema. The link is polymorphic via `entity_type` + `entity_id`. Roles are stored as a `roles` text array on the entity record — there is no `role` column on `portal_users` and no `role_members` junction table.
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | Primary key |
-| `tenant_id` | uuid | FK to tenants |
-| `entity_type` | varchar(16) | Entity kind: `'employee'`, `'vendor_contact'`, `'client'` |
-| `entity_id` | uuid | Cross-schema reference to the tenant-schema entity record (not a database FK — enforced by business logic) |
-| `email` | varchar(128) | Login identifier, globally unique (partial index WHERE deactivated_at IS NULL) |
-| `password_hash` | text | bcrypt hash (never returned in API responses) |
-| `status` | varchar(20) | `active`, `invited`, `locked` |
+| Field             | Type         | Description                                                                                                 |
+| ----------------- | ------------ | ----------------------------------------------------------------------------------------------------------- |
+| `id`            | uuid         | Primary key                                                                                                 |
+| `tenant_id`     | uuid         | FK to tenants                                                                                               |
+| `entity_type`   | varchar(16)  | Entity kind:`'employee'`, `'vendor_contact'`, `'client'`                                              |
+| `entity_id`     | uuid         | Cross-schema reference to the tenant-schema entity record (not a database FK — enforced by business logic) |
+| `email`         | varchar(128) | Login identifier, globally unique (partial index WHERE deactivated_at IS NULL)                              |
+| `password_hash` | text         | bcrypt hash (never returned in API responses)                                                               |
+| `status`        | varchar(20)  | `active`, `invited`, `locked`                                                                         |
 
 Partial unique index: `(entity_type, entity_id) WHERE deactivated_at IS NULL` — prevents duplicate logins for the same entity.
 
-> **Removed from portal_users:** `tenant_code`, `user_name`, `full_name`, `tax_id`, `notes`, `role`, `tenant_role`, `employee_id`. The `employee_id` column has been replaced by the polymorphic `entity_type` + `entity_id` pair, supporting logins for employees, vendors, clients, and contacts. User identity data lives on the entity record. Roles are stored as a `roles` text array on the entity record (not in a `role_members` junction table). Contact designation (primary/billing) is via `employees.is_primary_contact` / `is_billing_contact`. The `nap_admin_phones` and `nap_admin_addresses` tables have been removed — phone numbers and addresses are stored on the linked entity via the polymorphic `sources` → `phone_numbers` / `addresses` pattern.
+> **Removed from portal_users:** `tenant_code`, `user_name`, `full_name`, `tax_id`, `notes`, `role`, `tenant_role`, `employee_id`. The `employee_id` column has been replaced by the polymorphic `entity_type` + `entity_id` pair, supporting logins for employees, vendors, clients, and contacts. User identity data lives on the entity record. Roles are stored as a `roles` text array on the entity record (not in a `role_members` junction table). Contact designation (primary/billing) is via `employees.is_primary_contact` / `is_billing_contact`. The `vimber_admin_phones` and `vimber_admin_addresses` tables have been removed — phone numbers and addresses are stored on the linked entity via the polymorphic `sources` → `phone_numbers` / `addresses` pattern.
 
 **Access Control:** All portal-users routes are gated by `requireRootTenant` middleware and `withMeta({ module: 'tenants', router: 'portal-users' })`. `rbac()` is not currently applied — access control relies on `requireRootTenant` (restricts to Vimber users) and `moduleEntitlement`.
 
 **Endpoints:**
-| Method | Path | Purpose |
-|---|---|---|
-| `POST` | `/api/tenants/v1/portal-users/register` | Register new user (accepts `tenant_code`, `email`, `password`; validates tenant is active) |
-| `GET` | `/api/tenants/v1/portal-users` | List users |
-| `GET` | `/api/tenants/v1/portal-users/:id` | Get user by ID |
-| `PUT` | `/api/tenants/v1/portal-users/update` | Update user |
-| `DELETE` | `/api/tenants/v1/portal-users/archive` | Soft-delete user — sets `status = 'locked'` and `deactivated_at`, cascades to archive linked entity (prevents self-archival) |
-| `PATCH` | `/api/tenants/v1/portal-users/restore` | Restore user — sets `status = 'active'` and clears `deactivated_at`, cascades to restore linked entity (checks tenant is active) |
+
+| Method     | Path                                      | Purpose                                                                                                                               |
+| ---------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST`   | `/api/tenants/v1/portal-users/register` | Register new user (accepts `tenant_code`, `email`, `password`; validates tenant is active)                                      |
+| `GET`    | `/api/tenants/v1/portal-users`          | List users                                                                                                                            |
+| `GET`    | `/api/tenants/v1/portal-users/:id`      | Get user by ID                                                                                                                        |
+| `PUT`    | `/api/tenants/v1/portal-users/update`   | Update user                                                                                                                           |
+| `DELETE` | `/api/tenants/v1/portal-users/archive`  | Soft-delete user — sets `status = 'locked'` and `deactivated_at`, cascades to archive linked entity (prevents self-archival)     |
+| `PATCH`  | `/api/tenants/v1/portal-users/restore`  | Restore user — sets `status = 'active'` and clears `deactivated_at`, cascades to restore linked entity (checks tenant is active) |
 
 **Business Rules:**
+
 - Standard POST is disabled; users must be created via the `/register` endpoint
 - Registration collects: `tenant_code`, `email`, `password`. Validates the tenant exists and is active. Entity linkage (`entity_type`, `entity_id`) and entity pre-validation (roles assigned, `is_app_user = true`) are not yet enforced — these fields can be set via subsequent update
 - Password automatically hashed with bcrypt on registration
@@ -468,16 +488,18 @@ Partial unique index: `(entity_type, entity_id) WHERE deactivated_at IS NULL` �
 #### 3.2.3 Admin Operations
 
 **Endpoints:**
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/api/tenants/v1/admin/schemas` | List all active tenants (Vimber users only) |
-| `POST` | `/api/tenants/v1/admin/impersonate` | Start impersonation session (requires `target_user_id`) |
-| `POST` | `/api/tenants/v1/admin/exit-impersonation` | End active impersonation session |
-| `GET` | `/api/tenants/v1/admin/impersonation-status` | Check current impersonation state |
+
+| Method   | Path                                           | Purpose                                                   |
+| -------- | ---------------------------------------------- | --------------------------------------------------------- |
+| `GET`  | `/api/tenants/v1/admin/schemas`              | List all active tenants (Vimber users only)               |
+| `POST` | `/api/tenants/v1/admin/impersonate`          | Start impersonation session (requires `target_user_id`) |
+| `POST` | `/api/tenants/v1/admin/exit-impersonation`   | End active impersonation session                          |
+| `GET`  | `/api/tenants/v1/admin/impersonation-status` | Check current impersonation state                         |
 
 **Cross-tenant access:** Vimber users send `x-tenant-code` header to switch tenant context — handled by `authRedis` middleware, no dedicated endpoint needed. See [BR-RBAC-043](./rules/rbac.md#br-rbac-043).
 
 **Impersonation Implementation:**
+
 - Audit trail: `admin.impersonation_logs` table records `impersonator_id`, `target_user_id`, `target_tenant_code`, `reason`, `started_at`, `ended_at`
 - Session state: active impersonation stored in Redis at `imp:{userId}` with TTL
 - Session uniqueness: partial unique index on `impersonation_logs (impersonator_id) WHERE ended_at IS NULL` prevents concurrent sessions; attempting a second session returns `409 Conflict`
@@ -493,34 +515,34 @@ Partial unique index: `(entity_type, entity_id) WHERE deactivated_at IS NULL` �
 
 #### 3.3.1 Vendors
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `tenant_id` | uuid | Not null |
-| `source_id` | uuid | FK to sources (CASCADE) |
-| `name` | varchar(128) | Not null |
-| `code` | varchar(16) | Unique per tenant |
-| `payment_term_id` | uuid | FK to payment_terms (SET NULL) |
-| `is_active` | boolean | Default true |
-| `notes` | text | Internal notes |
+| Field               | Type         | Description                    |
+| ------------------- | ------------ | ------------------------------ |
+| `id`              | uuid         | PK                             |
+| `tenant_id`       | uuid         | Not null                       |
+| `source_id`       | uuid         | FK to sources (CASCADE)        |
+| `name`            | varchar(128) | Not null                       |
+| `code`            | varchar(16)  | Unique per tenant              |
+| `payment_term_id` | uuid         | FK to payment_terms (SET NULL) |
+| `is_active`       | boolean      | Default true                   |
+| `notes`           | text         | Internal notes                 |
 
 **Endpoint:** `/api/core/v1/vendors`
 
 #### 3.3.1a Vendor Contacts
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `tenant_id` | uuid | Not null |
-| `vendor_id` | uuid | FK to vendors (CASCADE) |
-| `source_id` | uuid | FK to sources (CASCADE) |
-| `first_name` | varchar(64) | Not null |
-| `last_name` | varchar(64) | Not null |
-| `position` | varchar(64) | Job title |
-| `department` | varchar(64) | Department |
-| `is_app_user` | boolean | Default false. Must be true before a `portal_users` login can be created. Requires `roles` to be non-empty. |
-| `roles` | text[] | RBAC role codes assigned to this vendor contact (default `'{}'`). References `roles.code`. |
-| `is_primary` | boolean | Default false. Marks primary contact for the vendor. |
+| Field           | Type        | Description                                                                                                     |
+| --------------- | ----------- | --------------------------------------------------------------------------------------------------------------- |
+| `id`          | uuid        | PK                                                                                                              |
+| `tenant_id`   | uuid        | Not null                                                                                                        |
+| `vendor_id`   | uuid        | FK to vendors (CASCADE)                                                                                         |
+| `source_id`   | uuid        | FK to sources (CASCADE)                                                                                         |
+| `first_name`  | varchar(64) | Not null                                                                                                        |
+| `last_name`   | varchar(64) | Not null                                                                                                        |
+| `position`    | varchar(64) | Job title                                                                                                       |
+| `department`  | varchar(64) | Department                                                                                                      |
+| `is_app_user` | boolean     | Default false. Must be true before a `portal_users` login can be created. Requires `roles` to be non-empty. |
+| `roles`       | text[]      | RBAC role codes assigned to this vendor contact (default `'{}'`). References `roles.code`.                  |
+| `is_primary`  | boolean     | Default false. Marks primary contact for the vendor.                                                            |
 
 Each vendor contact gets its own `sources` record (with `source_type = 'vendor_contact'`) for linked emails and phone numbers via the polymorphic sources pattern.
 
@@ -528,50 +550,50 @@ Each vendor contact gets its own `sources` record (with `source_type = 'vendor_c
 
 #### 3.3.1b Payment Terms
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `tenant_id` | uuid | Not null |
-| `label` | varchar(64) | Not null. Human-readable label (e.g. "Net 30", "2/10 Net 30") |
-| `term` | integer | Not null, default 30. The numeric value of the payment term |
-| `units` | varchar(16) | Not null, default `'days'`. CHECK: `days` or `months` |
-| `is_active` | boolean | Default true |
+| Field         | Type        | Description                                                   |
+| ------------- | ----------- | ------------------------------------------------------------- |
+| `id`        | uuid        | PK                                                            |
+| `tenant_id` | uuid        | Not null                                                      |
+| `label`     | varchar(64) | Not null. Human-readable label (e.g. "Net 30", "2/10 Net 30") |
+| `term`      | integer     | Not null, default 30. The numeric value of the payment term   |
+| `units`     | varchar(16) | Not null, default `'days'`. CHECK: `days` or `months`   |
+| `is_active` | boolean     | Default true                                                  |
 
 **Endpoint:** `/api/core/v1/payment-terms`
 
 #### 3.3.2 Clients
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `tenant_id` | uuid | Not null |
-| `source_id` | uuid | FK to sources (CASCADE) |
-| `name` | varchar(128) | Not null |
-| `code` | varchar(16) | Unique per tenant |
-| `email` | varchar(128) | Contact email |
-| `roles` | text[] | RBAC role codes assigned to this client (default `'{}'`). References `roles.code`. |
-| `is_app_user` | boolean | Default false. Must be true before a `portal_users` login can be created. Requires `roles` to be non-empty. |
-| `is_active` | boolean | Default true |
+| Field           | Type         | Description                                                                                                     |
+| --------------- | ------------ | --------------------------------------------------------------------------------------------------------------- |
+| `id`          | uuid         | PK                                                                                                              |
+| `tenant_id`   | uuid         | Not null                                                                                                        |
+| `source_id`   | uuid         | FK to sources (CASCADE)                                                                                         |
+| `name`        | varchar(128) | Not null                                                                                                        |
+| `code`        | varchar(16)  | Unique per tenant                                                                                               |
+| `email`       | varchar(128) | Contact email                                                                                                   |
+| `roles`       | text[]       | RBAC role codes assigned to this client (default `'{}'`). References `roles.code`.                          |
+| `is_app_user` | boolean      | Default false. Must be true before a `portal_users` login can be created. Requires `roles` to be non-empty. |
+| `is_active`   | boolean      | Default true                                                                                                    |
 
 **Endpoint:** `/api/core/v1/clients`
 
 #### 3.3.3 Employees
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `tenant_id` | uuid | Not null |
-| `source_id` | uuid | FK to sources (CASCADE) |
-| `first_name` | varchar(64) | Not null |
-| `last_name` | varchar(64) | Not null |
-| `code` | varchar(16) | Unique per tenant |
-| `position` | varchar(64) | Job title |
-| `department` | varchar(64) | Department |
-| `email` | varchar(128) | Employee email (unique per tenant when non-null, partial index WHERE email IS NOT NULL AND deactivated_at IS NULL) |
-| `roles` | text[] | RBAC role codes assigned to this employee (default `'{}'`). References `roles.code`. |
-| `is_app_user` | boolean | Default false. Must be true before a `portal_users` login can be created. Requires `roles` to be non-empty. |
-| `is_primary_contact` | boolean | Default false. Designates this employee as the tenant's primary contact. |
-| `is_billing_contact` | boolean | Default false. Designates this employee as the tenant's billing contact. |
+| Field                  | Type         | Description                                                                                                        |
+| ---------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `id`                 | uuid         | PK                                                                                                                 |
+| `tenant_id`          | uuid         | Not null                                                                                                           |
+| `source_id`          | uuid         | FK to sources (CASCADE)                                                                                            |
+| `first_name`         | varchar(64)  | Not null                                                                                                           |
+| `last_name`          | varchar(64)  | Not null                                                                                                           |
+| `code`               | varchar(16)  | Unique per tenant                                                                                                  |
+| `position`           | varchar(64)  | Job title                                                                                                          |
+| `department`         | varchar(64)  | Department                                                                                                         |
+| `email`              | varchar(128) | Employee email (unique per tenant when non-null, partial index WHERE email IS NOT NULL AND deactivated_at IS NULL) |
+| `roles`              | text[]       | RBAC role codes assigned to this employee (default `'{}'`). References `roles.code`.                           |
+| `is_app_user`        | boolean      | Default false. Must be true before a `portal_users` login can be created. Requires `roles` to be non-empty.    |
+| `is_primary_contact` | boolean      | Default false. Designates this employee as the tenant's primary contact.                                           |
+| `is_billing_contact` | boolean      | Default false. Designates this employee as the tenant's billing contact.                                           |
 
 > **Soft Delete:** Employees use the `deactivated_at` column (via pg-schemata `softDelete: true`) — there is no `is_active` boolean column. Vendors, clients, and contacts have BOTH `is_active` (boolean) AND `deactivated_at` (via `softDelete: true`) — a dual active/inactive mechanism. `is_active` is a user-facing toggle; `deactivated_at` is the pg-schemata soft-delete marker that filters records from read queries.
 
@@ -580,70 +602,75 @@ Each vendor contact gets its own `sources` record (with `source_type = 'vendor_c
 **Edit Dialog:** The employee edit dialog (`maxWidth="md"`) includes phone number and address management sections below the employee fields. Phone numbers are rendered as repeatable inline rows (type select, number, is_primary checkbox, delete). Addresses are rendered as bordered cards with a 2-column grid of address fields. Changes are diffed and persisted via the polymorphic `sources` → `phone_numbers` / `addresses` pattern.
 
 **Endpoints:**
-| Method | Path | Purpose |
-|---|---|---|
-| Standard CRUD | `/api/core/v1/employees` | List, get, create, update, archive, restore |
-| `GET` | `/api/core/v1/employees/:id/source-id` | Resolve the polymorphic source record for phone/address lookups |
-| `POST` | `/api/core/v1/employees/:id/reset-password` | Admin-initiated password reset for an employee's linked portal_users login |
+
+| Method        | Path                                          | Purpose                                                                    |
+| ------------- | --------------------------------------------- | -------------------------------------------------------------------------- |
+| Standard CRUD | `/api/core/v1/employees`                    | List, get, create, update, archive, restore                                |
+| `GET`       | `/api/core/v1/employees/:id/source-id`      | Resolve the polymorphic source record for phone/address lookups            |
+| `POST`      | `/api/core/v1/employees/:id/reset-password` | Admin-initiated password reset for an employee's linked portal_users login |
 
 #### 3.3.4 Polymorphic Sources, Contacts, Addresses & Phone Numbers
 
 The `sources` table implements a **discriminated union** pattern linking vendors, clients, employees, and contacts to shared addresses and phone numbers:
 
 **Sources:**
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `tenant_id` | uuid | Not null |
-| `table_id` | uuid | References the parent entity |
+
+| Field           | Type        | Description                                                                        |
+| --------------- | ----------- | ---------------------------------------------------------------------------------- |
+| `id`          | uuid        | PK                                                                                 |
+| `tenant_id`   | uuid        | Not null                                                                           |
+| `table_id`    | uuid        | References the parent entity                                                       |
 | `source_type` | varchar(32) | `vendor`, `vendor_contact`, `client`, `employee`, `contact`, `company` |
-| `label` | varchar(64) | Human-friendly label |
+| `label`       | varchar(64) | Human-friendly label                                                               |
 
 **Contacts (First-Class Entity — Miscellaneous Payees):**
 
 Contacts are standalone first-class entities representing miscellaneous payees and receivable counterparties that don't fall into vendor, client, or employee categories — e.g., one-off commission payments, charitable donations, or ad-hoc income sources. Contacts are dual-purpose (usable in both AP and AR modules) and cannot log in (no RBAC):
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `tenant_id` | uuid | Not null |
-| `source_id` | uuid | FK to sources (CASCADE) |
-| `name` | varchar(128) | Not null |
-| `code` | varchar(16) | Unique per tenant |
-| `is_active` | boolean | Default true |
+| Field         | Type         | Description             |
+| ------------- | ------------ | ----------------------- |
+| `id`        | uuid         | PK                      |
+| `tenant_id` | uuid         | Not null                |
+| `source_id` | uuid         | FK to sources (CASCADE) |
+| `name`      | varchar(128) | Not null                |
+| `code`      | varchar(16)  | Unique per tenant       |
+| `is_active` | boolean      | Default true            |
 
 > **Note:** Contacts use the polymorphic `sources` pattern (with `source_type = 'contact'`) for linked emails, addresses, phone numbers, and tax identifiers, just like vendors, clients, and employees. Contacts cannot be app users and have no RBAC roles.
 
 **Addresses:**
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `tenant_id` | uuid | Not null, immutable |
-| `source_id` | uuid | FK to sources (CASCADE), not null |
-| `label` | varchar(32) | `billing`, `physical`, `mailing` |
-| `address_line_1` | varchar(255) | Street address or P.O. Box |
-| `address_line_2` | varchar(255) | Apt, suite, unit, building, floor, etc. |
-| `address_line_3` | varchar(255) | Additional line (international addresses) |
-| `city` | varchar(128) | City / locality / town |
-| `state_province` | varchar(128) | State, province, region, prefecture, county |
-| `postal_code` | varchar(20) | ZIP / postal code (supports all global formats) |
-| `country_code` | char(2) | ISO 3166-1 alpha-2 country code (e.g., `US`, `GB`, `JP`) |
-| `is_primary` | boolean | Primary address flag |
+
+| Field              | Type         | Description                                                   |
+| ------------------ | ------------ | ------------------------------------------------------------- |
+| `id`             | uuid         | PK                                                            |
+| `tenant_id`      | uuid         | Not null, immutable                                           |
+| `source_id`      | uuid         | FK to sources (CASCADE), not null                             |
+| `label`          | varchar(32)  | `billing`, `physical`, `mailing`                        |
+| `address_line_1` | varchar(255) | Street address or P.O. Box                                    |
+| `address_line_2` | varchar(255) | Apt, suite, unit, building, floor, etc.                       |
+| `address_line_3` | varchar(255) | Additional line (international addresses)                     |
+| `city`           | varchar(128) | City / locality / town                                        |
+| `state_province` | varchar(128) | State, province, region, prefecture, county                   |
+| `postal_code`    | varchar(20)  | ZIP / postal code (supports all global formats)               |
+| `country_code`   | char(2)      | ISO 3166-1 alpha-2 country code (e.g.,`US`, `GB`, `JP`) |
+| `is_primary`     | boolean      | Primary address flag                                          |
 
 **Phone Numbers:**
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `tenant_id` | uuid | Not null, immutable |
-| `source_id` | uuid | FK to sources (CASCADE), not null |
-| `phone_type` | varchar(16) | `cell`, `work`, `home`, `fax`, `other` (default `cell`) |
-| `country_code` | char(2) | ISO 3166-1 alpha-2 country code (default `US`) — used to derive the dialing prefix |
-| `phone_number` | varchar(32) | Not null |
-| `is_primary` | boolean | Default false |
+
+| Field            | Type        | Description                                                                           |
+| ---------------- | ----------- | ------------------------------------------------------------------------------------- |
+| `id`           | uuid        | PK                                                                                    |
+| `tenant_id`    | uuid        | Not null, immutable                                                                   |
+| `source_id`    | uuid        | FK to sources (CASCADE), not null                                                     |
+| `phone_type`   | varchar(16) | `cell`, `work`, `home`, `fax`, `other` (default `cell`)                   |
+| `country_code` | char(2)     | ISO 3166-1 alpha-2 country code (default `US`) — used to derive the dialing prefix |
+| `phone_number` | varchar(32) | Not null                                                                              |
+| `is_primary`   | boolean     | Default false                                                                         |
 
 > **Note:** Phone numbers are available to vendors, clients, employees, and contacts via the polymorphic `sources` pattern.
 
 > **Global Address Best Practices:** The `addresses` table follows an internationally flexible schema:
+>
 > - Three address lines accommodate any country's format without rigid field assumptions
 > - `state_province` is a generic region field (US states, UK counties, Japanese prefectures, etc.)
 > - `country_code` uses ISO 3166-1 alpha-2 for reliable lookup and localization
@@ -654,15 +681,15 @@ Contacts are standalone first-class entities representing miscellaneous payees a
 
 Tax identification is handled by a dedicated `tax_identifiers` table linked via the polymorphic `sources` pattern, replacing the former `tax_id` column on entity tables:
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `tenant_id` | uuid | Not null, immutable |
-| `source_id` | uuid | FK to sources (CASCADE), not null |
-| `country_code` | char(2) | ISO country code, not null |
-| `tax_type` | varchar(16) | e.g., `EIN`, `SSN`, `VAT` — not null |
-| `tax_value` | varchar(64) | Tax identifier value, not null |
-| `is_primary` | boolean | Default false |
+| Field            | Type        | Description                                |
+| ---------------- | ----------- | ------------------------------------------ |
+| `id`           | uuid        | PK                                         |
+| `tenant_id`    | uuid        | Not null, immutable                        |
+| `source_id`    | uuid        | FK to sources (CASCADE), not null          |
+| `country_code` | char(2)     | ISO country code, not null                 |
+| `tax_type`     | varchar(16) | e.g.,`EIN`, `SSN`, `VAT` — not null |
+| `tax_value`    | varchar(64) | Tax identifier value, not null             |
+| `is_primary`   | boolean     | Default false                              |
 
 Unique constraint: `(source_id, country_code, tax_type) WHERE deactivated_at IS NULL`
 
@@ -670,14 +697,14 @@ Unique constraint: `(source_id, country_code, tax_type) WHERE deactivated_at IS 
 
 #### 3.3.5 Companies
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `tenant_id` | uuid | Not null |
-| `source_id` | uuid | FK to sources (CASCADE) |
-| `code` | varchar(16) | Unique company code, required (not auto-numbered) |
-| `name` | varchar(128) | Company name |
-| `is_active` | boolean | Default true |
+| Field         | Type         | Description                                       |
+| ------------- | ------------ | ------------------------------------------------- |
+| `id`        | uuid         | PK                                                |
+| `tenant_id` | uuid         | Not null                                          |
+| `source_id` | uuid         | FK to sources (CASCADE)                           |
+| `code`      | varchar(16)  | Unique company code, required (not auto-numbered) |
+| `name`      | varchar(128) | Company name                                      |
+| `is_active` | boolean      | Default true                                      |
 
 **Endpoint:** `/api/core/v1/companies`
 
@@ -691,18 +718,18 @@ Unique constraint: `(source_id, country_code, tax_type) WHERE deactivated_at IS 
 
 **Data Model:**
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `tenant_id` | uuid | Not null |
-| `company_id` | uuid | FK to companies (RESTRICT) |
-| `address_id` | uuid | FK to addresses (SET NULL) |
-| `project_code` | varchar(32) | Unique per tenant |
-| `name` | varchar(255) | Project name |
-| `description` | text | Description |
-| `notes` | text | Internal notes |
-| `status` | varchar(20) | `planning` -> `budgeting` -> `released` -> `complete` (CHECK also includes `on_hold`) |
-| `contract_amount` | numeric(14,2) | Total contract value from client (for profitability) |
+| Field               | Type          | Description                                                                                     |
+| ------------------- | ------------- | ----------------------------------------------------------------------------------------------- |
+| `id`              | uuid          | PK                                                                                              |
+| `tenant_id`       | uuid          | Not null                                                                                        |
+| `company_id`      | uuid          | FK to companies (RESTRICT)                                                                      |
+| `address_id`      | uuid          | FK to addresses (SET NULL)                                                                      |
+| `project_code`    | varchar(32)   | Unique per tenant                                                                               |
+| `name`            | varchar(255)  | Project name                                                                                    |
+| `description`     | text          | Description                                                                                     |
+| `notes`           | text          | Internal notes                                                                                  |
+| `status`          | varchar(20)   | `planning` -> `budgeting` -> `released` -> `complete` (CHECK also includes `on_hold`) |
+| `contract_amount` | numeric(14,2) | Total contract value from client (for profitability)                                            |
 
 **Endpoint:** `/api/projects/v1/projects`
 
@@ -710,13 +737,13 @@ Unique constraint: `(source_id, country_code, tax_type) WHERE deactivated_at IS 
 
 Associates multiple clients with a project contract. Replaces the former single `client_id` FK on projects.
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `project_id` | uuid | FK to projects (CASCADE) |
-| `client_id` | uuid | FK to clients (RESTRICT) |
-| `role` | varchar(32) | e.g., `buyer`, `co-buyer`, `guarantor` |
-| `is_primary` | boolean | Primary client on the contract |
+| Field          | Type        | Description                                 |
+| -------------- | ----------- | ------------------------------------------- |
+| `id`         | uuid        | PK                                          |
+| `project_id` | uuid        | FK to projects (CASCADE)                    |
+| `client_id`  | uuid        | FK to clients (RESTRICT)                    |
+| `role`       | varchar(32) | e.g.,`buyer`, `co-buyer`, `guarantor` |
+| `is_primary` | boolean     | Primary client on the contract              |
 
 Unique constraint: `(project_id, client_id)`
 
@@ -724,82 +751,86 @@ Unique constraint: `(project_id, client_id)`
 
 #### 3.4.2 Units
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `project_id` | uuid | FK to projects (CASCADE) |
-| `template_unit_id` | uuid | FK to template_units (SET NULL) |
-| `version_used` | integer | Template version used |
-| `name` | varchar(128) | Unit name |
-| `unit_code` | varchar(32) | Unique per project |
-| `status` | varchar(20) | `draft` -> `released` -> `complete` |
+| Field                | Type         | Description                               |
+| -------------------- | ------------ | ----------------------------------------- |
+| `id`               | uuid         | PK                                        |
+| `project_id`       | uuid         | FK to projects (CASCADE)                  |
+| `template_unit_id` | uuid         | FK to template_units (SET NULL)           |
+| `version_used`     | integer      | Template version used                     |
+| `name`             | varchar(128) | Unit name                                 |
+| `unit_code`        | varchar(32)  | Unique per project                        |
+| `status`           | varchar(20)  | `draft` -> `released` -> `complete` |
 
 **Endpoint:** `/api/projects/v1/units`
 
 #### 3.4.3 Tasks & Task Groups
 
 **Task Groups:**
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `tenant_id` | uuid | Not null, immutable |
-| `code` | varchar(16) | Unique per tenant |
-| `name` | varchar(64) | Group name |
-| `description` | text | Description |
-| `sort_order` | integer | Display order (default 0) |
+
+| Field           | Type        | Description               |
+| --------------- | ----------- | ------------------------- |
+| `id`          | uuid        | PK                        |
+| `tenant_id`   | uuid        | Not null, immutable       |
+| `code`        | varchar(16) | Unique per tenant         |
+| `name`        | varchar(64) | Group name                |
+| `description` | text        | Description               |
+| `sort_order`  | integer     | Display order (default 0) |
 
 **Tasks Master (Library):**
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `tenant_id` | uuid | Not null, immutable |
-| `code` | varchar(16) | Unique per tenant |
-| `task_group_code` | varchar(16) | Composite FK `(tenant_id, task_group_code)` → `task_groups(tenant_id, code)` added via ALTER TABLE in migration |
-| `name` | varchar(128) | Task name |
-| `default_duration_days` | integer | Default duration |
+
+| Field                     | Type         | Description                                                                                                          |
+| ------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `id`                    | uuid         | PK                                                                                                                   |
+| `tenant_id`             | uuid         | Not null, immutable                                                                                                  |
+| `code`                  | varchar(16)  | Unique per tenant                                                                                                    |
+| `task_group_code`       | varchar(16)  | Composite FK `(tenant_id, task_group_code)` → `task_groups(tenant_id, code)` added via ALTER TABLE in migration |
+| `name`                  | varchar(128) | Task name                                                                                                            |
+| `default_duration_days` | integer      | Default duration                                                                                                     |
 
 **Tasks (Unit-level instances):**
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `unit_id` | uuid | FK to units (CASCADE) |
-| `task_code` | varchar(16) | Reference to master task |
-| `name` | varchar(128) | Task name |
-| `duration_days` | integer | Duration |
-| `status` | varchar(20) | `pending` -> `in_progress` -> `complete` (CHECK also includes `on_hold`) |
-| `parent_task_id` | uuid | Self-referential for hierarchy |
+
+| Field              | Type         | Description                                                                      |
+| ------------------ | ------------ | -------------------------------------------------------------------------------- |
+| `id`             | uuid         | PK                                                                               |
+| `unit_id`        | uuid         | FK to units (CASCADE)                                                            |
+| `task_code`      | varchar(16)  | Reference to master task                                                         |
+| `name`           | varchar(128) | Task name                                                                        |
+| `duration_days`  | integer      | Duration                                                                         |
+| `status`         | varchar(20)  | `pending` -> `in_progress` -> `complete` (CHECK also includes `on_hold`) |
+| `parent_task_id` | uuid         | Self-referential for hierarchy                                                   |
 
 **Endpoints:** `/api/projects/v1/tasks`, `/api/projects/v1/task-groups`, `/api/projects/v1/tasks-master`
 
 #### 3.4.4 Cost Items
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `task_id` | uuid | FK to tasks (CASCADE) |
-| `item_code` | varchar(16) | Cost item code |
-| `description` | varchar(255) | Description |
-| `cost_class` | varchar(16) | `labor`, `material`, `subcontract`, `equipment`, `other` |
-| `cost_source` | varchar(16) | `budget`, `change_order` |
-| `quantity` | numeric(12,4) | Quantity |
-| `unit_cost` | numeric(12,4) | Unit cost |
-| `amount` | numeric(12,2) | **GENERATED** (quantity * unit_cost) |
+| Field           | Type          | Description                                                        |
+| --------------- | ------------- | ------------------------------------------------------------------ |
+| `id`          | uuid          | PK                                                                 |
+| `task_id`     | uuid          | FK to tasks (CASCADE)                                              |
+| `item_code`   | varchar(16)   | Cost item code                                                     |
+| `description` | varchar(255)  | Description                                                        |
+| `cost_class`  | varchar(16)   | `labor`, `material`, `subcontract`, `equipment`, `other` |
+| `cost_source` | varchar(16)   | `budget`, `change_order`                                       |
+| `quantity`    | numeric(12,4) | Quantity                                                           |
+| `unit_cost`   | numeric(12,4) | Unit cost                                                          |
+| `amount`      | numeric(12,2) | **GENERATED** (quantity * unit_cost)                         |
 
 **Endpoint:** `/api/projects/v1/cost-items`
 
 #### 3.4.5 Change Orders
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `unit_id` | uuid | FK to units (CASCADE) |
-| `co_number` | varchar(16) | Change order number |
-| `title` | varchar(128) | Title |
-| `reason` | text | Justification |
-| `status` | varchar(20) | `draft` -> `submitted` -> `approved` / `rejected` |
-| `total_amount` | numeric(12,2) | Total change amount |
+| Field            | Type          | Description                                               |
+| ---------------- | ------------- | --------------------------------------------------------- |
+| `id`           | uuid          | PK                                                        |
+| `unit_id`      | uuid          | FK to units (CASCADE)                                     |
+| `co_number`    | varchar(16)   | Change order number                                       |
+| `title`        | varchar(128)  | Title                                                     |
+| `reason`       | text          | Justification                                             |
+| `status`       | varchar(20)   | `draft` -> `submitted` -> `approved` / `rejected` |
+| `total_amount` | numeric(12,2) | Total change amount                                       |
 
 **Business Rules:**
+
 - Change order lines reference base `cost_line_id` when modifying existing scope
 - Approved change orders adjust remaining budget and variance metrics
 - Negative quantities/costs represent scope reductions
@@ -827,60 +858,65 @@ Templates serve as reusable blueprints for project creation:
 #### 3.5.1 Categories & Activities
 
 **Categories:**
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `code` | varchar(16) | Unique code |
-| `name` | varchar(64) | Category name (e.g., "Framing", "Plumbing") |
+
+| Field    | Type        | Description                                                        |
+| -------- | ----------- | ------------------------------------------------------------------ |
+| `id`   | uuid        | PK                                                                 |
+| `code` | varchar(16) | Unique code                                                        |
+| `name` | varchar(64) | Category name (e.g., "Framing", "Plumbing")                        |
 | `type` | varchar(16) | `labor`, `material`, `subcontract`, `equipment`, `other` |
 
 **Activities:**
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `category_id` | uuid | FK to categories (CASCADE) |
-| `code` | varchar(16) | Unique activity code |
-| `name` | varchar(64) | Activity name |
-| `is_active` | boolean | Default true |
+
+| Field           | Type        | Description                |
+| --------------- | ----------- | -------------------------- |
+| `id`          | uuid        | PK                         |
+| `category_id` | uuid        | FK to categories (CASCADE) |
+| `code`        | varchar(16) | Unique activity code       |
+| `name`        | varchar(64) | Activity name              |
+| `is_active`   | boolean     | Default true               |
 
 **Endpoints:** `/api/activities/v1/categories`, `/api/activities/v1/activities`
 
 #### 3.5.2 Deliverables & Assignments
 
 **Deliverables:**
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `name` | varchar(128) | Deliverable name |
-| `description` | text | Description |
-| `status` | varchar(20) | `pending` -> `released` -> `finished` -> `canceled` |
-| `start_date`, `end_date` | date | Timeline |
+
+| Field                        | Type         | Description                                                 |
+| ---------------------------- | ------------ | ----------------------------------------------------------- |
+| `id`                       | uuid         | PK                                                          |
+| `name`                     | varchar(128) | Deliverable name                                            |
+| `description`              | text         | Description                                                 |
+| `status`                   | varchar(20)  | `pending` -> `released` -> `finished` -> `canceled` |
+| `start_date`, `end_date` | date         | Timeline                                                    |
 
 **Deliverable Assignments:**
-| Field | Type | Description |
-|---|---|---|
+
+| Field              | Type | Description                  |
+| ------------------ | ---- | ---------------------------- |
 | `deliverable_id` | uuid | FK to deliverables (CASCADE) |
-| `project_id` | uuid | FK to projects (CASCADE) |
-| `employee_id` | uuid | FK to employees (SET NULL) |
-| `notes` | text | Assignment notes |
+| `project_id`     | uuid | FK to projects (CASCADE)     |
+| `employee_id`    | uuid | FK to employees (SET NULL)   |
+| `notes`          | text | Assignment notes             |
 
 **Endpoints:** `/api/activities/v1/deliverables`, `/api/activities/v1/deliverable-assignments`
 
 #### 3.5.3 Budgets
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `deliverable_id` | uuid | FK to deliverables (CASCADE) |
-| `activity_id` | uuid | FK to activities (CASCADE) |
-| `budgeted_amount` | numeric(12,2) | Amount |
-| `version` | integer | Version number (default 1; no CHECK constraint enforcing > 0) |
-| `is_current` | boolean | Default true |
-| `status` | varchar(20) | `draft` -> `submitted` -> `approved` -> `locked` -> `rejected` |
-| `submitted_by/at` | uuid/timestamptz | Submission audit |
-| `approved_by/at` | uuid/timestamptz | Approval audit |
+| Field               | Type             | Description                                                              |
+| ------------------- | ---------------- | ------------------------------------------------------------------------ |
+| `id`              | uuid             | PK                                                                       |
+| `deliverable_id`  | uuid             | FK to deliverables (CASCADE)                                             |
+| `activity_id`     | uuid             | FK to activities (CASCADE)                                               |
+| `budgeted_amount` | numeric(12,2)    | Amount                                                                   |
+| `version`         | integer          | Version number (default 1; no CHECK constraint enforcing > 0)            |
+| `is_current`      | boolean          | Default true                                                             |
+| `status`          | varchar(20)      | `draft` -> `submitted` -> `approved` -> `locked` -> `rejected` |
+| `submitted_by/at` | uuid/timestamptz | Submission audit                                                         |
+| `approved_by/at`  | uuid/timestamptz | Approval audit                                                           |
 
 **Business Rules:**
+
 - Budgets must be approved before units can be marked `released`
 - Approved versions become read-only; new changes spawn another version
 - `remaining_budget` and `spent_to_date` updated by triggers/services
@@ -889,38 +925,39 @@ Templates serve as reusable blueprints for project creation:
 
 #### 3.5.4 Cost Lines
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `company_id` | uuid | FK to companies (RESTRICT) |
-| `deliverable_id` | uuid | FK to deliverables (CASCADE) |
-| `vendor_id` | uuid | FK to vendors (SET NULL) |
-| `activity_id` | uuid | FK to activities (CASCADE) |
-| `budget_id` | uuid | FK to budgets (SET NULL) |
-| `tenant_sku` | varchar(64) | SKU reference |
-| `source_type` | varchar(16) | `material` or `labor` |
-| `quantity` | numeric(12,4) | Quantity |
-| `unit_price` | numeric(12,4) | Unit price |
-| `amount` | numeric(12,2) | **GENERATED** (quantity * unit_price) |
-| `markup_pct` | numeric(5,2) | Markup percentage |
-| `status` | varchar(20) | `draft` -> `change_order`; CHECK allows `draft`, `submitted`, `approved`, `change_order` |
+| Field              | Type          | Description                                                                                          |
+| ------------------ | ------------- | ---------------------------------------------------------------------------------------------------- |
+| `id`             | uuid          | PK                                                                                                   |
+| `company_id`     | uuid          | FK to companies (RESTRICT)                                                                           |
+| `deliverable_id` | uuid          | FK to deliverables (CASCADE)                                                                         |
+| `vendor_id`      | uuid          | FK to vendors (SET NULL)                                                                             |
+| `activity_id`    | uuid          | FK to activities (CASCADE)                                                                           |
+| `budget_id`      | uuid          | FK to budgets (SET NULL)                                                                             |
+| `tenant_sku`     | varchar(64)   | SKU reference                                                                                        |
+| `source_type`    | varchar(16)   | `material` or `labor`                                                                            |
+| `quantity`       | numeric(12,4) | Quantity                                                                                             |
+| `unit_price`     | numeric(12,4) | Unit price                                                                                           |
+| `amount`         | numeric(12,2) | **GENERATED** (quantity * unit_price)                                                          |
+| `markup_pct`     | numeric(5,2)  | Markup percentage                                                                                    |
+| `status`         | varchar(20)   | `draft` -> `change_order`; CHECK allows `draft`, `submitted`, `approved`, `change_order` |
 
 **Endpoint:** `/api/activities/v1/cost-lines`
 
 #### 3.5.5 Actual Costs
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `activity_id` | uuid | FK to activities (CASCADE) |
-| `project_id` | uuid | FK to projects (SET NULL) — links cost to project for profitability |
-| `amount` | numeric(12,2) | Cost amount |
-| `currency` | varchar(3) | Currency code |
-| `reference` | text | Invoice/source reference |
-| `approval_status` | varchar(20) | `pending` -> `approved` -> `rejected` |
-| `incurred_on` | date | Date cost was incurred |
+| Field               | Type          | Description                                                          |
+| ------------------- | ------------- | -------------------------------------------------------------------- |
+| `id`              | uuid          | PK                                                                   |
+| `activity_id`     | uuid          | FK to activities (CASCADE)                                           |
+| `project_id`      | uuid          | FK to projects (SET NULL) — links cost to project for profitability |
+| `amount`          | numeric(12,2) | Cost amount                                                          |
+| `currency`        | varchar(3)    | Currency code                                                        |
+| `reference`       | text          | Invoice/source reference                                             |
+| `approval_status` | varchar(20)   | `pending` -> `approved` -> `rejected`                          |
+| `incurred_on`     | date          | Date cost was incurred                                               |
 
 **Business Rules:**
+
 - Default state: `pending`; approval subject to budget/tolerance checks
 - Validation: unit must be `released`, cost line must exist and be approved
 - Amounts cannot exceed approved budget + tolerance unless covered by change orders
@@ -930,16 +967,16 @@ Templates serve as reusable blueprints for project creation:
 
 #### 3.5.6 Vendor Parts
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `vendor_id` | uuid | FK to vendors (CASCADE) |
-| `vendor_sku` | varchar(64) | Vendor's SKU |
-| `tenant_sku` | varchar(64) | Internal tenant SKU |
-| `unit_cost` | numeric(12,4) | Unit cost |
-| `currency` | varchar(3) | Currency code |
-| `markup_pct` | numeric(5,2) | Markup percentage |
-| `is_active` | boolean | Default true |
+| Field          | Type          | Description             |
+| -------------- | ------------- | ----------------------- |
+| `id`         | uuid          | PK                      |
+| `vendor_id`  | uuid          | FK to vendors (CASCADE) |
+| `vendor_sku` | varchar(64)   | Vendor's SKU            |
+| `tenant_sku` | varchar(64)   | Internal tenant SKU     |
+| `unit_cost`  | numeric(12,4) | Unit cost               |
+| `currency`   | varchar(3)    | Currency code           |
+| `markup_pct` | numeric(5,2)  | Markup percentage       |
+| `is_active`  | boolean       | Default true            |
 
 **Endpoint:** `/api/activities/v1/vendor-parts`
 
@@ -951,34 +988,35 @@ Templates serve as reusable blueprints for project creation:
 
 #### 3.6.1 Catalog SKUs
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `catalog_sku` | varchar(64) | Unique catalog SKU |
-| `description` | text | Full description |
-| `description_normalized` | text | Normalized for matching |
-| `category` | varchar(64) | Material category |
-| `sub_category` | varchar(64) | Sub-category |
-| `model` | varchar(32) | Embedding model used |
-| `embedding` | vector(3072) | pgvector embedding for similarity search |
+| Field                      | Type         | Description                              |
+| -------------------------- | ------------ | ---------------------------------------- |
+| `id`                     | uuid         | PK                                       |
+| `catalog_sku`            | varchar(64)  | Unique catalog SKU                       |
+| `description`            | text         | Full description                         |
+| `description_normalized` | text         | Normalized for matching                  |
+| `category`               | varchar(64)  | Material category                        |
+| `sub_category`           | varchar(64)  | Sub-category                             |
+| `model`                  | varchar(32)  | Embedding model used                     |
+| `embedding`              | vector(3072) | pgvector embedding for similarity search |
 
 **Endpoint:** `/api/bom/v1/catalog-skus`
 
 #### 3.6.2 Vendor SKUs
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `vendor_id` | uuid | FK to vendors (RESTRICT) |
-| `vendor_sku` | varchar(64) | Vendor's SKU code |
-| `description` | text | Vendor's description |
-| `description_normalized` | text | Normalized description |
-| `catalog_sku_id` | uuid | FK to catalog_skus (matched, SET NULL) |
-| `confidence` | real | Match confidence score (0.0-1.0) |
-| `model` | varchar(32) | Embedding model (default: text-embedding-3-large) |
-| `embedding` | vector(3072) | pgvector embedding |
+| Field                      | Type         | Description                                       |
+| -------------------------- | ------------ | ------------------------------------------------- |
+| `id`                     | uuid         | PK                                                |
+| `vendor_id`              | uuid         | FK to vendors (RESTRICT)                          |
+| `vendor_sku`             | varchar(64)  | Vendor's SKU code                                 |
+| `description`            | text         | Vendor's description                              |
+| `description_normalized` | text         | Normalized description                            |
+| `catalog_sku_id`         | uuid         | FK to catalog_skus (matched, SET NULL)            |
+| `confidence`             | real         | Match confidence score (0.0-1.0)                  |
+| `model`                  | varchar(32)  | Embedding model (default: text-embedding-3-large) |
+| `embedding`              | vector(3072) | pgvector embedding                                |
 
 **Custom Methods:**
+
 - `findBySku(vendor_id, vendor_sku)`: Lookup by composite key
 - `getUnmatched()`: Get vendor SKUs without catalog matches
 - `refreshEmbeddings(batches)`: Batch update embeddings
@@ -987,13 +1025,13 @@ Templates serve as reusable blueprints for project creation:
 
 #### 3.6.3 Vendor Pricing
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `vendor_sku_id` | uuid | FK to vendor_skus (CASCADE) |
-| `unit_price` | numeric(12,4) | Price per unit |
-| `unit` | varchar(32) | Unit of measure |
-| `effective_date` | date | Price effective date |
+| Field              | Type          | Description                 |
+| ------------------ | ------------- | --------------------------- |
+| `id`             | uuid          | PK                          |
+| `vendor_sku_id`  | uuid          | FK to vendor_skus (CASCADE) |
+| `unit_price`     | numeric(12,4) | Price per unit              |
+| `unit`           | varchar(32)   | Unit of measure             |
+| `effective_date` | date          | Price effective date        |
 
 **Endpoint:** `/api/bom/v1/vendor-pricing`
 
@@ -1005,21 +1043,22 @@ Templates serve as reusable blueprints for project creation:
 
 #### 3.7.1 AP Invoices
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `company_id` | uuid | FK to companies (RESTRICT) |
-| `vendor_id` | uuid | FK to vendors (RESTRICT) |
-| `project_id` | uuid | FK to projects (SET NULL) — required for project cashflow tracking |
-| `invoice_number` | varchar(64) | Invoice number |
-| `invoice_date` | date | Invoice date |
-| `due_date` | date | Payment due date |
-| `total_amount` | numeric(14,2) | Total amount |
-| `currency` | varchar(3) | Currency code (default `USD`) |
-| `status` | varchar(20) | `open` -> `approved` -> `paid` -> `voided` (CHECK constraint) |
-| `notes` | text | Internal notes |
+| Field              | Type          | Description                                                           |
+| ------------------ | ------------- | --------------------------------------------------------------------- |
+| `id`             | uuid          | PK                                                                    |
+| `company_id`     | uuid          | FK to companies (RESTRICT)                                            |
+| `vendor_id`      | uuid          | FK to vendors (RESTRICT)                                              |
+| `project_id`     | uuid          | FK to projects (SET NULL) — required for project cashflow tracking   |
+| `invoice_number` | varchar(64)   | Invoice number                                                        |
+| `invoice_date`   | date          | Invoice date                                                          |
+| `due_date`       | date          | Payment due date                                                      |
+| `total_amount`   | numeric(14,2) | Total amount                                                          |
+| `currency`       | varchar(3)    | Currency code (default `USD`)                                       |
+| `status`         | varchar(20)   | `open` -> `approved` -> `paid` -> `voided` (CHECK constraint) |
+| `notes`          | text          | Internal notes                                                        |
 
 **Business Rules:**
+
 - Posting requires every line to map to a valid GL account and optionally a cost line
 - Posting updates vendor balances and creates GL entries (AP Liability <-> Expense/WIP)
 - When `project_id` is set, the invoice amount feeds into project cashflow outflow metrics
@@ -1029,45 +1068,45 @@ Templates serve as reusable blueprints for project creation:
 
 #### 3.7.2 AP Invoice Lines
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `invoice_id` | uuid | FK to ap_invoices (CASCADE) |
-| `cost_line_id` | uuid | FK to cost_lines (SET NULL) |
-| `activity_id` | uuid | FK to activities (SET NULL) |
-| `account_id` | uuid | FK to chart_of_accounts (RESTRICT) |
-| `description` | text | Line description |
-| `amount` | numeric(12,2) | Line amount |
+| Field            | Type          | Description                        |
+| ---------------- | ------------- | ---------------------------------- |
+| `id`           | uuid          | PK                                 |
+| `invoice_id`   | uuid          | FK to ap_invoices (CASCADE)        |
+| `cost_line_id` | uuid          | FK to cost_lines (SET NULL)        |
+| `activity_id`  | uuid          | FK to activities (SET NULL)        |
+| `account_id`   | uuid          | FK to chart_of_accounts (RESTRICT) |
+| `description`  | text          | Line description                   |
+| `amount`       | numeric(12,2) | Line amount                        |
 
 **Endpoint:** `/api/ap/v1/ap-invoice-lines`
 
 #### 3.7.3 Payments
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `vendor_id` | uuid | FK to vendors (RESTRICT) |
-| `ap_invoice_id` | uuid | FK to ap_invoices (SET NULL) |
-| `payment_date` | date | Payment date |
-| `amount` | numeric(14,2) | Payment amount |
-| `method` | varchar(24) | Intended values: `check`, `ach`, `wire` (no CHECK constraint — any varchar accepted) |
-| `reference` | varchar(64) | Check number/reference |
-| `notes` | text | Internal notes |
+| Field             | Type          | Description                                                                                |
+| ----------------- | ------------- | ------------------------------------------------------------------------------------------ |
+| `id`            | uuid          | PK                                                                                         |
+| `vendor_id`     | uuid          | FK to vendors (RESTRICT)                                                                   |
+| `ap_invoice_id` | uuid          | FK to ap_invoices (SET NULL)                                                               |
+| `payment_date`  | date          | Payment date                                                                               |
+| `amount`        | numeric(14,2) | Payment amount                                                                             |
+| `method`        | varchar(24)   | Intended values:`check`, `ach`, `wire` (no CHECK constraint — any varchar accepted) |
+| `reference`     | varchar(64)   | Check number/reference                                                                     |
+| `notes`         | text          | Internal notes                                                                             |
 
 **Endpoint:** `/api/ap/v1/payments`
 
 #### 3.7.4 AP Credit Memos
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `vendor_id` | uuid | FK to vendors (RESTRICT) |
-| `ap_invoice_id` | uuid | FK to ap_invoices (SET NULL) |
-| `credit_number` | varchar(64) | Credit memo number |
-| `credit_date` | date | Credit date |
-| `amount` | numeric(14,2) | Credit amount |
-| `reason` | text | Reason for credit |
-| `status` | varchar(20) | `open` -> `applied` -> `voided` (CHECK constraint) |
+| Field             | Type          | Description                                              |
+| ----------------- | ------------- | -------------------------------------------------------- |
+| `id`            | uuid          | PK                                                       |
+| `vendor_id`     | uuid          | FK to vendors (RESTRICT)                                 |
+| `ap_invoice_id` | uuid          | FK to ap_invoices (SET NULL)                             |
+| `credit_number` | varchar(64)   | Credit memo number                                       |
+| `credit_date`   | date          | Credit date                                              |
+| `amount`        | numeric(14,2) | Credit amount                                            |
+| `reason`        | text          | Reason for credit                                        |
+| `status`        | varchar(20)   | `open` -> `applied` -> `voided` (CHECK constraint) |
 
 **Endpoint:** `/api/ap/v1/ap-credit-memos`
 
@@ -1081,22 +1120,23 @@ Templates serve as reusable blueprints for project creation:
 
 #### 3.8.1 AR Invoices
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `company_id` | uuid | FK to companies (RESTRICT) |
-| `client_id` | uuid | FK to clients (RESTRICT) |
-| `project_id` | uuid | FK to projects (SET NULL) — required for project revenue tracking |
-| `deliverable_id` | uuid | FK to deliverables (SET NULL) |
-| `invoice_number` | varchar(32) | Invoice number |
-| `invoice_date` | date | Invoice date |
-| `due_date` | date | Due date |
-| `total_amount` | numeric(14,2) | Total amount |
-| `currency` | varchar(3) | Currency code (default `USD`) |
-| `status` | varchar(20) | `open` -> `sent` -> `paid` -> `voided` (CHECK constraint) |
-| `notes` | text | Internal notes |
+| Field              | Type          | Description                                                        |
+| ------------------ | ------------- | ------------------------------------------------------------------ |
+| `id`             | uuid          | PK                                                                 |
+| `company_id`     | uuid          | FK to companies (RESTRICT)                                         |
+| `client_id`      | uuid          | FK to clients (RESTRICT)                                           |
+| `project_id`     | uuid          | FK to projects (SET NULL) — required for project revenue tracking |
+| `deliverable_id` | uuid          | FK to deliverables (SET NULL)                                      |
+| `invoice_number` | varchar(32)   | Invoice number                                                     |
+| `invoice_date`   | date          | Invoice date                                                       |
+| `due_date`       | date          | Due date                                                           |
+| `total_amount`   | numeric(14,2) | Total amount                                                       |
+| `currency`       | varchar(3)    | Currency code (default `USD`)                                    |
+| `status`         | varchar(20)   | `open` -> `sent` -> `paid` -> `voided` (CHECK constraint)  |
+| `notes`          | text          | Internal notes                                                     |
 
 **Business Rules:**
+
 - Revenue recognition can depend on activity completion percentage or cost thresholds
 - Posting debits AR, credits revenue; payments reverse the entry
 - When `project_id` is set, the invoice feeds into project revenue/cashflow inflow metrics
@@ -1104,33 +1144,34 @@ Templates serve as reusable blueprints for project creation:
 - Remaining balance is computed as `total_amount − SUM(receipts)` — not stored as a column
 
 **Endpoints:**
-| Method | Path | Purpose |
-|---|---|---|
-| Standard CRUD | `/api/ar/v1/ar-invoices` | List, get, create, update, archive, restore |
-| `PUT` | `/api/ar/v1/ar-invoices/approve` | Approve invoice (sets status to `sent`). RBAC-gated: requires `ar::ar-invoices::approve` at `full` level. |
+
+| Method        | Path                               | Purpose                                                                                                         |
+| ------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Standard CRUD | `/api/ar/v1/ar-invoices`         | List, get, create, update, archive, restore                                                                     |
+| `PUT`       | `/api/ar/v1/ar-invoices/approve` | Approve invoice (sets status to `sent`). RBAC-gated: requires `ar::ar-invoices::approve` at `full` level. |
 
 #### 3.8.2 AR Invoice Lines
 
-| Field | Type | Description |
-|---|---|---|
-| `invoice_id` | uuid | FK to ar_invoices (CASCADE) |
-| `account_id` | uuid | FK to chart_of_accounts (RESTRICT) |
-| `description` | text | Line description |
-| `amount` | numeric(14,2) | Line amount |
+| Field           | Type          | Description                        |
+| --------------- | ------------- | ---------------------------------- |
+| `invoice_id`  | uuid          | FK to ar_invoices (CASCADE)        |
+| `account_id`  | uuid          | FK to chart_of_accounts (RESTRICT) |
+| `description` | text          | Line description                   |
+| `amount`      | numeric(14,2) | Line amount                        |
 
 **Endpoint:** `/api/ar/v1/ar-invoice-lines`
 
 #### 3.8.3 Receipts
 
-| Field | Type | Description |
-|---|---|---|
-| `client_id` | uuid | FK to clients (RESTRICT) |
-| `ar_invoice_id` | uuid | FK to ar_invoices (SET NULL) |
-| `receipt_date` | date | Receipt date |
-| `amount` | numeric(14,2) | Receipt amount |
-| `method` | varchar(24) | Intended values: `check`, `ach`, `wire` (no CHECK constraint — any varchar accepted) |
-| `reference` | varchar(64) | Reference number |
-| `notes` | text | Internal notes |
+| Field             | Type          | Description                                                                                |
+| ----------------- | ------------- | ------------------------------------------------------------------------------------------ |
+| `client_id`     | uuid          | FK to clients (RESTRICT)                                                                   |
+| `ar_invoice_id` | uuid          | FK to ar_invoices (SET NULL)                                                               |
+| `receipt_date`  | date          | Receipt date                                                                               |
+| `amount`        | numeric(14,2) | Receipt amount                                                                             |
+| `method`        | varchar(24)   | Intended values:`check`, `ach`, `wire` (no CHECK constraint — any varchar accepted) |
+| `reference`     | varchar(64)   | Reference number                                                                           |
+| `notes`         | text          | Internal notes                                                                             |
 
 **Endpoint:** `/api/ar/v1/receipts`
 
@@ -1142,78 +1183,80 @@ Templates serve as reusable blueprints for project creation:
 
 #### 3.9.1 Chart of Accounts
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `code` | varchar(16) | Account code |
-| `name` | varchar(64) | Account name |
-| `type` | varchar(16) | Intended values: `asset`, `liability`, `equity`, `income`, `expense`, `cash`, `bank` (no CHECK constraint — any varchar accepted) |
-| `is_active` | boolean | Default true |
-| `cash_basis` | boolean | Default false |
-| `bank_account_number` | varchar(32) | For cash/bank types |
-| `routing_number` | varchar(16) | Bank routing |
-| `bank_name` | varchar(64) | Bank name |
+| Field                   | Type        | Description                                                                                                                                     |
+| ----------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                  | uuid        | PK                                                                                                                                              |
+| `code`                | varchar(16) | Account code                                                                                                                                    |
+| `name`                | varchar(64) | Account name                                                                                                                                    |
+| `type`                | varchar(16) | Intended values:`asset`, `liability`, `equity`, `income`, `expense`, `cash`, `bank` (no CHECK constraint — any varchar accepted) |
+| `is_active`           | boolean     | Default true                                                                                                                                    |
+| `cash_basis`          | boolean     | Default false                                                                                                                                   |
+| `bank_account_number` | varchar(32) | For cash/bank types                                                                                                                             |
+| `routing_number`      | varchar(16) | Bank routing                                                                                                                                    |
+| `bank_name`           | varchar(64) | Bank name                                                                                                                                       |
 
 **Endpoint:** `/api/accounting/v1/chart-of-accounts`
 
 #### 3.9.2 Journal Entries
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `company_id` | uuid | FK to companies (RESTRICT) |
-| `project_id` | uuid | FK to projects (SET NULL) — enables project-level GL analysis |
-| `entry_date` | date | Entry date |
-| `description` | text | Description |
-| `status` | varchar(16) | `pending` -> `posted` -> `reversed` (CHECK constraint) |
-| `source_type` | varchar(32) | `activity_actual`, `invoice`, `payment`, etc. |
-| `source_id` | uuid | Reference to source record |
-| `corrects_id` | uuid | Self-ref FK for reversals (SET NULL) |
+| Field           | Type        | Description                                                    |
+| --------------- | ----------- | -------------------------------------------------------------- |
+| `id`          | uuid        | PK                                                             |
+| `company_id`  | uuid        | FK to companies (RESTRICT)                                     |
+| `project_id`  | uuid        | FK to projects (SET NULL) — enables project-level GL analysis |
+| `entry_date`  | date        | Entry date                                                     |
+| `description` | text        | Description                                                    |
+| `status`      | varchar(16) | `pending` -> `posted` -> `reversed` (CHECK constraint)   |
+| `source_type` | varchar(32) | `activity_actual`, `invoice`, `payment`, etc.            |
+| `source_id`   | uuid        | Reference to source record                                     |
+| `corrects_id` | uuid        | Self-ref FK for reversals (SET NULL)                           |
 
 **Business Rules:**
+
 - Entries must balance (sum debits = sum credits)
 - Fiscal period validation is planned but not yet implemented — the `fiscal_periods` table does not exist
 - Self-referential `corrects_id` supports reversal chains
 
 **Endpoints:**
-| Method | Path | Purpose |
-|---|---|---|
-| Standard CRUD | `/api/accounting/v1/journal-entries` | List, get, create, update, archive, restore |
-| `POST` | `/api/accounting/v1/journal-entries/post` | Post pending journal entries (sets status to `posted`) |
-| `POST` | `/api/accounting/v1/journal-entries/reverse` | Reverse posted entries (creates correcting entry via `corrects_id`) |
+
+| Method        | Path                                           | Purpose                                                               |
+| ------------- | ---------------------------------------------- | --------------------------------------------------------------------- |
+| Standard CRUD | `/api/accounting/v1/journal-entries`         | List, get, create, update, archive, restore                           |
+| `POST`      | `/api/accounting/v1/journal-entries/post`    | Post pending journal entries (sets status to `posted`)              |
+| `POST`      | `/api/accounting/v1/journal-entries/reverse` | Reverse posted entries (creates correcting entry via `corrects_id`) |
 
 #### 3.9.3 Journal Entry Lines
 
-| Field | Type | Description |
-|---|---|---|
-| `entry_id` | uuid | FK to journal_entries (CASCADE) |
-| `account_id` | uuid | FK to chart_of_accounts (RESTRICT) |
-| `debit` | numeric(12,2) | Debit amount (default 0) |
-| `credit` | numeric(12,2) | Credit amount (default 0) |
-| `memo` | text | Line memo |
-| `related_table` | varchar(32) | Polymorphic reference table |
-| `related_id` | uuid | Polymorphic reference ID |
+| Field             | Type          | Description                        |
+| ----------------- | ------------- | ---------------------------------- |
+| `entry_id`      | uuid          | FK to journal_entries (CASCADE)    |
+| `account_id`    | uuid          | FK to chart_of_accounts (RESTRICT) |
+| `debit`         | numeric(12,2) | Debit amount (default 0)           |
+| `credit`        | numeric(12,2) | Credit amount (default 0)          |
+| `memo`          | text          | Line memo                          |
+| `related_table` | varchar(32)   | Polymorphic reference table        |
+| `related_id`    | uuid          | Polymorphic reference ID           |
 
 **Endpoint:** `/api/accounting/v1/journal-entry-lines`
 
 #### 3.9.4 Ledger Balances
 
-| Field | Type | Description |
-|---|---|---|
-| `account_id` | uuid | FK to chart_of_accounts (RESTRICT) |
-| `as_of_date` | date | Balance date |
-| `balance` | numeric(14,2) | Account balance |
+| Field          | Type          | Description                        |
+| -------------- | ------------- | ---------------------------------- |
+| `account_id` | uuid          | FK to chart_of_accounts (RESTRICT) |
+| `as_of_date` | date          | Balance date                       |
+| `balance`    | numeric(14,2) | Account balance                    |
 
 **Endpoint:** `/api/accounting/v1/ledger-balances`
 
 #### 3.9.5 Posting Queues
 
-| Field | Type | Description |
-|---|---|---|
-| `journal_entry_id` | uuid | FK to journal_entries (CASCADE) |
-| `status` | varchar(16) | `pending` -> `posted` -> `failed` (CHECK constraint) |
-| `error_message` | text | Error details on failure |
-| `processed_at` | timestamptz | Processing timestamp |
+| Field                | Type        | Description                                                |
+| -------------------- | ----------- | ---------------------------------------------------------- |
+| `journal_entry_id` | uuid        | FK to journal_entries (CASCADE)                            |
+| `status`           | varchar(16) | `pending` -> `posted` -> `failed` (CHECK constraint) |
+| `error_message`    | text        | Error details on failure                                   |
+| `processed_at`     | timestamptz | Processing timestamp                                       |
 
 **Endpoint:** `/api/accounting/v1/posting-queues`
 
@@ -1221,50 +1264,54 @@ Templates serve as reusable blueprints for project creation:
 
 Maps cost categories to GL accounts with date-range validity:
 
-| Field | Type | Description |
-|---|---|---|
-| `category_id` | uuid | FK to categories (RESTRICT) |
-| `account_id` | uuid | FK to chart_of_accounts (RESTRICT) |
-| `valid_from` | date | Effective start date |
-| `valid_to` | date | Effective end date |
+| Field           | Type | Description                        |
+| --------------- | ---- | ---------------------------------- |
+| `category_id` | uuid | FK to categories (RESTRICT)        |
+| `account_id`  | uuid | FK to chart_of_accounts (RESTRICT) |
+| `valid_from`  | date | Effective start date               |
+| `valid_to`    | date | Effective end date                 |
 
 **Endpoint:** `/api/accounting/v1/category-account-map`
 
 #### 3.9.7 Intercompany Accounting
 
 **Company Accounts:**
-| Field | Type | Description |
-|---|---|---|
-| `source_company_id` | uuid | FK to companies (RESTRICT) |
-| `target_company_id` | uuid | FK to companies (RESTRICT) |
-| `inter_company_account_id` | uuid | FK to chart_of_accounts (RESTRICT) |
-| `is_active` | boolean | Default true |
+
+| Field                        | Type    | Description                        |
+| ---------------------------- | ------- | ---------------------------------- |
+| `source_company_id`        | uuid    | FK to companies (RESTRICT)         |
+| `target_company_id`        | uuid    | FK to companies (RESTRICT)         |
+| `inter_company_account_id` | uuid    | FK to chart_of_accounts (RESTRICT) |
+| `is_active`                | boolean | Default true                       |
 
 Unique constraint: `(tenant_id, source_company_id, target_company_id)`
 
 **Company Transactions:**
-| Field | Type | Description |
-|---|---|---|
-| `source_company_id` | uuid | FK to companies (RESTRICT) |
-| `target_company_id` | uuid | FK to companies (RESTRICT) |
-| `source_journal_entry_id` | uuid | FK to journal_entries (SET NULL) |
-| `target_journal_entry_id` | uuid | FK to journal_entries (SET NULL) |
-| `module` | varchar(32) | Intended values: `ar`, `ap`, `je` (no CHECK constraint — any varchar accepted) |
-| `amount` | numeric(14,2) | Transaction amount (default 0) |
-| `status` | varchar(16) | `pending` -> `posted` -> `reversed` (CHECK constraint; default `pending`) |
-| `is_eliminated` | boolean | Elimination flag for consolidated reporting (default false) |
-| `description` | text | Transaction description |
+
+| Field                       | Type          | Description                                                                          |
+| --------------------------- | ------------- | ------------------------------------------------------------------------------------ |
+| `source_company_id`       | uuid          | FK to companies (RESTRICT)                                                           |
+| `target_company_id`       | uuid          | FK to companies (RESTRICT)                                                           |
+| `source_journal_entry_id` | uuid          | FK to journal_entries (SET NULL)                                                     |
+| `target_journal_entry_id` | uuid          | FK to journal_entries (SET NULL)                                                     |
+| `module`                  | varchar(32)   | Intended values:`ar`, `ap`, `je` (no CHECK constraint — any varchar accepted) |
+| `amount`                  | numeric(14,2) | Transaction amount (default 0)                                                       |
+| `status`                  | varchar(16)   | `pending` -> `posted` -> `reversed` (CHECK constraint; default `pending`)    |
+| `is_eliminated`           | boolean       | Elimination flag for consolidated reporting (default false)                          |
+| `description`             | text          | Transaction description                                                              |
 
 **Internal Transfers:**
-| Field | Type | Description |
-|---|---|---|
-| `from_account_id` | uuid | FK to chart_of_accounts (RESTRICT) |
-| `to_account_id` | uuid | FK to chart_of_accounts (RESTRICT) |
-| `transfer_date` | date | Transfer date |
-| `amount` | numeric(12,2) | Transfer amount |
-| `description` | text | Transfer description |
+
+| Field               | Type          | Description                        |
+| ------------------- | ------------- | ---------------------------------- |
+| `from_account_id` | uuid          | FK to chart_of_accounts (RESTRICT) |
+| `to_account_id`   | uuid          | FK to chart_of_accounts (RESTRICT) |
+| `transfer_date`   | date          | Transfer date                      |
+| `amount`          | numeric(12,2) | Transfer amount                    |
+| `description`     | text          | Transfer description               |
 
 **Business Rules:**
+
 - Intercompany transactions create paired journal entries (due-to / due-from)
 - Carry elimination flags for consolidated reporting
 - Consolidation targets tenant-level P&L, balance sheet, and elimination reports
@@ -1298,49 +1345,52 @@ Cost Sources (Outflows):
 
 #### 3.10.2 Project Profitability Metrics
 
-| Metric | Calculation | Description |
-|---|---|---|
-| **Contract Value** | `projects.contract_amount` | Total client contract value |
-| **Invoiced Revenue** | SUM `ar_invoices.total_amount` WHERE project_id AND status IN ('sent','paid') | Total billed to client |
-| **Collected Revenue** | SUM `receipts.amount` JOIN ar_invoices WHERE project_id | Cash actually received |
-| **Outstanding AR** | Invoiced Revenue − Collected Revenue | Unpaid client invoices |
-| **Total Budgeted Cost** | SUM `cost_items.amount` + approved change orders | Approved budget for project |
-| **Committed Cost** | SUM `ap_invoices.total_amount` WHERE project_id AND status IN ('approved','paid') | Vendor invoices committed |
-| **Actual Spend** | SUM `actual_costs.amount` WHERE project_id AND approved | Confirmed expenditures |
-| **Cash Out** | SUM `payments.amount` JOIN ap_invoices WHERE project_id | Cash actually paid to vendors |
-| **Gross Profit** | Invoiced Revenue − Committed Cost | Revenue minus committed costs |
-| **Gross Margin %** | (Gross Profit / Invoiced Revenue) × 100 | Profitability percentage |
-| **Net Cashflow** | Collected Revenue − Cash Out | Real cash position |
-| **Budget Variance** | Total Budgeted Cost − Actual Spend | Over/under budget |
-| **Estimated Cost at Completion** | Actual Spend + Remaining Budget (uncommitted) | Projected total cost |
-| **Projected Profit** | Contract Value − Estimated Cost at Completion | Forecasted final profit |
-| **Projected Margin %** | (Projected Profit / Contract Value) × 100 | Forecasted final margin |
+| Metric                                 | Calculation                                                                         | Description                   |
+| -------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------- |
+| **Contract Value**               | `projects.contract_amount`                                                        | Total client contract value   |
+| **Invoiced Revenue**             | SUM `ar_invoices.total_amount` WHERE project_id AND status IN ('sent','paid')     | Total billed to client        |
+| **Collected Revenue**            | SUM `receipts.amount` JOIN ar_invoices WHERE project_id                           | Cash actually received        |
+| **Outstanding AR**               | Invoiced Revenue − Collected Revenue                                               | Unpaid client invoices        |
+| **Total Budgeted Cost**          | SUM `cost_items.amount` + approved change orders                                  | Approved budget for project   |
+| **Committed Cost**               | SUM `ap_invoices.total_amount` WHERE project_id AND status IN ('approved','paid') | Vendor invoices committed     |
+| **Actual Spend**                 | SUM `actual_costs.amount` WHERE project_id AND approved                           | Confirmed expenditures        |
+| **Cash Out**                     | SUM `payments.amount` JOIN ap_invoices WHERE project_id                           | Cash actually paid to vendors |
+| **Gross Profit**                 | Invoiced Revenue − Committed Cost                                                  | Revenue minus committed costs |
+| **Gross Margin %**               | (Gross Profit / Invoiced Revenue) × 100                                            | Profitability percentage      |
+| **Net Cashflow**                 | Collected Revenue − Cash Out                                                       | Real cash position            |
+| **Budget Variance**              | Total Budgeted Cost − Actual Spend                                                 | Over/under budget             |
+| **Estimated Cost at Completion** | Actual Spend + Remaining Budget (uncommitted)                                       | Projected total cost          |
+| **Projected Profit**             | Contract Value − Estimated Cost at Completion                                      | Forecasted final profit       |
+| **Projected Margin %**           | (Projected Profit / Contract Value) × 100                                          | Forecasted final margin       |
 
 #### 3.10.3 Cashflow Timeline
 
 Track periodic inflows/outflows to understand cash timing:
 
 **Cashflow Summary (computed, not stored):**
-| Dimension | Inflow Source | Outflow Source |
-|---|---|---|
-| **By Month** | `receipts.receipt_date` | `payments.payment_date` |
-| **By Quarter** | Aggregated monthly | Aggregated monthly |
-| **By Project Phase** | AR invoices per deliverable | AP invoices + actuals per deliverable |
-| **By Vendor** | N/A | `payments` grouped by `vendor_id` |
-| **By Client** | `receipts` grouped by `client_id` | N/A |
+
+| Dimension                  | Inflow Source                         | Outflow Source                        |
+| -------------------------- | ------------------------------------- | ------------------------------------- |
+| **By Month**         | `receipts.receipt_date`             | `payments.payment_date`             |
+| **By Quarter**       | Aggregated monthly                    | Aggregated monthly                    |
+| **By Project Phase** | AR invoices per deliverable           | AP invoices + actuals per deliverable |
+| **By Vendor**        | N/A                                   | `payments` grouped by `vendor_id` |
+| **By Client**        | `receipts` grouped by `client_id` | N/A                                   |
 
 **Forecast Inputs:**
-| Data Point | Source |
-|---|---|
-| Expected AR inflows | `ar_invoices.due_date` WHERE status = 'sent' (unpaid) |
+
+| Data Point           | Source                                                      |
+| -------------------- | ----------------------------------------------------------- |
+| Expected AR inflows  | `ar_invoices.due_date` WHERE status = 'sent' (unpaid)     |
 | Expected AP outflows | `ap_invoices.due_date` WHERE status = 'approved' (unpaid) |
-| Budget burn rate | `actual_costs` trend over rolling 30/60/90-day windows |
+| Budget burn rate     | `actual_costs` trend over rolling 30/60/90-day windows    |
 
 #### 3.10.4 SQL Views for Profitability
 
 These views are created in each tenant schema at provisioning time and updated via migrations:
 
 **`vw_project_profitability`:**
+
 ```sql
 -- Rolled-up profitability metrics per project
 -- Joins: projects, ar_invoices, receipts, ap_invoices, payments, actual_costs, cost_items, change_orders
@@ -1352,6 +1402,7 @@ These views are created in each tenant schema at provisioning time and updated v
 ```
 
 **`vw_project_cashflow_monthly`:**
+
 ```sql
 -- Monthly inflow/outflow time series per project
 -- Columns: project_id, month, inflow (receipts), outflow (payments only),
@@ -1360,6 +1411,7 @@ These views are created in each tenant schema at provisioning time and updated v
 ```
 
 **`vw_project_cost_by_category`:**
+
 ```sql
 -- Cost breakdown by activity category per project
 -- Joins: deliverable_assignments, budgets, activities, categories, actual_costs
@@ -1368,6 +1420,7 @@ These views are created in each tenant schema at provisioning time and updated v
 ```
 
 **`vw_ar_aging`:**
+
 ```sql
 -- AR aging buckets per client
 -- Columns: client_id, client_name, client_code, invoice_count, total_balance,
@@ -1375,6 +1428,7 @@ These views are created in each tenant schema at provisioning time and updated v
 ```
 
 **`vw_ap_aging`:**
+
 ```sql
 -- AP aging buckets per vendor
 -- Columns: vendor_id, vendor_name, vendor_code, invoice_count, total_balance,
@@ -1383,41 +1437,45 @@ These views are created in each tenant schema at provisioning time and updated v
 
 #### 3.10.5 API Endpoints
 
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/api/reports/v1/project-profitability` | List profitability for all active projects |
-| `GET` | `/api/reports/v1/project-profitability/:projectId` | Detailed profitability for single project |
-| `GET` | `/api/reports/v1/project-cashflow/:projectId` | Monthly cashflow time series for project |
+| Method  | Path                                                     | Purpose                                                     |
+| ------- | -------------------------------------------------------- | ----------------------------------------------------------- |
+| `GET` | `/api/reports/v1/project-profitability`                | List profitability for all active projects                  |
+| `GET` | `/api/reports/v1/project-profitability/:projectId`     | Detailed profitability for single project                   |
+| `GET` | `/api/reports/v1/project-cashflow/:projectId`          | Monthly cashflow time series for project                    |
 | `GET` | `/api/reports/v1/project-cashflow/:projectId/forecast` | Projected cashflow based on AR due dates and AP obligations |
-| `GET` | `/api/reports/v1/project-cost-breakdown/:projectId` | Cost by category with budget vs actual |
-| `GET` | `/api/reports/v1/ar-aging` | AR aging report across all clients |
-| `GET` | `/api/reports/v1/ar-aging/:clientId` | AR aging for specific client |
-| `GET` | `/api/reports/v1/ap-aging` | AP aging report across all vendors |
-| `GET` | `/api/reports/v1/ap-aging/:vendorId` | AP aging for specific vendor |
-| `GET` | `/api/reports/v1/company-cashflow` | Aggregated cashflow across all projects for a company |
-| `GET` | `/api/reports/v1/margin-analysis` | Cross-project margin comparison and trending |
+| `GET` | `/api/reports/v1/project-cost-breakdown/:projectId`    | Cost by category with budget vs actual                      |
+| `GET` | `/api/reports/v1/ar-aging`                             | AR aging report across all clients                          |
+| `GET` | `/api/reports/v1/ar-aging/:clientId`                   | AR aging for specific client                                |
+| `GET` | `/api/reports/v1/ap-aging`                             | AP aging report across all vendors                          |
+| `GET` | `/api/reports/v1/ap-aging/:vendorId`                   | AP aging for specific vendor                                |
+| `GET` | `/api/reports/v1/company-cashflow`                     | Aggregated cashflow across all projects for a company       |
+| `GET` | `/api/reports/v1/margin-analysis`                      | Cross-project margin comparison and trending                |
 
 #### 3.10.6 UI Requirements
 
 **Project Profitability Dashboard:**
+
 - Summary cards: Contract Value, Invoiced Revenue, Gross Profit, Gross Margin %, Net Cashflow
 - Status indicators: green (on budget), yellow (approaching budget), red (over budget)
 - Drill-down from project list to individual project detail
 - MUI X Charts: bar chart comparing budget vs committed vs actual per category
 
 **Cashflow Timeline Chart:**
+
 - MUI X Charts: stacked area chart showing monthly inflows vs outflows
 - Cumulative net cashflow trend line
 - Forecast region (dashed lines) for upcoming AR/AP due dates
 - Toggle: actual vs forecast vs combined view
 
 **Profitability Table:**
+
 - MUI X Data Grid with all metrics from §3.10.2
 - Sortable by any metric column
 - Conditional formatting: red for negative margins, green for healthy margins
 - Export to Excel via `exportToSpreadsheet()`
 
 **AR/AP Aging Grids:**
+
 - Aging bucket columns: Current, 31-60, 61-90, 90+
 - Grouped by client (AR) or vendor (AP)
 - Filterable by project
@@ -1430,33 +1488,36 @@ These views are created in each tenant schema at provisioning time and updated v
 **Purpose:** Pre-computed SQL views for dashboards and data export.
 
 **Core Export Views:**
-| View | Description |
-|---|---|
-| `vw_export_contacts` | Unified contacts across vendors, clients, employees with source_type |
-| `vw_export_addresses` | Unified addresses across all source types |
-| `vw_export_template_cost_items` | Template cost items with unit name, version, task hierarchy |
-| `vw_template_tasks_export` | Template tasks with unit name and version |
+
+| View                              | Description                                                          |
+| --------------------------------- | -------------------------------------------------------------------- |
+| `vw_export_contacts`            | Unified contacts across vendors, clients, employees with source_type |
+| `vw_export_addresses`           | Unified addresses across all source types                            |
+| `vw_export_template_cost_items` | Template cost items with unit name, version, task hierarchy          |
+| `vw_template_tasks_export`      | Template tasks with unit name and version                            |
 
 **Export View Endpoints:** Views are created by the `202502120080_sqlViews` migration. API routes are not yet implemented — views are queried directly by report controllers where needed.
 
 **Financial Views (see §3.10.4):**
-| View | Description |
-|---|---|
-| `vw_project_profitability` | Rolled-up profitability metrics per project |
-| `vw_project_cashflow_monthly` | Monthly inflow/outflow time series |
-| `vw_project_cost_by_category` | Cost breakdown by activity category |
-| `vw_ar_aging` | AR aging buckets by client/project |
-| `vw_ap_aging` | AP aging buckets by vendor/project |
+
+| View                            | Description                                 |
+| ------------------------------- | ------------------------------------------- |
+| `vw_project_profitability`    | Rolled-up profitability metrics per project |
+| `vw_project_cashflow_monthly` | Monthly inflow/outflow time series          |
+| `vw_project_cost_by_category` | Cost breakdown by activity category         |
+| `vw_ar_aging`                 | AR aging buckets by client/project          |
+| `vw_ap_aging`                 | AP aging buckets by vendor/project          |
 
 **Budget vs Actual Metrics:**
-| Metric | Calculation |
-|---|---|
-| Original Budget | Sum of approved `cost_lines.total_cost` |
-| Change Orders | Sum of approved `change_order_lines.total_cost` |
-| Actual Costs | Sum of `actual_costs.amount` (approved) |
-| Total Exposure | Original Budget + Change Orders |
-| Variance (Baseline) | Original Budget − Actual Costs |
-| Variance (Total) | Total Exposure − Actual Costs |
+
+| Metric              | Calculation                                       |
+| ------------------- | ------------------------------------------------- |
+| Original Budget     | Sum of approved `cost_lines.total_cost`         |
+| Change Orders       | Sum of approved `change_order_lines.total_cost` |
+| Actual Costs        | Sum of `actual_costs.amount` (approved)         |
+| Total Exposure      | Original Budget + Change Orders                   |
+| Variance (Baseline) | Original Budget − Actual Costs                   |
+| Variance (Total)    | Total Exposure − Actual Costs                    |
 
 ---
 
@@ -1464,16 +1525,16 @@ These views are created in each tenant schema at provisioning time and updated v
 
 **Purpose:** Audit trail for BOM vendor SKU matching decisions.
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `entity_type` | varchar(32) | Entity being matched |
-| `entity_id` | uuid | Entity ID |
-| `match_type` | varchar(32) | Type of match |
-| `match_id` | uuid | Matched entity ID |
-| `reviewer_id` | uuid | Reviewer user ID |
-| `decision` | varchar(16) | `accept`, `reject`, `defer` |
-| `notes` | text | Reviewer notes |
+| Field           | Type        | Description                       |
+| --------------- | ----------- | --------------------------------- |
+| `id`          | uuid        | PK                                |
+| `entity_type` | varchar(32) | Entity being matched              |
+| `entity_id`   | uuid        | Entity ID                         |
+| `match_type`  | varchar(32) | Type of match                     |
+| `match_id`    | uuid        | Matched entity ID                 |
+| `reviewer_id` | uuid        | Reviewer user ID                  |
+| `decision`    | varchar(16) | `accept`, `reject`, `defer` |
+| `notes`       | text        | Reviewer notes                    |
 
 **Endpoint:** `/api/tenants/v1/match-review-logs`
 
@@ -1496,20 +1557,20 @@ These views are created in each tenant schema at provisioning time and updated v
 
 **Data Model (`tenant_numbering_config`):**
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `tenant_id` | uuid | Not null, immutable |
-| `id_type` | varchar(32) | `employee`, `vendor`, `client`, `contact`, `ar_invoice`, `ap_invoice`, `project` |
-| `prefix` | varchar(16) | Display prefix (e.g., `EMP`, `INV`) |
-| `suffix` | varchar(16) | Display suffix |
-| `date_mode` | varchar(16) | `none`, `year`, `year_month`, `ymd` |
-| `reset_mode` | varchar(16) | `never`, `yearly`, `monthly`, `daily` |
-| `padding` | integer | Zero-pad width (e.g., 4 → `0001`) |
-| `separator` | varchar(4) | Joins display parts (e.g., `-`) |
-| `uppercase` | boolean | Apply uppercase to final display ID |
-| `scope_type` | varchar(32) | `none`, `legal_entity`, `company`, `project` |
-| `is_enabled` | boolean | Enables auto-numbering for this entity type |
+| Field          | Type        | Description                                                                                    |
+| -------------- | ----------- | ---------------------------------------------------------------------------------------------- |
+| `id`         | uuid        | PK                                                                                             |
+| `tenant_id`  | uuid        | Not null, immutable                                                                            |
+| `id_type`    | varchar(32) | `employee`, `vendor`, `client`, `contact`, `ar_invoice`, `ap_invoice`, `project` |
+| `prefix`     | varchar(16) | Display prefix (e.g.,`EMP`, `INV`)                                                         |
+| `suffix`     | varchar(16) | Display suffix                                                                                 |
+| `date_mode`  | varchar(16) | `none`, `year`, `year_month`, `ymd`                                                    |
+| `reset_mode` | varchar(16) | `never`, `yearly`, `monthly`, `daily`                                                  |
+| `padding`    | integer     | Zero-pad width (e.g., 4 →`0001`)                                                            |
+| `separator`  | varchar(4)  | Joins display parts (e.g.,`-`)                                                               |
+| `uppercase`  | boolean     | Apply uppercase to final display ID                                                            |
+| `scope_type` | varchar(32) | `none`, `legal_entity`, `company`, `project`                                           |
+| `is_enabled` | boolean     | Enables auto-numbering for this entity type                                                    |
 
 **Unique Constraint:** `(tenant_id, id_type)` — one config row per entity type per tenant.
 
@@ -1519,14 +1580,14 @@ Changing configuration affects future numbers only. Historical numbers are never
 
 **Data Model (`tenant_number_sequence_state`):**
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | uuid | PK |
-| `tenant_id` | uuid | Not null, immutable |
-| `id_type` | varchar(32) | Entity type |
-| `scope_id` | uuid | Scope entity UUID, or NIL UUID for global scope |
-| `period_key` | varchar(16) | Derived from `reset_mode`: `never` → `global`, `yearly` → `YYYY`, `monthly` → `YYYY-MM`, `daily` → `YYYY-MM-DD` |
-| `last_serial` | bigint | Current counter value |
+| Field           | Type        | Description                                                                                                                           |
+| --------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`          | uuid        | PK                                                                                                                                    |
+| `tenant_id`   | uuid        | Not null, immutable                                                                                                                   |
+| `id_type`     | varchar(32) | Entity type                                                                                                                           |
+| `scope_id`    | uuid        | Scope entity UUID, or NIL UUID for global scope                                                                                       |
+| `period_key`  | varchar(16) | Derived from `reset_mode`: `never` → `global`, `yearly` → `YYYY`, `monthly` → `YYYY-MM`, `daily` → `YYYY-MM-DD` |
+| `last_serial` | bigint      | Current counter value                                                                                                                 |
 
 **Unique Constraint:** `(tenant_id, id_type, scope_id, period_key)`
 
@@ -1562,15 +1623,15 @@ Example (yearly reset): 2025 → `period_key = '2025'`, serial 000001; 2026 → 
 
 #### 3.13.7 Recommended Defaults
 
-| Entity Type | Prefix | Padding | Date Mode | Reset Mode | Scope |
-|---|---|---|---|---|---|
-| Employee | `EMP` | 4 | none | never | tenant |
-| Vendor | `VND` | 4 | none | never | tenant |
-| Client | `CLT` | 4 | none | never | tenant |
-| Contact | `CON` | 4 | none | never | tenant |
-| Project | `PRJ` | 4 | none | never | tenant |
-| AR Invoice | `INV` | 5 | year | yearly | legal_entity |
-| AP Invoice | `BILL` | 5 | year | yearly | legal_entity |
+| Entity Type | Prefix   | Padding | Date Mode | Reset Mode | Scope        |
+| ----------- | -------- | ------- | --------- | ---------- | ------------ |
+| Employee    | `EMP`  | 4       | none      | never      | tenant       |
+| Vendor      | `VND`  | 4       | none      | never      | tenant       |
+| Client      | `CLT`  | 4       | none      | never      | tenant       |
+| Contact     | `CON`  | 4       | none      | never      | tenant       |
+| Project     | `PRJ`  | 4       | none      | never      | tenant       |
+| AR Invoice  | `INV`  | 5       | year      | yearly     | legal_entity |
+| AP Invoice  | `BILL` | 5       | year      | yearly     | legal_entity |
 
 All configs are seeded with `is_enabled = false` during tenant provisioning. Tenants opt in via the Settings UI. When numbering is first enabled for an entity type, existing records with `code IS NULL` are backfilled in `created_at` order.
 
@@ -1578,15 +1639,15 @@ All configs are seeded with `is_enabled = false` during tenant provisioning. Ten
 
 Auto-numbering populates the entity's code/number field only when the user does not provide one. For AR invoices, numbering fires when `status` transitions to `sent`; for AP invoices, when `status` transitions to `approved` (immutable after assignment).
 
-| Entity | Code Field | Numbering Trigger |
-|---|---|---|
-| Vendor | `code` | On create (if code is null) |
-| Client | `code` | On create (if code is null) |
-| Employee | `code` | On create (if code is null) |
-| Contact | `code` | On create (if code is null) |
-| Project | `project_code` | On create (if code is null) |
-| AR Invoice | `invoice_number` | On status → `sent` |
-| AP Invoice | `invoice_number` | On status → `approved` |
+| Entity     | Code Field         | Numbering Trigger           |
+| ---------- | ------------------ | --------------------------- |
+| Vendor     | `code`           | On create (if code is null) |
+| Client     | `code`           | On create (if code is null) |
+| Employee   | `code`           | On create (if code is null) |
+| Contact    | `code`           | On create (if code is null) |
+| Project    | `project_code`   | On create (if code is null) |
+| AR Invoice | `invoice_number` | On status →`sent`        |
+| AP Invoice | `invoice_number` | On status →`approved`    |
 
 #### 3.13.9 Backfill on Enable
 
@@ -1608,27 +1669,28 @@ All API routes are built from scratch using pg-schemata's TableModel and QueryMo
 
 Every resource entity uses `createRouter` to generate a consistent REST API backed by pg-schemata:
 
-| Method | Path | Operation | Auto Middleware | pg-schemata Method |
-|---|---|---|---|---|
-| `POST /` | Create single record | `addAuditFields`, `moduleEntitlement` | `model.insert(dto)` |
-| `GET /` | List with cursor-based pagination | `moduleEntitlement` | `model.findAfterCursor()` |
-| `GET /where` | Query with JSON conditions | `moduleEntitlement` | `model.findWhere()` |
-| `GET /archived` | Query archived records | `moduleEntitlement` | `controller.getWhere()` (same handler as `/where`) |
-| `GET /ping` | Health check | none | — |
-| `GET /:id` | Get by ID | `moduleEntitlement` | `model.findById()` |
-| `POST /bulk-insert` | Batch create | `addAuditFields`, `moduleEntitlement` | `model.bulkInsert()` |
-| `POST /import-xls` | Import from Excel | `addAuditFields`, `moduleEntitlement`, `setImportAction`, `rbac('full')`, `multer` | `model.importFromSpreadsheet()` |
-| `POST /export-xls` | Export to Excel | `moduleEntitlement` (read-level), `setExportAction`, `rbac('view')` | `model.exportToSpreadsheet()` |
-| `PUT /bulk-update` | Batch update | `addAuditFields`, `moduleEntitlement` | `model.bulkUpdate()` |
-| `PUT /update` | Update by query-param filters | `addAuditFields`, `moduleEntitlement` | `model.updateWhere()` |
-| `DELETE /archive` | Soft-delete | `addAuditFields`, `moduleEntitlement` | `model.updateWhere()` (manually sets `deactivated_at = new Date()`) |
-| `PATCH /restore` | Restore soft-deleted record | `addAuditFields`, `moduleEntitlement` | `model.updateWhere()` (manually clears `deactivated_at`, with `includeDeactivated: true`) |
+| Method                | Path                              | Operation                                                                                    | Auto Middleware                                                                                 | pg-schemata Method |
+| --------------------- | --------------------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------ |
+| `POST /`            | Create single record              | `addAuditFields`, `moduleEntitlement`                                                    | `model.insert(dto)`                                                                           |                    |
+| `GET /`             | List with cursor-based pagination | `moduleEntitlement`                                                                        | `model.findAfterCursor()`                                                                     |                    |
+| `GET /where`        | Query with JSON conditions        | `moduleEntitlement`                                                                        | `model.findWhere()`                                                                           |                    |
+| `GET /archived`     | Query archived records            | `moduleEntitlement`                                                                        | `controller.getWhere()` (same handler as `/where`)                                          |                    |
+| `GET /ping`         | Health check                      | none                                                                                         | —                                                                                              |                    |
+| `GET /:id`          | Get by ID                         | `moduleEntitlement`                                                                        | `model.findById()`                                                                            |                    |
+| `POST /bulk-insert` | Batch create                      | `addAuditFields`, `moduleEntitlement`                                                    | `model.bulkInsert()`                                                                          |                    |
+| `POST /import-xls`  | Import from Excel                 | `addAuditFields`, `moduleEntitlement`, `setImportAction`, `rbac('full')`, `multer` | `model.importFromSpreadsheet()`                                                               |                    |
+| `POST /export-xls`  | Export to Excel                   | `moduleEntitlement` (read-level), `setExportAction`, `rbac('view')`                    | `model.exportToSpreadsheet()`                                                                 |                    |
+| `PUT /bulk-update`  | Batch update                      | `addAuditFields`, `moduleEntitlement`                                                    | `model.bulkUpdate()`                                                                          |                    |
+| `PUT /update`       | Update by query-param filters     | `addAuditFields`, `moduleEntitlement`                                                    | `model.updateWhere()`                                                                         |                    |
+| `DELETE /archive`   | Soft-delete                       | `addAuditFields`, `moduleEntitlement`                                                    | `model.updateWhere()` (manually sets `deactivated_at = new Date()`)                         |                    |
+| `PATCH /restore`    | Restore soft-deleted record       | `addAuditFields`, `moduleEntitlement`                                                    | `model.updateWhere()` (manually clears `deactivated_at`, with `includeDeactivated: true`) |                    |
 
 > **Note:** `withMeta` is not auto-applied by `createRouter` — each router passes it via per-method middleware arrays (e.g., `getMiddlewares: [meta]`). `rbac()` is not included in the standard CRUD chain; it must be explicitly added on custom endpoints that need per-action permission level checks. All standard routes can be individually disabled via `disable*` flags (e.g., `disablePost: true`).
 
 ### 4.2 Pagination
 
 Keyset-based pagination via pg-schemata's `findAfterCursor()`:
+
 - `cursor`: Last seen ID/sort value for next page
 - `limit`: Page size
 - `orderBy`: Sort column(s)
@@ -1646,6 +1708,7 @@ Most models define `softDelete: true`. Exceptions: `roles` (`softDelete: false`)
 ### 4.5 Validation
 
 pg-schemata auto-generates Zod validators from schema definitions:
+
 - Insert validation: enforces `notNull` columns, type coercion, immutable fields
 - Update validation: excludes `immutable` columns, partial validation
 - Custom validators can be attached per-column via `colProps.validator`
@@ -1665,13 +1728,14 @@ Built into pg-schemata's TableModel and exposed as a full-stack feature across a
 
 The 5 core entity models (Vendors, Clients, Employees, Contacts, Companies) override the default pg-schemata `importFromSpreadsheet()` / `exportToSpreadsheet()` methods with custom multi-sheet logic via `spreadsheetHelpers.js`. These entities use the polymorphic `sources` pattern with child tables (phone numbers, addresses, tax identifiers), which requires:
 
-- **Export** (`exportSourceEntity`): Queries the parent table, strips internal columns (audit fields, `tenant_id`, `source_id`, `deactivated_at`), appends a derived `status` column, and writes child data (phones, addresses, tax IDs) to separate sheets in a single XLSX workbook via `@nap-sft/tablsx` WorkbookBuilder.
+- **Export** (`exportSourceEntity`): Queries the parent table, strips internal columns (audit fields, `tenant_id`, `source_id`, `deactivated_at`), appends a derived `status` column, and writes child data (phones, addresses, tax IDs) to separate sheets in a single XLSX workbook via `@vimber-sft/tablsx` WorkbookBuilder.
 - **Import** (`importSourceEntity`): Parses multi-sheet workbooks, partitions rows into inserts vs updates (by `id` presence), executes updates with soft-delete/restore logic, bulk inserts new records with auto-generated source records and numbering-service codes, optionally provisions `portal_users` login records (when `appUserProvisioning` is enabled), and imports child sheets with delete-and-reinsert per parent. Returns an extended result: `{ inserted, updated, phones, addresses, taxIds, appUserSkipped }`.
 - **Config-driven**: Each entity defines a `SourceEntityConfig` specifying `entityName`, `sheetName`, `sourceType`, `idType`, `buildLabel`, `boolCols`, `childSheets`, and `appUserProvisioning`.
 
 All other entities (non-source) use the default pg-schemata single-sheet import/export path.
 
 **RBAC Enforcement:**
+
 - Import routes require `rbac('full')` — `setImportAction` overrides `req.resource.action = 'import'` before RBAC resolution
 - Export routes require `rbac('view')` — `setExportAction` overrides `req.resource.action = 'export'` before RBAC resolution
 - Both routes also enforce `moduleEntitlement`
@@ -1681,10 +1745,12 @@ All other entities (non-source) use the default pg-schemata single-sheet import/
 #### 4.6.2 Frontend (Hooks + Components)
 
 **Custom Hooks** (`hooks/useImportExport.js`):
+
 - `useImportXls(importFn, queryKey)` — TanStack `useMutation` wrapper. Calls the API import function with FormData, invalidates the query cache on success. Returns a mutation object.
 - `useExportXls(exportFn, filePrefix)` — TanStack `useMutation` wrapper. Calls the API export function, creates a blob URL, triggers browser download as `${filePrefix}_${Date.now()}.xlsx`, and cleans up the URL. Returns a mutation object.
 
 **Shared Component** (`components/shared/ImportDialog.jsx`):
+
 - Wraps `FormDialog` with a file picker (accepts `.xlsx`, `.xls`)
 - Displays file size in KB
 - Passes FormData with `file` field to the `onSubmit` callback
@@ -1705,29 +1771,29 @@ All pages with import/export follow this pattern:
 
 All resources using `createRouter` have import/export endpoints. The following pages have full client-side import/export wiring:
 
-| Page | Module | Entity | API Service | Query Key |
-|------|--------|--------|-------------|-----------|
-| VendorsPage | core | vendors | `vendorApi` | `vendors` |
-| ClientsPage | core | clients | `clientApi` | `clients` |
-| EmployeesPage | core | employees | `employeeApi` | `employees` |
-| ContactsPage | core | contacts | `contactApi` | `contacts` |
-| CompaniesPage | core | companies | `companyApi` | `companies` |
-| PaymentTermsPage | core | payment-terms | `paymentTermApi` | `paymentTerms` |
-| ChartOfAccountsPage | accounting | chart-of-accounts | `chartOfAccountsApi` | `chartOfAccounts` |
-| JournalEntriesPage | accounting | journal-entries | `journalEntryApi` | `journalEntries` |
-| ProjectsPage | projects | projects | `projectApi` | `projects` |
-| ChangeOrdersPage | projects | change-orders | `changeOrderApi` | `changeOrders` |
-| ActivitiesPage | activities | activities | `activityApi` | `activities` |
-| CategoriesPage | activities | categories | `categoryApi` | `categories` |
-| DeliverablesPage | activities | deliverables | `deliverableApi` | `deliverables` |
-| BudgetManagementPage | activities | budgets | `budgetApi` | `budgets` |
-| CostTrackingPage | activities | actual-costs | `actualCostApi` | `actualCosts` |
-| ApInvoicesPage | ap | ap-invoices | `apInvoiceApi` | `apInvoices` |
-| PaymentsPage | ap | payments | `paymentApi` | `payments` |
-| CreditMemosPage | ap | ap-credit-memos | `apCreditMemoApi` | `apCreditMemos` |
-| ArInvoicesPage | ar | ar-invoices | `arInvoiceApi` | `arInvoices` |
-| ReceiptsPage | ar | receipts | `receiptApi` | `receipts` |
-| CatalogPage | bom | catalog-skus | `catalogSkuApi` | `catalogSkus` |
+| Page                 | Module     | Entity            | API Service            | Query Key           |
+| -------------------- | ---------- | ----------------- | ---------------------- | ------------------- |
+| VendorsPage          | core       | vendors           | `vendorApi`          | `vendors`         |
+| ClientsPage          | core       | clients           | `clientApi`          | `clients`         |
+| EmployeesPage        | core       | employees         | `employeeApi`        | `employees`       |
+| ContactsPage         | core       | contacts          | `contactApi`         | `contacts`        |
+| CompaniesPage        | core       | companies         | `companyApi`         | `companies`       |
+| PaymentTermsPage     | core       | payment-terms     | `paymentTermApi`     | `paymentTerms`    |
+| ChartOfAccountsPage  | accounting | chart-of-accounts | `chartOfAccountsApi` | `chartOfAccounts` |
+| JournalEntriesPage   | accounting | journal-entries   | `journalEntryApi`    | `journalEntries`  |
+| ProjectsPage         | projects   | projects          | `projectApi`         | `projects`        |
+| ChangeOrdersPage     | projects   | change-orders     | `changeOrderApi`     | `changeOrders`    |
+| ActivitiesPage       | activities | activities        | `activityApi`        | `activities`      |
+| CategoriesPage       | activities | categories        | `categoryApi`        | `categories`      |
+| DeliverablesPage     | activities | deliverables      | `deliverableApi`     | `deliverables`    |
+| BudgetManagementPage | activities | budgets           | `budgetApi`          | `budgets`         |
+| CostTrackingPage     | activities | actual-costs      | `actualCostApi`      | `actualCosts`     |
+| ApInvoicesPage       | ap         | ap-invoices       | `apInvoiceApi`       | `apInvoices`      |
+| PaymentsPage         | ap         | payments          | `paymentApi`         | `payments`        |
+| CreditMemosPage      | ap         | ap-credit-memos   | `apCreditMemoApi`    | `apCreditMemos`   |
+| ArInvoicesPage       | ar         | ar-invoices       | `arInvoiceApi`       | `arInvoices`      |
+| ReceiptsPage         | ar         | receipts          | `receiptApi`         | `receipts`        |
+| CatalogPage          | bom        | catalog-skus      | `catalogSkuApi`      | `catalogSkus`     |
 
 ---
 
@@ -1736,6 +1802,7 @@ All resources using `createRouter` have import/export endpoints. The following p
 ### 5.1 Common Columns
 
 Aggregate-root tables include (managed by pg-schemata schema definitions):
+
 - `id`: UUID primary key (default `gen_random_uuid()`, `immutable: true`)
 - `tenant_id` / `tenant_code`: Tenant isolation (present on top-level entities like vendors, clients, projects, chart_of_accounts, etc.)
 - `created_at`, `updated_at`: Timestamps (via `hasAuditFields`)
@@ -1756,6 +1823,7 @@ Aggregate-root tables include (managed by pg-schemata schema definitions):
 ### 5.3 Generated Columns
 
 Generated columns are deliberately excluded from pg-schemata schema definitions (to keep them out of INSERT/UPDATE ColumnSets) and added via `ALTER TABLE ... ADD COLUMN ... GENERATED ALWAYS AS ... STORED` in migration files:
+
 - `template_cost_items.amount = quantity * unit_cost`
 - `cost_lines.amount = quantity * unit_price`
 - `cost_items.amount = quantity * unit_cost`
@@ -1763,12 +1831,14 @@ Generated columns are deliberately excluded from pg-schemata schema definitions 
 ### 5.4 Schema Management & Migrations
 
 **Table Creation:**
+
 - Each model's schema definition is the source of truth for DDL
 - Table creation happens inside individual migration `up()` functions — migrations iterate models using `orderModels()` (topological FK sort) and call `model.createTable()` individually
 - New tenant provisioning runs the migrator (not `bootstrap()`) with the tenant's schema name
 
 **Migrations via custom `createMigrator`:**
-- NAP uses a custom `createMigrator({ modules })` system (in `src/db/migrations/createMigrator.js`), NOT pg-schemata's `MigrationManager`
+
+- VIMBER uses a custom `createMigrator({ modules })` system (in `src/db/migrations/createMigrator.js`), NOT pg-schemata's `MigrationManager`
 - Each module defines migrations via `defineMigration()` with `id`, `description`, and `up()` function
 - Module scope filtering (admin vs tenant) is handled programmatically by `moduleScopes.js` using the module registry's `scope` property — there are no separate migration directories
 - Checksums are computed from `id + description` and stored in the history table, but are not validated on subsequent runs (modified migration bodies are not detected)
@@ -1776,7 +1846,8 @@ Generated columns are deliberately excluded from pg-schemata schema definitions 
 - `pgschemata.migrations` table tracks applied migrations with primary key `(schema_name, module_name, migration_id)`
 
 **Migration Order:**
-1. `202502110001` — Bootstrap admin (tenants, portal_users, impersonation_logs, match_review_logs). Seeds root tenant + super user. Note: `portal_users` uses polymorphic `entity_type`/`entity_id` instead of `employee_id`; `nap_admin_phones` and `nap_admin_addresses` removed.
+
+1. `202502110001` — Bootstrap admin (tenants, portal_users, impersonation_logs, match_review_logs). Seeds root tenant + super user. Note: `portal_users` uses polymorphic `entity_type`/`entity_id` instead of `employee_id`; `vimber_admin_phones` and `vimber_admin_addresses` removed.
 2. `202502110010` — Core RBAC tables (roles, policies, policy_catalog, state_filters, field_group_definitions, field_group_grants, project_members, company_members). Note: `role_members` has been removed — role assignment is stored as a `roles` text array on entity tables.
 3. `202502110011` — Core entity tables (sources, vendors, clients, employees, contacts, addresses, phone_numbers, companies, tax_identifiers). Note: all four entity tables include `roles` (text[]) and `is_app_user`; `contacts` is a first-class entity (miscellaneous payees); `sources` CHECK includes `'contact'` and `'company'`; `clients` includes `email`; `employees` includes `email`, `is_primary_contact`, `is_billing_contact`; `tax_identifiers` replaces the former `tax_id` column on entity tables.
 4. `202502250012` — Numbering system tables (tenant_numbering_config, tenant_number_sequence_state).
@@ -1797,11 +1868,13 @@ Generated columns are deliberately excluded from pg-schemata schema definitions 
 Dual-mode theming with automatic OS preference detection:
 
 **Light Mode:**
+
 - Primary: `#003e6b` (dark navy)
 - Secondary: `#f79c3c` (orange)
 - Background: `#f5f5f5` / paper `#ffffff`
 
 **Dark Mode (GitHub-Dark inspired):**
+
 - Primary: `#f6b21b` (gold/amber)
 - Secondary: `#0ea5e9` (sky blue)
 - Background: `#080B10` / paper `#161B22`
@@ -1818,88 +1891,88 @@ Styling decisions follow a three-tier hierarchy:
 
 **Decision tree — where does a style belong?**
 
-| Question | Yes → | No → |
-|---|---|---|
-| Is it used on 3 + instances of the same MUI component? | Theme override | ↓ |
-| Is it a structural dimension or position for layout chrome? | Layout token | ↓ |
-| Is it dynamic (depends on props, state, or route)? | Inline `sx` | Theme override |
+| Question                                                    | Yes →         | No →          |
+| ----------------------------------------------------------- | -------------- | -------------- |
+| Is it used on 3 + instances of the same MUI component?      | Theme override | ↓             |
+| Is it a structural dimension or position for layout chrome? | Layout token   | ↓             |
+| Is it dynamic (depends on props, state, or route)?          | Inline `sx`  | Theme override |
 
 #### 6.1.2 Design Tokens (`tokens.js` + `layoutTokens.js`)
 
 **Mode-independent tokens (`tokens.js`):**
 
-| Export | Contents |
-|---|---|
-| `density` | Flat map of named pixel values: `sectionGap`, `stackGap`, `fieldGap`, `controlHeight`, `controlHeightSm`, `tableRowHeight`, `tableCellPadY`, `tableCellPadX` |
-| `radius` | Border radius values (`control`, `card`, `modal`, `chip`) |
-| `typographyTokens` | Font presets: `body` (fontSize 14, fontWeight 500), `sectionLabel`, `tableHead`, `breadcrumb`, `pageTitle` |
-| `motion` | Animation/transition presets |
-| `createTokens(mode)` | Returns mode-dependent tokens: `border`, `surface`, `shadow` |
+| Export                 | Contents                                                                                                                                                                    |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `density`            | Flat map of named pixel values:`sectionGap`, `stackGap`, `fieldGap`, `controlHeight`, `controlHeightSm`, `tableRowHeight`, `tableCellPadY`, `tableCellPadX` |
+| `radius`             | Border radius values (`control`, `card`, `modal`, `chip`)                                                                                                           |
+| `typographyTokens`   | Font presets:`body` (fontSize 14, fontWeight 500), `sectionLabel`, `tableHead`, `breadcrumb`, `pageTitle`                                                         |
+| `motion`             | Animation/transition presets                                                                                                                                                |
+| `createTokens(mode)` | Returns mode-dependent tokens:`border`, `surface`, `shadow`                                                                                                           |
 
 **Structural constants (`layoutTokens.js`):**
 
-| Token | Value | Used By |
-|---|---|---|
-| `SIDEBAR_WIDTH_EXPANDED` / `SIDEBAR_WIDTH_OPEN` | `242` | Sidebar, LayoutShell |
-| `SIDEBAR_WIDTH_COLLAPSED` | `110` | Sidebar, LayoutShell |
-| `TENANT_BAR_HEIGHT` | `48` | TenantBar, ModuleBar (sticky offset), theme (Toolbar dense) |
-| `MODULE_BAR_HEIGHT` | `48` | ModuleBar |
-| `FONT.navGroup` | `{ fontSize: '0.8125rem', letterSpacing: '0.02em' }` | Sidebar group labels |
-| `FONT.navItem` | `{ fontSize: '0.8125rem' }` | Sidebar child labels |
-| `FONT.toolbar` | `{ fontSize: '0.8125rem' }` | Defined but not currently imported by any component |
-| `FONT.toolbarAction` | `{ fontSize: '0.8125rem' }` | ModuleBar filter inputs |
-| `FONT.breadcrumb` | (from `typographyTokens`) | ModuleBar breadcrumbs |
-| `FONT.pageTitle` | (from `typographyTokens`) | Page title headings |
+| Token                                               | Value                                                  | Used By                                                     |
+| --------------------------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------- |
+| `SIDEBAR_WIDTH_EXPANDED` / `SIDEBAR_WIDTH_OPEN` | `242`                                                | Sidebar, LayoutShell                                        |
+| `SIDEBAR_WIDTH_COLLAPSED`                         | `110`                                                | Sidebar, LayoutShell                                        |
+| `TENANT_BAR_HEIGHT`                               | `48`                                                 | TenantBar, ModuleBar (sticky offset), theme (Toolbar dense) |
+| `MODULE_BAR_HEIGHT`                               | `48`                                                 | ModuleBar                                                   |
+| `FONT.navGroup`                                   | `{ fontSize: '0.8125rem', letterSpacing: '0.02em' }` | Sidebar group labels                                        |
+| `FONT.navItem`                                    | `{ fontSize: '0.8125rem' }`                          | Sidebar child labels                                        |
+| `FONT.toolbar`                                    | `{ fontSize: '0.8125rem' }`                          | Defined but not currently imported by any component         |
+| `FONT.toolbarAction`                              | `{ fontSize: '0.8125rem' }`                          | ModuleBar filter inputs                                     |
+| `FONT.breadcrumb`                                 | (from `typographyTokens`)                            | ModuleBar breadcrumbs                                       |
+| `FONT.pageTitle`                                  | (from `typographyTokens`)                            | Page title headings                                         |
 
 **Composite sx presets** (spread into component `sx`):
 
-| Preset | Contains | Purpose |
-|---|---|---|
-| `tenantBarSx` | `height`, `minHeight`, `bgcolor`, `borderBottom`, `borderColor`, `boxShadow`, `color` | TenantBar AppBar root |
-| `moduleBarSx` | `height`, `minHeight`, `bgcolor`, `borderBottom`, `borderColor` | ModuleBar container |
-| `sidebarPaperSx(width)` | `width`, `transition`, `overflowX`, `boxSizing`, `borderRight`, `borderColor` | Sidebar Drawer paper |
-| `pageContainerSx` | `height: 100%`, `display: flex`, `flexDirection: column`, `gap` (density.sectionGap) | Full-height flex column for DataGrid page wrapper |
-| `formGridSx` | `display: grid`, `gridTemplateColumns: 'repeat(2, 1fr)'`, `gap` (density.fieldGap px) | Two-column grid layout for form sections |
-| `formFullSpanSx` | `gridColumn: 1 / -1` | Full-width span inside formGridSx |
-| `formGroupCardSx` | `gridColumn: 1 / -1`, `p: 2`, `border`, `borderColor`, `borderRadius` | Bordered card for repeatable form groups (addresses, phones) |
-| `formSectionHeaderSx` | `gridColumn: 1 / -1`, `mb: -1` | Full-span header inside form grid |
-| `masterDetailSx` | `display: flex`, `flexDirection: row`, `height: 100%`, `gap` (density.sectionGap) | Master-detail split layout container |
-| `masterPanelSx` | `width: 38%`, `minWidth: 340`, `display: flex`, `flexDirection: column` | Left panel of master-detail |
-| `detailPanelSx` | `flex: 1`, `minWidth: 0`, `display: flex`, `flexDirection: column`, `overflow: auto` | Right panel of master-detail |
+| Preset                    | Contains                                                                                            | Purpose                                                      |
+| ------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `tenantBarSx`           | `height`, `minHeight`, `bgcolor`, `borderBottom`, `borderColor`, `boxShadow`, `color` | TenantBar AppBar root                                        |
+| `moduleBarSx`           | `height`, `minHeight`, `bgcolor`, `borderBottom`, `borderColor`                           | ModuleBar container                                          |
+| `sidebarPaperSx(width)` | `width`, `transition`, `overflowX`, `boxSizing`, `borderRight`, `borderColor`           | Sidebar Drawer paper                                         |
+| `pageContainerSx`       | `height: 100%`, `display: flex`, `flexDirection: column`, `gap` (density.sectionGap)        | Full-height flex column for DataGrid page wrapper            |
+| `formGridSx`            | `display: grid`, `gridTemplateColumns: 'repeat(2, 1fr)'`, `gap` (density.fieldGap px)         | Two-column grid layout for form sections                     |
+| `formFullSpanSx`        | `gridColumn: 1 / -1`                                                                              | Full-width span inside formGridSx                            |
+| `formGroupCardSx`       | `gridColumn: 1 / -1`, `p: 2`, `border`, `borderColor`, `borderRadius`                     | Bordered card for repeatable form groups (addresses, phones) |
+| `formSectionHeaderSx`   | `gridColumn: 1 / -1`, `mb: -1`                                                                  | Full-span header inside form grid                            |
+| `masterDetailSx`        | `display: flex`, `flexDirection: row`, `height: 100%`, `gap` (density.sectionGap)           | Master-detail split layout container                         |
+| `masterPanelSx`         | `width: 38%`, `minWidth: 340`, `display: flex`, `flexDirection: column`                     | Left panel of master-detail                                  |
+| `detailPanelSx`         | `flex: 1`, `minWidth: 0`, `display: flex`, `flexDirection: column`, `overflow: auto`      | Right panel of master-detail                                 |
 
 #### 6.1.3 Theme Overrides Reference
 
 All MUI component overrides defined in `theme.js`:
 
-| Component | Override Type | What It Sets |
-|---|---|---|
-| `MuiCssBaseline` | styleOverrides | Font smoothing (`WebkitFontSmoothing`, `MozOsxFontSmoothing`) |
-| `MuiPaper` | styleOverrides | Token-driven `border`, `boxShadow`, `borderRadius`, no `backgroundImage` |
-| `MuiAppBar` | defaultProps + styleOverrides | `elevation: 0`, bottom divider border, no shadow/backgroundImage |
-| `MuiToolbar` | styleOverrides (dense) | `minHeight: 48` (TENANT_BAR_HEIGHT) |
-| `MuiDrawer` | styleOverrides (paper) | `boxSizing`, sidebar `backgroundColor`, `borderRight`, `overflowX: hidden`, `border: 'none'`, `backgroundImage: 'none'` |
-| `MuiCard` | defaultProps + styleOverrides | `elevation: 0`, `borderRadius` from card token |
-| `MuiDialog` | styleOverrides (paper) | `borderRadius` (modal token), token border, modal shadow, no `backgroundImage` |
-| `MuiDialogTitle` | styleOverrides | `position: sticky`, `top: 0`, `zIndex: 1`, `backgroundColor: background.paper`, bottom border, `fontSize: 18`, `fontWeight: 650` |
-| `MuiDialogContent` | styleOverrides | `padding: 16` |
-| `MuiDialogActions` | styleOverrides | `padding: 16`, top border, `gap: 10` |
-| `MuiButton` | defaultProps + styleOverrides | `disableElevation`, `borderRadius`, `minHeight`, padding, transitions, disabled `opacity: 0.35`, small `fontSize: 0.8rem`; variant-specific: containedPrimary brightness filters, outlined border/hover, text hover overlay |
-| `MuiToggleButton` | styleOverrides | `textTransform: 'none'`, transitions; small: `fontSize: 0.8rem`, compact padding |
-| `MuiTextField` | defaultProps | `size: 'small'`, `variant: 'outlined'` |
-| `MuiOutlinedInput` | styleOverrides | `borderRadius`, `minHeight`, transition, hover border color, subtle notched outline, autofill background fix |
-| `MuiInputLabel` | styleOverrides | `color: text.secondary` |
-| `MuiFormHelperText` | styleOverrides | `marginLeft: 0`, `marginRight: 0` |
-| `MuiCheckbox` | styleOverrides | `padding: 8`, transition |
-| `MuiTableContainer` | styleOverrides | `borderRadius` (card token), token border |
-| `MuiTableHead` | styleOverrides | `backgroundColor` from header overlay token |
-| `MuiTableCell` | styleOverrides | Token border-bottom, cell padding (X/Y tokens); head variant: token fontSize/fontWeight/letterSpacing, `text.secondary` colour |
-| `MuiTableRow` | styleOverrides | Token `height`, hover transition, hover/selected/selected-hover background overlays |
-| `MuiListItemButton` | styleOverrides | `borderRadius: 8`, hover overlay, selected state with left accent bar (`::before` pseudo-element) |
-| `MuiListItemIcon` | styleOverrides | `minWidth: 36`, `opacity: 0.62`, transition |
-| `MuiListItemText` | styleOverrides (primary) | `fontSize: 14`, `fontWeight: 550` |
-| `MuiChip` | styleOverrides (sizeSmall) | `fontWeight: 600`, `fontSize: 0.75rem` |
-| `MuiAvatar` | named variant `"header"` | 32 × 32, primary colours, cursor pointer, 0.8rem bold |
-| `MuiDataGrid` | defaultProps + styleOverrides | `density: compact`, token `rowHeight`, `columnHeaderHeight: 40`, `disableColumnMenu: false`; border, transparent bg, token fontSize, focus ring, `.row-archived { opacity: 0.5 }`, row-actions kebab hidden until hover, header bg/border, row hover/selected, cell padding, footer border |
+| Component             | Override Type                 | What It Sets                                                                                                                                                                                                                                                                                         |
+| --------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MuiCssBaseline`    | styleOverrides                | Font smoothing (`WebkitFontSmoothing`, `MozOsxFontSmoothing`)                                                                                                                                                                                                                                    |
+| `MuiPaper`          | styleOverrides                | Token-driven `border`, `boxShadow`, `borderRadius`, no `backgroundImage`                                                                                                                                                                                                                     |
+| `MuiAppBar`         | defaultProps + styleOverrides | `elevation: 0`, bottom divider border, no shadow/backgroundImage                                                                                                                                                                                                                                   |
+| `MuiToolbar`        | styleOverrides (dense)        | `minHeight: 48` (TENANT_BAR_HEIGHT)                                                                                                                                                                                                                                                                |
+| `MuiDrawer`         | styleOverrides (paper)        | `boxSizing`, sidebar `backgroundColor`, `borderRight`, `overflowX: hidden`, `border: 'none'`, `backgroundImage: 'none'`                                                                                                                                                                  |
+| `MuiCard`           | defaultProps + styleOverrides | `elevation: 0`, `borderRadius` from card token                                                                                                                                                                                                                                                   |
+| `MuiDialog`         | styleOverrides (paper)        | `borderRadius` (modal token), token border, modal shadow, no `backgroundImage`                                                                                                                                                                                                                   |
+| `MuiDialogTitle`    | styleOverrides                | `position: sticky`, `top: 0`, `zIndex: 1`, `backgroundColor: background.paper`, bottom border, `fontSize: 18`, `fontWeight: 650`                                                                                                                                                         |
+| `MuiDialogContent`  | styleOverrides                | `padding: 16`                                                                                                                                                                                                                                                                                      |
+| `MuiDialogActions`  | styleOverrides                | `padding: 16`, top border, `gap: 10`                                                                                                                                                                                                                                                             |
+| `MuiButton`         | defaultProps + styleOverrides | `disableElevation`, `borderRadius`, `minHeight`, padding, transitions, disabled `opacity: 0.35`, small `fontSize: 0.8rem`; variant-specific: containedPrimary brightness filters, outlined border/hover, text hover overlay                                                                |
+| `MuiToggleButton`   | styleOverrides                | `textTransform: 'none'`, transitions; small: `fontSize: 0.8rem`, compact padding                                                                                                                                                                                                                 |
+| `MuiTextField`      | defaultProps                  | `size: 'small'`, `variant: 'outlined'`                                                                                                                                                                                                                                                           |
+| `MuiOutlinedInput`  | styleOverrides                | `borderRadius`, `minHeight`, transition, hover border color, subtle notched outline, autofill background fix                                                                                                                                                                                     |
+| `MuiInputLabel`     | styleOverrides                | `color: text.secondary`                                                                                                                                                                                                                                                                            |
+| `MuiFormHelperText` | styleOverrides                | `marginLeft: 0`, `marginRight: 0`                                                                                                                                                                                                                                                                |
+| `MuiCheckbox`       | styleOverrides                | `padding: 8`, transition                                                                                                                                                                                                                                                                           |
+| `MuiTableContainer` | styleOverrides                | `borderRadius` (card token), token border                                                                                                                                                                                                                                                          |
+| `MuiTableHead`      | styleOverrides                | `backgroundColor` from header overlay token                                                                                                                                                                                                                                                        |
+| `MuiTableCell`      | styleOverrides                | Token border-bottom, cell padding (X/Y tokens); head variant: token fontSize/fontWeight/letterSpacing,`text.secondary` colour                                                                                                                                                                      |
+| `MuiTableRow`       | styleOverrides                | Token `height`, hover transition, hover/selected/selected-hover background overlays                                                                                                                                                                                                                |
+| `MuiListItemButton` | styleOverrides                | `borderRadius: 8`, hover overlay, selected state with left accent bar (`::before` pseudo-element)                                                                                                                                                                                                |
+| `MuiListItemIcon`   | styleOverrides                | `minWidth: 36`, `opacity: 0.62`, transition                                                                                                                                                                                                                                                      |
+| `MuiListItemText`   | styleOverrides (primary)      | `fontSize: 14`, `fontWeight: 550`                                                                                                                                                                                                                                                                |
+| `MuiChip`           | styleOverrides (sizeSmall)    | `fontWeight: 600`, `fontSize: 0.75rem`                                                                                                                                                                                                                                                           |
+| `MuiAvatar`         | named variant `"header"`    | 32 × 32, primary colours, cursor pointer, 0.8rem bold                                                                                                                                                                                                                                               |
+| `MuiDataGrid`       | defaultProps + styleOverrides | `density: compact`, token `rowHeight`, `columnHeaderHeight: 40`, `disableColumnMenu: false`; border, transparent bg, token fontSize, focus ring, `.row-archived { opacity: 0.5 }`, row-actions kebab hidden until hover, header bg/border, row hover/selected, cell padding, footer border |
 
 ### 6.2 Navigation System
 
@@ -1932,35 +2005,38 @@ The Module Bar has two zones:
 
 ### 6.4 Dependencies (Client)
 
-| Package | Version | Purpose |
-|---|---|---|
-| `react` | ^18.2.0 | UI library |
-| `react-dom` | ^18.2.0 | DOM renderer |
-| `@mui/material` | ^5.15.16 | UI component library |
-| `@mui/icons-material` | ^5.15.16 | Material icons |
-| `@mui/x-data-grid` | ^6.4.0 | Data grid for tables |
-| `@mui/x-charts` | ^6.4.0 | Charting library (cashflow charts, profitability charts) |
-| `@emotion/react` | ^11.11.1 | CSS-in-JS (MUI peer dep) |
-| `@emotion/styled` | ^11.11.0 | Styled components (MUI peer dep) |
-| `@tanstack/react-query` | ^5.28.0 | Server state management |
-| `react-router-dom` | ^7.9.6 | Client-side routing |
+| Package                   | Version  | Purpose                                                  |
+| ------------------------- | -------- | -------------------------------------------------------- |
+| `react`                 | ^18.2.0  | UI library                                               |
+| `react-dom`             | ^18.2.0  | DOM renderer                                             |
+| `@mui/material`         | ^5.15.16 | UI component library                                     |
+| `@mui/icons-material`   | ^5.15.16 | Material icons                                           |
+| `@mui/x-data-grid`      | ^6.4.0   | Data grid for tables                                     |
+| `@mui/x-charts`         | ^6.4.0   | Charting library (cashflow charts, profitability charts) |
+| `@emotion/react`        | ^11.11.1 | CSS-in-JS (MUI peer dep)                                 |
+| `@emotion/styled`       | ^11.11.0 | Styled components (MUI peer dep)                         |
+| `@tanstack/react-query` | ^5.28.0  | Server state management                                  |
+| `react-router-dom`      | ^7.9.6   | Client-side routing                                      |
 
 ### 6.5 Reusable Component Patterns
 
 Guidelines for maintaining consistency as the UI grows:
 
 **sx Prop Guidelines:**
+
 - Never duplicate a style in `sx` that the theme already provides. Check `theme.js` overrides first.
 - Use `sx` only for: (a) conditional/dynamic values driven by props or state, (b) structural positioning (`position`, `top`, `zIndex`), (c) per-instance spacing (`px`, `py`, `mb`, `gap`).
 - Spread layout token presets (e.g., `...moduleBarSx`) instead of inlining the same values.
 
 **Typography in Navigation:**
+
 - Sidebar group labels: spread `FONT.navGroup` into `primaryTypographyProps`.
 - Sidebar child labels: spread `FONT.navItem` into `primaryTypographyProps`.
 - ModuleBar breadcrumbs: use `FONT.toolbar`.
 - Active-state font weight (`fontWeight: 600`) stays in `sx` because it is conditional.
 
 **Named Variants:**
+
 - Use MUI named variants for component "shapes" that differ from the global default but recur in multiple places (e.g., `variant="header"` on `Avatar`).
 - Define new variants in `theme.js` → `components.Mui*.variants[]`.
 
@@ -1968,18 +2044,19 @@ Guidelines for maintaining consistency as the UI grows:
 
 All DataGrid CRUD pages use `useListSelection` + `DataTable` as the standard selection pattern:
 
-| Utility | Location | Purpose |
-|---------|----------|---------|
-| `useListSelection(rows, entityType?)` | `hooks/useListSelection.js` | Selection state + derived booleans (`isSingle`, `hasSelection`, `allActive`, `allArchived`). Pass `entityType` for root-entity mutual exclusion (tenant/user pages). |
-| `DataTable` | `components/shared/DataTable.jsx` | Standardised DataGrid wrapper that integrates `useListSelection` with consistent column definitions, row styling, and toolbar registration. |
-| `useArchiveRestore(opts)` | `hooks/useArchiveRestore.js` | Archive/restore dialog state, async handlers (loops over `selectedRows`), ready-to-spread `ConfirmDialog` props. `restoreMut` optional for archive-only pages. |
-| `buildBulkActions(opts)` | `utils/selectionUtils.js` | Returns Archive/Restore toolbar button configs with count labels and disabled states. Defined but currently not imported by any page — pages construct toolbar actions manually. |
+| Utility                                 | Location                            | Purpose                                                                                                                                                                           |
+| --------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `useListSelection(rows, entityType?)` | `hooks/useListSelection.js`       | Selection state + derived booleans (`isSingle`, `hasSelection`, `allActive`, `allArchived`). Pass `entityType` for root-entity mutual exclusion (tenant/user pages).    |
+| `DataTable`                           | `components/shared/DataTable.jsx` | Standardised DataGrid wrapper that integrates `useListSelection` with consistent column definitions, row styling, and toolbar registration.                                     |
+| `useArchiveRestore(opts)`             | `hooks/useArchiveRestore.js`      | Archive/restore dialog state, async handlers (loops over `selectedRows`), ready-to-spread `ConfirmDialog` props. `restoreMut` optional for archive-only pages.              |
+| `buildBulkActions(opts)`              | `utils/selectionUtils.js`         | Returns Archive/Restore toolbar button configs with count labels and disabled states. Defined but currently not imported by any page — pages construct toolbar actions manually. |
 
 > **Note:** The former `useDataGridSelection` hook still exists but is no longer imported by any page. All pages have been migrated to `useListSelection` + `DataTable`.
 
 **Critical:** Toolbar `useMemo` deps must use `selectedRows.length` (primitive), NOT `selectedRows` (array ref) — the latter causes infinite re-renders via the `ModuleActionsContext` registration cycle.
 
 **Future Extraction Rules:**
+
 - When three or more pages share the same layout pattern (e.g., list + detail pane), extract a shared wrapper component.
 - Data-grid column definitions that repeat across modules should be centralised in a `columnDefs/` config folder.
 - Form field groupings that appear in multiple create/edit dialogs should become reusable form section components.
@@ -1992,22 +2069,22 @@ All DataGrid CRUD pages use `useListSelection` + `DataTable` as the standard sel
 
 Based on the sidebar navigation config (`navigationConfig.js`) and client-side routes (`App.jsx`):
 
-| Primary Group | Sub-Modules (per-item capability) | Path Prefix | Group Capability Guard |
-|---|---|---|---|
-| **Dashboard** | Overview, Company Cashflow | `/dashboard` | — |
-| **Projects** | Project List, Project Detail, Project Profitability | `/projects` | `projects::` |
-| **Activities** | Categories (`activities::categories`), Activities (`activities::activities`) | `/activities` | `activities::` |
-| **Budgets** | Deliverables (`activities::deliverables`), Budget Management (`activities::budgets`) | `/deliverables`, `/budgets` | `activities::` |
-| **Actual Costs** | Cost Tracking (`activities::actual-costs`) | `/actual-costs` | `activities::` |
-| **Change Orders** | Change Order Management (`projects::change-orders`) | `/change-orders` | `projects::change-orders` |
-| **AP** | Vendors (→ `/core/vendors`), AP Invoices, Payments, Credit Memos, AP Aging | `/ap` | `ap::` |
-| **AR** | Clients (→ `/core/clients`), AR Invoices, Receipts, AR Aging | `/ar` | `ar::` |
-| **Accounting & GL** | Chart of Accounts, Journal Entries, Ledger | `/accounting` | `accounting::` |
-| **Reports** | Budget vs Actual, Profitability, Cashflow, Margin Analysis, P&L *(nav-only)*, Balance Sheet *(nav-only)* | `/reports` | `reports::` |
-| **BOM** | Catalog SKUs (`bom::catalog-skus`), Vendor SKU Matching (`bom::vendor-skus`) | `/bom` | `bom::` |
-| **Settings** | Numbering (`core::numbering-config`), Payment Terms (`core::payment-terms`) | `/settings` | `core::` |
-| **Admin** | Vendors (`core::vendors`), Clients (`core::clients`), Employees (`core::employees`), Contacts (`core::contacts`), Companies (`core::companies`), Roles (`core::roles`) | `/core`, `/tenant` | `core::` |
-| **Tenants** *(Vimber only)* | Manage Tenants (`tenants::`), Manage Users (`tenants::`) | `/tenant` | `tenants::` |
+| Primary Group                       | Sub-Modules (per-item capability)                                                                                                                                                  | Path Prefix                     | Group Capability Guard      |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- | --------------------------- |
+| **Dashboard**                 | Overview, Company Cashflow                                                                                                                                                         | `/dashboard`                  | —                          |
+| **Projects**                  | Project List, Project Detail, Project Profitability                                                                                                                                | `/projects`                   | `projects::`              |
+| **Activities**                | Categories (`activities::categories`), Activities (`activities::activities`)                                                                                                   | `/activities`                 | `activities::`            |
+| **Budgets**                   | Deliverables (`activities::deliverables`), Budget Management (`activities::budgets`)                                                                                           | `/deliverables`, `/budgets` | `activities::`            |
+| **Actual Costs**              | Cost Tracking (`activities::actual-costs`)                                                                                                                                       | `/actual-costs`               | `activities::`            |
+| **Change Orders**             | Change Order Management (`projects::change-orders`)                                                                                                                              | `/change-orders`              | `projects::change-orders` |
+| **AP**                        | Vendors (→`/core/vendors`), AP Invoices, Payments, Credit Memos, AP Aging                                                                                                       | `/ap`                         | `ap::`                    |
+| **AR**                        | Clients (→`/core/clients`), AR Invoices, Receipts, AR Aging                                                                                                                     | `/ar`                         | `ar::`                    |
+| **Accounting & GL**           | Chart of Accounts, Journal Entries, Ledger                                                                                                                                         | `/accounting`                 | `accounting::`            |
+| **Reports**                   | Budget vs Actual, Profitability, Cashflow, Margin Analysis, P&L*(nav-only)*, Balance Sheet *(nav-only)*                                                                        | `/reports`                    | `reports::`               |
+| **BOM**                       | Catalog SKUs (`bom::catalog-skus`), Vendor SKU Matching (`bom::vendor-skus`)                                                                                                   | `/bom`                        | `bom::`                   |
+| **Settings**                  | Numbering (`core::numbering-config`), Payment Terms (`core::payment-terms`)                                                                                                    | `/settings`                   | `core::`                  |
+| **Admin**                     | Vendors (`core::vendors`), Clients (`core::clients`), Employees (`core::employees`), Contacts (`core::contacts`), Companies (`core::companies`), Roles (`core::roles`) | `/core`, `/tenant`          | `core::`                  |
+| **Tenants** *(Vimber only)* | Manage Tenants (`tenants::`), Manage Users (`tenants::`)                                                                                                                       | `/tenant`                     | `tenants::`               |
 
 > **Nav-only items (no route or page component yet):** P&L (`/reports/pnl`) and Balance Sheet (`/reports/balance-sheet`) appear in the sidebar navigation config but have no matching routes in `App.jsx`. Clicking them falls through to the catch-all redirect (`/dashboard`).
 
@@ -2021,40 +2098,40 @@ Based on the sidebar navigation config (`navigationConfig.js`) and client-side r
 
 ## 8. Environment Configuration
 
-| Variable | Purpose | Default |
-|---|---|---|
-| `DATABASE_URL_DEV/TEST/PROD` | PostgreSQL connection string | — |
-| `REDIS_URL` | Redis connection for permission caching | — |
-| `ACCESS_TOKEN_SECRET` | JWT access token signing key | — |
-| `REFRESH_TOKEN_SECRET` | JWT refresh token signing key | — |
-| `ROOT_EMAIL` | Super user email for bootstrap | — |
-| `ROOT_PASSWORD` | Super user password for bootstrap | — |
-| `CORS_ORIGINS` | Comma-separated allowed origins | `''` (empty string) |
-| `CLIENT_ORIGIN` | Frontend URL | `http://localhost:5173` |
-| `COOKIE_SECURE` | Secure cookie flag | `false` (dev) |
-| `COOKIE_SAMESITE` | SameSite cookie policy | `Lax` |
-| `BCRYPT_ROUNDS` | Password hashing cost | 12 |
-| `ROOT_TENANT_CODE` | Vimber tenant code for admin access | `VIMBER` |
-| `VITE_ROOT_TENANT_CODE` | Client-side Vimber tenant code | `VIMBER` |
-| `VITE_ROOT_COMPANY` | Client-side Vimber company name (reserved, not currently used) | `Vimber` |
-| `VITE_ROOT_EMAIL_DOMAIN` | Client-side Vimber email domain (reserved, not currently used) | `vimber.io` |
-| `PORT` | Express server port | `3000` |
-| `HOST` | Express server host | `localhost` |
-| `NODE_ENV` | Runtime environment (`development`, `test`, `production`) | — |
-| `OPENAI_API_KEY` | OpenAI API key for BOM embedding service (`bom/services/embeddingService.js`) | — |
-| `ROOT_TENANT_CODE` | Root tenant code for bootstrap migration (falls back directly to `'VIMBER'`) | `VIMBER` |
-| `ROOT_COMPANY` | Root company name for bootstrap migration | `Vimber LLC` |
+| Variable                       | Purpose                                                                         | Default                   |
+| ------------------------------ | ------------------------------------------------------------------------------- | ------------------------- |
+| `DATABASE_URL_DEV/TEST/PROD` | PostgreSQL connection string                                                    | —                        |
+| `REDIS_URL`                  | Redis connection for permission caching                                         | —                        |
+| `ACCESS_TOKEN_SECRET`        | JWT access token signing key                                                    | —                        |
+| `REFRESH_TOKEN_SECRET`       | JWT refresh token signing key                                                   | —                        |
+| `ROOT_EMAIL`                 | Super user email for bootstrap                                                  | —                        |
+| `ROOT_PASSWORD`              | Super user password for bootstrap                                               | —                        |
+| `CORS_ORIGINS`               | Comma-separated allowed origins                                                 | `''` (empty string)     |
+| `CLIENT_ORIGIN`              | Frontend URL                                                                    | `http://localhost:5173` |
+| `COOKIE_SECURE`              | Secure cookie flag                                                              | `false` (dev)           |
+| `COOKIE_SAMESITE`            | SameSite cookie policy                                                          | `Lax`                   |
+| `BCRYPT_ROUNDS`              | Password hashing cost                                                           | 12                        |
+| `ROOT_TENANT_CODE`           | Vimber tenant code for admin access                                             | `VIMBER`                |
+| `VITE_ROOT_TENANT_CODE`      | Client-side Vimber tenant code                                                  | `VIMBER`                |
+| `VITE_ROOT_COMPANY`          | Client-side Vimber company name (reserved, not currently used)                  | `Vimber`                |
+| `VITE_ROOT_EMAIL_DOMAIN`     | Client-side Vimber email domain (reserved, not currently used)                  | `vimber.io`             |
+| `PORT`                       | Express server port                                                             | `3000`                  |
+| `HOST`                       | Express server host                                                             | `localhost`             |
+| `NODE_ENV`                   | Runtime environment (`development`, `test`, `production`)                 | —                        |
+| `OPENAI_API_KEY`             | OpenAI API key for BOM embedding service (`bom/services/embeddingService.js`) | —                        |
+| `ROOT_TENANT_CODE`           | Root tenant code for bootstrap migration (falls back directly to `'VIMBER'`)  | `VIMBER`                |
+| `ROOT_COMPANY`               | Root company name for bootstrap migration                                       | `Vimber LLC`            |
 
 ---
 
 ## 9. Testing Strategy
 
-| Suite | Location | Purpose |
-|---|---|---|
-| **Unit** | `tests/unit/` | Controller logic, middleware behavior, JWT/passport utils |
-| **Integration** | `tests/integration/` | API endpoint tests with seeded data via pg-schemata `bulkInsert()` |
-| **Contract** | `tests/contract/` | Router/controller API contract verification |
-| **RBAC** | `tests/rbac/` | Permission resolution, deny overrides, system roles, module restrictions |
+| Suite                 | Location               | Purpose                                                                  |
+| --------------------- | ---------------------- | ------------------------------------------------------------------------ |
+| **Unit**        | `tests/unit/`        | Controller logic, middleware behavior, JWT/passport utils                |
+| **Integration** | `tests/integration/` | API endpoint tests with seeded data via pg-schemata `bulkInsert()`     |
+| **Contract**    | `tests/contract/`    | Router/controller API contract verification                              |
+| **RBAC**        | `tests/rbac/`        | Permission resolution, deny overrides, system roles, module restrictions |
 
 All tests use Vitest with dependency injection for controllers. `tests/setup.js` is a stub (to be expanded in later phases). Actual test DB setup and JWT helper fixtures live in `tests/helpers/testDb.js`.
 
@@ -2064,26 +2141,27 @@ All tests use Vitest with dependency injection for controllers. `tests/setup.js`
 
 ### 10.1 Naming Conventions
 
-| Context | Convention | Example |
-|---|---|---|
-| **DB tables** | snake_case (plural) | `ap_invoices`, `cost_lines`, `vendor_skus` |
-| **DB columns** | snake_case | `tenant_id`, `invoice_date`, `total_amount` |
-| **JS/TS variables & functions** | camelCase | `invoiceTotal`, `findByCode()`, `parseToken()` |
-| **Classes & React components** | PascalCase | `TableModel`, `Vendors`, `ManageTenantsPage`, `AuthContext` |
-| **Constants & env vars** | SCREAMING_SNAKE_CASE | `ACCESS_TOKEN_SECRET`, `BCRYPT_ROUNDS`, `MAX_PAGE_SIZE` |
-| **URL paths & route segments** | kebab-case | `/api/ar/v1/ar-invoices`, `/tenant/manage-users` |
-| **File names (modules)** | camelCase for utils, PascalCase for classes/components | `authRedis.js`, `Vendors.js`, `ManageTenantsPage.jsx` |
-| **File names (schemas)** | camelCase matching table | `apInvoicesSchema.js`, `vendorsSchema.js` |
-| **CSS classes / tokens** | camelCase (MUI sx) or kebab-case (CSS modules) | `sx={{ marginTop: 2 }}` |
-| **Event handlers** | `handle` + Event | `handleRowClick`, `handleSubmit`, `handleArchive` |
-| **Boolean variables** | `is`/`has`/`can`/`should` prefix | `isActive`, `hasPermission`, `canApprove` |
-| **Enums / status values** | snake_case strings | `'in_progress'`, `'change_order'`, `'pending'` |
+| Context                               | Convention                                             | Example                                                             |
+| ------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------- |
+| **DB tables**                   | snake_case (plural)                                    | `ap_invoices`, `cost_lines`, `vendor_skus`                    |
+| **DB columns**                  | snake_case                                             | `tenant_id`, `invoice_date`, `total_amount`                   |
+| **JS/TS variables & functions** | camelCase                                              | `invoiceTotal`, `findByCode()`, `parseToken()`                |
+| **Classes & React components**  | PascalCase                                             | `TableModel`, `Vendors`, `ManageTenantsPage`, `AuthContext` |
+| **Constants & env vars**        | SCREAMING_SNAKE_CASE                                   | `ACCESS_TOKEN_SECRET`, `BCRYPT_ROUNDS`, `MAX_PAGE_SIZE`       |
+| **URL paths & route segments**  | kebab-case                                             | `/api/ar/v1/ar-invoices`, `/tenant/manage-users`                |
+| **File names (modules)**        | camelCase for utils, PascalCase for classes/components | `authRedis.js`, `Vendors.js`, `ManageTenantsPage.jsx`         |
+| **File names (schemas)**        | camelCase matching table                               | `apInvoicesSchema.js`, `vendorsSchema.js`                       |
+| **CSS classes / tokens**        | camelCase (MUI sx) or kebab-case (CSS modules)         | `sx={{ marginTop: 2 }}`                                           |
+| **Event handlers**              | `handle` + Event                                     | `handleRowClick`, `handleSubmit`, `handleArchive`             |
+| **Boolean variables**           | `is`/`has`/`can`/`should` prefix               | `isActive`, `hasPermission`, `canApprove`                     |
+| **Enums / status values**       | snake_case strings                                     | `'in_progress'`, `'change_order'`, `'pending'`                |
 
 ### 10.1.1 Single Canonical Names (No Aliases)
 
 Every concept, variable, parameter, and config key must have **exactly one name** throughout the codebase. Never accept multiple synonyms for the same value or create alias maps to normalize variant spellings. Ambiguity in naming is a bug factory.
 
 **Bad — alias maps that normalize synonyms:**
+
 ```javascript
 // DON'T: multiple names for the same concept
 const aliasMap = {
@@ -2094,6 +2172,7 @@ const aliasMap = {
 ```
 
 **Bad — fallback chains that accept multiple property names:**
+
 ```javascript
 // DON'T: guessing which key the caller used
 const rawGroups = rule.max_by_groups || rule.max_by_group;
@@ -2101,6 +2180,7 @@ const clinicId = clinicIdBody || clinicIdSnake || req.clinicId || req.user.clini
 ```
 
 **Good — one name, enforced everywhere:**
+
 ```javascript
 // DO: pick one name and require it
 const envSuffix = { development: 'DEV', production: 'PROD', test: 'TEST' }[NODE_ENV];
@@ -2109,6 +2189,7 @@ const { max_by_groups } = rule;
 ```
 
 **Rules:**
+
 - Pick one canonical name per concept and use it everywhere (API, DB, UI, config)
 - If an external API sends a different name, map it **once at the boundary** — never spread aliases through internal code
 - Never silently accept misspellings or abbreviations; fail loudly so the caller fixes the source
@@ -2123,7 +2204,7 @@ const { max_by_groups } = rule;
 `src/system/` contains the **core platform modules** that are always required and glue the application together:
 
 - **`auth`** — authentication (login, JWT, session management) **and** admin-schema data layer (schemas, models, migrations, repositories for `tenants`, `portal_users`, `impersonation_logs`, `match_review_logs`). The auth module is registered in the module registry with `scope: 'admin'` and owns the `202502110001_bootstrapAdmin` migration that creates the admin schema.
-- **`tenants`** — API layer for multi-tenant administration (controllers and routes for tenant CRUD, nap-user registration, impersonation, and match review logs). Tenants has **no schemas or models of its own** — controllers resolve models from the `auth` module's repositories via the global `db()` singleton. Routes are mounted at `/api/tenants/v1/`. This module is **not in the module registry** because it has no database artifacts; it is loaded directly in the route aggregator.
+- **`tenants`** — API layer for multi-tenant administration (controllers and routes for tenant CRUD, vimber-user registration, impersonation, and match review logs). Tenants has **no schemas or models of its own** — controllers resolve models from the `auth` module's repositories via the global `db()` singleton. Routes are mounted at `/api/tenants/v1/`. This module is **not in the module registry** because it has no database artifacts; it is loaded directly in the route aggregator.
 - **`core`** — tables required by all optional modules (sources, vendors, clients, employees, contacts, addresses, companies, RBAC)
 
 `src/modules/` contains **optional feature modules** that tenants enable based on their needs:
@@ -2161,6 +2242,7 @@ Both tiers follow the same internal layout:
 Feature modules in `src/modules/` import platform code via relative paths (e.g., `../../../lib/BaseController.js`, `../../../system/core/` for platform modules). All modules — platform and feature — are registered in `src/db/moduleRegistry.js` and mounted in `src/apiRoutes.js`.
 
 **Client-side page layout:**
+
 ```
 src/
   pages/
@@ -2176,6 +2258,7 @@ src/
 ```
 
 **Rules:**
+
 - One class per file; file name matches class name
 - One schema definition per file; file name matches table name (camelCase)
 - Maximum ~200–300 lines per file; refactor if larger
@@ -2186,6 +2269,7 @@ src/
 Every source file must include a copyright header as the first content:
 
 **JavaScript / JSX:**
+
 ```javascript
 /**
  * @file <Brief description of what this file does>
@@ -2196,6 +2280,7 @@ Every source file must include a copyright header as the first content:
 ```
 
 **SQL migration files:**
+
 ```sql
 -- Migration: <migration_id>
 -- Description: <what this migration does>
@@ -2205,12 +2290,14 @@ Every source file must include a copyright header as the first content:
 ### 10.4 Code Reuse & DRY Principles
 
 **Function reuse hierarchy (prefer higher over lower):**
+
 1. **pg-schemata built-ins** — Use `TableModel`/`QueryModel` methods before writing custom SQL
 2. **Shared utilities** (`packages/shared/`) — Cross-cutting helpers used by both client and server
 3. **Module-level services** (`services/`) — Business logic shared across controllers within a module
 4. **Controller helpers** — Private functions within a controller file
 
 **Anti-patterns to avoid:**
+
 - Duplicating query logic across controllers — extract to the model or a service
 - Copy-pasting validation rules — define once in the schema, use pg-schemata's auto-generated Zod validators
 - Reimplementing CRUD — use `createRouter`; only override specific routes when business rules differ
@@ -2218,17 +2305,18 @@ Every source file must include a copyright header as the first content:
 
 ### 10.5 Classes vs Functions
 
-| Use Case | Pattern | Rationale |
-|---|---|---|
-| **Data models** | Class extending `TableModel` | Inheritance from pg-schemata; instance methods for custom queries |
-| **Controllers** | Class extending `BaseController` (which extends `ViewController`) | Inherits standardised CRUD handlers; override methods for custom logic. Auth and admin controllers are the exception — they use plain exported functions |
-| **React components** | Function components + hooks | Modern React standard; hooks for state/effects |
-| **Middleware** | Factory functions returning `(req, res, next)` | Composable; closures capture config |
-| **Services** | Exported functions (module pattern) | Stateless business logic; easy to test and mock |
-| **Utilities** | Pure exported functions | No side effects; maximum reusability |
-| **Context providers** | Function component + `createContext` | React pattern for shared state |
+| Use Case                    | Pattern                                                               | Rationale                                                                                                                                                 |
+| --------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Data models**       | Class extending `TableModel`                                        | Inheritance from pg-schemata; instance methods for custom queries                                                                                         |
+| **Controllers**       | Class extending `BaseController` (which extends `ViewController`) | Inherits standardised CRUD handlers; override methods for custom logic. Auth and admin controllers are the exception — they use plain exported functions |
+| **React components**  | Function components + hooks                                           | Modern React standard; hooks for state/effects                                                                                                            |
+| **Middleware**        | Factory functions returning `(req, res, next)`                      | Composable; closures capture config                                                                                                                       |
+| **Services**          | Exported functions (module pattern)                                   | Stateless business logic; easy to test and mock                                                                                                           |
+| **Utilities**         | Pure exported functions                                               | No side effects; maximum reusability                                                                                                                      |
+| **Context providers** | Function component +`createContext`                                 | React pattern for shared state                                                                                                                            |
 
 **Never use:**
+
 - Prototype-based inheritance (use ES6 classes or plain functions)
 - `class` for React components (use function components exclusively)
 - Singletons beyond `DB.init()` (use dependency injection instead)
@@ -2236,21 +2324,23 @@ Every source file must include a copyright header as the first content:
 ### 10.6 Error Handling
 
 **Server-side:**
+
 - Use pg-schemata's `DatabaseError` and `SchemaDefinitionError` for data-layer errors
 - Controllers wrap operations in try/catch; pass errors to Express `next(err)`
 - Central error handler middleware maps error types to HTTP status codes:
 
-| Error Type | HTTP Status | Response |
-|---|---|---|
-| `SchemaDefinitionError` (validation) | 400 | `{ error: 'Validation failed', details: [...] }` |
-| `DatabaseError` (23505 unique) | 409 | `{ error: 'Duplicate record', constraint: '...' }` |
-| `DatabaseError` (23503 FK) | 422 | `{ error: 'Referenced record not found' }` |
-| RBAC deny | 403 | `{ error: 'Forbidden', required: '...', actual: '...' }` |
-| Auth failure | 401 | `{ error: 'Unauthorized' }` |
-| Not found | 404 | `{ error: 'Not found' }` |
-| Unhandled | 500 | `{ error: 'Internal server error' }` (no stack in production) |
+| Error Type                             | HTTP Status | Response                                                        |
+| -------------------------------------- | ----------- | --------------------------------------------------------------- |
+| `SchemaDefinitionError` (validation) | 400         | `{ error: 'Validation failed', details: [...] }`              |
+| `DatabaseError` (23505 unique)       | 409         | `{ error: 'Duplicate record', constraint: '...' }`            |
+| `DatabaseError` (23503 FK)           | 422         | `{ error: 'Referenced record not found' }`                    |
+| RBAC deny                              | 403         | `{ error: 'Forbidden', required: '...', actual: '...' }`      |
+| Auth failure                           | 401         | `{ error: 'Unauthorized' }`                                   |
+| Not found                              | 404         | `{ error: 'Not found' }`                                      |
+| Unhandled                              | 500         | `{ error: 'Internal server error' }` (no stack in production) |
 
 **Client-side:**
+
 - React Query `onError` callbacks handle API errors globally
 - Toast/snackbar notifications for user-facing errors
 - Never swallow errors silently — always log or display
@@ -2258,6 +2348,7 @@ Every source file must include a copyright header as the first content:
 ### 10.7 Import & Export Style
 
 **ES Modules only** (no CommonJS):
+
 ```javascript
 // Named exports (preferred for utilities, services, constants)
 export function parseToken(token) { ... }
@@ -2283,7 +2374,7 @@ import { vendorsSchema } from '../schemas/vendorsSchema.js';
 
 - **JSDoc** on all exported functions with `@param`, `@returns`, and `@throws` tags
 - **Inline comments** only for *why*, never *what* — the code should be self-documenting
-- **TODO comments** must include a ticket/issue reference: `// TODO(NAP-123): Add retainage support`
+- **TODO comments** must include a ticket/issue reference: `// TODO(VIMBER-123): Add retainage support`
 - **No commented-out code** — use version control instead
 
 ### 10.9 Async & Concurrency
@@ -2315,6 +2406,7 @@ import { vendorsSchema } from '../schemas/vendorsSchema.js';
 **Version:** ESLint 9 with flat config (`eslint.config.js` at monorepo root)
 
 **Configuration:**
+
 - Base: `@eslint/js` recommended rules
 - Plugin: `eslint-plugin-import` (installed; alias resolver is not currently configured)
 - Three environment-specific rule sets:
@@ -2338,20 +2430,21 @@ import { vendorsSchema } from '../schemas/vendorsSchema.js';
 
 **Configuration (`prettier.config.mjs`):**
 
-| Option | Value | Rationale |
-|---|---|---|
-| `semi` | `true` | Explicit statement termination |
-| `singleQuote` | `true` | Consistency — single quotes for JS strings |
-| `trailingComma` | `'all'` | Cleaner git diffs |
-| `printWidth` | `144` | Wide format — reduces unnecessary line wrapping in schema definitions and table configs |
-| `tabWidth` | `2` | Standard JS indentation |
-| `useTabs` | `false` | Spaces only |
-| `bracketSpacing` | `true` | `{ foo }` not `{foo}` |
-| `arrowParens` | `'always'` | `(x) => x` not `x => x` |
-| `jsxSingleQuote` | `false` | Double quotes in JSX attributes (HTML convention) |
-| `endOfLine` | `'lf'` | Unix line endings only |
+| Option             | Value        | Rationale                                                                                |
+| ------------------ | ------------ | ---------------------------------------------------------------------------------------- |
+| `semi`           | `true`     | Explicit statement termination                                                           |
+| `singleQuote`    | `true`     | Consistency — single quotes for JS strings                                              |
+| `trailingComma`  | `'all'`    | Cleaner git diffs                                                                        |
+| `printWidth`     | `144`      | Wide format — reduces unnecessary line wrapping in schema definitions and table configs |
+| `tabWidth`       | `2`        | Standard JS indentation                                                                  |
+| `useTabs`        | `false`    | Spaces only                                                                              |
+| `bracketSpacing` | `true`     | `{ foo }` not `{foo}`                                                                |
+| `arrowParens`    | `'always'` | `(x) => x` not `x => x`                                                              |
+| `jsxSingleQuote` | `false`    | Double quotes in JSX attributes (HTML convention)                                        |
+| `endOfLine`      | `'lf'`     | Unix line endings only                                                                   |
 
 **Overrides:**
+
 - Markdown files (`*.md`): `printWidth: 80` for readability
 
 **Ignored paths (`.prettierignore`):** `node_modules`, `dist`, `build`, `coverage`, lockfiles, framework output directories, large assets
@@ -2361,6 +2454,7 @@ import { vendorsSchema } from '../schemas/vendorsSchema.js';
 **File:** `.editorconfig` at monorepo root
 
 Ensures consistent whitespace across all editors/IDEs:
+
 - All files: UTF-8, spaces, indent size 2, LF line endings, final newline, trim trailing whitespace
 - Markdown: trailing whitespace preserved (significant for line breaks)
 - Makefiles: tab indentation (required by Make)
@@ -2370,21 +2464,24 @@ Ensures consistent whitespace across all editors/IDEs:
 **Version:** Husky 9
 
 **Pre-commit hook (`.husky/pre-commit`):**
+
 1. Runs `lint-staged` if available (`eslint --fix` on staged `.js`/`.jsx` files)
 2. Checks for staged changes (skips if nothing staged)
 3. **Enforces commit separation**: rejects commits that touch files in both `apps/client/` and `apps/server/` simultaneously — forces clean, single-concern commits per workspace
 4. Bypass with `--no-verify` when necessary (e.g., monorepo-wide config changes)
 
 **Pre-push hook (`.husky/pre-push`):**
+
 - Runs all four test suites (`test:unit`, `test:contract`, `test:rbac`, `test:integration`) before allowing a push
 
 **Setup:** `npm run prepare` installs Husky hooks via the `prepare` lifecycle script
 
 ### 11.5 VSCode Workspace
 
-**File:** `nap.code-workspace` (single-root workspace — one folder entry pointing to the monorepo root)
+**File:** `vimber.code-workspace` (single-root workspace — one folder entry pointing to the monorepo root)
 
 **Formatter assignments:**
+
 - JavaScript/TypeScript/JSX/TSX: `esbenp.prettier-vscode` (Prettier extension)
 - JSON/JSONC: VSCode built-in JSON formatter
 
@@ -2396,32 +2493,33 @@ Ensures consistent whitespace across all editors/IDEs:
 
 **Configuration (`apps/server/vitest.config.js`):**
 
-| Option | Value | Rationale |
-|---|---|---|
-| `environment` | `'node'` | Server-side testing |
-| `globals` | `true` | No need to import `describe`/`test`/`expect` |
-| `setupFiles` | `['tests/setup.js']` | Global test setup (stub — to be expanded; actual fixtures in `tests/helpers/testDb.js`) |
-| `pool` | `'threads'` with `poolOptions.threads.singleThread: true` | Database tests require sequential execution |
-| `sequence.concurrent` | `false` | Prevents test ordering issues with shared DB state |
-| `coverage.provider` | `'v8'` | Native V8 coverage (fast) |
-| `coverage.reporter` | `['text', 'html']` | Terminal output + HTML report |
+| Option                  | Value                                                         | Rationale                                                                                  |
+| ----------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `environment`         | `'node'`                                                    | Server-side testing                                                                        |
+| `globals`             | `true`                                                      | No need to import `describe`/`test`/`expect`                                         |
+| `setupFiles`          | `['tests/setup.js']`                                        | Global test setup (stub — to be expanded; actual fixtures in `tests/helpers/testDb.js`) |
+| `pool`                | `'threads'` with `poolOptions.threads.singleThread: true` | Database tests require sequential execution                                                |
+| `sequence.concurrent` | `false`                                                     | Prevents test ordering issues with shared DB state                                         |
+| `coverage.provider`   | `'v8'`                                                      | Native V8 coverage (fast)                                                                  |
+| `coverage.reporter`   | `['text', 'html']`                                          | Terminal output + HTML report                                                              |
 
 **Test scripts (server):**
 
-| Script | Command | Purpose |
-|---|---|---|
-| `test` | `cross-env NODE_ENV=test vitest run` | Full suite (single run, not watch) |
-| `test:unit` | Unit tests only | Controller logic, middleware |
-| `test:integration` | Integration tests only | API endpoints with seeded data |
-| `test:contract` | Contract tests only | Router/controller API contracts |
-| `test:rbac` | RBAC tests only | Permission resolution |
-| `test:coverage` | All tests + HTML coverage | Coverage reporting |
+| Script               | Command                                | Purpose                            |
+| -------------------- | -------------------------------------- | ---------------------------------- |
+| `test`             | `cross-env NODE_ENV=test vitest run` | Full suite (single run, not watch) |
+| `test:unit`        | Unit tests only                        | Controller logic, middleware       |
+| `test:integration` | Integration tests only                 | API endpoints with seeded data     |
+| `test:contract`    | Contract tests only                    | Router/controller API contracts    |
+| `test:rbac`        | RBAC tests only                        | Permission resolution              |
+| `test:coverage`    | All tests + HTML coverage              | Coverage reporting                 |
 
 ### 11.7 Vite (Client Build)
 
 **Version:** Vite 7 with `@vitejs/plugin-react`
 
 **Configuration (`apps/client/vite.config.js`):**
+
 - React plugin with automatic JSX transformation
 - Dev server: port `5173`, auto-opens browser
 - API proxy: `/api` requests forwarded to `http://localhost:3000` (Express backend)
@@ -2440,32 +2538,33 @@ Ensures consistent whitespace across all editors/IDEs:
 
 **Root scripts:**
 
-| Script | Command | Purpose |
-|---|---|---|
-| `dev` | `dev:serv & dev:client` | Start both server and client in parallel |
-| `dev:serv` | `npm -w apps/server run dev` | Start Express dev server (nodemon, 5s delay) |
-| `dev:client` | `npm -w apps/client run dev` | Start Vite dev server |
-| `build` | `npm -w apps/server run build && npm -w apps/client run build` | Production build (note: server has no `build` script — server-side build will fail) |
-| `lint` | `eslint .` | Lint entire monorepo |
-| `test` | `npm -w apps/server test` | Server tests only (no client tests configured) |
-| `arch` / `arch:check` / `arch:ai` | Architecture validation scripts | Module boundary and structure checks |
-| `prepare` | `husky` | Install git hooks |
+| Script                                  | Command                                                          | Purpose                                                                                |
+| --------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `dev`                                 | `dev:serv & dev:client`                                        | Start both server and client in parallel                                               |
+| `dev:serv`                            | `npm -w apps/server run dev`                                   | Start Express dev server (nodemon, 5s delay)                                           |
+| `dev:client`                          | `npm -w apps/client run dev`                                   | Start Vite dev server                                                                  |
+| `build`                               | `npm -w apps/server run build && npm -w apps/client run build` | Production build (note: server has no `build` script — server-side build will fail) |
+| `lint`                                | `eslint .`                                                     | Lint entire monorepo                                                                   |
+| `test`                                | `npm -w apps/server test`                                      | Server tests only (no client tests configured)                                         |
+| `arch` / `arch:check` / `arch:ai` | Architecture validation scripts                                  | Module boundary and structure checks                                                   |
+| `prepare`                             | `husky`                                                        | Install git hooks                                                                      |
 
 **Server-specific scripts:**
 
-| Script | Purpose |
-|---|---|
-| `setupAdmin:dev` | Run migrations + admin bootstrap (dev) |
+| Script              | Purpose                                 |
+| ------------------- | --------------------------------------- |
+| `setupAdmin:dev`  | Run migrations + admin bootstrap (dev)  |
 | `setupAdmin:test` | Run migrations + admin bootstrap (test) |
-| `migrate:dev` | Apply pending migrations (dev) |
-| `migrate:test` | Apply pending migrations (test) |
-| `seed` | Seed database with sample data |
-| `seed:rbac` | Seed RBAC roles and policies |
-| `start` | Production server start |
+| `migrate:dev`     | Apply pending migrations (dev)          |
+| `migrate:test`    | Apply pending migrations (test)         |
+| `seed`            | Seed database with sample data          |
+| `seed:rbac`       | Seed RBAC roles and policies            |
+| `start`           | Production server start                 |
 
 ### 11.9 Logging
 
 **Server-side logging via Winston + Morgan:**
+
 - **Winston**: Structured JSON logging for application events, errors, and audit trails
 - **Morgan**: HTTP request logging (method, URL, status, response time)
 - Log levels: `error`, `warn`, `info`, `http`, `debug`
@@ -2475,6 +2574,7 @@ Ensures consistent whitespace across all editors/IDEs:
 ### 11.10 Environment Management
 
 **`.env` files (gitignored):**
+
 - `.env` — Local development defaults
 - `.env.test` — Test environment overrides
 - `.env.production` — Production config (never committed)
@@ -2491,16 +2591,17 @@ Ensures consistent whitespace across all editors/IDEs:
 
 Install these before starting:
 
-| Tool | Version | Purpose | Install |
-|---|---|---|---|
-| **Node.js** | ≥ 20 | Runtime | [nodejs.org](https://nodejs.org) or `nvm install 20` |
-| **npm** | ≥ 10 (ships with Node 20) | Package manager / workspaces | Included with Node |
-| **PostgreSQL** | ≥ 15 | Database | `brew install postgresql@15` (macOS) or [postgresql.org](https://www.postgresql.org/download/) |
-| **Redis** | ≥ 7 | Permission caching | `brew install redis` (macOS) or [redis.io](https://redis.io/download/) |
-| **Git** | ≥ 2.40 | Version control | `brew install git` or [git-scm.com](https://git-scm.com) |
-| **VSCode** | Latest | IDE | [code.visualstudio.com](https://code.visualstudio.com) |
+| Tool                 | Version                    | Purpose                      | Install                                                                                       |
+| -------------------- | -------------------------- | ---------------------------- | --------------------------------------------------------------------------------------------- |
+| **Node.js**    | ≥ 20                      | Runtime                      | [nodejs.org](https://nodejs.org) or `nvm install 20`                                           |
+| **npm**        | ≥ 10 (ships with Node 20) | Package manager / workspaces | Included with Node                                                                            |
+| **PostgreSQL** | ≥ 15                      | Database                     | `brew install postgresql@15` (macOS) or [postgresql.org](https://www.postgresql.org/download/) |
+| **Redis**      | ≥ 7                       | Permission caching           | `brew install redis` (macOS) or [redis.io](https://redis.io/download/)                         |
+| **Git**        | ≥ 2.40                    | Version control              | `brew install git` or [git-scm.com](https://git-scm.com)                                       |
+| **VSCode**     | Latest                     | IDE                          | [code.visualstudio.com](https://code.visualstudio.com)                                           |
 
 **Optional but recommended:**
+
 - **nvm** (Node Version Manager) — Switch Node versions per project
 - **pgAdmin** or **DBeaver** — Visual database browser
 - **Redis Insight** — Visual Redis browser
@@ -2511,29 +2612,29 @@ Install these before starting:
 
 ```bash
 # 1. Create project directory
-mkdir nap && cd nap
+mkdir vimber && cd vimber
 
 # 2. Initialize git
 git init
 git branch -M main
 
 # 3. Create the GitHub repo (using GitHub CLI)
-gh repo create <org>/nap --private --source=. --remote=origin
+gh repo create <org>/vimber --private --source=. --remote=origin
 
 # Or manually: create repo on github.com, then:
-git remote add origin git@github.com:<org>/nap.git
+git remote add origin git@github.com:<org>/vimber.git
 ```
 
 #### Branch strategy
 
-| Branch | Purpose | Merges From |
-|---|---|---|
-| `main` | Production-ready code | `dev` via PR |
-| `dev` | Integration branch for next release | Feature branches via PR |
-| `feat/<name>` | New features | — |
-| `fix/<name>` | Bug fixes | — |
-| `refactor/<name>` | Code restructuring | — |
-| `chore/<name>` | Tooling, config, deps | — |
+| Branch              | Purpose                             | Merges From             |
+| ------------------- | ----------------------------------- | ----------------------- |
+| `main`            | Production-ready code               | `dev` via PR          |
+| `dev`             | Integration branch for next release | Feature branches via PR |
+| `feat/<name>`     | New features                        | —                      |
+| `fix/<name>`      | Bug fixes                           | —                      |
+| `refactor/<name>` | Code restructuring                  | —                      |
+| `chore/<name>`    | Tooling, config, deps               | —                      |
 
 **Branch naming:** `<type>/<scope>-<short-description>` — e.g., `feat/serv-ar-invoices`, `fix/client-tenant-bar-dropdown`
 
@@ -2541,13 +2642,14 @@ git remote add origin git@github.com:<org>/nap.git
 
 ```bash
 # Via GitHub CLI
-gh api repos/<org>/nap/branches/main/protection -X PUT -f \
+gh api repos/<org>/vimber/branches/main/protection -X PUT -f \
   required_status_checks='{"strict":true,"contexts":["test"]}' \
   enforce_admins=true \
   required_pull_request_reviews='{"required_approving_review_count":1}'
 ```
 
 Or configure in GitHub → Settings → Branches → Branch protection rules:
+
 - Require pull request reviews before merging (1 approval)
 - Require status checks to pass (lint, test)
 - Require branches to be up to date before merging
@@ -2557,8 +2659,8 @@ Or configure in GitHub → Settings → Branches → Branch protection rules:
 
 ```bash
 # 1. Clone the repository
-git clone git@github.com:<org>/nap.git
-cd nap
+git clone git@github.com:<org>/vimber.git
+cd vimber
 
 # 2. Install all workspace dependencies (root + apps + packages)
 npm install
@@ -2568,6 +2670,7 @@ chmod +x .husky/pre-commit
 ```
 
 `npm install` at the root automatically installs dependencies for all workspaces:
+
 - `apps/client/`
 - `apps/server/`
 - `packages/shared/`
@@ -2577,7 +2680,7 @@ chmod +x .husky/pre-commit
 #### Open the workspace
 
 ```bash
-code nap.code-workspace
+code vimber.code-workspace
 ```
 
 Always open the project via the `.code-workspace` file — this ensures formatter and setting overrides are applied correctly.
@@ -2586,26 +2689,26 @@ Always open the project via the `.code-workspace` file — this ensures formatte
 
 When prompted by VSCode, install the recommended extensions. Or install manually:
 
-| Extension | ID | Purpose |
-|---|---|---|
-| **Prettier** | `esbenp.prettier-vscode` | Code formatting (format on save) |
-| **ESLint** | `dbaeumer.vscode-eslint` | Lint errors inline |
-| **EditorConfig** | `editorconfig.editorconfig` | Whitespace consistency |
+| Extension              | ID                            | Purpose                          |
+| ---------------------- | ----------------------------- | -------------------------------- |
+| **Prettier**     | `esbenp.prettier-vscode`    | Code formatting (format on save) |
+| **ESLint**       | `dbaeumer.vscode-eslint`    | Lint errors inline               |
+| **EditorConfig** | `editorconfig.editorconfig` | Whitespace consistency           |
 
 **Recommended additional extensions:**
 
-| Extension | ID | Purpose |
-|---|---|---|
-| **GitLens** | `eamodio.gitlens` | Enhanced git blame, history, and diff |
-| **GitHub Pull Requests** | `github.vscode-pull-request-github` | Review PRs inside VSCode |
-| **Thunder Client** or **REST Client** | `rangav.vscode-thunder-client` | Test API endpoints |
-| **PostgreSQL** | `ckolkman.vscode-postgres` | Database browser and query runner |
-| **ES6 String HTML** | `tobermory.es6-string-html` | Syntax highlighting for SQL template literals |
-| **Error Lens** | `usernamehw.errorlens` | Inline error/warning display |
+| Extension                                         | ID                                    | Purpose                                       |
+| ------------------------------------------------- | ------------------------------------- | --------------------------------------------- |
+| **GitLens**                                 | `eamodio.gitlens`                   | Enhanced git blame, history, and diff         |
+| **GitHub Pull Requests**                    | `github.vscode-pull-request-github` | Review PRs inside VSCode                      |
+| **Thunder Client** or **REST Client** | `rangav.vscode-thunder-client`      | Test API endpoints                            |
+| **PostgreSQL**                              | `ckolkman.vscode-postgres`          | Database browser and query runner             |
+| **ES6 String HTML**                         | `tobermory.es6-string-html`         | Syntax highlighting for SQL template literals |
+| **Error Lens**                              | `usernamehw.errorlens`              | Inline error/warning display                  |
 
 #### Suggested VSCode user settings
 
-Add to your workspace settings (in `nap.code-workspace`) or user `settings.json`:
+Add to your workspace settings (in `vimber.code-workspace`) or user `settings.json`:
 
 ```jsonc
 {
@@ -2666,6 +2769,7 @@ VITE_ROOT_EMAIL_DOMAIN=vimber.io
 ```
 
 **Generate secrets:**
+
 ```bash
 node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 ```
@@ -2707,7 +2811,8 @@ npm run dev:client    # Vite React on http://localhost:5173
 ```
 
 **Verify everything works:**
-1. Open `http://localhost:5173` — should see the NAP login page
+
+1. Open `http://localhost:5173` — should see the VIMBER login page
 2. Log in with the `ROOT_EMAIL` / `ROOT_PASSWORD` from your `.env`
 3. Test the API directly: `curl http://localhost:3000/api/auth/check`
 
@@ -2761,26 +2866,27 @@ git branch -d feat/serv-cashflow-reports
 [optional footer]
 ```
 
-| Type | When to Use |
-|---|---|
-| `feat` | New feature or functionality |
-| `fix` | Bug fix |
+| Type         | When to Use                             |
+| ------------ | --------------------------------------- |
+| `feat`     | New feature or functionality            |
+| `fix`      | Bug fix                                 |
 | `refactor` | Code restructuring (no behavior change) |
-| `test` | Adding or updating tests |
-| `docs` | Documentation changes |
-| `chore` | Tooling, config, dependency updates |
-| `style` | Formatting only (no code change) |
-| `perf` | Performance improvement |
+| `test`     | Adding or updating tests                |
+| `docs`     | Documentation changes                   |
+| `chore`    | Tooling, config, dependency updates     |
+| `style`    | Formatting only (no code change)        |
+| `perf`     | Performance improvement                 |
 
-| Scope | When to Use |
-|---|---|
-| `serv` | Backend changes (`apps/server/`) |
-| `client` | Frontend changes (`apps/client/`) |
+| Scope      | When to Use                                   |
+| ---------- | --------------------------------------------- |
+| `serv`   | Backend changes (`apps/server/`)            |
+| `client` | Frontend changes (`apps/client/`)           |
 | `shared` | Shared package changes (`packages/shared/`) |
-| `deps` | Dependency updates |
-| (omit) | Root config or cross-cutting changes |
+| `deps`   | Dependency updates                            |
+| (omit)     | Root config or cross-cutting changes          |
 
 **Examples:**
+
 ```
 feat(serv): add AR aging SQL view and report endpoint
 fix(client): correct tenant bar dropdown not updating on switch
@@ -2808,12 +2914,11 @@ The pre-commit hook enforces:
    git add apps/client/src/pages/AR/
    git commit -m "feat(client): add AR invoice list page"
    ```
-
 2. **Bypass when needed** — For legitimate cross-workspace changes (e.g., shared types, monorepo config):
+
    ```bash
    git commit -m "refactor: update shared API types" --no-verify
    ```
-
 3. **lint-staged** — If configured, runs ESLint and Prettier on staged files only (fast)
 
 ### 12.11 Recommended `.nvmrc`
@@ -2878,7 +2983,7 @@ Design decisions capture the *why* behind architectural and technical choices. C
 Design decisions live in a `docs/decisions/` directory at the monorepo root:
 
 ```
-nap/
+vimber/
   docs/
     decisions/
       0001-schema-per-tenant-isolation.md
@@ -2909,6 +3014,7 @@ nap/
 > **Note:** ADR 0009 is absent from the sequence (skipped). ADRs are append-only and never renumbered.
 
 **Rules:**
+
 - Decisions are **numbered sequentially** (`0001`, `0002`, ...) — never renumber
 - Decisions are **append-only** — never edit a past decision; supersede it with a new one
 - Decisions are **committed to the repo** — they travel with the code, not in a wiki or Notation
@@ -2948,6 +3054,7 @@ What trade-offs were accepted?
 ### 13.4 When to Write a Decision Record
 
 Write a decision record when:
+
 - Choosing between two or more viable approaches (e.g., ORM choice, auth strategy)
 - Adopting a pattern that will be used project-wide (e.g., soft deletes, audit fields)
 - Making a choice that would be non-obvious to a new developer reading the code
@@ -2955,6 +3062,7 @@ Write a decision record when:
 - Adding or removing a significant dependency
 
 Do **not** write a decision record for:
+
 - Obvious choices with no realistic alternatives
 - Implementation details that are easily changed later
 - Bug fixes or routine feature work
@@ -2963,32 +3071,34 @@ Do **not** write a decision record for:
 
 The following decisions should be captured as the project is built from scratch:
 
-| # | Decision | Key Rationale |
-|---|---|---|
-| 0001 | Schema-per-tenant isolation over row-level tenancy | Complete data isolation; independent schema migrations; zero cross-tenant query risk |
-| 0002 | pg-schemata as ORM over Knex/Drizzle/Prisma | Owned dependency; Postgres-first; schema-driven DDL; built-in migration manager |
-| 0003 | JWT in httpOnly cookies over localStorage tokens | XSS protection; automatic transmission; no client-side token management |
-| 0004 | Three-level RBAC (none/view/full) over boolean permissions | Granular read vs write control; hierarchical policy resolution |
-| 0005 | Keyset pagination over offset-based | Stable performance at scale; no skipped/duplicate rows on concurrent inserts |
-| 0006 | Express 5 over Fastify/Koa | Mature ecosystem; team familiarity; async error handling improvements in v5 |
-| 0007 | Redis for permission caching over in-memory | Shared across server instances; survives process restarts; TTL expiration |
-| 0008 | Soft deletes over hard deletes | Audit trail; undo capability; referential integrity preserved |
-| 0009 | *(Skipped — number not used; see §13.2 note)* | — |
-| 0010 | Conventional Commits over freeform messages | Parseable history; automated changelog potential; scope-based filtering |
-| 0011 | Monorepo with npm workspaces over separate repos | Shared code; unified tooling; atomic cross-package changes |
-| 0012 | pgvector embeddings for SKU matching over fuzzy string matching | Semantic similarity; language-agnostic; scales with catalog size |
+| #    | Decision                                                        | Key Rationale                                                                        |
+| ---- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| 0001 | Schema-per-tenant isolation over row-level tenancy              | Complete data isolation; independent schema migrations; zero cross-tenant query risk |
+| 0002 | pg-schemata as ORM over Knex/Drizzle/Prisma                     | Owned dependency; Postgres-first; schema-driven DDL; built-in migration manager      |
+| 0003 | JWT in httpOnly cookies over localStorage tokens                | XSS protection; automatic transmission; no client-side token management              |
+| 0004 | Three-level RBAC (none/view/full) over boolean permissions      | Granular read vs write control; hierarchical policy resolution                       |
+| 0005 | Keyset pagination over offset-based                             | Stable performance at scale; no skipped/duplicate rows on concurrent inserts         |
+| 0006 | Express 5 over Fastify/Koa                                      | Mature ecosystem; team familiarity; async error handling improvements in v5          |
+| 0007 | Redis for permission caching over in-memory                     | Shared across server instances; survives process restarts; TTL expiration            |
+| 0008 | Soft deletes over hard deletes                                  | Audit trail; undo capability; referential integrity preserved                        |
+| 0009 | *(Skipped — number not used; see §13.2 note)*               | —                                                                                   |
+| 0010 | Conventional Commits over freeform messages                     | Parseable history; automated changelog potential; scope-based filtering              |
+| 0011 | Monorepo with npm workspaces over separate repos                | Shared code; unified tooling; atomic cross-package changes                           |
+| 0012 | pgvector embeddings for SKU matching over fuzzy string matching | Semantic similarity; language-agnostic; scales with catalog size                     |
 
 ### 13.6 Referencing Decisions
 
 When code implements a non-obvious pattern that traces back to a design decision, reference it:
 
 **In code comments:**
+
 ```javascript
 // See decision 0005: keyset pagination chosen over offset for stable large-set performance
 const results = await model.findAfterCursor(cursor, limit, orderBy);
 ```
 
 **In PR descriptions:**
+
 ```markdown
 ## Summary
 Implements schema-per-tenant provisioning via pg-schemata bootstrap.
@@ -2997,10 +3107,10 @@ Relates to: [ADR-0001](docs/decisions/0001-schema-per-tenant-isolation.md)
 ```
 
 **In commit messages (optional):**
+
 ```
 feat(serv): add tenant schema provisioning
 
 Implements ADR-0001 using pg-schemata bootstrap() for single-transaction
 schema creation with extension setup.
 ```
-

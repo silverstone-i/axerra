@@ -32,7 +32,7 @@ Token design is intentionally minimal:
 
 ```json
 {
-  "sub": "<nap_user uuid>",
+  "sub": "<vimber_user uuid>",
   "ph": "<SHA-256 of permission canon>"
 }
 ```
