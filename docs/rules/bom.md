@@ -68,4 +68,4 @@ Match review logs are under the tenants module:
 
 | Endpoint | Entity | Access |
 |----------|--------|--------|
-| `/api/tenants/v1/match-review-logs` | Match Review Logs | Read-only, Vimber super users |
+| `/api/tenants/v1/match-review-logs` | Match Review Logs | Read-only, Axerra super users |

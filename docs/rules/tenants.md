@@ -2,7 +2,7 @@
  * @file Tenant management business rules
  * @module docs/rules
  *
- * Copyright (c) 2025 Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 Axerra LLC. All rights reserved.
  */
 
 # Tenant Management Rules
@@ -13,12 +13,12 @@ Creating a tenant is a three-step atomic operation:
 
 1. **Insert tenant record** in `admin.tenants`
 2. **Provision schema** — creates a PostgreSQL schema, runs tenant-scope
-   migrations, seeds system RBAC roles (`admin` only; Vimber also gets
+   migrations, seeds system RBAC roles (`admin` only; Axerra also gets
    `super_user` and `support`), seeds policy catalog, and seeds
    `tenant_numbering_config` rows (all `is_enabled = false`)
 3. **Create admin user** — inserts an `employees` record with
    `roles: ['admin']`, `is_app_user: true`, and `is_primary_contact: true`,
-   then a linked `vimber_user` with the provided email and password. The
+   then a linked `portal_user` with the provided email and password. The
    admin employee starts with `code = NULL`; numbering is configured and
    backfilled later via Settings (see PRD §3.13.9). Note: the admin
    employee is created via raw SQL (not through `employeesController`),
@@ -56,7 +56,7 @@ Schema names are derived from `tenant_code` (lowercased, underscored).
 
 ## Root Tenant Protection
 
-The root Vimber tenant (code `VIMBER`) has special protections:
+The root Axerra tenant (code `AXERRA`) has special protections:
 
 - **Cannot be archived** — archive requests return `403 Forbidden`
 - **Cannot be deleted** — there is no hard-delete endpoint
@@ -71,7 +71,7 @@ Before a user can be registered:
 2. The target tenant must be **active** (`deactivated_at IS NULL`)
 3. The email must be unique across all `portal_users` (active and archived)
 
-Registration creates a `vimber_user` with `status: 'active'`. The user can
+Registration creates a `portal_user` with `status: 'active'`. The user can
 log in immediately after registration.
 
 ## Archive / Restore Cascade Rules
@@ -110,7 +110,7 @@ When a tenant is restored:
 
 ## Cross-Tenant Access (Assumed Tenant)
 
-Vimber users (those belonging to the `VIMBER` tenant) can assume the
+Axerra users (those belonging to the `AXERRA` tenant) can assume the
 context of another tenant:
 
 - The `x-tenant-code` header on API requests switches the active tenant
@@ -122,7 +122,7 @@ context of another tenant:
 
 ## Impersonation
 
-Vimber admins can impersonate other users for support and debugging:
+Axerra admins can impersonate other users for support and debugging:
 
 ### Starting Impersonation
 
@@ -153,7 +153,7 @@ Vimber admins can impersonate other users for support and debugging:
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
-| `ROOT_TENANT_CODE` | No | `VIMBER` | Root tenant identifier |
-| `ROOT_COMPANY` | No | `Vimber LLC` | Root tenant company name |
+| `ROOT_TENANT_CODE` | No | `AXERRA` | Root tenant identifier |
+| `ROOT_COMPANY` | No | `Axerra LLC` | Root tenant company name |
 | `ROOT_EMAIL` | Yes | — | Bootstrap admin email |
 | `ROOT_PASSWORD` | Yes | — | Bootstrap admin password |

@@ -2,7 +2,7 @@
 
 **Status:** Accepted
 **Date:** 2025-02-22
-**Deciders:** Vimber Engineering
+**Deciders:** Axerra Engineering
 
 ## Context
 
@@ -15,7 +15,7 @@ Organise the project as a **monorepo** using **npm workspaces** (built into npm 
 ### Directory Layout
 
 ```
-vimber/
+axerra/
 ├── apps/
 │   ├── server/      # Express 5 backend
 │   └── client/    # React 18 + Vite frontend

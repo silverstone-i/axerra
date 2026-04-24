@@ -2,7 +2,7 @@
  * @file Authentication business rules
  * @module docs/rules
  *
- * Copyright (c) 2025 Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 Axerra LLC. All rights reserved.
  */
 
 # Authentication Rules
@@ -14,7 +14,7 @@
 - **Storage:** httpOnly, Secure, SameSite=Lax cookie named `auth_token`
 - **TTL:** 15 minutes
 - **Claims:**
-  - `sub` — vimber_user UUID (primary key of `admin.portal_users`)
+  - `sub` — portal_user UUID (primary key of `admin.portal_users`)
   - `ph` — SHA-256 hex hash of the user's permission canon (null in
     Phase 2; populated once RBAC is active)
   - `iss` — `vimber-serv`
@@ -109,7 +109,7 @@
 6. Look up tenant from `admin.tenants` by `user.tenant_id`
 7. Populate `req.user` with user fields + `tenant_code`
 8. If `x-tenant-code` header present (cross-tenant access), resolve
-   target tenant for Vimber users
+   target tenant for Axerra users
 
 ### Phase 2 Simplifications (expanded in Phase 3)
 
@@ -149,6 +149,6 @@ The `admin.portal_users` table is a pure identity/login table:
 | `REFRESH_TOKEN_SECRET` | Yes | — | JWT signing secret for refresh tokens |
 | `ROOT_EMAIL` | Yes | — | Bootstrap super user email |
 | `ROOT_PASSWORD` | Yes | — | Bootstrap super user password |
-| `ROOT_TENANT_CODE` | No | `VIMBER` | Bootstrap tenant code |
-| `ROOT_COMPANY` | No | `Vimber LLC` | Bootstrap tenant company name |
+| `ROOT_TENANT_CODE` | No | `AXERRA` | Bootstrap tenant code |
+| `ROOT_COMPANY` | No | `Axerra LLC` | Bootstrap tenant company name |
 | `BCRYPT_ROUNDS` | No | `12` | bcrypt cost factor (4 in test) |

@@ -36,7 +36,7 @@ Employees, clients, and vendor_contacts each have an `is_app_user` boolean that 
 - Email and at least one role are required when `is_app_user = true`
 - A temporary random password is generated and bcrypt-hashed
 - A `portal_users` record is created with the appropriate `entity_type`, `entity_id`, `status = 'invited'`
-- If an archived vimber_user already exists for this entity, it is restored instead of creating a new one
+- If an archived portal_user already exists for this entity, it is restored instead of creating a new one
 
 ### Archiving (is_app_user toggled OFF or entity archived)
 
@@ -53,7 +53,7 @@ Employees, clients, and vendor_contacts each have an `is_app_user` boolean that 
 
 - Admin-only endpoint: `POST /:id/reset-password`
 - Validates password strength (8+ chars, upper, lower, digit, special)
-- Looks up the vimber_user by `entity_type` + `entity_id`
+- Looks up the portal_user by `entity_type` + `entity_id`
 
 ### System Roles
 

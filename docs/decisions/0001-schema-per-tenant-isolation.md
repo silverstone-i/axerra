@@ -2,7 +2,7 @@
  * @file ADR-0001: Schema-per-tenant isolation
  * @module docs/decisions
  *
- * Copyright (c) 2025 Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 Axerra LLC. All rights reserved.
  */
 
 # ADR-0001: Schema-per-Tenant Isolation
@@ -13,7 +13,7 @@ Accepted
 
 ## Context
 
-VIMBER is a multi-tenant construction ERP handling sensitive financial data
+AXERRA is a multi-tenant construction ERP handling sensitive financial data
 (AP/AR invoices, journal entries, budgets) for multiple independent tenants.
 We need a tenancy strategy that provides strong data isolation while keeping
 operational complexity manageable.
@@ -29,7 +29,7 @@ Common approaches:
 ## Decision
 
 Use **PostgreSQL schema-per-tenant** isolation. Each tenant gets its own PG
-schema (e.g., `vimber`, `acme_construction`) containing identical table
+schema (e.g., `axerra`, `acme_construction`) containing identical table
 structures. A shared `admin` schema holds cross-tenant tables (`tenants`,
 `portal_users`, `impersonation_logs`, `match_review_logs`).
 
@@ -50,7 +50,7 @@ structures. A shared `admin` schema holds cross-tenant tables (`tenants`,
 - Migrations must iterate all tenant schemas — the `migrateTenants` script
   handles this with advisory locks to prevent concurrent runs.
 - Cross-tenant reporting requires explicit schema joins or an aggregation
-  layer (Vimber super-users use `x-tenant-code` header to switch context).
+  layer (Axerra super-users use `x-tenant-code` header to switch context).
 - Schema count grows linearly with tenants; hundreds of schemas are fine for
   PG but thousands may need connection pooling tuning.
 

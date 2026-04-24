@@ -1,16 +1,16 @@
 # BRAND
 
-The Vimber brand system reference.
-Paired companion to [`vimber-brand-system.html`](./vimber-brand-system.html) — that file is the visual specimen; this file is the engineering reference.
+The Axerra brand system reference.
+Paired companion to [`axerra-brand-system.html`](./axerra-brand-system.html) — that file is the visual specimen; this file is the engineering reference.
 
 ---
 
-**Product & company:** Vimber (stylized `vimber.` in the wordmark)
+**Product & company:** Axerra (stylized `axerra.` in the wordmark)
 **Category:** Project-first accounting & ERP
 **Tagline · primary:** TBD
 **Tagline · secondary:** TBD
 **Typography:** Inter (body & display) + JetBrains Mono (numerics)
-**Domains:** `vimber.io`, `vimber.ai`, `vimber.app`
+**Domains:** `axerra.io`, `axerra.ai`, `axerra.app`
 
 ---
 
@@ -269,7 +269,7 @@ Use on marketing pages (home, pricing, about, features). Larger and looser than 
 
 Gold (`#F4B000`) appears in exactly these four places. Nowhere else.
 
-1. **The logo dot** — the square period after `vimber.`
+1. **The logo dot** — the square period after `axerra.`
 2. **Primary CTA left stripe** — 2px, expands to 3px on hover
 3. **Active nav indicator** — one element per screen (left bar on side nav OR underline on tabs)
 4. **Final-total rule in reports** — 2px bar above the totals row
@@ -787,8 +787,8 @@ All in `/favicons/`:
 
 ```json
 {
-  "name": "vimber",
-  "short_name": "vimber",
+  "name": "axerra",
+  "short_name": "axerra",
   "icons": [
     {
       "src": "/android-chrome-192.png",
@@ -812,7 +812,7 @@ All in `/favicons/`:
 The wordmark is implemented as HTML, not an image, so it renders crisp at any size and respects the CSS variables. Use:
 
 ```html
-<span class="wordmark">vimber<span class="wordmark-dot"></span></span>
+<span class="wordmark">axerra<span class="wordmark-dot"></span></span>
 ```
 
 ```css
@@ -842,8 +842,8 @@ Set the `font-size` on the outer `.wordmark` and the dot scales with it automati
 
 ## Reference
 
-- **Visual specimen:** [`vimber-brand-system.html`](./vimber-brand-system.html) — all decisions with reasoning, all components rendered in context, colorblind verification, accessibility notes.
-- **Favicon preview:** [`vimber-favicon-preview.html`](./vimber-favicon-preview.html) — every size in browser tab, bookmark, iOS home screen mockups.
+- **Visual specimen:** [`axerra-brand-system.html`](./axerra-brand-system.html) — all decisions with reasoning, all components rendered in context, colorblind verification, accessibility notes.
+- **Favicon preview:** [`axerra-favicon-preview.html`](./axerra-favicon-preview.html) — every size in browser tab, bookmark, iOS home screen mockups.
 - **Icon vocabulary (detailed):** Section 02 of the specimen
 - **Gold discipline (with examples):** Section 03 of the specimen
 - **Component gallery (with hover states):** Sections 04–06 of the specimen
@@ -852,4 +852,4 @@ Set the `font-size` on the outer `.wordmark` and the dot scales with it automati
 
 ---
 
-*Brand system v1 · Updated with WCAG AA tokens & two-token navy split · © Vimber*
+*Brand system v1 · Updated with WCAG AA tokens & two-token navy split · © Axerra*

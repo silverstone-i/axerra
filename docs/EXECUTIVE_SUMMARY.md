@@ -1,6 +1,6 @@
-# VIMBER — Executive Summary
+# AXERRA — Executive Summary
 
-**VIMBER** is a multi-tenant, modular ERP for any business that runs on projects. It unifies project management, cost control, and double-entry accounting in one system, so operators can see project-level cashflow and profitability in real time — not as a month-end reconciliation exercise.
+**AXERRA** is a multi-tenant, modular ERP for any business that runs on projects. It unifies project management, cost control, and double-entry accounting in one system, so operators can see project-level cashflow and profitability in real time — not as a month-end reconciliation exercise.
 
 ## Who it's for
 
@@ -16,7 +16,7 @@ Personas range from platform operators down to AP/AR clerks, with a four-layer R
 
 ## What it does
 
-VIMBER covers the full project-to-cash lifecycle:
+AXERRA covers the full project-to-cash lifecycle:
 
 - **Projects & budgets** — projects, units/phases, budgets, change orders, and actual-cost tracking
 - **Procurement & BOM** — catalog SKUs, vendor SKU matching (pgvector + OpenAI embeddings), vendor pricing
@@ -29,7 +29,7 @@ VIMBER covers the full project-to-cash lifecycle:
 
 - **Project-first accounting** — cost, cashflow, and profitability are first-class dimensions, not after-the-fact reports
 - **Schema-per-tenant isolation** — every customer gets a dedicated PostgreSQL schema; one compromised tenant cannot leak into another
-- **Built on pg-schemata (owned)** — Vimber owns the underlying ORM layer, so the platform can evolve without vendor lock-in
+- **Built on pg-schemata (owned)** — Axerra owns the underlying ORM layer, so the platform can evolve without vendor lock-in
 - **Modular entitlements** — tenants activate modules (Projects, BOM, AP, AR, GL, Reports) independently
 
 ## Technology

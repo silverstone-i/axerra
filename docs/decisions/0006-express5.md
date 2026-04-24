@@ -2,7 +2,7 @@
  * @file ADR-0006: Express 5 adoption
  * @module docs/decisions
  *
- * Copyright (c) 2025 Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 Axerra LLC. All rights reserved.
  */
 
 # ADR-0006: Express 5
@@ -13,7 +13,7 @@ Accepted
 
 ## Context
 
-Express 5 reached stable release in late 2024. VIMBER is a greenfield
+Express 5 reached stable release in late 2024. AXERRA is a greenfield
 project with no legacy Express 4 middleware to migrate. Key differences:
 
 | Feature | Express 4 | Express 5 |
@@ -26,7 +26,7 @@ project with no legacy Express 4 middleware to migrate. Key differences:
 
 ## Decision
 
-Use **Express 5** (`express@^5`) from the start. Since VIMBER has no
+Use **Express 5** (`express@^5`) from the start. Since AXERRA has no
 existing Express 4 codebase to migrate, we avoid accumulating v4 patterns
 that would need refactoring later.
 
@@ -38,7 +38,7 @@ that would need refactoring later.
   promises to the error handler — no need for `try/catch` wrappers or
   `express-async-errors`.
 - Cleaner path matching with `path-to-regexp` v8.
-- Modern Node.js requirement aligns with VIMBER's Node 20+ target.
+- Modern Node.js requirement aligns with AXERRA's Node 20+ target.
 - Forward-compatible — no future migration cost.
 
 ### Negative

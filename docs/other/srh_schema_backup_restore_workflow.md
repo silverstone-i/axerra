@@ -30,7 +30,7 @@ Rebuilding from scratch ensures the database matches the current codebase.
 bash scripts/db/rebuild_and_restore_srh.sh
 ```
 
-Run from the monorepo root. Requires `.pgpass` or `PGPASSWORD` for `vimber_admin`.
+Run from the monorepo root. Requires `.pgpass` or `PGPASSWORD` for `axe_admin`.
 
 ---
 
@@ -47,7 +47,7 @@ All files written to `tmp/srh_backups/`.
 ### Step 2 — Drop all schemas
 
 Queries `information_schema.schemata` for every non-system schema and drops them
-with `CASCADE`. This removes `admin`, `vimber`, `srh`, `pgschemata`, `public`, etc.
+with `CASCADE`. This removes `admin`, `axerra`, `srh`, `pgschemata`, `public`, etc.
 
 ### Step 3 — Recreate public schema
 
@@ -58,7 +58,7 @@ with `CASCADE`. This removes `admin`, `vimber`, `srh`, `pgschemata`, `public`, e
 Runs `setupAdmin.js` which:
 
 - Creates the `admin` schema and runs admin-scope migrations
-- Provisions the Vimber root tenant (`vimber` schema)
+- Provisions the Axerra root tenant (`axerra` schema)
 - Seeds the root super user
 
 ### Step 5 — Provision SRH tenant
@@ -158,7 +158,7 @@ cross-env NODE_ENV=development node scripts/db/reseedPolicyCatalog.js --schema v
 
 ## Prerequisites
 
-- `.pgpass` configured for `vimber_admin` on `vimber_dev` (or `PGPASSWORD` set)
+- `.pgpass` configured for `axe_admin` on `axerra_dev` (or `PGPASSWORD` set)
 - Node >= 20, npm workspace dependencies installed
 - Run from the monorepo root
 
@@ -170,7 +170,7 @@ cross-env NODE_ENV=development node scripts/db/reseedPolicyCatalog.js --schema v
 |------|---------|
 | `tmp/srh_backups/srh_schema_TIMESTAMP.dump` | Archival custom dump |
 | `tmp/srh_backups/srh_schema.sql` | Plain SQL dump for staging |
-| `tmp/srh_backups/vimber_users_srh.csv` | portal_users backup with password hashes |
+| `tmp/srh_backups/portal_users_srh.csv` | portal_users backup with password hashes |
 | `tmp/srh_backups/srh_restore_schema_safe.sql` | Rewritten SQL for staging |
 | `tmp/srh_backups/truncate_srh.sql` | Generated truncate statements |
 | `tmp/srh_backups/insert_srh.sql` | Generated insert statements |

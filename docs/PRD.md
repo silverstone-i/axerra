@@ -1,19 +1,19 @@
-# VIMBER - Product Requirements Document
+# AXERRA - Product Requirements Document
 
 ## 1. Overview
 
 ### 1.1 Product Vision
 
-VIMBER is a **multi-tenant, modular construction and project management ERP** designed for property development, homebuilding, and general contracting companies. It provides end-to-end management of projects, budgets, cost tracking, vendor relationships, accounts payable/receivable, general ledger accounting, intercompany operations, and **project-level cashflow and profitability analysis** — all within a schema-isolated multi-tenant architecture.
+AXERRA is a **multi-tenant, modular construction and project management ERP** designed for property development, homebuilding, and general contracting companies. It provides end-to-end management of projects, budgets, cost tracking, vendor relationships, accounts payable/receivable, general ledger accounting, intercompany operations, and **project-level cashflow and profitability analysis** — all within a schema-isolated multi-tenant architecture.
 
-> **Build Approach:** This application is built from scratch (greenfield). All server-side data access, schema management, migrations, and CRUD operations leverage **pg-schemata 1.3.0** — an owned, extensible PostgreSQL ORM layer. Since Vimber owns the pg-schemata repository, features can be added and bugs fixed as needed to support VIMBER requirements.
+> **Build Approach:** This application is built from scratch (greenfield). All server-side data access, schema management, migrations, and CRUD operations leverage **pg-schemata 1.3.0** — an owned, extensible PostgreSQL ORM layer. Since Axerra owns the pg-schemata repository, features can be added and bugs fixed as needed to support AXERRA requirements.
 
 ### 1.2 Target Users
 
 | Persona                             | Description                                                                                                  |
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| **Vimber Super User**         | Platform operator with full access to Vimber data, cross-tenant access, impersonation, and tenant management |
-| **Vimber Support**            | Cross-tenant access, impersonation, and tenant management. No access to Vimber financial data                |
+| **Axerra Super User**         | Platform operator with full access to Axerra data, cross-tenant access, impersonation, and tenant management |
+| **Axerra Support**            | Cross-tenant access, impersonation, and tenant management. No access to Axerra financial data                |
 | **Administrator**             | Full access within their tenant's data. Same role meaning in every schema                                    |
 | **Project Manager**           | Creates/manages projects, units, budgets, cost lines, change orders, and actual costs                        |
 | **Accountant / Controller**   | Manages chart of accounts, journal entries, AP/AR invoices, and intercompany transactions                    |
@@ -38,7 +38,7 @@ VIMBER is a **multi-tenant, modular construction and project management ERP** de
 ### 1.4 Monorepo Structure
 
 ```
-vimber/
+axerra/
   apps/
     client/     # React SPA frontend
     server/       # Express API backend
@@ -53,20 +53,20 @@ vimber/
 
 ### 2.1 Multi-Tenant Model
 
-VIMBER uses **PostgreSQL schema-per-tenant** isolation powered by pg-schemata:
+AXERRA uses **PostgreSQL schema-per-tenant** isolation powered by pg-schemata:
 
 - **`admin` schema**: System-wide tables (`tenants`, `portal_users`, `match_review_logs`, `impersonation_logs`)
-- **Tenant schemas** (e.g., `acme`, `vimber`): Each customer gets a dedicated PostgreSQL schema containing all business tables (vendors, projects, accounting, etc.)
+- **Tenant schemas** (e.g., `acme`, `axerra`): Each customer gets a dedicated PostgreSQL schema containing all business tables (vendors, projects, accounting, etc.)
 - Tenant resolution is performed per-request: `authRedis` looks up the user's home tenant from their `portal_users` record (via JWT `sub`), optionally overridden by the `x-tenant-code` header
 - All database access is schema-aware via pg-schemata's `setSchemaName()` — models bind queries to the correct tenant schema dynamically
 
 ### 2.2 pg-schemata Integration (Owned Dependency)
 
-VIMBER is built entirely on **pg-schemata 1.3.0**. Since Vimber owns the pg-schemata repository, the library can be extended with new features or patched as VIMBER requirements evolve.
+AXERRA is built entirely on **pg-schemata 1.3.0**. Since Axerra owns the pg-schemata repository, the library can be extended with new features or patched as AXERRA requirements evolve.
 
 #### 2.2.1 Core Capabilities Used
 
-| pg-schemata Feature           | VIMBER Usage                                                                                                                        |
+| pg-schemata Feature           | AXERRA Usage                                                                                                                        |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | **DB.init()**           | Singleton database initialization with all model repositories                                                                       |
 | **TableModel**          | Base class for all writable business models — provides insert, update, delete, bulk operations, upsert, soft delete, import/export |
@@ -95,7 +95,7 @@ All models inherit pg-schemata's rich query builder:
 
 #### 2.2.3 Model Definition Pattern
 
-Every VIMBER model follows this pattern:
+Every AXERRA model follows this pattern:
 
 ```javascript
 import { TableModel } from 'pg-schemata';
@@ -159,7 +159,7 @@ const db = createCallDb(rawDb);
 
 #### 2.2.5 Potential pg-schemata Enhancements (Owned Repo)
 
-Features that may need to be added to pg-schemata to support VIMBER:
+Features that may need to be added to pg-schemata to support AXERRA:
 
 | Enhancement                       | Purpose                                                         |
 | --------------------------------- | --------------------------------------------------------------- |
@@ -306,9 +306,9 @@ RBAC uses a four-layer model where each layer narrows what the previous layer gr
 
 All roles — including system roles — go through the full RBAC policy resolution. There are no bypass or short-circuit paths in the middleware.
 
-- `super_user` (Vimber `vimber` schema only): Full access to all Vimber data + cross-tenant access + impersonation + tenant management. Seeded with `level: 'full'` policies for all modules plus cross-tenant and impersonation policies. Goes through full RBAC policy resolution — no bypass.
+- `super_user` (Axerra `axerra` schema only): Full access to all Axerra data + cross-tenant access + impersonation + tenant management. Seeded with `level: 'full'` policies for all modules plus cross-tenant and impersonation policies. Goes through full RBAC policy resolution — no bypass.
 - `admin` (all tenant schemas): Full access within that tenant's data. Seeded with `level: 'full'` policies for all modules. Same meaning in every schema. Goes through full RBAC policy resolution — no bypass.
-- `support` (Vimber `vimber` schema only): Cross-tenant access + impersonation + tenant management. No access to Vimber financial modules (accounting, AR, AP). Seeded with `level: 'none'` for financial modules + `level: 'full'` for non-financial modules + cross-tenant and impersonation policies. Goes through full RBAC policy resolution.
+- `support` (Axerra `axerra` schema only): Cross-tenant access + impersonation + tenant management. No access to Axerra financial modules (accounting, AR, AP). Seeded with `level: 'none'` for financial modules + `level: 'full'` for non-financial modules + cross-tenant and impersonation policies. Goes through full RBAC policy resolution.
 
 > **No RBAC Bypass:** The middleware does NOT short-circuit for `super_user` or `admin`. All users are authorized through the same entity `roles` array → `policies` resolution path. This ensures all access is auditable, configurable, and consistent.
 
@@ -318,7 +318,7 @@ All roles — including system roles — go through the full RBAC policy resolut
 
 > **Note:** Only `admin`, `super_user`, and `support` are seeded by the system role seeder. Additional roles (e.g., `project_manager`, `controller`) are tenant-configurable and must be created by tenant admins via the ManageRolesPage UI.
 
-**Vimber-Only Policies:** Cross-tenant and impersonation policies are ONLY seeded in the `vimber` schema on `super_user` and `support` roles. These policies cannot be assigned to other tenants' schemas.
+**Axerra-Only Policies:** Cross-tenant and impersonation policies are ONLY seeded in the `axerra` schema on `super_user` and `support` roles. These policies cannot be assigned to other tenants' schemas.
 
 **Tenant Configurability:** All roles except `super_user`, `admin`, and `support` are tenant-configurable. Tenants define their own roles, assign scopes, create state filters, and build field groups.
 
@@ -336,7 +336,7 @@ All roles — including system roles — go through the full RBAC policy resolut
 - Enforced by middleware after auth and before RBAC: if `req.resource.module` is not in the tenant's `allowed_modules`, return 403
 - Cached in Redis alongside tenant metadata
 - Default: empty array means **all modules allowed** — entitlement enforcement activates per-tenant as their `allowed_modules` arrays are populated
-- Managed by Vimber `super_user` / `support` via tenant management UI
+- Managed by Axerra `super_user` / `support` via tenant management UI
 
 **Enforcement:**
 
@@ -382,11 +382,11 @@ Roles with `is_immutable = true` OR `is_system = true` are read-only across all 
 
 ### 3.2 Tenant Management
 
-**Purpose:** Vimber operators manage customer organizations (tenants) and their users.
+**Purpose:** Axerra operators manage customer organizations (tenants) and their users.
 
-**Access Control:** Restricted to Vimber employees via `requireRootTenant` middleware.
+**Access Control:** Restricted to Axerra employees via `requireRootTenant` middleware.
 
-**Root Tenant:** Vimber (tenant_code `VIMBER`) is the platform root tenant. It cannot be archived or deleted. The `super_user` and `support` system roles can only be assigned to users belonging to the Vimber tenant. The root tenant is created automatically during initial setup via the `202502110001_bootstrapAdmin` migration.
+**Root Tenant:** Axerra (tenant_code `AXERRA`) is the platform root tenant. It cannot be archived or deleted. The `super_user` and `support` system roles can only be assigned to users belonging to the Axerra tenant. The root tenant is created automatically during initial setup via the `202502110001_bootstrapAdmin` migration.
 
 #### 3.2.1 Manage Tenants
 
@@ -395,7 +395,7 @@ Roles with `is_immutable = true` OR `is_system = true` are read-only across all 
 | Field               | Type         | Description                                                                        |
 | ------------------- | ------------ | ---------------------------------------------------------------------------------- |
 | `id`              | uuid         | Primary key                                                                        |
-| `tenant_code`     | varchar(6)   | Unique short code (e.g.,`VIMBER`, `CAL`)                                       |
+| `tenant_code`     | varchar(6)   | Unique short code (e.g.,`AXERRA`, `CAL`)                                       |
 | `company`         | varchar(128) | Company name                                                                       |
 | `schema_name`     | varchar(63)  | PostgreSQL schema name                                                             |
 | `status`          | varchar(20)  | `active`, `trial`, `suspended`, `pending`                                  |
@@ -423,7 +423,7 @@ Roles with `is_immutable = true` OR `is_system = true` are read-only across all 
 - Create tenant form includes admin user fields: first name, last name, email, and password (used to create the tenant's Administrator user and linked employee record)
 - Pagination with configurable rows-per-page (powered by `findAfterCursor()`)
 - Archive cascades to deactivate all currently-active associated `portal_users` (sets `deactivated_at`, `status = 'locked'`, and `updated_by`) — works for both `?id=` and `?tenant_code=` query params.
-- The root tenant (Vimber, `VIMBER`) cannot be archived — server rejects the request with 403
+- The root tenant (Axerra, `AXERRA`) cannot be archived — server rejects the request with 403
 - Restore reactivates the tenant only — users remain archived and must be individually restored by an admin
 - **View Details dialog** (`maxWidth="md"`): displays tenant fields in a responsive 3-column grid of `FieldRow` components (label:value pairs). Fields: Code, Tier, Region, Status (rendered as `StatusBadge` chip), Max Users, Schema (monospace), Created, Updated, Notes (full-width). Below a divider, two `DataGrid` tables display **Primary Contacts** and **Billing Contacts** with Name, Email (mailto link), and Phone columns. Contact data is fetched via `useTenantContacts(tenantId)` hook.
 
@@ -458,9 +458,9 @@ Roles with `is_immutable = true` OR `is_system = true` are read-only across all 
 
 Partial unique index: `(entity_type, entity_id) WHERE deactivated_at IS NULL` — prevents duplicate logins for the same entity.
 
-> **Removed from portal_users:** `tenant_code`, `user_name`, `full_name`, `tax_id`, `notes`, `role`, `tenant_role`, `employee_id`. The `employee_id` column has been replaced by the polymorphic `entity_type` + `entity_id` pair, supporting logins for employees, vendors, clients, and contacts. User identity data lives on the entity record. Roles are stored as a `roles` text array on the entity record (not in a `role_members` junction table). Contact designation (primary/billing) is via `employees.is_primary_contact` / `is_billing_contact`. The `vimber_admin_phones` and `vimber_admin_addresses` tables have been removed — phone numbers and addresses are stored on the linked entity via the polymorphic `sources` → `phone_numbers` / `addresses` pattern.
+> **Removed from portal_users:** `tenant_code`, `user_name`, `full_name`, `tax_id`, `notes`, `role`, `tenant_role`, `employee_id`. The `employee_id` column has been replaced by the polymorphic `entity_type` + `entity_id` pair, supporting logins for employees, vendors, clients, and contacts. User identity data lives on the entity record. Roles are stored as a `roles` text array on the entity record (not in a `role_members` junction table). Contact designation (primary/billing) is via `employees.is_primary_contact` / `is_billing_contact`. The `axe_admin_phones` and `axe_admin_addresses` tables have been removed — phone numbers and addresses are stored on the linked entity via the polymorphic `sources` → `phone_numbers` / `addresses` pattern.
 
-**Access Control:** All portal-users routes are gated by `requireRootTenant` middleware and `withMeta({ module: 'tenants', router: 'portal-users' })`. `rbac()` is not currently applied — access control relies on `requireRootTenant` (restricts to Vimber users) and `moduleEntitlement`.
+**Access Control:** All portal-users routes are gated by `requireRootTenant` middleware and `withMeta({ module: 'tenants', router: 'portal-users' })`. `rbac()` is not currently applied — access control relies on `requireRootTenant` (restricts to Axerra users) and `moduleEntitlement`.
 
 **Endpoints:**
 
@@ -483,7 +483,7 @@ Partial unique index: `(entity_type, entity_id) WHERE deactivated_at IS NULL` �
 - Archiving a user sets `status = 'locked'` (in addition to `deactivated_at`) and cascades to soft-delete the linked entity record (employee/vendor/client/contact) in the tenant schema via `entity_type` + `entity_id`
 - Restoring a user sets `status = 'active'`, clears `deactivated_at`, and cascades to restore the linked entity record in the tenant schema
 - Restoring a user requires the parent tenant to be active — returns 403 if the tenant is deactivated
-- Vimber membership is determined by `tenant_code` comparison: server uses `requireRootTenant` middleware (checks `req.user.tenant_code` against `ROOT_TENANT_CODE` env var); client uses `isRootTenantUser` computed flag in `AuthContext` (checks `tenant_code` against `VITE_ROOT_TENANT_CODE`)
+- Axerra membership is determined by `tenant_code` comparison: server uses `requireRootTenant` middleware (checks `req.user.tenant_code` against `ROOT_TENANT_CODE` env var); client uses `isRootTenantUser` computed flag in `AuthContext` (checks `tenant_code` against `VITE_ROOT_TENANT_CODE`)
 
 #### 3.2.3 Admin Operations
 
@@ -491,12 +491,12 @@ Partial unique index: `(entity_type, entity_id) WHERE deactivated_at IS NULL` �
 
 | Method   | Path                                           | Purpose                                                   |
 | -------- | ---------------------------------------------- | --------------------------------------------------------- |
-| `GET`  | `/api/tenants/v1/admin/schemas`              | List all active tenants (Vimber users only)               |
+| `GET`  | `/api/tenants/v1/admin/schemas`              | List all active tenants (Axerra users only)               |
 | `POST` | `/api/tenants/v1/admin/impersonate`          | Start impersonation session (requires `target_user_id`) |
 | `POST` | `/api/tenants/v1/admin/exit-impersonation`   | End active impersonation session                          |
 | `GET`  | `/api/tenants/v1/admin/impersonation-status` | Check current impersonation state                         |
 
-**Cross-tenant access:** Vimber users send `x-tenant-code` header to switch tenant context — handled by `authRedis` middleware, no dedicated endpoint needed. See [BR-RBAC-043](./rules/rbac.md#br-rbac-043).
+**Cross-tenant access:** Axerra users send `x-tenant-code` header to switch tenant context — handled by `authRedis` middleware, no dedicated endpoint needed. See [BR-RBAC-043](./rules/rbac.md#br-rbac-043).
 
 **Impersonation Implementation:**
 
@@ -1838,7 +1838,7 @@ Generated columns are deliberately excluded from pg-schemata schema definitions 
 
 **Migrations via custom `createMigrator`:**
 
-- VIMBER uses a custom `createMigrator({ modules })` system (in `src/db/migrations/createMigrator.js`), NOT pg-schemata's `MigrationManager`
+- AXERRA uses a custom `createMigrator({ modules })` system (in `src/db/migrations/createMigrator.js`), NOT pg-schemata's `MigrationManager`
 - Each module defines migrations via `defineMigration()` with `id`, `description`, and `up()` function
 - Module scope filtering (admin vs tenant) is handled programmatically by `moduleScopes.js` using the module registry's `scope` property — there are no separate migration directories
 - Checksums are computed from `id + description` and stored in the history table, but are not validated on subsequent runs (modified migration bodies are not detected)
@@ -1847,7 +1847,7 @@ Generated columns are deliberately excluded from pg-schemata schema definitions 
 
 **Migration Order:**
 
-1. `202502110001` — Bootstrap admin (tenants, portal_users, impersonation_logs, match_review_logs). Seeds root tenant + super user. Note: `portal_users` uses polymorphic `entity_type`/`entity_id` instead of `employee_id`; `vimber_admin_phones` and `vimber_admin_addresses` removed.
+1. `202502110001` — Bootstrap admin (tenants, portal_users, impersonation_logs, match_review_logs). Seeds root tenant + super user. Note: `portal_users` uses polymorphic `entity_type`/`entity_id` instead of `employee_id`; `axe_admin_phones` and `axe_admin_addresses` removed.
 2. `202502110010` — Core RBAC tables (roles, policies, policy_catalog, state_filters, field_group_definitions, field_group_grants, project_members, company_members). Note: `role_members` has been removed — role assignment is stored as a `roles` text array on entity tables.
 3. `202502110011` — Core entity tables (sources, vendors, clients, employees, contacts, addresses, phone_numbers, companies, tax_identifiers). Note: all four entity tables include `roles` (text[]) and `is_app_user`; `contacts` is a first-class entity (miscellaneous payees); `sources` CHECK includes `'contact'` and `'company'`; `clients` includes `email`; `employees` includes `email`, `is_primary_contact`, `is_billing_contact`; `tax_identifiers` replaces the former `tax_id` column on entity tables.
 4. `202502250012` — Numbering system tables (tenant_numbering_config, tenant_number_sequence_state).
@@ -1991,7 +1991,7 @@ Primary Group -> Leaf items
     +-- Manage Users (/tenant/manage-users, capability: tenants::)
 ```
 
-Extensible design: add new groups/modules to `NAV_ITEMS` array with optional `capability` guards and `rootTenantOnly` flag. Groups with `rootTenantOnly: true` are only visible to Vimber users. The example above shows only 2 of 14 nav groups — see §7 for the complete navigation structure.
+Extensible design: add new groups/modules to `NAV_ITEMS` array with optional `capability` guards and `rootTenantOnly` flag. Groups with `rootTenantOnly: true` are only visible to Axerra users. The example above shows only 2 of 14 nav groups — see §7 for the complete navigation structure.
 
 ### 6.3 Module Bar (Dynamic Toolbar)
 
@@ -2084,7 +2084,7 @@ Based on the sidebar navigation config (`navigationConfig.js`) and client-side r
 | **BOM**                       | Catalog SKUs (`bom::catalog-skus`), Vendor SKU Matching (`bom::vendor-skus`)                                                                                                   | `/bom`                        | `bom::`                   |
 | **Settings**                  | Numbering (`core::numbering-config`), Payment Terms (`core::payment-terms`)                                                                                                    | `/settings`                   | `core::`                  |
 | **Admin**                     | Vendors (`core::vendors`), Clients (`core::clients`), Employees (`core::employees`), Contacts (`core::contacts`), Companies (`core::companies`), Roles (`core::roles`) | `/core`, `/tenant`          | `core::`                  |
-| **Tenants** *(Vimber only)* | Manage Tenants (`tenants::`), Manage Users (`tenants::`)                                                                                                                       | `/tenant`                     | `tenants::`               |
+| **Tenants** *(Axerra only)* | Manage Tenants (`tenants::`), Manage Users (`tenants::`)                                                                                                                       | `/tenant`                     | `tenants::`               |
 
 > **Nav-only items (no route or page component yet):** P&L (`/reports/pnl`) and Balance Sheet (`/reports/balance-sheet`) appear in the sidebar navigation config but have no matching routes in `App.jsx`. Clicking them falls through to the catch-all redirect (`/dashboard`).
 
@@ -2111,16 +2111,16 @@ Based on the sidebar navigation config (`navigationConfig.js`) and client-side r
 | `COOKIE_SECURE`              | Secure cookie flag                                                              | `false` (dev)           |
 | `COOKIE_SAMESITE`            | SameSite cookie policy                                                          | `Lax`                   |
 | `BCRYPT_ROUNDS`              | Password hashing cost                                                           | 12                        |
-| `ROOT_TENANT_CODE`           | Vimber tenant code for admin access                                             | `VIMBER`                |
-| `VITE_ROOT_TENANT_CODE`      | Client-side Vimber tenant code                                                  | `VIMBER`                |
-| `VITE_ROOT_COMPANY`          | Client-side Vimber company name (reserved, not currently used)                  | `Vimber`                |
-| `VITE_ROOT_EMAIL_DOMAIN`     | Client-side Vimber email domain (reserved, not currently used)                  | `vimber.io`             |
+| `ROOT_TENANT_CODE`           | Axerra tenant code for admin access                                             | `AXERRA`                |
+| `VITE_ROOT_TENANT_CODE`      | Client-side Axerra tenant code                                                  | `AXERRA`                |
+| `VITE_ROOT_COMPANY`          | Client-side Axerra company name (reserved, not currently used)                  | `Axerra`                |
+| `VITE_ROOT_EMAIL_DOMAIN`     | Client-side Axerra email domain (reserved, not currently used)                  | `axerra.io`             |
 | `PORT`                       | Express server port                                                             | `3000`                  |
 | `HOST`                       | Express server host                                                             | `localhost`             |
 | `NODE_ENV`                   | Runtime environment (`development`, `test`, `production`)                 | —                        |
 | `OPENAI_API_KEY`             | OpenAI API key for BOM embedding service (`bom/services/embeddingService.js`) | —                        |
-| `ROOT_TENANT_CODE`           | Root tenant code for bootstrap migration (falls back directly to `'VIMBER'`)  | `VIMBER`                |
-| `ROOT_COMPANY`               | Root company name for bootstrap migration                                       | `Vimber LLC`            |
+| `ROOT_TENANT_CODE`           | Root tenant code for bootstrap migration (falls back directly to `'AXERRA'`)  | `AXERRA`                |
+| `ROOT_COMPANY`               | Root company name for bootstrap migration                                       | `Axerra LLC`            |
 
 ---
 
@@ -2204,7 +2204,7 @@ const { max_by_groups } = rule;
 `src/system/` contains the **core platform modules** that are always required and glue the application together:
 
 - **`auth`** — authentication (login, JWT, session management) **and** admin-schema data layer (schemas, models, migrations, repositories for `tenants`, `portal_users`, `impersonation_logs`, `match_review_logs`). The auth module is registered in the module registry with `scope: 'admin'` and owns the `202502110001_bootstrapAdmin` migration that creates the admin schema.
-- **`tenants`** — API layer for multi-tenant administration (controllers and routes for tenant CRUD, vimber-user registration, impersonation, and match review logs). Tenants has **no schemas or models of its own** — controllers resolve models from the `auth` module's repositories via the global `db()` singleton. Routes are mounted at `/api/tenants/v1/`. This module is **not in the module registry** because it has no database artifacts; it is loaded directly in the route aggregator.
+- **`tenants`** — API layer for multi-tenant administration (controllers and routes for tenant CRUD, portal-user registration, impersonation, and match review logs). Tenants has **no schemas or models of its own** — controllers resolve models from the `auth` module's repositories via the global `db()` singleton. Routes are mounted at `/api/tenants/v1/`. This module is **not in the module registry** because it has no database artifacts; it is loaded directly in the route aggregator.
 - **`core`** — tables required by all optional modules (sources, vendors, clients, employees, contacts, addresses, companies, RBAC)
 
 `src/modules/` contains **optional feature modules** that tenants enable based on their needs:
@@ -2275,7 +2275,7 @@ Every source file must include a copyright header as the first content:
  * @file <Brief description of what this file does>
  * @module <module/path>
  *
- * Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 ```
 
@@ -2284,7 +2284,7 @@ Every source file must include a copyright header as the first content:
 ```sql
 -- Migration: <migration_id>
 -- Description: <what this migration does>
--- Copyright (c) 2025 – present Vimber LLC. All rights reserved.
+-- Copyright (c) 2025 – present Axerra LLC. All rights reserved.
 ```
 
 ### 10.4 Code Reuse & DRY Principles
@@ -2374,7 +2374,7 @@ import { vendorsSchema } from '../schemas/vendorsSchema.js';
 
 - **JSDoc** on all exported functions with `@param`, `@returns`, and `@throws` tags
 - **Inline comments** only for *why*, never *what* — the code should be self-documenting
-- **TODO comments** must include a ticket/issue reference: `// TODO(VIMBER-123): Add retainage support`
+- **TODO comments** must include a ticket/issue reference: `// TODO(AXERRA-123): Add retainage support`
 - **No commented-out code** — use version control instead
 
 ### 10.9 Async & Concurrency
@@ -2478,7 +2478,7 @@ Ensures consistent whitespace across all editors/IDEs:
 
 ### 11.5 VSCode Workspace
 
-**File:** `vimber.code-workspace` (single-root workspace — one folder entry pointing to the monorepo root)
+**File:** `axerra.code-workspace` (single-root workspace — one folder entry pointing to the monorepo root)
 
 **Formatter assignments:**
 
@@ -2612,17 +2612,17 @@ Install these before starting:
 
 ```bash
 # 1. Create project directory
-mkdir vimber && cd vimber
+mkdir axerra && cd axerra
 
 # 2. Initialize git
 git init
 git branch -M main
 
 # 3. Create the GitHub repo (using GitHub CLI)
-gh repo create <org>/vimber --private --source=. --remote=origin
+gh repo create <org>/axerra --private --source=. --remote=origin
 
 # Or manually: create repo on github.com, then:
-git remote add origin git@github.com:<org>/vimber.git
+git remote add origin git@github.com:<org>/axerra.git
 ```
 
 #### Branch strategy
@@ -2642,7 +2642,7 @@ git remote add origin git@github.com:<org>/vimber.git
 
 ```bash
 # Via GitHub CLI
-gh api repos/<org>/vimber/branches/main/protection -X PUT -f \
+gh api repos/<org>/axerra/branches/main/protection -X PUT -f \
   required_status_checks='{"strict":true,"contexts":["test"]}' \
   enforce_admins=true \
   required_pull_request_reviews='{"required_approving_review_count":1}'
@@ -2659,8 +2659,8 @@ Or configure in GitHub → Settings → Branches → Branch protection rules:
 
 ```bash
 # 1. Clone the repository
-git clone git@github.com:<org>/vimber.git
-cd vimber
+git clone git@github.com:<org>/axerra.git
+cd axerra
 
 # 2. Install all workspace dependencies (root + apps + packages)
 npm install
@@ -2680,7 +2680,7 @@ chmod +x .husky/pre-commit
 #### Open the workspace
 
 ```bash
-code vimber.code-workspace
+code axerra.code-workspace
 ```
 
 Always open the project via the `.code-workspace` file — this ensures formatter and setting overrides are applied correctly.
@@ -2708,7 +2708,7 @@ When prompted by VSCode, install the recommended extensions. Or install manually
 
 #### Suggested VSCode user settings
 
-Add to your workspace settings (in `vimber.code-workspace`) or user `settings.json`:
+Add to your workspace settings (in `axerra.code-workspace`) or user `settings.json`:
 
 ```jsonc
 {
@@ -2743,8 +2743,8 @@ cp .env.example .env
 
 ```bash
 # Database
-DATABASE_URL_DEV=postgres://vimber_admin:password@localhost:5432/vimber_dev
-DATABASE_URL_TEST=postgres://vimber_admin:password@localhost:5432/vimber_test
+DATABASE_URL_DEV=postgres://axe_admin:password@localhost:5432/axerra_dev
+DATABASE_URL_TEST=postgres://axe_admin:password@localhost:5432/axerra_test
 
 # Redis
 REDIS_URL=redis://localhost:6379
@@ -2754,18 +2754,18 @@ ACCESS_TOKEN_SECRET=<generate-a-random-secret>
 REFRESH_TOKEN_SECRET=<generate-a-different-random-secret>
 
 # Super User bootstrap
-ROOT_EMAIL=admin@vimber.io
+ROOT_EMAIL=admin@axerra.io
 ROOT_PASSWORD=<choose-a-strong-password>
 
 # Client
 CLIENT_ORIGIN=http://localhost:5173
 CORS_ORIGINS=http://localhost:5173
 
-# Vimber identity
-ROOT_TENANT_CODE=VIMBER
-VITE_ROOT_TENANT_CODE=VIMBER
-VITE_ROOT_COMPANY=Vimber
-VITE_ROOT_EMAIL_DOMAIN=vimber.io
+# Axerra identity
+ROOT_TENANT_CODE=AXERRA
+VITE_ROOT_TENANT_CODE=AXERRA
+VITE_ROOT_COMPANY=Axerra
+VITE_ROOT_EMAIL_DOMAIN=axerra.io
 ```
 
 **Generate secrets:**
@@ -2778,18 +2778,18 @@ node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 
 ```bash
 # 1. Create PostgreSQL user and databases
-psql -U postgres -c "CREATE USER vimber_admin WITH PASSWORD 'password' CREATEDB;"
-psql -U postgres -c "CREATE DATABASE vimber_dev OWNER vimber_admin;"
-psql -U postgres -c "CREATE DATABASE vimber_test OWNER vimber_admin;"
+psql -U postgres -c "CREATE USER axe_admin WITH PASSWORD 'password' CREATEDB;"
+psql -U postgres -c "CREATE DATABASE axerra_dev OWNER axe_admin;"
+psql -U postgres -c "CREATE DATABASE axerra_test OWNER axe_admin;"
 
 # 2. Enable required extensions (connect to each database)
-psql -U vimber_admin -d vimber_dev -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
-psql -U vimber_admin -d vimber_dev -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
-psql -U vimber_admin -d vimber_dev -c "CREATE EXTENSION IF NOT EXISTS vector;"
+psql -U axe_admin -d axerra_dev -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
+psql -U axe_admin -d axerra_dev -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
+psql -U axe_admin -d axerra_dev -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
-psql -U vimber_admin -d vimber_test -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
-psql -U vimber_admin -d vimber_test -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
-psql -U vimber_admin -d vimber_test -c "CREATE EXTENSION IF NOT EXISTS vector;"
+psql -U axe_admin -d axerra_test -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
+psql -U axe_admin -d axerra_test -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
+psql -U axe_admin -d axerra_test -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
 # 3. Run migrations and bootstrap the admin schema
 npm -w apps/server run setupAdmin:dev
@@ -2812,7 +2812,7 @@ npm run dev:client    # Vite React on http://localhost:5173
 
 **Verify everything works:**
 
-1. Open `http://localhost:5173` — should see the VIMBER login page
+1. Open `http://localhost:5173` — should see the AXERRA login page
 2. Log in with the `ROOT_EMAIL` / `ROOT_PASSWORD` from your `.env`
 3. Test the API directly: `curl http://localhost:3000/api/auth/check`
 
@@ -2937,8 +2937,8 @@ The `.env.example` file exists at the monorepo root. Keep it in version control 
 
 ```bash
 # Database
-DATABASE_URL_DEV=postgres://vimber_admin:password@localhost:5432/vimber_dev
-DATABASE_URL_TEST=postgres://vimber_admin:password@localhost:5432/vimber_test
+DATABASE_URL_DEV=postgres://axe_admin:password@localhost:5432/axerra_dev
+DATABASE_URL_TEST=postgres://axe_admin:password@localhost:5432/axerra_test
 DATABASE_URL_PROD=
 
 # Redis
@@ -2963,11 +2963,11 @@ COOKIE_SAMESITE=Lax
 # Encryption
 BCRYPT_ROUNDS=12
 
-# Vimber identity
-ROOT_TENANT_CODE=VIMBER
-VITE_ROOT_TENANT_CODE=VIMBER
-VITE_ROOT_COMPANY=Vimber
-VITE_ROOT_EMAIL_DOMAIN=vimber.io
+# Axerra identity
+ROOT_TENANT_CODE=AXERRA
+VITE_ROOT_TENANT_CODE=AXERRA
+VITE_ROOT_COMPANY=Axerra
+VITE_ROOT_EMAIL_DOMAIN=axerra.io
 ```
 
 ---
@@ -2983,7 +2983,7 @@ Design decisions capture the *why* behind architectural and technical choices. C
 Design decisions live in a `docs/decisions/` directory at the monorepo root:
 
 ```
-vimber/
+axerra/
   docs/
     decisions/
       0001-schema-per-tenant-isolation.md

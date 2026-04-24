@@ -54,9 +54,9 @@ All system roles resolve through full RBAC — no bypass.
 
 | Role | Scope | Tenants | Policies |
 |------|-------|---------|----------|
-| super_user | Vimber only | all_projects | full for all modules |
+| super_user | Axerra only | all_projects | full for all modules |
 | admin | All tenants | all_projects | full for all modules |
-| support | Vimber only | all_projects | full except accounting/ap/ar (none) |
+| support | Axerra only | all_projects | full except accounting/ap/ar (none) |
 
 ## Redis Cache
 

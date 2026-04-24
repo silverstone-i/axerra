@@ -2,7 +2,7 @@
  * @file ADR-0003: JWT in httpOnly cookies
  * @module docs/decisions
  *
- * Copyright (c) 2025 Vimber LLC. All rights reserved.
+ * Copyright (c) 2025 Axerra LLC. All rights reserved.
  */
 
 # ADR-0003: JWT in httpOnly Cookies
@@ -32,7 +32,7 @@ Token design is intentionally minimal:
 
 ```json
 {
-  "sub": "<vimber_user uuid>",
+  "sub": "<portal_user uuid>",
   "ph": "<SHA-256 of permission canon>"
 }
 ```

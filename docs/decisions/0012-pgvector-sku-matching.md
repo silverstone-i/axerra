@@ -35,7 +35,7 @@ Embeddings are generated on-demand via `/refresh-embeddings` endpoints, not on e
 
 ### Match Review Logs
 
-All match decisions are written to `admin.match_review_logs` (admin schema, not tenant schema) for cross-tenant audit visibility. The table is read-only via `/api/tenants/v1/match-review-logs` for Vimber super users.
+All match decisions are written to `admin.match_review_logs` (admin schema, not tenant schema) for cross-tenant audit visibility. The table is read-only via `/api/tenants/v1/match-review-logs` for Axerra super users.
 
 ## Alternatives Considered
 
