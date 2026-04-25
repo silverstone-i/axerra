@@ -44,23 +44,16 @@ export function applyMutualExclusion(prevModel, newModel, rows, entityType) {
 
   if (added.length === 0) return newModel;
 
-  const rowById = (id) => rows.find((r) => r.id === id);
-  const addedHasRoot = added.some((id) => {
-    const r = rowById(id);
-    return r && isRootEntity(r, entityType);
-  });
+  // O(1) id → row lookups; avoids the prior O(rows × selectionSize) cost
+  // when this runs on every modifier-key click and large-selection updates.
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const isRoot = (id) => {
+    const r = byId.get(id);
+    return !!r && isRootEntity(r, entityType);
+  };
 
-  if (addedHasRoot) {
-    return added.filter((id) => {
-      const r = rowById(id);
-      return r && isRootEntity(r, entityType);
-    });
-  }
-
-  return newModel.filter((id) => {
-    const r = rowById(id);
-    return !r || !isRootEntity(r, entityType);
-  });
+  if (added.some(isRoot)) return added.filter(isRoot);
+  return newModel.filter((id) => !isRoot(id));
 }
 
 /**
