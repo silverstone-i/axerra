@@ -5,7 +5,8 @@
 # Usage:  bash scripts/git/sync-main-to-dev.sh
 #
 # Behavior:
-#   1. Verifies main is ahead of dev (otherwise dev is already in sync).
+#   1. Skips when origin/main is already merged into origin/dev (i.e., main is
+#      reachable from dev's history). Otherwise opens the sync PR.
 #   2. Opens a PR with title "chore: sync main into dev".
 #   3. Merge-commits with --admin (preserves graph alignment without rewriting
 #      dev's history).

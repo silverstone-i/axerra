@@ -20,9 +20,21 @@
 
 set -euo pipefail
 
+usage() {
+  echo "Usage: $0 <version>" >&2
+  echo "  <version> must look like v<major>.<minor>.<patch>[-prerelease]" >&2
+  echo "  Examples: v0.2.0, v0.2.0-rc.1, v1.0.0-beta.3" >&2
+}
+
 VERSION="${1:-}"
 if [[ -z "$VERSION" ]]; then
-  echo "Usage: $0 <version>  (e.g. v0.2.0)" >&2
+  usage
+  exit 1
+fi
+
+if ! [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+  echo "✗ Invalid version tag: $VERSION" >&2
+  usage
   exit 1
 fi
 
@@ -55,6 +67,17 @@ if [[ -n "$LOCAL_TAG" ]]; then
   git push origin "$VERSION"
   echo "✓ Tag $VERSION pushed."
   exit 0
+fi
+
+# Guard against the "forgot to sync after the previous release" trap.
+# If origin/main isn't already in origin/dev's history, a squash merge would
+# re-apply previously-released content on top of main — broken release.
+if ! git merge-base --is-ancestor origin/main origin/dev; then
+  echo "✗ origin/main is not contained in origin/dev's history." >&2
+  echo "  This usually means the previous release wasn't synced back to dev." >&2
+  echo "  Run: bash scripts/git/sync-main-to-dev.sh" >&2
+  echo "  Then retry this release." >&2
+  exit 1
 fi
 
 if git diff --quiet origin/main..origin/dev; then

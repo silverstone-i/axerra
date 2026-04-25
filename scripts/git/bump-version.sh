@@ -43,8 +43,9 @@ if [[ "$BRANCH" != "dev" ]]; then
   exit 1
 fi
 
-if ! git diff --quiet || ! git diff --cached --quiet; then
-  echo "✗ Working tree is not clean. Commit or stash changes before bumping." >&2
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "✗ Working tree is not clean (modified, staged, or untracked files present)." >&2
+  echo "  Commit, stash, or remove changes before bumping." >&2
   exit 1
 fi
 
