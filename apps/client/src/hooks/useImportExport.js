@@ -44,7 +44,9 @@ export function useExportXls(exportFn, filePrefix) {
       document.body.appendChild(a);
       a.click();
       a.remove();
-      URL.revokeObjectURL(url);
+      // Defer revoke so Safari/older browsers have time to initiate the
+      // download before the blob URL is invalidated.
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
     },
   });
 }

@@ -79,7 +79,8 @@ export default function DataTable({
       cellClassName: 'row-actions-cell',
       renderCell: (params) => {
         const extra = isRowActionsFn ? rowActions(params.row) : rowActions;
-        const actions = [...baseActions, ...extra];
+        const extraArr = Array.isArray(extra) ? extra : [];
+        const actions = [...baseActions, ...extraArr];
         return <RowActionsMenu row={params.row} actions={actions} />;
       },
     };
