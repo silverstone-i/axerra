@@ -30,8 +30,8 @@ import { useAuth } from '../../contexts/AuthContext.jsx';
 import {
   useSelfCompany,
   useCreateCompany,
-  useAddresses,
-  useTaxIdentifiers,
+  useCompanyInfoAddresses,
+  useCompanyInfoTaxIdentifiers,
   useCreateAddress,
   useUpdateAddress,
   useArchiveAddress,
@@ -425,8 +425,8 @@ export default function CompanyInfoPage() {
 
   const { data: company, isLoading: companyLoading } = useSelfCompany(tenantCode);
   const sourceId = company?.source_id;
-  const { data: addresses = [], isLoading: addrLoading } = useAddresses(sourceId);
-  const { data: taxIds = [], isLoading: taxLoading } = useTaxIdentifiers(sourceId);
+  const { data: addresses = [], isLoading: addrLoading } = useCompanyInfoAddresses(sourceId);
+  const { data: taxIds = [], isLoading: taxLoading } = useCompanyInfoTaxIdentifiers(sourceId);
 
   const [newAddresses, setNewAddresses] = useState([]);
   const [newTaxIds, setNewTaxIds] = useState([]);

@@ -24,10 +24,48 @@ export function isRootEntity(row, entityType) {
 }
 
 /**
- * Build an onRowSelectionModelChange handler that enforces mutual exclusion
- * for root entities:
+ * Pure transform that enforces root-entity mutual exclusion on a proposed
+ * selection model:
  *   - Selecting a root entity deselects everything else.
  *   - Selecting a non-root entity while root is selected deselects root.
+ *
+ * Used by both checkbox/keyboard paths (via buildMutualExclusionHandler) and
+ * row-click paths (useListSelection.handleRowClick) to keep behavior identical.
+ *
+ * @param {Array} prevModel  – previous selectionModel
+ * @param {Array} newModel   – proposed next selectionModel
+ * @param {Array} rows       – visible DataGrid rows
+ * @param {'tenant'|'user'} entityType
+ * @returns {Array} the resolved selectionModel
+ */
+export function applyMutualExclusion(prevModel, newModel, rows, entityType) {
+  const prevSet = new Set(prevModel);
+  const added = newModel.filter((id) => !prevSet.has(id));
+
+  if (added.length === 0) return newModel;
+
+  const rowById = (id) => rows.find((r) => r.id === id);
+  const addedHasRoot = added.some((id) => {
+    const r = rowById(id);
+    return r && isRootEntity(r, entityType);
+  });
+
+  if (addedHasRoot) {
+    return added.filter((id) => {
+      const r = rowById(id);
+      return r && isRootEntity(r, entityType);
+    });
+  }
+
+  return newModel.filter((id) => {
+    const r = rowById(id);
+    return !r || !isRootEntity(r, entityType);
+  });
+}
+
+/**
+ * Build an onRowSelectionModelChange handler that enforces mutual exclusion
+ * for root entities. Thin wrapper around {@link applyMutualExclusion}.
  *
  * @param {Object}   opts
  * @param {Array}    opts.rows        – visible DataGrid rows
@@ -38,38 +76,7 @@ export function isRootEntity(row, entityType) {
  */
 export function buildMutualExclusionHandler({ rows, prevModel, setModel, entityType }) {
   return (newModel) => {
-    const prevSet = new Set(prevModel);
-    const added = newModel.filter((id) => !prevSet.has(id));
-
-    if (added.length === 0) {
-      setModel(newModel);
-      return;
-    }
-
-    const rowById = (id) => rows.find((r) => r.id === id);
-    const addedHasRoot = added.some((id) => {
-      const r = rowById(id);
-      return r && isRootEntity(r, entityType);
-    });
-
-    if (addedHasRoot) {
-      // Root was just selected → keep only root IDs from the added set
-      setModel(
-        added.filter((id) => {
-          const r = rowById(id);
-          return r && isRootEntity(r, entityType);
-        }),
-      );
-      return;
-    }
-
-    // Non-root added → strip any root entities that were already selected
-    setModel(
-      newModel.filter((id) => {
-        const r = rowById(id);
-        return !r || !isRootEntity(r, entityType);
-      }),
-    );
+    setModel(applyMutualExclusion(prevModel, newModel, rows, entityType));
   };
 }
 

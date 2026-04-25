@@ -9,7 +9,7 @@
  */
 
 import { useState, useRef, useCallback, useMemo } from 'react';
-import { deriveSelectionState, buildMutualExclusionHandler } from '../utils/selectionUtils.js';
+import { deriveSelectionState, buildMutualExclusionHandler, applyMutualExclusion } from '../utils/selectionUtils.js';
 
 /**
  * @param {Array}  rows - visible DataGrid rows (must have `id` field)
@@ -35,6 +35,10 @@ export function useListSelection(rows, entityType) {
    * Handle row body clicks with modifier key awareness.
    * Bound to DataGrid onRowClick. Checkboxes and action cells are skipped —
    * those paths are handled by onRowSelectionModelChange and RowActionsMenu.
+   *
+   * When `entityType` is set, the resolved next selection is gated through the
+   * same mutual-exclusion rule applied by handleSelectionModelChange so that
+   * Ctrl/Shift-Click cannot bypass root-entity invariants.
    */
   const handleRowClick = useCallback(
     (params, event) => {
@@ -47,6 +51,7 @@ export function useListSelection(rows, entityType) {
       if (target.closest?.('.row-actions-cell')) return;
 
       const id = params.id;
+      const gate = (prev, next) => (entityType ? applyMutualExclusion(prev, next, rows, entityType) : next);
 
       if (event.shiftKey && lastClickedId.current != null) {
         // Shift+Click: range selection
@@ -55,7 +60,7 @@ export function useListSelection(rows, entityType) {
 
         if (anchorIdx === -1) {
           // Anchor not in current view — treat as plain click
-          setSelectionModel([id]);
+          setSelectionModel((prev) => gate(prev, [id]));
           lastClickedId.current = id;
           return;
         }
@@ -68,7 +73,7 @@ export function useListSelection(rows, entityType) {
         setSelectionModel((prev) => {
           const merged = new Set(prev);
           for (const rid of rangeIds) merged.add(rid);
-          return Array.from(merged);
+          return gate(prev, Array.from(merged));
         });
         // Do NOT update lastClickedId for shift-click
         return;
@@ -83,17 +88,17 @@ export function useListSelection(rows, entityType) {
           } else {
             set.add(id);
           }
-          return Array.from(set);
+          return gate(prev, Array.from(set));
         });
         lastClickedId.current = id;
         return;
       }
 
       // Plain click: select only this record
-      setSelectionModel([id]);
+      setSelectionModel((prev) => gate(prev, [id]));
       lastClickedId.current = id;
     },
-    [rows],
+    [rows, entityType],
   );
 
   /**

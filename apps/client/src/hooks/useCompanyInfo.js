@@ -37,8 +37,8 @@ export function useSelfCompany(tenantCode) {
   });
 }
 
-/** Fetch addresses for a given source_id. */
-export function useAddresses(sourceId) {
+/** Fetch addresses for a given source_id (Settings → Company Info scope). */
+export function useCompanyInfoAddresses(sourceId) {
   return useQuery({
     queryKey: [...COMPANY_INFO_KEY, 'addresses', sourceId],
     queryFn: () => addressApi.list({ source_id: sourceId }),
@@ -50,8 +50,8 @@ export function useAddresses(sourceId) {
   });
 }
 
-/** Fetch tax identifiers for a given source_id. */
-export function useTaxIdentifiers(sourceId) {
+/** Fetch tax identifiers for a given source_id (Settings → Company Info scope). */
+export function useCompanyInfoTaxIdentifiers(sourceId) {
   return useQuery({
     queryKey: [...COMPANY_INFO_KEY, 'tax-identifiers', sourceId],
     queryFn: () => taxIdentifierApi.list({ source_id: sourceId }),
