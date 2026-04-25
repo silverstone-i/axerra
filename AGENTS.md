@@ -4,7 +4,7 @@
 
 - **Never add `Co-Authored-By` lines** to commit messages — suppress the default trailer entirely
 - Husky pre-commit rejects mixed commits touching both `apps/client/` and `apps/server/` — split into separate commits
-- Working branch: `dev`; PRs target `dev` (PRs to `main` only for releases)
+- Working branch: `dev`. PRs are required for both `dev` and `main`. Feature branches PR into `dev`; releases use `bash scripts/git/release-to-main.sh <version>` then `bash scripts/git/sync-main-to-dev.sh`. Full workflow: [docs/workflow.md](docs/workflow.md).
 
 ## Project Overview
 
