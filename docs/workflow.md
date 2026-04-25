@@ -10,6 +10,7 @@ PR ceremony stays out of the way for routine maintenance.
 | Flow | Command |
 |---|---|
 | Feature branch → `dev` | `gh pr create --base dev --head feature/foo` → review → merge in UI |
+| Bump version (on `dev`, before release) | `bash scripts/git/bump-version.sh 0.2.0` |
 | `dev` → `main` (release) | `bash scripts/git/release-to-main.sh v0.2.0` |
 | `main` → `dev` (sync) | `bash scripts/git/sync-main-to-dev.sh` |
 
@@ -57,7 +58,43 @@ git branch -d feature/your-feature
 git push origin --delete feature/your-feature
 ```
 
-## 2. dev → main (release) — `--ff-only` equivalent
+## 2. Bump version (on `dev`, before the release)
+
+The release script tags `main` but does **not** bump `package.json` versions —
+those have to be updated separately on `dev` so the squash captures them. Use
+`scripts/git/bump-version.sh`:
+
+```bash
+bash scripts/git/bump-version.sh 0.2.0   # no 'v' prefix — npm versions are bare SemVer
+git add -A
+git commit -m "chore: bump version to 0.2.0"
+git push origin dev
+```
+
+The script:
+
+1. Validates the argument looks like SemVer (e.g. `0.2.0`, `0.2.0-rc.1`).
+2. Refuses to run unless you're on `dev` with a clean working tree.
+3. Runs `npm version <version> --workspaces --include-workspace-root --no-git-tag-version`,
+   updating `package.json` in the repo root, `apps/client`, `apps/server`, and `packages/shared`.
+4. Leaves the changes unstaged for you to review and commit.
+
+### Choosing the bump
+
+Use SemVer (https://semver.org). For axerra at v0.x:
+
+| Bump | Example | When |
+|---|---|---|
+| Patch | `0.1.1` | Bug fixes only, no behavior change |
+| Minor | `0.2.0` | New features, backward-compatible |
+| Pre-release | `0.2.0-rc.1`, `0.2.0-beta.1` | Not yet final |
+| Major | `1.0.0` | Breaking changes — typically reserved for the first stable release |
+
+> **Format note.** The bump script takes the bare SemVer (`0.2.0`); the release
+> script takes the `v`-prefixed git-tag form (`v0.2.0`). Same number, different
+> conventions: `package.json` is bare, git tags are conventionally prefixed.
+
+## 3. dev → main (release) — `--ff-only` equivalent
 
 For releases, use `scripts/git/release-to-main.sh`. The script squash-merges all
 of `dev`'s changes into a single commit on `main`, keeping `main`'s log clean as
@@ -80,7 +117,7 @@ The script:
 > commit on `main` representing the release, no merge-commit noise. After the
 > squash, run the sync script (next section) to align `dev` with the new `main`.
 
-## 3. main → dev (sync) — post-release alignment
+## 4. main → dev (sync) — post-release alignment
 
 After a squash release, `main` has a new commit (the squash) that's not on
 `dev`'s history. Run the sync script to bring `dev` up to date so the histories
@@ -104,20 +141,33 @@ The script:
 > merge commit is the only way to bridge them without rewriting either side's
 > SHAs.
 
-## 4. Helper scripts — reference
+## 5. Helper scripts — reference
 
-Both scripts live in `scripts/git/`. Run from the repo root.
+All scripts live in `scripts/git/`. Run from the repo root.
+
+### `bump-version.sh <version>`
+
+Bumps all workspace `package.json` versions in lockstep before a release.
+
+- **Input:** `<version>` — bare SemVer (e.g. `0.2.0`, `0.2.0-rc.1`). No `v` prefix.
+- **Side effects:** modifies `package.json` in repo root, `apps/client`, `apps/server`,
+  and `packages/shared`. Leaves changes unstaged for review.
+- **Guards:** must be on `dev` with a clean working tree; rejects bare `v…`
+  arguments and non-SemVer strings.
+- **Does not commit, push, tag, or open a PR** — that's intentional. Review the
+  diff, then commit and push manually before running `release-to-main.sh`.
 
 ### `release-to-main.sh <version>`
 
 Squash-merges `dev` into `main` and tags the result.
 
-- **Input:** `<version>` — the tag name (e.g. `v0.2.0`).
+- **Input:** `<version>` — the tag name with `v` prefix (e.g. `v0.2.0`).
 - **Side effects:** opens a PR, merges it, pushes a tag. All on `origin`.
 - **Skips early when there's nothing to do** — exits as a no-op if the version
   tag already exists on `origin`. If the tag exists locally but not on `origin`
   (recovery from a previous run that merged but failed to push the tag), the
-  script pushes the tag and exits.
+  script verifies the local tag points at `origin/main` and pushes it; on a SHA
+  mismatch it aborts rather than publishing a stray tag.
 - **Failure modes / rerun caveats:**
   - `gh` not authenticated.
   - An open PR with the same `dev → main` head/base from a prior run will block
@@ -147,13 +197,18 @@ Merge-commits `main` into `dev` after a release.
 # 1. Make sure dev is green
 git checkout dev && git pull
 
-# 2. Cut the release
+# 2. Bump workspace package.json versions on dev
+bash scripts/git/bump-version.sh 0.2.0
+git add -A && git commit -m "chore: bump version to 0.2.0"
+git push origin dev
+
+# 3. Cut the release (note the v prefix)
 bash scripts/git/release-to-main.sh v0.2.0
 
-# 3. Sync dev with main
+# 4. Sync dev with main
 bash scripts/git/sync-main-to-dev.sh
 
-# 4. Pull the merged state locally
+# 5. Pull the merged state locally
 git checkout main && git pull
 git checkout dev && git pull
 ```
