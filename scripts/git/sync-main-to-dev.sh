@@ -16,7 +16,10 @@ set -euo pipefail
 
 git fetch origin --quiet
 
-if git diff --quiet origin/dev..origin/main; then
+# Use ancestry, not tree-diff: after a squash release, dev and main have
+# identical trees but divergent histories — that's exactly the case this
+# script exists to fix. Tree-diff would say "in sync" and skip the merge.
+if git merge-base --is-ancestor origin/main origin/dev; then
   echo "✓ dev is already up to date with main — nothing to sync."
   exit 0
 fi

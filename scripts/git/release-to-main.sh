@@ -7,10 +7,14 @@
 # Behavior:
 #   1. Verifies dev is ahead of main (otherwise nothing to release).
 #   2. Opens a PR with title "Release <version>".
-#   3. Squash-merges with --admin (bypasses required reviews; CI must still pass
-#      unless --admin also overrides it, which it does for branch ruleset checks).
+#   3. Squash-merges with --admin (bypasses required reviews; whether CI/status
+#      checks must pass depends on the branch ruleset configuration).
 #   4. Fetches the new main tip and creates an annotated tag <version> on it.
 #   5. Pushes the tag.
+#
+# Recovers from a partial previous run: if the version tag exists locally
+# but not on origin (merge succeeded, tag push failed), pushes the tag and
+# exits. If the tag is on origin already, exits as a no-op.
 #
 # Copyright (c) 2025 – present Axerra LLC. All rights reserved.
 
@@ -22,11 +26,30 @@ if [[ -z "$VERSION" ]]; then
   exit 1
 fi
 
-git fetch origin --quiet
+git fetch origin --quiet --tags
+
+# Recover from a previous partial run before deciding whether to release.
+LOCAL_TAG=$(git tag -l "$VERSION")
+REMOTE_TAG=$(git ls-remote --tags origin "refs/tags/$VERSION" 2>/dev/null | head -n 1)
+
+if [[ -n "$REMOTE_TAG" ]]; then
+  echo "✓ Tag $VERSION already exists on origin — nothing to release."
+  exit 0
+fi
+
+if [[ -n "$LOCAL_TAG" ]]; then
+  echo "Tag $VERSION exists locally but not on origin. Pushing tag…"
+  git push origin "$VERSION"
+  echo "✓ Tag $VERSION pushed."
+  exit 0
+fi
 
 if git diff --quiet origin/main..origin/dev; then
-  echo "✓ main is already up to date with dev — nothing to release."
-  exit 0
+  echo "✗ main and dev are already in sync, but tag $VERSION doesn't exist." >&2
+  echo "  Either a previous run merged but failed to tag (recover with:" >&2
+  echo "    git tag -a $VERSION origin/main -m 'Release $VERSION' && git push origin $VERSION" >&2
+  echo "  ) or there's nothing to release." >&2
+  exit 1
 fi
 
 echo "About to release $VERSION (squash-merge dev → main)."

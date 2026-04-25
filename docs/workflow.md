@@ -92,7 +92,9 @@ bash scripts/git/sync-main-to-dev.sh
 
 The script:
 
-1. Aborts if `dev` is already up to date with `main`.
+1. Aborts if `main` is already an ancestor of `dev` (history check, not tree
+   check — after a squash release, trees match but histories don't, and that
+   gap is exactly what this script exists to bridge).
 2. Opens a PR `main → dev` titled `chore: sync main into dev`.
 3. Merge-commits (not squash) with `--admin`. The merge commit ties the histories
    together — `main`'s commit becomes reachable from `dev`'s tip.
@@ -112,10 +114,18 @@ Squash-merges `dev` into `main` and tags the result.
 
 - **Input:** `<version>` — the tag name (e.g. `v0.2.0`).
 - **Side effects:** opens a PR, merges it, pushes a tag. All on `origin`.
-- **Idempotent?** Yes — exits early if `dev` and `main` are in sync.
-- **Failure modes:** `gh` not authenticated; CI failing on the PR (manual
-  intervention needed — the `--admin` flag overrides reviews but not status
-  check failures, depending on ruleset config).
+- **Skips early when there's nothing to do** — exits as a no-op if the version
+  tag already exists on `origin`. If the tag exists locally but not on `origin`
+  (recovery from a previous run that merged but failed to push the tag), the
+  script pushes the tag and exits.
+- **Failure modes / rerun caveats:**
+  - `gh` not authenticated.
+  - An open PR with the same `dev → main` head/base from a prior run will block
+    `gh pr create` — close or merge that PR before rerunning.
+  - CI failing on the PR — `--admin` bypasses required reviews, but whether it
+    bypasses required status checks depends on the branch ruleset configuration.
+  - If `main` and `dev` are in sync but the tag doesn't exist anywhere, the
+    script exits non-zero and prints recovery instructions rather than guessing.
 
 ### `sync-main-to-dev.sh`
 
@@ -123,7 +133,13 @@ Merge-commits `main` into `dev` after a release.
 
 - **Input:** none.
 - **Side effects:** opens a PR, merges it. All on `origin`.
-- **Idempotent?** Yes — exits early if `dev` is in sync with `main`.
+- **Skips early when there's nothing to do** — uses
+  `git merge-base --is-ancestor origin/main origin/dev` to detect that `main`'s
+  history is already reachable from `dev`. Tree equality alone isn't a reliable
+  signal post-squash.
+- **Failure modes / rerun caveats:** an open PR with the same `main → dev`
+  head/base from a prior run will block `gh pr create` — close or merge that PR
+  before rerunning.
 
 ## Releasing — full sequence
 
