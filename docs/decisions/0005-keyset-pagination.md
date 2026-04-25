@@ -2,7 +2,7 @@
  * @file ADR-0005: Keyset pagination over offset pagination
  * @module docs/decisions
  *
- * Copyright (c) 2025 NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 Axerra LLC. All rights reserved.
  */
 
 # ADR-0005: Keyset Pagination
@@ -20,7 +20,7 @@ List endpoints need pagination. Two primary strategies:
 | Offset/limit (`OFFSET 5000 LIMIT 50`) | Degrades — DB scans skipped rows | Unstable — inserts shift pages | Low |
 | Keyset/cursor (`WHERE id > $cursor`) | Constant — index seek | Stable — cursor is absolute | Medium |
 
-NAP has tables (cost items, vendor SKUs, journal entry lines) that can
+AXERRA has tables (cost items, vendor SKUs, journal entry lines) that can
 grow to hundreds of thousands of rows per tenant. Offset pagination
 becomes progressively slower as users page deeper.
 
@@ -30,21 +30,18 @@ Use **keyset (cursor-based) pagination** for all list endpoints. The
 cursor is an opaque, base64-encoded value derived from the sort column(s)
 plus the row's primary key.
 
-Standard response envelope:
+List endpoints return the result of pg-schemata's `findAfterCursor`,
+which yields a `{ rows, nextCursor }` envelope. The cursor value is
+passed as a query parameter:
+`GET /api/core/v1/employees?cursor=eyJpZCI6Ijk5OSJ9&pageSize=50`
+
+Response shape:
 
 ```json
-{
-  "data": [...],
-  "pagination": {
-    "cursor": "eyJpZCI6Ijk5OSJ9",
-    "hasMore": true,
-    "pageSize": 50
-  }
-}
+{ "rows": [ ... ], "nextCursor": { ... } }
 ```
 
-The `cursor` value is passed as a query parameter on the next request:
-`GET /api/core/v1/employees?cursor=eyJpZCI6Ijk5OSJ9&pageSize=50`
+`nextCursor` is `null` when there are no more pages.
 
 ## Consequences
 

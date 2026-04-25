@@ -2,11 +2,11 @@
 
 **Status:** Accepted
 **Date:** 2025-02-22
-**Deciders:** NapSoft Engineering
+**Deciders:** Axerra Engineering
 
 ## Context
 
-The application has three logical packages — a backend Express server (`nap-serv`), a React + Vite frontend (`nap-client`), and a shared utilities library (`shared`). These packages share configuration (ESLint, Prettier, environment variables) and are always deployed together.
+The application has three logical packages — a backend Express server (`server`), a React + Vite frontend (`client`), and a shared utilities library (`shared`). These packages share configuration (ESLint, Prettier, environment variables) and are always deployed together.
 
 ## Decision
 
@@ -15,10 +15,10 @@ Organise the project as a **monorepo** using **npm workspaces** (built into npm 
 ### Directory Layout
 
 ```
-nap/
+axerra/
 ├── apps/
-│   ├── nap-serv/      # Express 5 backend
-│   └── nap-client/    # React 18 + Vite frontend
+│   ├── server/      # Express 5 backend
+│   └── client/    # React 18 + Vite frontend
 ├── packages/
 │   └── shared/        # Shared constants & utilities
 ├── docs/
@@ -48,7 +48,7 @@ Root `package.json` declares:
 | `npm run dev:serv` | Backend | Backend only with 5-second startup delay |
 | `npm run dev:client` | Frontend | Vite HMR dev server |
 | `npm run lint` | All | ESLint 9 flat config across the monorepo |
-| `npm -w apps/nap-serv test` | Backend | Vitest test suites |
+| `npm -w apps/server test` | Backend | Vitest test suites |
 
 ### Cross-Workspace Dependencies
 
@@ -77,6 +77,6 @@ A single `.env` file lives at the monorepo root. The database module (`db.js`) w
 ## Consequences
 
 - A single `npm install` at the root hoists all dependencies, avoiding version drift between workspaces.
-- Husky pre-commit hooks enforce workspace separation in commits (no mixed `nap-client` + `nap-serv` changes).
+- Husky pre-commit hooks enforce workspace separation in commits (no mixed `client` + `server` changes).
 - CI runs a single checkout and can parallelise workspace-scoped tasks (lint, test, build).
 - The `shared` package is available immediately without a publish step.

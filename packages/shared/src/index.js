@@ -1,8 +1,11 @@
 /**
- * @file Shared utilities and constants for the NAP monorepo
- * @module @nap/shared
+ * @file Shared utilities and constants for the Axerra monorepo
+ * @module @axerra/shared
  *
- * Copyright (c) 2025 NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
-// Shared constants and utilities will be added as the project grows
+export { resolveLevel } from './resolveLevel.js';
+export { TAX_TYPES } from './taxTypes.js';
+export { COUNTRIES } from './countries.js';
+export { formatByPattern, stripFormatting } from './formatByPattern.js';

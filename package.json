@@ -1,5 +1,5 @@
 {
-  "name": "nap",
+  "name": "axerra",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -10,13 +10,24 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev:serv": "npm -w apps/nap-serv run dev",
-    "dev:client": "npm -w apps/nap-client run dev",
+    "dev:serv": "npm -w apps/server run dev",
+    "dev:client": "npm -w apps/client run dev",
     "dev": "npm run dev:serv & npm run dev:client",
-    "build": "npm -w apps/nap-serv run build && npm -w apps/nap-client run build",
+    "build": "npm -w apps/server run build && npm -w apps/client run build",
     "lint": "eslint .",
-    "test": "npm -w apps/nap-serv test",
+    "test": "npm -w apps/server test",
+    "arch": "node scripts/arch/runAll.js",
+    "arch:check": "node scripts/arch/runAll.js --check",
+    "arch:ai": "node scripts/arch/aiInterpret.js",
     "prepare": "husky"
+  },
+  "lint-staged": {
+    "apps/server/**/*.js": [
+      "eslint --fix"
+    ],
+    "apps/client/**/*.{js,jsx}": [
+      "eslint --fix"
+    ]
   },
   "devDependencies": {
     "@eslint/js": "^9.34.0",
@@ -24,6 +35,7 @@
     "eslint-import-resolver-alias": "^1.1.2",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-react": "^7.37.5",
-    "husky": "^9.1.7"
+    "husky": "^9.1.7",
+    "lint-staged": "^16.3.1"
   }
 }

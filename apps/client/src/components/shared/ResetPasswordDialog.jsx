@@ -1,0 +1,160 @@
+/**
+ * @file Admin password reset dialog — generic for any entity type with app user access
+ * @module client/components/shared/ResetPasswordDialog
+ *
+ * Props:
+ *   open          – controls dialog visibility
+ *   onClose       – called on cancel / backdrop click
+ *   onSuccess     – called after successful reset
+ *   onReset       – async (id, password) => void — mutation function for resetting password
+ *   entityId      – UUID of the entity whose app-user password is being reset
+ *   entityName    – display name for the dialog subtitle (e.g., "John Smith")
+ *
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ */
+
+import { useState, useMemo } from 'react';
+import Box from '@mui/material/Box';
+import PrimaryButton from './PrimaryButton.jsx';
+import TertiaryButton from './TertiaryButton.jsx';
+import CircularProgress from '@mui/material/CircularProgress';
+import Dialog from '@mui/material/Dialog';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
+import Alert from '@mui/material/Alert';
+import Typography from '@mui/material/Typography';
+import CheckIcon from '@mui/icons-material/Check';
+import { flexColumnSx } from '../../config/layoutTokens.js';
+import CloseIcon from '@mui/icons-material/Close';
+import PasswordField from './PasswordField.jsx';
+
+/* ── Password strength rules (mirrored from server) ─────────── */
+
+const RULES = [
+  { label: 'At least 8 characters', test: (p) => p.length >= 8 },
+  { label: 'An uppercase letter', test: (p) => /[A-Z]/.test(p) },
+  { label: 'A lowercase letter', test: (p) => /[a-z]/.test(p) },
+  { label: 'A digit', test: (p) => /[0-9]/.test(p) },
+  { label: 'A special character', test: (p) => /[^A-Za-z0-9]/.test(p) },
+];
+
+export default function ResetPasswordDialog({ open, onClose, onSuccess, onReset, entityId, entityName }) {
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState('');
+  const [pending, setPending] = useState(false);
+
+  const ruleResults = useMemo(() => RULES.map((r) => ({ ...r, pass: r.test(password) })), [password]);
+  const allRulesPass = ruleResults.every((r) => r.pass);
+  const passwordsMatch = password && password === confirmPassword;
+  const canSubmit = password && confirmPassword && allRulesPass && passwordsMatch;
+
+  const reset = () => {
+    setPassword('');
+    setConfirmPassword('');
+    setError('');
+    setPending(false);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!canSubmit) return;
+    setError('');
+    setPending(true);
+    try {
+      await onReset(entityId, password);
+      reset();
+      onSuccess?.();
+    } catch (err) {
+      setError(err.payload?.message || err.message || 'Failed to reset password');
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const handleClose = () => {
+    reset();
+    onClose?.();
+  };
+
+  return (
+    <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth disableRestoreFocus>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center' }}>
+        <span>Reset Password</span>
+        <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
+          <TertiaryButton size="small" onClick={handleClose} disabled={pending}>
+            Cancel
+          </TertiaryButton>
+          <PrimaryButton
+            size="small"
+            type="submit"
+            form="reset-password-form"
+            disabled={!canSubmit || pending}
+          >
+            {pending ? <CircularProgress size={16} color="inherit" /> : 'Reset Password'}
+          </PrimaryButton>
+        </Box>
+      </DialogTitle>
+      <DialogContent>
+        {entityName && (
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Set a new password for {entityName}.
+          </Typography>
+        )}
+
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
+
+        <Box
+          component="form"
+          id="reset-password-form"
+          onSubmit={handleSubmit}
+          sx={flexColumnSx}
+        >
+          <PasswordField
+            label="New Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            fullWidth
+            required
+            autoComplete="new-password"
+            size="small"
+          />
+          <PasswordField
+            label="Confirm New Password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            fullWidth
+            required
+            autoComplete="new-password"
+            size="small"
+            error={!!confirmPassword && !passwordsMatch}
+            helperText={confirmPassword && !passwordsMatch ? 'Passwords do not match' : ''}
+          />
+
+          {/* Strength checklist */}
+          <Box sx={{ mt: 0.5 }}>
+            <Typography variant="caption" color="text.secondary" fontWeight={600}>
+              Password requirements
+            </Typography>
+            {ruleResults.map((r) => (
+              <Box key={r.label} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
+                {r.pass ? (
+                  <CheckIcon sx={{ fontSize: 16, color: 'success.main' }} />
+                ) : (
+                  <CloseIcon sx={{ fontSize: 16, color: 'text.disabled' }} />
+                )}
+                <Typography variant="caption" color={r.pass ? 'success.main' : 'text.secondary'}>
+                  {r.label}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+        </Box>
+      </DialogContent>
+    </Dialog>
+  );
+}

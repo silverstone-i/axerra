@@ -2,7 +2,7 @@
  * @file ADR-0002: pg-schemata over Knex / Drizzle
  * @module docs/decisions
  *
- * Copyright (c) 2025 NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 Axerra LLC. All rights reserved.
  */
 
 # ADR-0002: pg-schemata over Knex / Drizzle
@@ -61,4 +61,4 @@ It provides:
 
 - Conventions documented in CLAUDE.md and enforced by code review.
 - Comprehensive migration tests (idempotency, checksums, advisory locks)
-  run in CI against `nap_test`.
+  run in CI against `axerra_test`.

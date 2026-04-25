@@ -65,6 +65,9 @@ cypress/videos/
 **/.env.*.local
 !.env.example
 
+# Claude Code
+.claude/
+
 # OS / Editor
 .DS_Store
 Thumbs.db
@@ -73,7 +76,16 @@ Thumbs.db
 .history/
 *.swp
 
+# Architecture artifacts (generated locally, CI uploads as workflow artifacts)
+docs/architecture/report.json
+docs/architecture/report.md
+docs/architecture/dependency-graph.json
+
 # Temp
 tmp/
 temp/
 *.tgz
+
+# External files for project testing
+excel/*
+

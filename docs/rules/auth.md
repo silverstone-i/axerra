@@ -2,7 +2,7 @@
  * @file Authentication business rules
  * @module docs/rules
  *
- * Copyright (c) 2025 NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 Axerra LLC. All rights reserved.
  */
 
 # Authentication Rules
@@ -11,19 +11,19 @@
 
 ### Access Token (JWT)
 
-- **Storage:** httpOnly, Secure, SameSite=Strict cookie named `auth_token`
+- **Storage:** httpOnly, Secure, SameSite=Lax cookie named `auth_token`
 - **TTL:** 15 minutes
 - **Claims:**
-  - `sub` — nap_user UUID (primary key of `admin.nap_users`)
+  - `sub` — portal_user UUID (primary key of `admin.portal_users`)
   - `ph` — SHA-256 hex hash of the user's permission canon (null in
     Phase 2; populated once RBAC is active)
-  - `iss` — `nap-serv`
-  - `aud` — `nap-serv-api`
+  - `iss` — `axerra-serv`
+  - `aud` — `axerra-serv-api`
 - **Secret:** `ACCESS_TOKEN_SECRET` env var (minimum 32 characters)
 
 ### Refresh Token (JWT)
 
-- **Storage:** httpOnly, Secure, SameSite=Strict cookie named
+- **Storage:** httpOnly, Secure, SameSite=Lax cookie named
   `refresh_token`
 - **TTL:** 7 days
 - **Claims:** `sub` only (no permission hash)
@@ -36,7 +36,7 @@
 |---|---|
 | `httpOnly` | `true` |
 | `secure` | `true` in production, `false` in development |
-| `sameSite` | `strict` |
+| `sameSite` | `Lax` (configurable via `COOKIE_SAMESITE` env var) |
 | `path` | `/` for access token, `/api/auth` for refresh token |
 | `maxAge` | 15 min (access), 7 days (refresh) |
 
@@ -53,15 +53,15 @@
 
 ### Login (`POST /api/auth/login`)
 
-1. Validate email exists in `admin.nap_users`
-2. Check user status is `active` (not `locked` or `deactivated`)
+1. Validate email exists in `admin.portal_users`
+2. Check user status is `active` or `invited` (not `locked`)
 3. Check associated tenant status is `active`
 4. Verify password against bcrypt hash
 5. Sign access + refresh tokens
 6. Set httpOnly cookies
 7. Return `{ message, forcePasswordChange }` — `forcePasswordChange` is
-   `true` when the user's `force_password_change` flag is set (invited
-   users on first login)
+   `true` when `user.status === 'invited'` (derived, not a DB column).
+   Invited users are prompted to change their password on first login
 
 ### Token Refresh (`POST /api/auth/refresh`)
 
@@ -94,7 +94,7 @@
 2. Validate new password meets strength requirements
 3. Hash new password with bcrypt
 4. Update `password_hash` directly (raw SQL to avoid ColumnSet reset)
-5. Clear `force_password_change` flag if set
+5. If user status is `invited`, transition to `active`
 
 ## Middleware (`authRedis`)
 
@@ -104,12 +104,12 @@
    `/auth/logout`, `/health`)
 2. Extract `auth_token` from cookies
 3. Verify JWT signature and expiration
-4. Look up user from `admin.nap_users` by `sub` claim
+4. Look up user from `admin.portal_users` by `sub` claim
 5. Verify user status is `active`
 6. Look up tenant from `admin.tenants` by `user.tenant_id`
 7. Populate `req.user` with user fields + `tenant_code`
 8. If `x-tenant-code` header present (cross-tenant access), resolve
-   target tenant for NapSoft users
+   target tenant for Axerra users
 
 ### Phase 2 Simplifications (expanded in Phase 3)
 
@@ -119,25 +119,25 @@
 - No impersonation session resolution
 - Permission hash (`ph`) is null in all tokens
 
-## nap_users Table Design (PRD §3.2.2)
+## portal_users Table Design (PRD §3.2.2)
 
-The `admin.nap_users` table is a pure identity/login table:
+The `admin.portal_users` table is a pure identity/login table:
 
 | Column | Type | Purpose |
 |---|---|---|
 | `id` | uuid | Primary key |
 | `tenant_id` | uuid | FK to `admin.tenants` |
-| `entity_type` | varchar(16) | Polymorphic link type (employee, vendor, client, contact) |
+| `entity_type` | varchar(16) | Polymorphic link type (employee, vendor_contact, client) |
 | `entity_id` | uuid | Polymorphic link to entity record in tenant schema |
 | `email` | varchar(128) | Login identifier (unique) |
 | `password_hash` | text | bcrypt hash |
-| `status` | varchar(20) | active, locked, deactivated |
+| `status` | varchar(20) | `active`, `invited`, `locked` (CHECK constraint) |
 
 **Deliberately excluded** (per PRD): `tenant_code`, `user_name`,
 `full_name`, `tax_id`, `notes`, `role`, `tenant_role`, `employee_id`.
 
 - User profile data lives on the linked entity record
-- Roles are stored as `text[]` on entity records, not on nap_users
+- Roles are stored as `text[]` on entity records, not on portal_users
 - `entity_type` and `entity_id` are null for the bootstrap super user
   (entity tables don't exist until Phase 5)
 
@@ -149,6 +149,6 @@ The `admin.nap_users` table is a pure identity/login table:
 | `REFRESH_TOKEN_SECRET` | Yes | — | JWT signing secret for refresh tokens |
 | `ROOT_EMAIL` | Yes | — | Bootstrap super user email |
 | `ROOT_PASSWORD` | Yes | — | Bootstrap super user password |
-| `ROOT_TENANT_CODE` | No | `NAP` | Bootstrap tenant code |
-| `ROOT_COMPANY` | No | `NapSoft LLC` | Bootstrap tenant company name |
+| `ROOT_TENANT_CODE` | No | `AXERRA` | Bootstrap tenant code |
+| `ROOT_COMPANY` | No | `Axerra LLC` | Bootstrap tenant company name |
 | `BCRYPT_ROUNDS` | No | `12` | bcrypt cost factor (4 in test) |

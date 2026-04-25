@@ -2,7 +2,7 @@
  * @file ADR-0003: JWT in httpOnly cookies
  * @module docs/decisions
  *
- * Copyright (c) 2025 NapSoft LLC. All rights reserved.
+ * Copyright (c) 2025 Axerra LLC. All rights reserved.
  */
 
 # ADR-0003: JWT in httpOnly Cookies
@@ -24,7 +24,7 @@ storage strategies:
 
 ## Decision
 
-Use **JWT access tokens stored in httpOnly, Secure, SameSite=Strict
+Use **JWT access tokens stored in httpOnly, Secure, SameSite=Lax
 cookies**. A separate refresh token (longer-lived, also httpOnly) enables
 silent renewal.
 
@@ -32,13 +32,13 @@ Token design is intentionally minimal:
 
 ```json
 {
-  "sub": "<nap_user uuid>",
+  "sub": "<portal_user uuid>",
   "ph": "<SHA-256 of permission canon>"
 }
 ```
 
 - `sub` identifies the user. All other user data (email, tenant, entity,
-  roles) is hydrated server-side from `nap_users` + Redis permission cache.
+  roles) is hydrated server-side from `portal_users` + Redis permission cache.
 - `ph` (permission hash) enables stale-token detection: if the cached
   permission canon's hash diverges from the JWT claim, the server sends
   `X-Token-Stale: 1` so the client can silently refresh.
@@ -48,7 +48,7 @@ Token design is intentionally minimal:
 ### Positive
 
 - httpOnly prevents JavaScript access — XSS cannot exfiltrate tokens.
-- SameSite=Strict mitigates CSRF for same-origin requests.
+- SameSite=Lax mitigates CSRF while allowing top-level navigations (e.g., OAuth redirects).
 - Minimal JWT payload keeps tokens small and avoids stale claims (no roles,
   email, or tenant code in the token).
 - Permission hash enables efficient staleness detection without decoding
