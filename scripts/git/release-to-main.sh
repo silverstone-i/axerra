@@ -38,7 +38,20 @@ if [[ -n "$REMOTE_TAG" ]]; then
 fi
 
 if [[ -n "$LOCAL_TAG" ]]; then
-  echo "Tag $VERSION exists locally but not on origin. Pushing tag…"
+  # Verify the local tag points at origin/main before publishing it.
+  # A stray local tag (manually created, or from a different release attempt)
+  # should not be pushed without explicit human review.
+  TAG_COMMIT=$(git rev-parse "$VERSION^{commit}")
+  MAIN_TIP=$(git rev-parse origin/main)
+  if [[ "$TAG_COMMIT" != "$MAIN_TIP" ]]; then
+    echo "✗ Local tag $VERSION points at $TAG_COMMIT," >&2
+    echo "  but origin/main is at $MAIN_TIP." >&2
+    echo "  Refusing to push a tag that doesn't match the expected release tip." >&2
+    echo "  Investigate manually (e.g. \`git log $VERSION\`, \`git log origin/main\`)" >&2
+    echo "  and either delete the local tag or move it before retrying." >&2
+    exit 1
+  fi
+  echo "Tag $VERSION exists locally and matches origin/main. Pushing tag…"
   git push origin "$VERSION"
   echo "✓ Tag $VERSION pushed."
   exit 0
