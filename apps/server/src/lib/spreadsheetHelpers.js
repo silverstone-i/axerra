@@ -580,6 +580,14 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
   // Columns to strip from every row before DB operations
   const stripCols = ['status', 'deactivated_at', 'password', ...(config.extraImportStrip || [])];
 
+  // Hoisted so the post-child-sheet app-user provisioning step can read them
+  const tbl = pgp.as.name(config.entityName);
+  let cleanInserts = [];
+  let insertResults = [];
+  let sourceByParentId = new Map();
+  let tid;
+  let createdBy = null;
+
   try {
     await db.tx(async (t) => {
       model.tx = t;
@@ -588,7 +596,7 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
       const uuidIds = parentRows.filter((r) => isUuid(r.id)).map((r) => r.id);
       const existingSet = new Set();
       if (uuidIds.length) {
-        const existing = await t.any(`SELECT id, source_id FROM ${s}.${pgp.as.name(config.entityName)} WHERE id IN ($1:csv)`, [uuidIds]);
+        const existing = await t.any(`SELECT id, source_id FROM ${s}.${tbl} WHERE id IN ($1:csv)`, [uuidIds]);
         for (const row of existing) {
           existingSet.add(row.id);
           refToSourceId.set(row.id, row.source_id);
@@ -625,22 +633,19 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
         const { id, tenant_code: _tc, _archive, ...changes } = row;
         await model.updateWhere([{ id }], changes, { includeDeactivated: true });
         if (_archive) {
-          await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET deactivated_at = NOW() WHERE id = $1 AND deactivated_at IS NULL`, [
-            id,
-          ]);
+          await t.none(`UPDATE ${s}.${tbl} SET deactivated_at = NOW() WHERE id = $1 AND deactivated_at IS NULL`, [id]);
         } else {
-          await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET deactivated_at = NULL WHERE id = $1 AND deactivated_at IS NOT NULL`, [
-            id,
-          ]);
+          await t.none(`UPDATE ${s}.${tbl} SET deactivated_at = NULL WHERE id = $1 AND deactivated_at IS NOT NULL`, [id]);
         }
         updatedCount++;
       }
 
       // ── 3. Run inserts + create sources ───────────────────────────────
       if (toInsert.length) {
-        // Strip internal flags; disable is_app_user if provisioning enabled but missing password/email
-        const cleanInserts = toInsert.map(({ _ref, _archive, _password, tenant_code: _tc, ...rest }) => {
-          if (config.appUserProvisioning && rest.is_app_user && (!_password || !rest.email)) {
+        // Strip internal flags; disable is_app_user if provisioning enabled but no password supplied.
+        // Email is sourced from the Emails child sheet after child rows are inserted (step 5).
+        cleanInserts = toInsert.map(({ _ref, _archive, _password, tenant_code: _tc, ...rest }) => {
+          if (config.appUserProvisioning && rest.is_app_user && !_password) {
             appUserSkipped++;
             return { ...rest, is_app_user: false };
           }
@@ -651,7 +656,7 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
         if (!config.codeRequired) {
           const insertCodes = cleanInserts.map((r) => r.code).filter(Boolean);
           if (insertCodes.length) {
-            const existingCodes = await t.any(`SELECT code FROM ${s}.${pgp.as.name(config.entityName)} WHERE code IN ($1:csv)`, [insertCodes]);
+            const existingCodes = await t.any(`SELECT code FROM ${s}.${tbl} WHERE code IN ($1:csv)`, [insertCodes]);
             const takenCodes = new Set(existingCodes.map((r) => r.code));
             for (const row of cleanInserts) {
               if (row.code && takenCodes.has(row.code)) row.code = null;
@@ -659,15 +664,15 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
           }
         }
 
-        const insertResults = await model.bulkInsert(cleanInserts, config.returningCols);
+        insertResults = await model.bulkInsert(cleanInserts, config.returningCols);
         insertedCount = insertResults.length;
 
         // Create sources records
         const sourcesModel = db('sources', schema);
         sourcesModel.tx = t;
 
-        const tid = cleanInserts[0]?.tenant_id;
-        const createdBy = cleanInserts[0]?.created_by || null;
+        tid = cleanInserts[0]?.tenant_id;
+        createdBy = cleanInserts[0]?.created_by || null;
 
         const sourceRecords = insertResults.map((rec) => ({
           tenant_id: tid,
@@ -680,8 +685,7 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
         const sourceResults = await sourcesModel.bulkInsert(sourceRecords, ['id', 'table_id']);
 
         // Link source_id back to parent and build ref map
-        const sourceByParentId = new Map(sourceResults.map((sr) => [sr.table_id, sr.id]));
-        const tbl = pgp.as.name(config.entityName);
+        sourceByParentId = new Map(sourceResults.map((sr) => [sr.table_id, sr.id]));
 
         // ── Batch: link source_id ────────────────────────────────────
         const sourceLinks = insertResults.map((rec) => ({ id: rec.id, source_id: sourceByParentId.get(rec.id) })).filter((r) => r.source_id);
@@ -723,35 +727,6 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
         if (archiveIds.length) {
           await t.none(`UPDATE ${s}.${tbl} SET deactivated_at = NOW() WHERE id IN ($1:csv)`, [archiveIds]);
         }
-
-        // ── Provision app users (bcrypt hashed in parallel, DB inserts sequential) ─
-        if (config.appUserProvisioning) {
-          const appUserEntries = [];
-          for (let i = 0; i < insertResults.length; i++) {
-            if (cleanInserts[i].is_app_user && cleanInserts[i].email && toInsert[i]._password) {
-              appUserEntries.push({ index: i, password: toInsert[i]._password });
-            }
-          }
-          if (appUserEntries.length) {
-            const hashMap = await batchHashPasswords(appUserEntries);
-            for (const { index } of appUserEntries) {
-              const created = await provisionAppUser(
-                insertResults[index].id,
-                cleanInserts[index].email,
-                toInsert[index]._password,
-                tid,
-                createdBy,
-                config.appUserProvisioning.entityType,
-                t,
-                hashMap.get(index),
-              );
-              if (!created) {
-                await t.none(`UPDATE ${s}.${tbl} SET is_app_user = false WHERE id = $1`, [insertResults[index].id]);
-                appUserSkipped++;
-              }
-            }
-          }
-        }
       }
 
       // ── 4. Import child sheets ────────────────────────────────────────
@@ -773,6 +748,50 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
           if (config.childSheets[ci].modelName === 'phoneNumbers') phonesCount = count;
           else if (config.childSheets[ci].modelName === 'addresses') addressesCount = count;
           else if (config.childSheets[ci].modelName === 'taxIdentifiers') taxIdsCount = count;
+        }
+      }
+
+      // ── 5. Provision app users — emails are now in the DB from step 4 ─
+      if (toInsert.length && config.appUserProvisioning) {
+        const appUserEntries = [];
+        for (let i = 0; i < insertResults.length; i++) {
+          if (cleanInserts[i].is_app_user && toInsert[i]._password) {
+            appUserEntries.push({ index: i, password: toInsert[i]._password });
+          }
+        }
+        if (appUserEntries.length) {
+          const hashMap = await batchHashPasswords(appUserEntries);
+          for (const { index } of appUserEntries) {
+            const recId = insertResults[index].id;
+            const sourceId = sourceByParentId.get(recId);
+            const loginEmail = sourceId
+              ? await t.oneOrNone(
+                  `SELECT email FROM ${s}.emails
+                   WHERE source_id = $1 AND deactivated_at IS NULL
+                   ORDER BY is_login DESC, is_primary DESC, created_at LIMIT 1`,
+                  [sourceId],
+                )
+              : null;
+            if (!loginEmail) {
+              await t.none(`UPDATE ${s}.${tbl} SET is_app_user = false WHERE id = $1`, [recId]);
+              appUserSkipped++;
+              continue;
+            }
+            const created = await provisionAppUser(
+              recId,
+              loginEmail.email,
+              toInsert[index]._password,
+              tid,
+              createdBy,
+              config.appUserProvisioning.entityType,
+              t,
+              hashMap.get(index),
+            );
+            if (!created) {
+              await t.none(`UPDATE ${s}.${tbl} SET is_app_user = false WHERE id = $1`, [recId]);
+              appUserSkipped++;
+            }
+          }
         }
       }
     });
