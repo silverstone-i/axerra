@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Run server test suites, push the current branch, then open a PR.
+# Canonical pre-PR gate — the pre-push hook stays light so intermediate
+# pushes don't re-run the full suite.
+set -euo pipefail
+
+branch=$(git rev-parse --abbrev-ref HEAD)
+if [[ "$branch" == "main" ]]; then
+  echo "Refusing to open a PR from main." >&2
+  exit 1
+fi
+
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "Working tree has uncommitted changes — commit or stash before opening a PR." >&2
+  exit 1
+fi
+
+echo "Running server test suite..."
+npm -w apps/server run test:unit
+npm -w apps/server run test:contract
+npm -w apps/server run test:rbac
+npm -w apps/server run test:integration
+
+echo "All tests passed — pushing $branch..."
+git push -u origin "$branch"
+
+echo "Opening PR..."
+gh pr create "$@"

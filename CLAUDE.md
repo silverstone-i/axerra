@@ -8,7 +8,7 @@
   - Feature branches push directly to origin with no protection.
   - Merging into `main` requires a PR with passing Lint, Architecture Check,
     and Copilot review.
-  - Local `.husky/pre-push` runs the full server suite as the pre-PR gate.
+  - `npm run pr` is the pre-PR gate: runs the full server suite, pushes the branch, then opens a PR via `gh pr create` (pass-through args supported). There is no pre-push hook — intermediate pushes don't run tests locally.
   - Releases: bump version on a feature branch, open PR, merge, then
     `git checkout main && git pull --ff-only origin main && git tag -a v<X.Y.Z> -m "Release v<X.Y.Z>" && git push origin v<X.Y.Z>`.
 
