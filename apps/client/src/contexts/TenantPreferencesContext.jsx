@@ -23,7 +23,8 @@ export function TenantPreferencesProvider({ children }) {
     const row = data?.rows?.[0];
     if (!row) return DEFAULTS;
     return {
-      defaultPageSize: row.default_page_size ?? 25,
+      // Clamp at 100 — MUI X DataGrid (MIT) rejects pageSize > 100.
+      defaultPageSize: Math.min(row.default_page_size ?? 25, 100),
     };
   }, [data]);
 

@@ -24,7 +24,8 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import RowActionsMenu from './RowActionsMenu.jsx';
 import { useTenantPrefs } from '../../contexts/TenantPreferencesContext.jsx';
 
-export const PAGE_SIZE_OPTIONS = [25, 50, 100, 200, 500, 1000];
+// MUI X DataGrid (MIT) caps pageSize at 100; values above require DataGridPro/Premium.
+export const PAGE_SIZE_OPTIONS = [25, 50, 100];
 export const REPORT_PAGE_SIZE_OPTIONS = [25, 50, 100];
 
 /**
