@@ -4,7 +4,13 @@
 
 - **Never add `Co-Authored-By` lines** to commit messages — suppress the default trailer entirely
 - Husky pre-commit rejects mixed commits touching both `apps/client/` and `apps/server/` — split into separate commits
-- Working branch: `dev`; PRs target `dev` (PRs to `main` only for releases)
+- Working branch: `main`.
+  - Feature branches push directly to origin with no protection.
+  - Merging into `main` requires a PR with passing Lint, Architecture Check,
+    and Copilot review.
+  - Local `.husky/pre-push` runs the full server suite as the pre-PR gate.
+  - Releases: bump version on a feature branch, open PR, merge, then
+    `git checkout main && git pull --ff-only origin main && git tag -a v<X.Y.Z> -m "Release v<X.Y.Z>" && git push origin v<X.Y.Z>`.
 
 ## Project Overview
 
