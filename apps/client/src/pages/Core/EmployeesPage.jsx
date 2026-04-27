@@ -261,7 +261,7 @@ export default function EmployeesPage() {
     if (viewFilter === 'active' || viewFilter === 'all') {
       primary.push({
         label: selectedRows.length > 1 ? `Archive (${selectedRows.length})` : 'Archive',
-        variant: 'outlined', color: 'error',
+        variant: 'outlined',
         disabled: selectedRows.length === 0 || !allActive,
         onClick: () => setArchiveOpen(true),
       });
@@ -269,7 +269,7 @@ export default function EmployeesPage() {
     if (viewFilter === 'archived' || viewFilter === 'all') {
       primary.push({
         label: selectedRows.length > 1 ? `Restore (${selectedRows.length})` : 'Restore',
-        variant: 'outlined', color: 'success',
+        variant: 'outlined',
         disabled: selectedRows.length === 0 || !allArchived,
         onClick: () => setRestoreOpen(true),
       });
@@ -279,7 +279,7 @@ export default function EmployeesPage() {
     if (canImport) primary.push({ label: 'Import', variant: 'outlined', onClick: () => importDialog.open() });
 
     primary.push({
-      label: 'Create Employee', variant: 'contained', color: 'primary',
+      label: 'Create Employee', variant: 'contained',
       onClick: () => { resetCreateForm(); createDialog.open(); },
     });
 

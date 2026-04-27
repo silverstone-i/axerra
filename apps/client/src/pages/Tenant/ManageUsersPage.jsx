@@ -30,6 +30,7 @@ import ToastSnackbar from '../../components/shared/ToastSnackbar.jsx';
 import FieldRow from '../../components/shared/FieldRow.jsx';
 import FormDialog from '../../components/shared/FormDialog.jsx';
 import PasswordField from '../../components/shared/PasswordField.jsx';
+import StatusBadge from '../../components/shared/StatusBadge.jsx';
 import { useModuleToolbarRegistration } from '../../contexts/ModuleActionsContext.jsx';
 import { useUsers, useUpdateUser } from '../../hooks/useUsers.js';
 import { pageContainerSx, dialogHeaderSx, dialogActionBoxSx, detailGridSx, flexColumnSx } from '../../config/layoutTokens.js';

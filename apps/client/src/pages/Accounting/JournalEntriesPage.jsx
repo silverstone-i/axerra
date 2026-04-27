@@ -187,7 +187,6 @@ export default function JournalEntriesPage() {
       primary.push({
         label: selectedRows.length > 1 ? `Archive (${selectedRows.length})` : 'Archive',
         variant: 'outlined',
-        color: 'error',
         disabled: selectedRows.length === 0 || !allActive,
         onClick: () => setArchiveOpen(true),
       });
@@ -196,7 +195,6 @@ export default function JournalEntriesPage() {
       primary.push({
         label: selectedRows.length > 1 ? `Restore (${selectedRows.length})` : 'Restore',
         variant: 'outlined',
-        color: 'success',
         disabled: selectedRows.length === 0 || !allArchived,
         onClick: () => setRestoreOpen(true),
       });
@@ -212,14 +210,12 @@ export default function JournalEntriesPage() {
     primary.push({
       label: 'Post',
       variant: 'outlined',
-      color: 'success',
       disabled: !selection.isSingle || selection.selected?.status !== 'pending',
       onClick: handlePost,
     });
     primary.push({
       label: 'Reverse',
       variant: 'outlined',
-      color: 'warning',
       disabled: !selection.isSingle || selection.selected?.status !== 'posted',
       onClick: handleReverse,
     });
@@ -227,7 +223,6 @@ export default function JournalEntriesPage() {
     primary.push({
       label: 'Create Entry',
       variant: 'contained',
-      color: 'primary',
       onClick: () => { resetCreateForm(); createDialog.open(); },
     });
 

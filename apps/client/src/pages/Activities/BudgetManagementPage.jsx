@@ -213,7 +213,6 @@ export default function BudgetManagementPage() {
       primary.push({
         label: selectedRows.length > 1 ? `Archive (${selectedRows.length})` : 'Archive',
         variant: 'outlined',
-        color: 'error',
         disabled: selectedRows.length === 0 || !allActive,
         onClick: () => setArchiveOpen(true),
       });
@@ -236,7 +235,6 @@ export default function BudgetManagementPage() {
     primary.push({
       label: 'Create Budget',
       variant: 'contained',
-      color: 'primary',
       onClick: () => { resetCreateForm(); createDialog.open(); },
     });
 

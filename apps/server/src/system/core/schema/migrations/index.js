@@ -11,4 +11,5 @@ import numberingSystem from './202502250012_numberingSystem.js';
 import importExportCatalog from './202603150013_importExportCatalog.js';
 import tenantPreferences from './202603270015_tenantPreferences.js';
 import reseedPolicyCatalog from './202603270016_reseedPolicyCatalog.js';
-export default [coreRbac, coreEntities, numberingSystem, importExportCatalog, tenantPreferences, reseedPolicyCatalog];
+import orphanSourceCleanup from './202604270017_orphanSourceCleanup.js';
+export default [coreRbac, coreEntities, numberingSystem, importExportCatalog, tenantPreferences, reseedPolicyCatalog, orphanSourceCleanup];

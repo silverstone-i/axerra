@@ -29,7 +29,6 @@ import {
 
 /** @type {import('../../../lib/spreadsheetHelpers.js').SourceEntityConfig} */
 const CONFIG = {
-  entityName: 'employees',
   sheetName: 'Employees',
   sourceType: 'employee',
   linkColName: 'employee_id',

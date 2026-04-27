@@ -19,6 +19,7 @@
     "arch": "node scripts/arch/runAll.js",
     "arch:check": "node scripts/arch/runAll.js --check",
     "arch:ai": "node scripts/arch/aiInterpret.js",
+    "pr": "bash scripts/pr.sh",
     "prepare": "husky"
   },
   "lint-staged": {

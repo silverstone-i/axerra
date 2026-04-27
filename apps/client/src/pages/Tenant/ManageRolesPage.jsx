@@ -163,7 +163,6 @@ export default function ManageRolesPage() {
         {
           label: 'Create Role',
           variant: 'contained',
-          color: 'primary',
           onClick: () => {
             resetCreateForm();
             createDialog.open();

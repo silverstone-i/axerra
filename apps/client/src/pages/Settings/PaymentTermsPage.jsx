@@ -177,7 +177,6 @@ export default function PaymentTermsPage() {
       primary.push({
         label: selectedRows.length > 1 ? `Archive (${selectedRows.length})` : 'Archive',
         variant: 'outlined',
-        color: 'error',
         disabled: selectedRows.length === 0 || !allActive,
         onClick: () => setArchiveOpen(true),
       });
@@ -186,7 +185,6 @@ export default function PaymentTermsPage() {
       primary.push({
         label: selectedRows.length > 1 ? `Restore (${selectedRows.length})` : 'Restore',
         variant: 'outlined',
-        color: 'success',
         disabled: selectedRows.length === 0 || !allArchived,
         onClick: () => setRestoreOpen(true),
       });
@@ -195,21 +193,18 @@ export default function PaymentTermsPage() {
     primary.push({
       label: 'Export',
       variant: 'outlined',
-      color: 'primary',
       disabled: exportMut.isPending,
       onClick: handleExport,
     });
     primary.push({
       label: 'Import',
       variant: 'outlined',
-      color: 'primary',
       disabled: importMut.isPending,
       onClick: () => { setImportErrors(null); importDialog.open(); },
     });
     primary.push({
       label: 'Create Payment Term',
       variant: 'contained',
-      color: 'primary',
       onClick: () => { resetCreateForm(); createDialog.open(); },
     });
 
