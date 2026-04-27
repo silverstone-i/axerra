@@ -122,7 +122,6 @@ export function buildBulkActions({ selectedRows, hasSelection, allActive, allArc
     actions.push({
       label: selectedRows.length > 1 ? `Archive (${selectedRows.length})` : 'Archive',
       variant: 'outlined',
-      color: 'error',
       disabled: !hasSelection || !allActive || !!archiveDisabled,
       onClick: onArchive,
     });
@@ -131,7 +130,6 @@ export function buildBulkActions({ selectedRows, hasSelection, allActive, allArc
     actions.push({
       label: selectedRows.length > 1 ? `Restore (${selectedRows.length})` : 'Restore',
       variant: 'outlined',
-      color: 'success',
       disabled: !hasSelection || !allArchived || !!restoreDisabled,
       onClick: onRestore,
     });

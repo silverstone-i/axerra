@@ -146,7 +146,7 @@ export default function VendorSkuMatchingPage() {
       primaryActions: [
         { label: 'Find Matches', variant: 'contained', disabled: !selection.isSingle || matchMut.isPending, onClick: handleFindMatches },
         { label: 'Auto Match', variant: 'outlined', disabled: !selection.isSingle || autoMatchMut.isPending, onClick: handleAutoMatch },
-        { label: 'Batch Match All', variant: 'outlined', color: 'secondary', disabled: batchMatchMut.isPending || unmatchedRows.length === 0, onClick: handleBatchMatch },
+        { label: 'Batch Match All', variant: 'outlined', disabled: batchMatchMut.isPending || unmatchedRows.length === 0, onClick: handleBatchMatch },
         { label: 'Refresh Embeddings', variant: 'outlined', disabled: refreshMut.isPending, onClick: handleRefreshEmbeddings },
       ],
     }),

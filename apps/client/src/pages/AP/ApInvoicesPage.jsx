@@ -154,7 +154,6 @@ export default function ApInvoicesPage() {
       primary.push({
         label: selectedRows.length > 1 ? `Archive (${selectedRows.length})` : 'Archive',
         variant: 'outlined',
-        color: 'error',
         disabled: selectedRows.length === 0 || !allActive,
         onClick: () => setArchiveOpen(true),
       });
@@ -163,7 +162,6 @@ export default function ApInvoicesPage() {
       primary.push({
         label: selectedRows.length > 1 ? `Restore (${selectedRows.length})` : 'Restore',
         variant: 'outlined',
-        color: 'success',
         disabled: selectedRows.length === 0 || !allArchived,
         onClick: () => setRestoreOpen(true),
       });
@@ -179,7 +177,6 @@ export default function ApInvoicesPage() {
     primary.push({
       label: 'Create Invoice',
       variant: 'contained',
-      color: 'primary',
       onClick: () => { resetCreateForm(); createDialog.open(); },
     });
 

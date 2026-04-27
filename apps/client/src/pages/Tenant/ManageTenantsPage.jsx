@@ -288,7 +288,6 @@ export default function ManageTenantsPage() {
       primary.push({
         label: selectedRows.length > 1 ? `Archive (${selectedRows.length})` : 'Archive',
         variant: 'outlined',
-        color: 'error',
         disabled: selectedRows.length === 0 || !allActive || selection.hasRootSelected,
         onClick: () => setArchiveOpen(true),
       });
@@ -297,7 +296,6 @@ export default function ManageTenantsPage() {
       primary.push({
         label: selectedRows.length > 1 ? `Restore (${selectedRows.length})` : 'Restore',
         variant: 'outlined',
-        color: 'success',
         disabled: selectedRows.length === 0 || !allArchived || selection.hasRootSelected,
         onClick: () => setRestoreOpen(true),
       });
@@ -306,7 +304,6 @@ export default function ManageTenantsPage() {
     primary.push({
       label: 'Create Tenant',
       variant: 'contained',
-      color: 'primary',
       onClick: () => createDialog.open(),
     });
 

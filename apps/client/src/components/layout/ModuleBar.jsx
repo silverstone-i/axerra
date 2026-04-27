@@ -5,6 +5,10 @@
  * Dimensions and styling driven by layoutTokens.
  * Left zone: module name + breadcrumb trail. Right zone: tabs, filters, primary actions.
  *
+ * primaryActions contract (ADR-0024): each item is `{ label, variant, disabled, onClick, icon }`.
+ * No `color` — branded button wrappers (PrimaryButton/SecondaryButton/TertiaryButton) own
+ * their styling per BRAND.md; destructive primaries use navy + a clear label.
+ *
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
@@ -186,7 +190,6 @@ export default function ModuleBar() {
             <ButtonComponent
               key={action.label}
               size="small"
-              color={action.color || 'primary'}
               disabled={!!action.disabled}
               onClick={action.onClick}
               startIcon={action.icon || null}
