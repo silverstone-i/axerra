@@ -481,7 +481,6 @@ export function parseDbImportError(err) {
 
 /**
  * @typedef {Object} SourceEntityConfig
- * @property {string}   entityName      DB table name (e.g. 'employees')
  * @property {string}   sheetName       Main sheet tab label (e.g. 'Employees')
  * @property {string}   sourceType      sources.source_type value (e.g. 'employee')
  * @property {string}   linkColName     Child sheet linkage column (e.g. 'employee_id')
@@ -628,8 +627,10 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
   // Columns to strip from every row before DB operations
   const stripCols = ['status', 'deactivated_at', 'password', ...(config.extraImportStrip || [])];
 
-  // Hoisted so the post-child-sheet app-user provisioning step can read them
-  const tbl = pgp.as.name(config.entityName);
+  // Hoisted so the post-child-sheet app-user provisioning step can read them.
+  // Derive the SQL identifier from the schema, not config — keeps the raw-SQL
+  // path in sync with whatever pg-schemata calls the table.
+  const tbl = pgp.as.name(model._schema.table);
   let cleanInserts = [];
   let insertResults = [];
   let sourceByParentId = new Map();
@@ -1165,6 +1166,7 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
   const { db, pgp } = await getDb();
   const schema = model._schema.dbSchema;
   const s = pgp.as.name(schema);
+  const tbl = pgp.as.name(model._schema.table);
 
   // Resolve tenant_id
   let tenantId;
@@ -1302,7 +1304,7 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
       const uuidIds = groups.filter((g) => isUuid(g.parent.id)).map((g) => g.parent.id);
       const existingEntities = new Map();
       if (uuidIds.length) {
-        const existing = await t.any(`SELECT id, source_id FROM ${s}.${pgp.as.name(config.entityName)} WHERE id IN ($1:csv)`, [uuidIds]);
+        const existing = await t.any(`SELECT id, source_id FROM ${s}.${tbl} WHERE id IN ($1:csv)`, [uuidIds]);
         for (const row of existing) existingEntities.set(row.id, row.source_id);
       }
 
@@ -1337,11 +1339,11 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
         const { id, ...changes } = transformed;
         await model.updateWhere([{ id }], changes, { includeDeactivated: true });
         if (isArchived) {
-          await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET deactivated_at = NOW() WHERE id = $1 AND deactivated_at IS NULL`, [
+          await t.none(`UPDATE ${s}.${tbl} SET deactivated_at = NOW() WHERE id = $1 AND deactivated_at IS NULL`, [
             id,
           ]);
         } else {
-          await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET deactivated_at = NULL WHERE id = $1 AND deactivated_at IS NOT NULL`, [
+          await t.none(`UPDATE ${s}.${tbl} SET deactivated_at = NULL WHERE id = $1 AND deactivated_at IS NOT NULL`, [
             id,
           ]);
         }
@@ -1366,7 +1368,7 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
         if (!config.codeRequired) {
           const insertCodes = cleanInserts.map((r) => r.code).filter(Boolean);
           if (insertCodes.length) {
-            const existingCodes = await t.any(`SELECT code FROM ${s}.${pgp.as.name(config.entityName)} WHERE code IN ($1:csv)`, [insertCodes]);
+            const existingCodes = await t.any(`SELECT code FROM ${s}.${tbl} WHERE code IN ($1:csv)`, [insertCodes]);
             const takenCodes = new Set(existingCodes.map((r) => r.code));
             for (const row of cleanInserts) {
               if (row.code && takenCodes.has(row.code)) row.code = null;
@@ -1397,17 +1399,17 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
           const rec = insertResults[i];
           const sourceId = sourceByParentId.get(rec.id);
           if (sourceId) {
-            await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET source_id = $1 WHERE id = $2`, [sourceId, rec.id]);
+            await t.none(`UPDATE ${s}.${tbl} SET source_id = $1 WHERE id = $2`, [sourceId, rec.id]);
           }
           if (!cleanInserts[i].code && config.idType) {
             const numbering = await allocateNumber(schema, config.idType, null, new Date(), t);
             if (numbering) {
-              await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET code = $1 WHERE id = $2`, [numbering.displayId, rec.id]);
+              await t.none(`UPDATE ${s}.${tbl} SET code = $1 WHERE id = $2`, [numbering.displayId, rec.id]);
             }
           }
 
           if (toInsert[i].isArchived) {
-            await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET deactivated_at = NOW() WHERE id = $1`, [rec.id]);
+            await t.none(`UPDATE ${s}.${tbl} SET deactivated_at = NOW() WHERE id = $1`, [rec.id]);
           }
 
           // Insert children for new entity
@@ -1434,7 +1436,7 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
               [sourceId],
             );
             if (!loginEmail) {
-              await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET is_app_user = false WHERE id = $1`, [rec.id]);
+              await t.none(`UPDATE ${s}.${tbl} SET is_app_user = false WHERE id = $1`, [rec.id]);
               appUserSkipped++;
               continue;
             }
@@ -1450,7 +1452,7 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
               t,
             );
             if (!created) {
-              await t.none(`UPDATE ${s}.${pgp.as.name(config.entityName)} SET is_app_user = false WHERE id = $1`, [rec.id]);
+              await t.none(`UPDATE ${s}.${tbl} SET is_app_user = false WHERE id = $1`, [rec.id]);
               appUserSkipped++;
             }
           }

@@ -39,7 +39,6 @@ import { allocateNumbers } from '../services/numberingService.js';
 
 /** @type {import('../../../lib/spreadsheetHelpers.js').SourceEntityConfig} */
 const CONFIG = {
-  entityName: 'vendors',
   sheetName: 'Vendors',
   sourceType: 'vendor',
   linkColName: 'vendor_id',
@@ -64,7 +63,6 @@ const CONFIG = {
 
 /** Config for vendor_contacts child entity within the combined workbook */
 const CONTACT_CONFIG = {
-  entityName: 'vendorContacts',
   sheetName: 'Vendor Contacts',
   sourceType: 'vendor_contact',
   linkColName: 'vendor_contact_id',
