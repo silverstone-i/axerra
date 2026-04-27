@@ -19,13 +19,20 @@ class SourcesController extends BaseController {
   }
 
   /**
-   * GET /orphan-cleanup — read-only preview of orphaned sources in the caller's
+   * GET /orphans/preview — read-only preview of orphaned sources in the caller's
    * tenant schema. An orphan is a `sources` row whose `(source_type, table_id)`
    * doesn't resolve to a live row in the corresponding entity table.
+   *
+   * Not available on the admin schema — `find_orphan_sources()` is installed
+   * per-tenant only (migration skips admin), so callers resolving to admin
+   * receive 400 instead of a confusing 500.
    */
   async findOrphanSources(req, res) {
     try {
       const schema = this.getSchema(req);
+      if (schema === 'admin') {
+        return res.status(400).json({ error: 'orphan-source helpers are not installed on the admin schema' });
+      }
       const s = pgp.as.name(schema);
       const orphans = await db.any(`SELECT * FROM ${s}.find_orphan_sources()`);
       res.json({ schema, count: orphans.length, orphans });
@@ -35,14 +42,19 @@ class SourcesController extends BaseController {
   }
 
   /**
-   * POST /orphan-cleanup — delete orphaned sources in the caller's tenant
+   * POST /orphans/cleanup — delete orphaned sources in the caller's tenant
    * schema. Cascades through child tables (emails, phone_numbers, addresses,
    * tax_identifiers) via existing FK ON DELETE CASCADE. Returns the rows that
    * were removed.
+   *
+   * Not available on the admin schema — see findOrphanSources for rationale.
    */
   async cleanupOrphanSources(req, res) {
     try {
       const schema = this.getSchema(req);
+      if (schema === 'admin') {
+        return res.status(400).json({ error: 'orphan-source helpers are not installed on the admin schema' });
+      }
       const s = pgp.as.name(schema);
       const removed = await db.tx((t) => t.any(`SELECT * FROM ${s}.cleanup_orphan_sources()`));
       logger.info('orphan-source-cleanup', {

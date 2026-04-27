@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run server test suites, push the current branch, then open a PR.
-# Canonical pre-PR gate — the pre-push hook stays light so intermediate
-# pushes don't re-run the full suite.
+# Canonical pre-PR gate — there is no pre-push hook, so intermediate
+# pushes don't re-run the full suite; only this script does.
 set -euo pipefail
 
 branch=$(git rev-parse --abbrev-ref HEAD)
