@@ -8,13 +8,33 @@
 import createRouter from '../../../../lib/createRouter.js';
 import sourcesController from '../../controllers/sourcesController.js';
 import { withMeta } from '../../../../middleware/withMeta.js';
+import { rbac } from '../../../../middleware/rbac.js';
 
-const meta = withMeta({ module: 'core' });
+const meta = withMeta({ module: 'core', router: 'sources' });
 
-export default createRouter(sourcesController, null, {
-  getMiddlewares: [meta],
-  postMiddlewares: [meta],
-  putMiddlewares: [meta],
-  deleteMiddlewares: [meta],
-  patchMiddlewares: [meta],
-});
+// Custom route paths use two segments because createRouter registers GET /:id
+// before extendRoutes; a single-segment GET would be captured by it.
+export default createRouter(
+  sourcesController,
+  (router) => {
+    router.get(
+      '/orphans/preview',
+      withMeta({ module: 'core', router: 'sources', action: 'view' }),
+      rbac('view'),
+      (req, res) => sourcesController.findOrphanSources(req, res),
+    );
+    router.post(
+      '/orphans/cleanup',
+      withMeta({ module: 'core', router: 'sources', action: 'cleanup' }),
+      rbac('full'),
+      (req, res) => sourcesController.cleanupOrphanSources(req, res),
+    );
+  },
+  {
+    getMiddlewares: [meta],
+    postMiddlewares: [meta],
+    putMiddlewares: [meta],
+    deleteMiddlewares: [meta],
+    patchMiddlewares: [meta],
+  },
+);
