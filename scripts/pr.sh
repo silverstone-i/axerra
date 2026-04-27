@@ -10,8 +10,8 @@ if [[ "$branch" == "main" ]]; then
   exit 1
 fi
 
-if ! git diff --quiet || ! git diff --cached --quiet; then
-  echo "Working tree has uncommitted changes — commit or stash before opening a PR." >&2
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "Working tree has uncommitted changes — commit, stash, or .gitignore before opening a PR." >&2
   exit 1
 fi
 
