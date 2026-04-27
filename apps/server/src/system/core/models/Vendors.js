@@ -27,6 +27,8 @@ import {
   provisionAppUser,
   batchHashPasswords,
   validateImportGroups,
+  validateChildEnums,
+  getEnumColumns,
   parseDbImportError,
   PHONE_HEADERS,
   ADDRESS_HEADERS,
@@ -174,6 +176,27 @@ async function getDb() {
     _pgp = mod.pgp;
   }
   return { db: _db, pgp: _pgp };
+}
+
+/** Map child model name → group key produced by groupFlatRows extractors */
+const _childKeyForModel = (model) =>
+  model === 'phoneNumbers' ? 'phones' : model === 'taxIdentifiers' ? 'taxIds' : model;
+
+/**
+ * Build childEnums config (key + enumMap + flatColByCol) for validateChildEnums
+ * from a *_CHILD_ARRAYS_CONFIG entry list.
+ */
+function buildChildEnumsFromArrays(arrayConfigs, db, schema) {
+  const childEnums = [];
+  for (const cfg of arrayConfigs) {
+    const childModel = db(cfg.model, schema);
+    const enumMap = getEnumColumns(childModel._schema);
+    if (!enumMap.size) continue;
+    const flatColByCol = new Map();
+    cfg.cols.forEach((col, i) => flatColByCol.set(col, cfg.flatCols[i]));
+    childEnums.push({ key: _childKeyForModel(cfg.model), enumMap, flatColByCol });
+  }
+  return childEnums;
 }
 
 export default class Vendors extends TableModel {
@@ -414,17 +437,23 @@ export default class Vendors extends TableModel {
 
     // ── Pre-validation: collect all data errors before touching the DB ──
     const sheetNames = reader.sheetNames;
+    const vendorSheetName = sheetNames[0] || 'Vendors';
+    const contactSheetName = sheetNames[1] || 'Vendor Contacts';
+    const vendorChildEnums = buildChildEnumsFromArrays(VENDOR_CHILD_ARRAYS_CONFIG, db, schema);
+    const contactChildEnums = buildChildEnumsFromArrays(CONTACT_CHILD_ARRAYS_CONFIG, db, schema);
     const errors = [
       ...validateImportGroups(vendorGroups, {
-        sheetName: sheetNames[0] || 'Vendors',
+        sheetName: vendorSheetName,
         requiredFields: ['name'],
         conflicts: vendorConflicts,
       }),
+      ...validateChildEnums(vendorGroups, { sheetName: vendorSheetName, childEnums: vendorChildEnums }),
       ...validateImportGroups(contactGroups, {
-        sheetName: sheetNames[1] || 'Vendor Contacts',
+        sheetName: contactSheetName,
         requiredFields: ['first_name', 'last_name'],
         conflicts: contactConflicts,
       }),
+      ...validateChildEnums(contactGroups, { sheetName: contactSheetName, childEnums: contactChildEnums }),
     ];
     if (errors.length) return { errors };
 

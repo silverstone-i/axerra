@@ -196,7 +196,7 @@ export function coerceRow(row, boolCols, hasRoles) {
 export function coerceChildRow(row, model) {
   const columns = model._schema?.columns;
   if (!columns) return row;
-  const enumMap = _getEnumColumns(model._schema);
+  const enumMap = getEnumColumns(model._schema);
   for (const col of columns) {
     if (!(col.name in row)) continue;
     const val = row[col.name];
@@ -258,7 +258,7 @@ export function formatExportRow(row, phoneCol, phoneCtryCol, taxCol, taxCtryCol,
  * @param {Object} schema pg-schemata schema definition
  * @returns {Map<string, Set<string>>}
  */
-function _getEnumColumns(schema) {
+export function getEnumColumns(schema) {
   const map = new Map();
   const checks = schema?.constraints?.checks;
   if (!checks) return map;
@@ -368,6 +368,54 @@ export function validateImportGroups(groups, opts) {
     }
   }
 
+  return errors;
+}
+
+/**
+ * Validate child-row enum columns against pre-computed enum maps.
+ * Caller is responsible for resolving each child model's schema and computing
+ * its enum map via getEnumColumns(); this helper stays sync so it can be
+ * tested without a DB.
+ *
+ * @param {Object[]} groups Output of groupFlatRows
+ * @param {Object}   opts
+ * @param {string}   opts.sheetName Sheet label for error messages
+ * @param {Array}    [opts.childEnums] Per-child enum config:
+ *   - key: child group key (e.g. 'phones', 'taxIds') matching group.children
+ *   - enumMap: Map<colName, Set<validValue>> from getEnumColumns()
+ *   - flatColByCol: Map<colName, flatHeader> for error reporting (optional;
+ *     falls back to colName when missing)
+ * @returns {Object[]} Array of validation errors (empty = valid)
+ */
+export function validateChildEnums(groups, opts) {
+  const { sheetName, childEnums = [] } = opts;
+  const errors = [];
+  if (!childEnums.length) return errors;
+  for (const cfg of childEnums) {
+    if (!cfg.enumMap?.size) continue;
+    for (const group of groups) {
+      const childRows = group.children?.[cfg.key];
+      if (!childRows?.length) continue;
+      for (const row of childRows) {
+        for (const [colName, validValues] of cfg.enumMap) {
+          const val = row[colName];
+          if (val == null || val === '') continue;
+          const normalized = String(val).toLowerCase().trim();
+          if (!validValues.has(normalized)) {
+            const flatCol = cfg.flatColByCol?.get(colName) || colName;
+            const options = [...validValues].join(', ');
+            errors.push({
+              sheet: sheetName,
+              row: row._rowNum || null,
+              column: flatCol,
+              value: val,
+              message: `Invalid value — must be one of: ${options}`,
+            });
+          }
+        }
+      }
+    }
+  }
   return errors;
 }
 
@@ -1167,33 +1215,18 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
   }
 
   // Validate child enum fields (e.g. phone_type)
+  const childEnums = [];
   for (const cfg of config.flat.children) {
     const childModel = db(cfg.modelName, schema);
-    const enumMap = _getEnumColumns(childModel._schema);
+    const enumMap = getEnumColumns(childModel._schema);
     if (!enumMap.size) continue;
-    for (const group of groups) {
-      const childRows = group.children[cfg.key];
-      if (!childRows?.length) continue;
-      for (const row of childRows) {
-        for (const [colName, validValues] of enumMap) {
-          const val = row[colName];
-          if (val == null || val === '') continue;
-          const normalized = String(val).toLowerCase().trim();
-          if (!validValues.has(normalized)) {
-            const flatCol = cfg.flatCols?.[cfg.cols.indexOf(colName)] || colName;
-            const options = [...validValues].join(', ');
-            errors.push({
-              sheet: sheetName,
-              row: row._rowNum || null,
-              column: flatCol,
-              value: val,
-              message: `Invalid value — must be one of: ${options}`,
-            });
-          }
-        }
-      }
+    const flatColByCol = new Map();
+    if (cfg.cols && cfg.flatCols) {
+      cfg.cols.forEach((col, i) => flatColByCol.set(col, cfg.flatCols[i]));
     }
+    childEnums.push({ key: cfg.key, enumMap, flatColByCol });
   }
+  errors.push(...validateChildEnums(groups, { sheetName, childEnums }));
 
   // Validate no duplicate codes
   const codeCounts = new Map();
