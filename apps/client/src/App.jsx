@@ -21,6 +21,7 @@ import ClientsPage from './pages/Core/ClientsPage.jsx';
 import EmployeesPage from './pages/Core/EmployeesPage.jsx';
 import ContactsPage from './pages/Core/ContactsPage.jsx';
 import CompaniesPage from './pages/Core/CompaniesPage.jsx';
+import DataMaintenancePage from './pages/Core/DataMaintenancePage.jsx';
 import ProjectsPage from './pages/Projects/ProjectsPage.jsx';
 import ProjectDetailPage from './pages/Projects/ProjectDetailPage.jsx';
 import ChangeOrdersPage from './pages/Projects/ChangeOrdersPage.jsx';
@@ -73,6 +74,7 @@ export default function App() {
           <Route path="/core/employees" element={<EmployeesPage />} />
           <Route path="/core/contacts" element={<ContactsPage />} />
           <Route path="/core/companies" element={<CompaniesPage />} />
+          <Route path="/core/data-maintenance" element={<DataMaintenancePage />} />
 
           {/* Project routes */}
           <Route path="/projects" element={<ProjectsPage />} />
