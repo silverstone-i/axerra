@@ -59,6 +59,9 @@ export default function DataMaintenancePage() {
       await previewQuery.refetch();
     },
     onError: (err) => toast(errMsg(err), 'error'),
+    // Dialog close lives in onSettled so we don't depend on the click handler
+    // awaiting mutateAsync(), which would surface an unhandled rejection on error.
+    onSettled: () => setConfirmOpen(false),
   });
 
   /* ── Derived data ─────────────────────────────────────────────── */
@@ -89,13 +92,7 @@ export default function DataMaintenancePage() {
     previewQuery.refetch().catch((err) => toast(errMsg(err), 'error'));
   };
 
-  const handleCleanupConfirm = async () => {
-    try {
-      await cleanupMut.mutateAsync();
-    } finally {
-      setConfirmOpen(false);
-    }
-  };
+  const handleCleanupConfirm = () => cleanupMut.mutate();
 
   /* ── Toolbar (empty — no module-level actions) ────────────────── */
 
