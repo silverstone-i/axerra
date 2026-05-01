@@ -126,16 +126,24 @@ describe('authRedis middleware', () => {
   test('populates req.user for valid JWT and existing user + tenant', async () => {
     const userId = '550e8400-e29b-41d4-a716-446655440000';
     const tenantId = '660e8400-e29b-41d4-a716-446655440000';
+    const entityId = '880e8400-e29b-41d4-a716-446655440000';
     const token = jwt.sign({ sub: userId, ph: null }, SECRET, { expiresIn: '15m' });
 
     mockFindOneBy.mockResolvedValue({
       id: userId,
       email: 'admin@axerra.io',
-      entity_type: null,
-      entity_id: null,
       status: 'active',
-      tenant_id: tenantId,
       deactivated_at: null,
+    });
+
+    // Home binding lookup
+    mockOneOrNone.mockResolvedValueOnce({
+      id: 'binding-1',
+      portal_user_id: userId,
+      tenant_id: tenantId,
+      entity_type: 'employee',
+      entity_id: entityId,
+      status: 'active',
     });
 
     mockFindById.mockResolvedValue({
@@ -156,6 +164,8 @@ describe('authRedis middleware', () => {
     expect(req.user).toBeDefined();
     expect(req.user.id).toBe(userId);
     expect(req.user.email).toBe('admin@axerra.io');
+    expect(req.user.entity_type).toBe('employee');
+    expect(req.user.entity_id).toBe(entityId);
     expect(req.user.tenant_code).toBe('axerra');
     expect(req.user.schema_name).toBe('axerra');
   });
@@ -182,11 +192,25 @@ describe('authRedis middleware', () => {
     mockFindOneBy.mockResolvedValue({
       id: userId,
       email: 'admin@axerra.io',
-      entity_type: null,
-      entity_id: null,
       status: 'active',
-      tenant_id: tenantId,
     });
+
+    // 1) home binding lookup, 2) x-tenant-code → tenants row, 3) matched binding for that tenant (none)
+    mockOneOrNone
+      .mockResolvedValueOnce({
+        id: 'binding-1',
+        portal_user_id: userId,
+        tenant_id: tenantId,
+        entity_type: 'employee',
+        entity_id: 'emp-1',
+        status: 'active',
+      })
+      .mockResolvedValueOnce({
+        id: 'acme-id',
+        tenant_code: 'ACME',
+        schema_name: 'acme',
+      })
+      .mockResolvedValueOnce(null);
 
     mockFindById.mockResolvedValue({
       id: tenantId,
@@ -214,10 +238,7 @@ describe('authRedis middleware', () => {
     mockFindOneBy.mockResolvedValue({
       id: userId,
       email: 'admin@axerra.io',
-      entity_type: null,
-      entity_id: null,
       status: 'active',
-      tenant_id: homeTenantId,
     });
 
     mockFindById.mockResolvedValue({
@@ -227,13 +248,23 @@ describe('authRedis middleware', () => {
       allowed_modules: ['projects', 'accounting'],
     });
 
-    // Mock the raw SQL query for effective tenant lookup
-    mockOneOrNone.mockResolvedValue({
-      id: acmeTenantId,
-      tenant_code: 'ACME',
-      schema_name: 'acme',
-      allowed_modules: ['projects'],
-    });
+    // 1) home binding, 2) x-tenant-code → tenants row, 3) matched binding (none)
+    mockOneOrNone
+      .mockResolvedValueOnce({
+        id: 'binding-1',
+        portal_user_id: userId,
+        tenant_id: homeTenantId,
+        entity_type: 'employee',
+        entity_id: 'emp-1',
+        status: 'active',
+      })
+      .mockResolvedValueOnce({
+        id: acmeTenantId,
+        tenant_code: 'ACME',
+        schema_name: 'acme',
+        allowed_modules: ['projects'],
+      })
+      .mockResolvedValueOnce(null);
 
     const req = makeReq({
       cookies: { auth_token: token },

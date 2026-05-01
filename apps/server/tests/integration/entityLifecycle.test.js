@@ -77,11 +77,12 @@ describe('Entity lifecycle — employee is_app_user with portal_users cascade', 
     expect(res.status).toBe(201);
     employeeId = res.body.id;
 
-    // Verify portal_user exists
+    // Verify portal_user + binding exist
     const portalUser = await db.oneOrNone(
-      `SELECT id, entity_type, entity_id, email, status
-       FROM admin.portal_users
-       WHERE entity_type = 'employee' AND entity_id = $1`,
+      `SELECT pu.id, pu.email, pu.status, b.entity_type, b.entity_id
+       FROM admin.portal_users pu
+       JOIN admin.portal_user_tenants b ON b.portal_user_id = pu.id
+       WHERE b.entity_type = 'employee' AND b.entity_id = $1`,
       [employeeId],
     );
     expect(portalUser).not.toBeNull();
@@ -94,10 +95,12 @@ describe('Entity lifecycle — employee is_app_user with portal_users cascade', 
 
     expect(res.status).toBe(200);
 
-    // Verify portal_user is locked
+    // Verify portal_user + binding are both locked
     const portalUser = await db.oneOrNone(
-      `SELECT status, deactivated_at FROM admin.portal_users
-       WHERE entity_type = 'employee' AND entity_id = $1`,
+      `SELECT pu.status, pu.deactivated_at
+       FROM admin.portal_users pu
+       JOIN admin.portal_user_tenants b ON b.portal_user_id = pu.id
+       WHERE b.entity_type = 'employee' AND b.entity_id = $1`,
       [employeeId],
     );
     expect(portalUser.status).toBe('locked');
@@ -118,8 +121,10 @@ describe('Entity lifecycle — employee is_app_user with portal_users cascade', 
 
     // Verify portal_user is restored
     const portalUser = await db.oneOrNone(
-      `SELECT status, deactivated_at FROM admin.portal_users
-       WHERE entity_type = 'employee' AND entity_id = $1`,
+      `SELECT pu.status, pu.deactivated_at
+       FROM admin.portal_users pu
+       JOIN admin.portal_user_tenants b ON b.portal_user_id = pu.id
+       WHERE b.entity_type = 'employee' AND b.entity_id = $1`,
       [employeeId],
     );
     expect(portalUser.status).toBe('active');

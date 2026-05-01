@@ -103,11 +103,31 @@ async function reseedAdmin(db) {
     [rootEmail],
   );
 
-  if (!existingUser) {
+  let userId = existingUser?.id;
+  if (!userId) {
+    const inserted = await db.one(
+      `INSERT INTO admin.portal_users (email, password_hash, status)
+       VALUES ($1, $2, 'active')
+       RETURNING id`,
+      [rootEmail, passwordHash],
+    );
+    userId = inserted.id;
+  }
+
+  // Bind the root super user to the root tenant. Tests don't create the
+  // backing employees row (setupAdmin.js does that in real envs), so the
+  // binding's entity link stays NULL — entity_type/entity_id are
+  // nullable on portal_user_tenants for exactly this pre-link case.
+  const existingBinding = await db.oneOrNone(
+    `SELECT id FROM admin.portal_user_tenants WHERE portal_user_id = $1 AND deactivated_at IS NULL`,
+    [userId],
+  );
+  if (!existingBinding) {
     await db.none(
-      `INSERT INTO admin.portal_users (tenant_id, entity_type, entity_id, email, password_hash, status)
-       VALUES ($1, NULL, NULL, $2, $3, 'active')`,
-      [tenant.id, rootEmail, passwordHash],
+      `INSERT INTO admin.portal_user_tenants
+         (portal_user_id, tenant_id, status)
+       VALUES ($1, $2, 'active')`,
+      [userId, tenant.id],
     );
   }
 }
@@ -168,6 +188,12 @@ export async function bootstrapAdmin() {
       }
     },
   });
+
+  // Bootstrap migration creates the auth-only portal_users row. The root
+  // tenant binding lives on portal_user_tenants; in real deploys
+  // setupAdmin.js writes it after creating the admin employee. Tests don't
+  // run setupAdmin, so seed the binding here directly (matches reseedAdmin).
+  await reseedAdmin(db);
 
   adminReady = true;
   return db;

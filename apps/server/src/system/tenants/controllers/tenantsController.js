@@ -107,21 +107,33 @@ class TenantsController extends BaseController {
       const count = await this.model('admin').updateWhere([{ ...req.query }], req.body);
       if (!count) return res.status(404).json({ error: `${this.errorLabel} not found or already inactive` });
 
-      // Cascade: deactivate and lock all currently-active users
-      if (req.query.id) {
-        await db.none(
+      // Cascade: archive every active binding to this tenant. Lock any
+      // portal_user whose last active binding just went away.
+      const updatedBy = req.user?.id || null;
+      await db.tx(async (t) => {
+        if (req.query.id) {
+          await t.none(
+            `UPDATE admin.portal_user_tenants SET deactivated_at = $1, status = 'locked', updated_by = $2
+             WHERE tenant_id = $3 AND deactivated_at IS NULL`,
+            [now, updatedBy, req.query.id],
+          );
+        } else if (req.query.tenant_code) {
+          await t.none(
+            `UPDATE admin.portal_user_tenants SET deactivated_at = $1, status = 'locked', updated_by = $2
+             WHERE tenant_id = (SELECT id FROM admin.tenants WHERE tenant_code = $3)
+               AND deactivated_at IS NULL`,
+            [now, updatedBy, req.query.tenant_code],
+          );
+        }
+        await t.none(
           `UPDATE admin.portal_users SET deactivated_at = $1, status = 'locked', updated_by = $2
-           WHERE tenant_id = $3 AND deactivated_at IS NULL`,
-          [now, req.user?.id || null, req.query.id],
+           WHERE deactivated_at IS NULL
+             AND id NOT IN (
+               SELECT portal_user_id FROM admin.portal_user_tenants WHERE deactivated_at IS NULL
+             )`,
+          [now, updatedBy],
         );
-      } else if (req.query.tenant_code) {
-        await db.none(
-          `UPDATE admin.portal_users SET deactivated_at = $1, status = 'locked', updated_by = $2
-           WHERE tenant_id = (SELECT id FROM admin.tenants WHERE tenant_code = $3)
-             AND deactivated_at IS NULL`,
-          [now, req.user?.id || null, req.query.tenant_code],
-        );
-      }
+      });
 
       res.status(200).json({ message: `${this.errorLabel} marked as inactive` });
     } catch (err) {

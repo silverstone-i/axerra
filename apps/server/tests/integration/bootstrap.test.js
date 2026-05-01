@@ -72,37 +72,34 @@ describe('Bootstrap admin migration', () => {
     const user = await db.oneOrNone('SELECT * FROM admin.portal_users WHERE email = $1', [ROOT_EMAIL]);
     expect(user).not.toBeNull();
     expect(user.status).toBe('active');
-    expect(user.entity_type).toBeNull();
-    expect(user.entity_id).toBeNull();
     expect(user.password_hash).toBeDefined();
     expect(user.password_hash.startsWith('$2')).toBe(true); // bcrypt hash
   });
 
-  test('portal_users.tenant_id references the root tenant', async () => {
-    const tenant = await db.oneOrNone('SELECT id FROM admin.tenants WHERE tenant_code = $1', [ROOT_TENANT_CODE]);
-    const user = await db.oneOrNone('SELECT tenant_id FROM admin.portal_users WHERE email = $1', [ROOT_EMAIL]);
-    expect(user).not.toBeNull();
-    expect(user.tenant_id).toBe(tenant.id);
-  });
-
-  test('portal_users does NOT have tenant_code column (PRD §3.2.2)', async () => {
+  test('portal_users is auth-only — no tenant or entity columns', async () => {
     const cols = await db.manyOrNone(
       "SELECT column_name FROM information_schema.columns WHERE table_schema = 'admin' AND table_name = 'portal_users'",
     );
     const colNames = cols.map((c) => c.column_name);
+    expect(colNames).not.toContain('tenant_id');
     expect(colNames).not.toContain('tenant_code');
+    expect(colNames).not.toContain('entity_type');
+    expect(colNames).not.toContain('entity_id');
     expect(colNames).not.toContain('user_name');
     expect(colNames).not.toContain('full_name');
     expect(colNames).not.toContain('role');
   });
 
-  test('portal_users has entity_type and entity_id columns (PRD §3.2.2)', async () => {
+  test('portal_user_tenants table exists with binding columns', async () => {
     const cols = await db.manyOrNone(
-      "SELECT column_name FROM information_schema.columns WHERE table_schema = 'admin' AND table_name = 'portal_users'",
+      "SELECT column_name FROM information_schema.columns WHERE table_schema = 'admin' AND table_name = 'portal_user_tenants'",
     );
     const colNames = cols.map((c) => c.column_name);
+    expect(colNames).toContain('portal_user_id');
+    expect(colNames).toContain('tenant_id');
     expect(colNames).toContain('entity_type');
     expect(colNames).toContain('entity_id');
+    expect(colNames).toContain('status');
   });
 
   test('re-running bootstrap is idempotent', async () => {

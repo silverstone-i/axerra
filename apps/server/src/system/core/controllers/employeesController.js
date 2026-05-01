@@ -15,6 +15,7 @@ import BaseController from '../../../lib/BaseController.js';
 import db, { pgp } from '../../../db/db.js';
 import { allocateNumber } from '../services/numberingService.js';
 import { invalidateByEntity } from '../../../services/permCacheInvalidator.js';
+import { findActiveBinding, findAnyBinding } from '../../auth/services/portalUserBindings.js';
 import logger from '../../../lib/logger.js';
 
 class EmployeesController extends BaseController {
@@ -175,13 +176,7 @@ class EmployeesController extends BaseController {
 
       // Determine if provisioning is needed (fresh toggle or retry after partial failure)
       const needsProvisioning =
-        isNowAppUser &&
-        (!wasAppUser ||
-          !(await db.oneOrNone(
-            `SELECT id FROM admin.portal_users
-           WHERE entity_type = 'employee' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
-            [before.id, req.user?.tenant_id],
-          )));
+        isNowAppUser && (!wasAppUser || !(await findActiveBinding('employee', before.id, req.user?.tenant_id)));
 
       if (needsProvisioning) {
         const roles = req.body.roles || before.roles || [];
@@ -332,14 +327,8 @@ class EmployeesController extends BaseController {
     }
 
     try {
-      const tenantId = req.user?.tenant_id;
-      const portalUser = await db.oneOrNone(
-        `SELECT id FROM admin.portal_users
-         WHERE entity_type = 'employee' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
-        [employeeId, tenantId],
-      );
-
-      if (!portalUser) {
+      const binding = await findActiveBinding('employee', employeeId, req.user?.tenant_id);
+      if (!binding) {
         return res.status(404).json({ error: 'No active app user account found for this employee' });
       }
 
@@ -348,10 +337,10 @@ class EmployeesController extends BaseController {
       await db.none('UPDATE admin.portal_users SET password_hash = $/hash/, updated_by = $/updatedBy/ WHERE id = $/id/', {
         hash,
         updatedBy: req.user?.id || null,
-        id: portalUser.id,
+        id: binding.portal_user_id,
       });
 
-      logger.info(`Admin reset password for portal_user ${portalUser.id} (employee ${employeeId})`);
+      logger.info(`Admin reset password for portal_user ${binding.portal_user_id} (employee ${employeeId})`);
       res.json({ message: 'Password reset successfully' });
     } catch (err) {
       this.handleError(err, res, 'resetting password for', this.errorLabel);
@@ -381,10 +370,9 @@ class EmployeesController extends BaseController {
   /* ── Private helpers ──────────────────────────────────── */
 
   /**
-   * Create or restore a portal_users record for an employee gaining app access.
-   *
-   * portal_users is a pure identity table: tenant_id, entity_type, entity_id,
-   * email, password_hash, status. No role/full_name columns.
+   * Create or restore a portal_users + portal_user_tenants binding for an
+   * employee gaining app access. Both rows are kept in sync — archived
+   * bindings restore alongside their portal_users row.
    */
   async #provisionAppUser(employee, req, suppliedPassword, loginEmail) {
     const tenantId = req.user?.tenant_id;
@@ -407,83 +395,109 @@ class EmployeesController extends BaseController {
       }
     }
 
-    // Check if an archived portal_user already exists for this employee
-    const existing = await db.oneOrNone(
-      `SELECT id, deactivated_at FROM admin.portal_users
-       WHERE entity_type = 'employee' AND entity_id = $1 AND tenant_id = $2`,
-      [employee.id, tenantId],
-    );
-
     const clearPassword = suppliedPassword || crypto.randomBytes(12).toString('base64url');
     const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
     const passwordHash = await bcrypt.hash(clearPassword, rounds);
+    const updatedBy = req.user?.id || null;
 
-    if (existing) {
-      // Restore the archived record
-      await db.none(
-        `UPDATE admin.portal_users
-         SET deactivated_at = NULL, status = 'invited',
-             password_hash = $1, email = $2, updated_by = $3
-         WHERE id = $4`,
-        [passwordHash, loginEmail, req.user?.id || null, existing.id],
-      );
-      logger.info(`Restored portal_user ${existing.id} for employee ${employee.id}`);
-      return existing.id;
+    // Look for any prior binding for this employee in this tenant (active or archived)
+    const priorBinding = await findAnyBinding('employee', employee.id, tenantId);
+
+    if (priorBinding) {
+      // Restore both portal_users and the binding to keep them in sync
+      await db.tx(async (t) => {
+        await t.none(
+          `UPDATE admin.portal_users
+           SET deactivated_at = NULL, status = 'invited',
+               password_hash = $1, email = $2, updated_by = $3
+           WHERE id = $4`,
+          [passwordHash, loginEmail, updatedBy, priorBinding.portal_user_id],
+        );
+        await t.none(
+          `UPDATE admin.portal_user_tenants
+           SET deactivated_at = NULL, status = 'active', updated_by = $1
+           WHERE id = $2`,
+          [updatedBy, priorBinding.id],
+        );
+      });
+      logger.info(`Restored portal_user ${priorBinding.portal_user_id} + binding for employee ${employee.id}`);
+      return priorBinding.portal_user_id;
     }
 
-    // Create a new portal_users record
-    const user = await db('portalUsers', 'admin').insert({
-      tenant_id: tenantId,
-      entity_type: 'employee',
-      entity_id: employee.id,
-      email: loginEmail,
-      password_hash: passwordHash,
-      status: 'invited',
-      created_by: req.user?.id || null,
+    // Create a new portal_users + binding pair
+    const portalUserId = await db.tx(async (t) => {
+      const user = await t.one(
+        `INSERT INTO admin.portal_users (email, password_hash, status, created_by)
+         VALUES ($1, $2, 'invited', $3)
+         RETURNING id`,
+        [loginEmail, passwordHash, updatedBy],
+      );
+      await t.none(
+        `INSERT INTO admin.portal_user_tenants
+           (portal_user_id, tenant_id, entity_type, entity_id, status, created_by)
+         VALUES ($1, $2, 'employee', $3, 'active', $4)`,
+        [user.id, tenantId, employee.id, updatedBy],
+      );
+      return user.id;
     });
 
-    logger.info(`Provisioned portal_user ${user.id} for employee ${employee.id}`);
-    return user.id;
+    logger.info(`Provisioned portal_user ${portalUserId} + binding for employee ${employee.id}`);
+    return portalUserId;
   }
 
   /**
-   * Archive (soft-delete) the portal_users record linked to an employee.
+   * Archive (soft-delete) the portal_users + binding linked to an employee.
    */
   async #archiveAppUser(employeeId, req) {
-    const portalUser = await db.oneOrNone(
-      `SELECT id FROM admin.portal_users
-       WHERE entity_type = 'employee' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
-      [employeeId, req.user?.tenant_id],
-    );
-    if (portalUser) {
-      await db.none(
+    const binding = await findActiveBinding('employee', employeeId, req.user?.tenant_id);
+    if (!binding) return;
+
+    const updatedBy = req.user?.id || null;
+    await db.tx(async (t) => {
+      await t.none(
+        `UPDATE admin.portal_user_tenants
+         SET deactivated_at = NOW(), status = 'locked', updated_by = $1
+         WHERE id = $2`,
+        [updatedBy, binding.id],
+      );
+      await t.none(
         `UPDATE admin.portal_users
          SET deactivated_at = NOW(), status = 'locked', updated_by = $1
          WHERE id = $2`,
-        [req.user?.id || null, portalUser.id],
+        [updatedBy, binding.portal_user_id],
       );
-      logger.info(`Archived portal_user ${portalUser.id} for employee ${employeeId}`);
-    }
+    });
+    logger.info(`Archived portal_user ${binding.portal_user_id} + binding for employee ${employeeId}`);
   }
 
   /**
-   * Restore the portal_users record linked to an employee.
+   * Restore the portal_users + binding linked to an employee.
    */
   async #restoreAppUser(employeeId, req) {
-    const portalUser = await db.oneOrNone(
-      `SELECT id FROM admin.portal_users
-       WHERE entity_type = 'employee' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NOT NULL`,
+    const binding = await db.oneOrNone(
+      `SELECT id, portal_user_id FROM admin.portal_user_tenants
+       WHERE entity_type = 'employee' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NOT NULL
+       ORDER BY deactivated_at DESC LIMIT 1`,
       [employeeId, req.user?.tenant_id],
     );
-    if (portalUser) {
-      await db.none(
+    if (!binding) return;
+
+    const updatedBy = req.user?.id || null;
+    await db.tx(async (t) => {
+      await t.none(
         `UPDATE admin.portal_users
          SET deactivated_at = NULL, status = 'active', updated_by = $1
          WHERE id = $2`,
-        [req.user?.id || null, portalUser.id],
+        [updatedBy, binding.portal_user_id],
       );
-      logger.info(`Restored portal_user ${portalUser.id} for employee ${employeeId}`);
-    }
+      await t.none(
+        `UPDATE admin.portal_user_tenants
+         SET deactivated_at = NULL, status = 'active', updated_by = $1
+         WHERE id = $2`,
+        [updatedBy, binding.id],
+      );
+    });
+    logger.info(`Restored portal_user ${binding.portal_user_id} + binding for employee ${employeeId}`);
   }
 }
 

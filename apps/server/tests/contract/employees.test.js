@@ -107,10 +107,11 @@ describe('Employee CRUD — /api/core/v1/employees', () => {
     expect(res.status).toBe(201);
     expect(res.body.is_app_user).toBe(true);
 
-    // Verify portal_user was created in admin schema
+    // Verify portal_user + binding were created in admin schema
     const portalUser = await db.oneOrNone(
-      `SELECT id, entity_type, entity_id, status FROM admin.portal_users
-       WHERE entity_type = 'employee' AND entity_id = $1`,
+      `SELECT pu.id, pu.status FROM admin.portal_users pu
+       JOIN admin.portal_user_tenants b ON b.portal_user_id = pu.id
+       WHERE b.entity_type = 'employee' AND b.entity_id = $1`,
       [res.body.id],
     );
     expect(portalUser).not.toBeNull();
@@ -127,10 +128,11 @@ describe('Employee CRUD — /api/core/v1/employees', () => {
 
     expect(res.status).toBe(200);
 
-    // Verify portal_user was archived
+    // Verify portal_user + binding were archived
     const portalUser = await db.oneOrNone(
-      `SELECT status, deactivated_at FROM admin.portal_users
-       WHERE entity_type = 'employee' AND entity_id = $1`,
+      `SELECT pu.status, pu.deactivated_at FROM admin.portal_users pu
+       JOIN admin.portal_user_tenants b ON b.portal_user_id = pu.id
+       WHERE b.entity_type = 'employee' AND b.entity_id = $1`,
       [bob.id],
     );
     expect(portalUser.status).toBe('locked');
@@ -194,7 +196,10 @@ describe('Employee CRUD — /api/core/v1/employees', () => {
     expect(employee.is_app_user).toBe(true);
 
     const portalUser = await db.oneOrNone(
-      `SELECT entity_type, entity_id, email, status FROM admin.portal_users WHERE email = $1 AND deactivated_at IS NULL`,
+      `SELECT pu.email, pu.status, b.entity_type, b.entity_id
+       FROM admin.portal_users pu
+       JOIN admin.portal_user_tenants b ON b.portal_user_id = pu.id
+       WHERE pu.email = $1 AND pu.deactivated_at IS NULL`,
       ['alice@etest.com'],
     );
     expect(portalUser).not.toBeNull();
@@ -217,10 +222,10 @@ describe('Employee CRUD — /api/core/v1/employees', () => {
     expect(employee).not.toBeNull();
     expect(employee.is_app_user).toBe(false);
 
-    const portalUser = await db.oneOrNone(
-      `SELECT id FROM admin.portal_users WHERE entity_type = 'employee' AND entity_id = $1 AND deactivated_at IS NULL`,
+    const binding = await db.oneOrNone(
+      `SELECT id FROM admin.portal_user_tenants WHERE entity_type = 'employee' AND entity_id = $1 AND deactivated_at IS NULL`,
       [employee.id],
     );
-    expect(portalUser).toBeNull();
+    expect(binding).toBeNull();
   });
 });

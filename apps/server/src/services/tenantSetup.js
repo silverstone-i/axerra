@@ -214,13 +214,19 @@ export async function provisionNewTenant(body, actorId) {
       );
     }
 
-    // 3g. Create portal_users login linked to the employee
+    // 3g. Create portal_users login + portal_user_tenants binding for the employee
     const user = await t.one(
       `INSERT INTO admin.portal_users
-         (tenant_id, entity_type, entity_id, email, password_hash, status, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+         (email, password_hash, status, created_by)
+       VALUES ($1, $2, $3, $4)
        RETURNING *`,
-      [tenant.id, 'employee', emp.id, admin_email, passwordHash, 'invited', actorId],
+      [admin_email, passwordHash, 'invited', actorId],
+    );
+    await t.none(
+      `INSERT INTO admin.portal_user_tenants
+         (portal_user_id, tenant_id, entity_type, entity_id, status, created_by)
+       VALUES ($1, $2, 'employee', $3, 'active', $4)`,
+      [user.id, tenant.id, emp.id, actorId],
     );
 
     return { admin_user_id: user.id, company_id: comp.id, source_id: source.id };

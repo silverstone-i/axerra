@@ -971,19 +971,18 @@ export async function provisionAppUser(entityId, email, password, tenantId, crea
     passwordHash = await bcrypt.default.hash(password, rounds);
   }
 
-  const { db } = await getDb();
-  const portalUsersModel = db('portalUsers', 'admin');
-  portalUsersModel.tx = t;
-
-  await portalUsersModel.insert({
-    tenant_id: tenantId,
-    entity_type: entityType,
-    entity_id: entityId,
-    email,
-    password_hash: passwordHash,
-    status: 'invited',
-    created_by: createdBy,
-  });
+  const inserted = await t.one(
+    `INSERT INTO admin.portal_users (email, password_hash, status, created_by)
+     VALUES ($1, $2, 'invited', $3)
+     RETURNING id`,
+    [email, passwordHash, createdBy],
+  );
+  await t.none(
+    `INSERT INTO admin.portal_user_tenants
+       (portal_user_id, tenant_id, entity_type, entity_id, status, created_by)
+     VALUES ($1, $2, $3, $4, 'active', $5)`,
+    [inserted.id, tenantId, entityType, entityId, createdBy],
+  );
   return true;
 }
 

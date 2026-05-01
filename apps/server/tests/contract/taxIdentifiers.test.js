@@ -108,11 +108,13 @@ describe('Tax Identifiers CRUD — /api/core/v1/tax-identifiers', () => {
     expect(res.status).toBe(200);
   });
 
-  test('rejects duplicate (source_id, country_code, tax_type)', async () => {
+  test('rejects duplicate global (country_code, tax_type, tax_value)', async () => {
+    // The existing record has tax_value '98-7654321' (after the earlier update);
+    // a different source can no longer reuse the same global tuple.
     const res = await request(app)
       .post('/api/core/v1/tax-identifiers')
       .set('Cookie', cookies)
-      .send({ source_id: sourceId, country_code: 'US', tax_type: 'EIN', tax_value: '00-0000000' });
+      .send({ source_id: sourceId, country_code: 'US', tax_type: 'EIN', tax_value: '98-7654321' });
 
     expect(res.status).toBe(409);
   });

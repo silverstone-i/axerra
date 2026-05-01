@@ -2,9 +2,10 @@
  * @file PortalUsersController — user CRUD with registration, safe archive/restore
  * @module tenants/controllers/portalUsersController
  *
- * portal_users is a pure identity table (id, tenant_id, entity_type, entity_id,
- * email, password_hash, status). No role, user_name, full_name, or tenant_code
- * columns — those live on entity records (Phase 5).
+ * portal_users is auth-only (id, email, password_hash, status). Tenant
+ * linkage and the polymorphic entity link live on the
+ * portal_user_tenants join table; archive/restore cascades resolve the
+ * binding(s) for the affected user.
  *
  * Overrides:
  *   register → validates tenant active, bcrypt hashes password, creates portal_user
@@ -73,13 +74,25 @@ class PortalUsersController extends BaseController {
       const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
       const password_hash = await bcrypt.hash(password, rounds);
 
-      // Create user record (pure identity table)
-      const user = await db('portalUsers', 'admin').insert({
-        tenant_id: tenant.id,
-        email,
-        password_hash,
-        status: 'active',
-        created_by: req.user?.id || null,
+      // Create the auth-only portal_users row + a tenant binding that
+      // carries no entity link yet (entity_type/entity_id are NULL).
+      // Entity provisioning controllers populate the link when an
+      // employee/client/vendor_contact is created or marked is_app_user.
+      const updatedBy = req.user?.id || null;
+      const user = await db.tx(async (t) => {
+        const inserted = await t.one(
+          `INSERT INTO admin.portal_users (email, password_hash, status, created_by)
+           VALUES ($1, $2, 'active', $3)
+           RETURNING *`,
+          [email, password_hash, updatedBy],
+        );
+        await t.none(
+          `INSERT INTO admin.portal_user_tenants
+             (portal_user_id, tenant_id, status, created_by)
+           VALUES ($1, $2, 'active', $3)`,
+          [inserted.id, tenant.id, updatedBy],
+        );
+        return inserted;
       });
 
       // Return user without password_hash
@@ -161,8 +174,7 @@ class PortalUsersController extends BaseController {
         pwUpdated = pwResult.rowCount > 0;
       }
 
-      // Update scalar user columns via raw SQL to avoid ColumnSet resetting
-      // entity_type / entity_id to NULL (their schema defaults).
+      // Update scalar user columns via raw SQL.
       // Only 'status' is an allowed mutable field from the UI.
       const ALLOWED_FIELDS = new Set(['status']);
       const safeChanges = Object.entries(userChanges).filter(([k]) => ALLOWED_FIELDS.has(k));
@@ -206,22 +218,38 @@ class PortalUsersController extends BaseController {
     }
 
     try {
-      // Look up the portal_user to cascade to linked entity
+      // Look up the portal_user to cascade to linked entity bindings
       const filter = targetId ? { id: targetId } : targetEmail ? { email: targetEmail } : { ...req.query };
       const portalUser = await this.model('admin').findOneBy([filter]);
       if (!portalUser) return res.status(404).json({ error: `${this.errorLabel} not found or already inactive` });
 
-      // Archive the portal_user with status='locked'
-      await db.none(
-        `UPDATE admin.portal_users
-         SET deactivated_at = NOW(), status = 'locked', updated_by = $1, updated_at = NOW()
-         WHERE id = $2`,
-        [req.user?.id || null, portalUser.id],
+      const bindings = await db.any(
+        `SELECT id, tenant_id, entity_type, entity_id FROM admin.portal_user_tenants
+         WHERE portal_user_id = $1 AND deactivated_at IS NULL`,
+        [portalUser.id],
       );
 
-      // Cascade to linked entity in tenant schema
-      if (portalUser.entity_type && portalUser.entity_id) {
-        await this.#archiveLinkedEntity(portalUser, req);
+      const updatedBy = req.user?.id || null;
+      await db.tx(async (t) => {
+        await t.none(
+          `UPDATE admin.portal_users
+           SET deactivated_at = NOW(), status = 'locked', updated_by = $1, updated_at = NOW()
+           WHERE id = $2`,
+          [updatedBy, portalUser.id],
+        );
+        if (bindings.length) {
+          await t.none(
+            `UPDATE admin.portal_user_tenants
+             SET deactivated_at = NOW(), status = 'locked', updated_by = $1, updated_at = NOW()
+             WHERE portal_user_id = $2 AND deactivated_at IS NULL`,
+            [updatedBy, portalUser.id],
+          );
+        }
+      });
+
+      // Cascade to linked entities in their tenant schemas
+      for (const binding of bindings) {
+        await this.#archiveLinkedEntity(binding, req);
       }
 
       res.status(200).json({ message: `${this.errorLabel} marked as inactive` });
@@ -244,23 +272,44 @@ class PortalUsersController extends BaseController {
       const user = await this.model('admin').findOneBy([filter], { includeDeactivated: true });
       if (!user) return res.status(404).json({ error: 'User not found' });
 
-      // Check parent tenant is active
-      const tenant = await db('tenants', 'admin').findOneBy([{ id: user.tenant_id }]);
-      if (!tenant) {
-        return res.status(403).json({ error: 'Tenant is deactivated. Restore the tenant first.' });
-      }
-
-      // Restore user with status='active'
-      await db.none(
-        `UPDATE admin.portal_users
-         SET deactivated_at = NULL, status = 'active', updated_by = $1, updated_at = NOW()
-         WHERE id = $2`,
-        [req.user?.id || null, user.id],
+      // Find the user's archived bindings — only restore those whose
+      // tenant is still active.
+      const bindings = await db.any(
+        `SELECT b.id, b.tenant_id, b.entity_type, b.entity_id, t.schema_name, t.deactivated_at AS tenant_deactivated
+         FROM admin.portal_user_tenants b
+         JOIN admin.tenants t ON t.id = b.tenant_id
+         WHERE b.portal_user_id = $1 AND b.deactivated_at IS NOT NULL`,
+        [user.id],
       );
 
-      // Cascade to restore linked entity in tenant schema
-      if (user.entity_type && user.entity_id) {
-        await this.#restoreLinkedEntity(user, tenant, req);
+      // If the user had bindings, refuse the restore unless at least one
+      // of their tenants is still active. A user with no bindings (e.g.
+      // bare registered users) restores without cascade.
+      const restorable = bindings.filter((b) => b.tenant_deactivated === null);
+      if (bindings.length && !restorable.length) {
+        return res.status(403).json({ error: 'No active tenant binding to restore. Restore the tenant first.' });
+      }
+
+      const updatedBy = req.user?.id || null;
+      await db.tx(async (t) => {
+        await t.none(
+          `UPDATE admin.portal_users
+           SET deactivated_at = NULL, status = 'active', updated_by = $1, updated_at = NOW()
+           WHERE id = $2`,
+          [updatedBy, user.id],
+        );
+        for (const b of restorable) {
+          await t.none(
+            `UPDATE admin.portal_user_tenants
+             SET deactivated_at = NULL, status = 'active', updated_by = $1, updated_at = NOW()
+             WHERE id = $2`,
+            [updatedBy, b.id],
+          );
+        }
+      });
+
+      for (const b of restorable) {
+        await this.#restoreLinkedEntity(b, req);
       }
 
       res.status(200).json({ message: `${this.errorLabel} marked as active` });
@@ -272,47 +321,49 @@ class PortalUsersController extends BaseController {
   /* ── Private helpers ──────────────────────────────────── */
 
   /**
-   * Archive the entity (e.g. employee) linked to a portal_user in its tenant schema.
+   * Archive the entity linked through a portal_user_tenants binding.
    */
-  async #archiveLinkedEntity(portalUser, req) {
-    const tenant = await db('tenants', 'admin').findOneBy([{ id: portalUser.tenant_id }]);
+  async #archiveLinkedEntity(binding, req) {
+    const tenant = await db('tenants', 'admin').findOneBy([{ id: binding.tenant_id }]);
     if (!tenant?.schema_name) return;
 
-    const table = this.#entityTable(portalUser.entity_type);
+    const table = this.#entityTable(binding.entity_type);
     if (!table) return;
 
     await db.none(
       `UPDATE ${pgp.as.name(tenant.schema_name)}.${pgp.as.name(table)}
        SET deactivated_at = NOW(), updated_by = $1, updated_at = NOW()
        WHERE id = $2 AND deactivated_at IS NULL`,
-      [req.user?.id || null, portalUser.entity_id],
+      [req.user?.id || null, binding.entity_id],
     );
-    logger.info(`Cascaded archive to ${tenant.schema_name}.${table} ${portalUser.entity_id}`);
+    logger.info(`Cascaded archive to ${tenant.schema_name}.${table} ${binding.entity_id}`);
   }
 
   /**
-   * Restore the entity (e.g. employee) linked to a portal_user in its tenant schema.
+   * Restore the entity linked through a portal_user_tenants binding.
    */
-  async #restoreLinkedEntity(portalUser, tenant, req) {
-    if (!tenant?.schema_name) return;
+  async #restoreLinkedEntity(binding, req) {
+    const schemaName = binding.schema_name
+      || (await db('tenants', 'admin').findOneBy([{ id: binding.tenant_id }]))?.schema_name;
+    if (!schemaName) return;
 
-    const table = this.#entityTable(portalUser.entity_type);
+    const table = this.#entityTable(binding.entity_type);
     if (!table) return;
 
     await db.none(
-      `UPDATE ${pgp.as.name(tenant.schema_name)}.${pgp.as.name(table)}
+      `UPDATE ${pgp.as.name(schemaName)}.${pgp.as.name(table)}
        SET deactivated_at = NULL, updated_by = $1, updated_at = NOW()
        WHERE id = $2 AND deactivated_at IS NOT NULL`,
-      [req.user?.id || null, portalUser.entity_id],
+      [req.user?.id || null, binding.entity_id],
     );
-    logger.info(`Cascaded restore to ${tenant.schema_name}.${table} ${portalUser.entity_id}`);
+    logger.info(`Cascaded restore to ${schemaName}.${table} ${binding.entity_id}`);
   }
 
   /**
    * Map entity_type to its table name.
    */
   #entityTable(entityType) {
-    const map = { employee: 'employees', vendor: 'vendors', client: 'clients', contact: 'contacts' };
+    const map = { employee: 'employees', vendor_contact: 'vendor_contacts', client: 'clients' };
     return map[entityType] || null;
   }
 }

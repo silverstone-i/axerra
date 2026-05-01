@@ -2,9 +2,11 @@
  * @file Passport.js Local Strategy — validates email/password against admin.portal_users
  * @module auth/services/passportService
  *
- * portal_users is a pure identity table per PRD §3.2.2. Tenant info is
- * resolved via join to admin.tenants. Personal info will come from the
- * linked entity once entity tables exist.
+ * portal_users is auth-only identity. Tenant linkage is resolved via
+ * admin.portal_user_tenants. The user's home tenant — used for the
+ * post-login active-tenant verification — is the earliest active
+ * binding (employees and clients have exactly one; vendor_contacts may
+ * have several and the x-tenant-code header overrides at request time).
  *
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
@@ -34,8 +36,16 @@ passport.use(
       const isMatch = await bcrypt.compare(password, user.password_hash);
       if (!isMatch) return done(null, false, { message: 'Incorrect password.' });
 
-      // Verify tenant is active
-      const tenant = await db('tenants', 'admin').findById(user.tenant_id);
+      // Resolve home binding + tenant
+      const tenant = await db.oneOrNone(
+        `SELECT t.*
+         FROM admin.portal_user_tenants b
+         JOIN admin.tenants t ON t.id = b.tenant_id
+         WHERE b.portal_user_id = $1 AND b.deactivated_at IS NULL
+         ORDER BY b.created_at ASC
+         LIMIT 1`,
+        [user.id],
+      );
       if (!tenant || tenant.deactivated_at !== null) {
         return done(null, false, { message: 'Tenant is inactive.' });
       }
