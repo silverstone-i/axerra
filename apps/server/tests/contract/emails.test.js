@@ -3,8 +3,9 @@
  * @module tests/contract/emails
  *
  * Covers: single is_login enforcement, blocking unset/archive of login email
- * while employee is_app_user. (portal_users sync is exercised implicitly but not
- * asserted directly — cross-schema assertions deferred to integration tests.)
+ * while is_app_user, and login-email sync to admin.portal_users for
+ * employee, client, and vendor_contact source types. The sync suite asserts
+ * directly against admin.portal_users via the test DB handle.
  *
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
