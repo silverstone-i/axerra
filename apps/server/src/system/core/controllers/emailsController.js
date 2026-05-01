@@ -14,6 +14,12 @@ import { clearOtherPrimary } from '../../../lib/clearOtherPrimary.js';
 import db, { pgp } from '../../../db/db.js';
 import logger from '../../../lib/logger.js';
 
+const ENTITY_TABLE_BY_SOURCE_TYPE = {
+  employee: 'employees',
+  client: 'clients',
+  vendor_contact: 'vendor_contacts',
+};
+
 class EmailsController extends BaseController {
   constructor() {
     super('emails');
@@ -141,20 +147,17 @@ class EmailsController extends BaseController {
   async #syncLoginEmail(schema, sourceId, email, req) {
     const s = pgp.as.name(schema);
     try {
-      // Find the source to get the entity type and id
       const source = await db.oneOrNone(
         `SELECT table_id, source_type FROM ${s}.sources WHERE id = $1 AND deactivated_at IS NULL`,
         [sourceId],
       );
       if (!source) return;
-
-      // Only employees sync to portal_users currently
-      if (source.source_type !== 'employee') return;
+      if (!ENTITY_TABLE_BY_SOURCE_TYPE[source.source_type]) return;
 
       await db.none(
         `UPDATE admin.portal_users SET email = $1, updated_by = $2
-         WHERE entity_type = 'employee' AND entity_id = $3 AND deactivated_at IS NULL`,
-        [email, req.user?.id || null, source.table_id],
+         WHERE entity_type = $3 AND entity_id = $4 AND deactivated_at IS NULL`,
+        [email, req.user?.id || null, source.source_type, source.table_id],
       );
     } catch (err) {
       logger.error('Failed to sync login email to portal_users', { sourceId, email, error: err.message });
@@ -171,13 +174,15 @@ class EmailsController extends BaseController {
       `SELECT table_id, source_type FROM ${s}.sources WHERE id = $1 AND deactivated_at IS NULL`,
       [sourceId],
     );
-    if (!source || source.source_type !== 'employee') return true;
+    if (!source) return true;
+    const table = ENTITY_TABLE_BY_SOURCE_TYPE[source.source_type];
+    if (!table) return true;
 
-    const employee = await db.oneOrNone(
-      `SELECT is_app_user FROM ${s}.employees WHERE id = $1 AND deactivated_at IS NULL`,
+    const entity = await db.oneOrNone(
+      `SELECT is_app_user FROM ${s}.${table} WHERE id = $1 AND deactivated_at IS NULL`,
       [source.table_id],
     );
-    return !employee?.is_app_user;
+    return !entity?.is_app_user;
   }
 }
 
