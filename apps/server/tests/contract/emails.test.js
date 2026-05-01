@@ -231,11 +231,20 @@ describe('Login email sync — client and vendor_contact source types', () => {
   let cookies;
 
   beforeAll(async () => {
-    const loginRes = await request(app)
+    let loginRes = await request(app)
       .post('/api/auth/login')
       .send({ email: 'admin@emtest.com', password: 'EmtestPass123!' });
+
+    if (!loginRes.headers['set-cookie']?.length) {
+      const rootCookies = await loginRoot();
+      await provisionTenant(rootCookies);
+      loginRes = await request(app)
+        .post('/api/auth/login')
+        .send({ email: 'admin@emtest.com', password: 'EmtestPass123!' });
+    }
+
     cookies = loginRes.headers['set-cookie'];
-  }, 15000);
+  }, 30000);
 
   test('client app-user creation syncs login email to admin.portal_users', async () => {
     const res = await request(app)
@@ -263,10 +272,11 @@ describe('Login email sync — client and vendor_contact source types', () => {
     const loginEmail = (emailsList.body.rows ?? emailsList.body).find((e) => e.is_login);
     expect(loginEmail).toBeTruthy();
 
-    await request(app)
+    const updateRes = await request(app)
       .put(`/api/core/v1/emails/update?id=${loginEmail.id}`)
       .set('Cookie', cookies)
       .send({ email: 'client-login-updated@emtest.com' });
+    expect(updateRes.status).toBe(200);
 
     const portalAfter = await DB.db.oneOrNone(
       `SELECT email FROM admin.portal_users WHERE entity_type = 'client' AND entity_id = $1 AND deactivated_at IS NULL`,

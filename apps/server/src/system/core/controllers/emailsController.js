@@ -19,7 +19,6 @@ const ENTITY_TABLE_BY_SOURCE_TYPE = {
   client: 'clients',
   vendor_contact: 'vendor_contacts',
 };
-const LOGIN_SOURCE_TYPES = new Set(Object.keys(ENTITY_TABLE_BY_SOURCE_TYPE));
 
 class EmailsController extends BaseController {
   constructor() {
@@ -153,7 +152,7 @@ class EmailsController extends BaseController {
         [sourceId],
       );
       if (!source) return;
-      if (!LOGIN_SOURCE_TYPES.has(source.source_type)) return;
+      if (!ENTITY_TABLE_BY_SOURCE_TYPE[source.source_type]) return;
 
       await db.none(
         `UPDATE admin.portal_users SET email = $1, updated_by = $2
