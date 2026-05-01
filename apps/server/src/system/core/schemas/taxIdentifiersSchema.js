@@ -34,12 +34,6 @@ const taxIdentifiersSchema = {
       { type: 'Index', columns: ['source_id'] },
       {
         type: 'Index',
-        columns: ['source_id', 'country_code', 'tax_type'],
-        unique: true,
-        where: 'deactivated_at IS NULL',
-      },
-      {
-        type: 'Index',
         columns: ['country_code', 'tax_type', 'tax_value'],
         unique: true,
         where: 'deactivated_at IS NULL',

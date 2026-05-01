@@ -177,4 +177,34 @@ describe('Partial unique indexes — emails / tax_identifiers / phone_numbers', 
       ),
     ).resolves.toBeNull();
   });
+
+  test('phone_numbers: country_code is NOT NULL — rejects inserts that omit a value', async () => {
+    const src = await makeSource(schema, tenantId, 'PhoneSrcNullCC');
+
+    await expect(
+      db.none(
+        `INSERT INTO ${DB.pgp.as.name(schema)}.phone_numbers (tenant_id, source_id, country_code, phone_type, phone_number, is_primary)
+         VALUES ($1, $2, NULL, 'cell', '+15555559999', false)`,
+        [tenantId, src.id],
+      ),
+    ).rejects.toMatchObject({ code: '23502' });
+  });
+
+  test('tax_identifiers: same source may hold multiple values for the same country/type', async () => {
+    const src = await makeSource(schema, tenantId, 'TaxSrcMultiVAT');
+
+    await db.none(
+      `INSERT INTO ${DB.pgp.as.name(schema)}.tax_identifiers (tenant_id, source_id, country_code, tax_type, tax_value)
+       VALUES ($1, $2, 'GB', 'VAT', 'GB123456789')`,
+      [tenantId, src.id],
+    );
+
+    await expect(
+      db.none(
+        `INSERT INTO ${DB.pgp.as.name(schema)}.tax_identifiers (tenant_id, source_id, country_code, tax_type, tax_value)
+         VALUES ($1, $2, 'GB', 'VAT', 'GB987654321')`,
+        [tenantId, src.id],
+      ),
+    ).resolves.toBeNull();
+  });
 });
