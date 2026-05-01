@@ -6,7 +6,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { getEnumColumns, validateChildEnums } from '../../src/lib/spreadsheetHelpers.js';
+import { WorkbookBuilder, WorkbookReader, writeXlsx } from '@nap-sft/tablsx';
+import { getEnumColumns, validateChildEnums, buildChildSheet, curateRows, parseSheet } from '../../src/lib/spreadsheetHelpers.js';
 
 describe('getEnumColumns', () => {
   it('extracts enum values from a CHECK IN (...) constraint', () => {
@@ -158,5 +159,115 @@ describe('validateChildEnums', () => {
   it('handles groups missing the child key entirely', () => {
     const groups = [{ parent: {}, children: {} }, { parent: {} }];
     expect(validateChildEnums(groups, { sheetName: 'Vendors', childEnums: baseChildEnums })).toEqual([]);
+  });
+});
+
+describe('curateRows', () => {
+  it('keeps `id` by default so exports support UUID round-trip', () => {
+    const rows = [
+      {
+        id: '11111111-1111-1111-1111-111111111111',
+        tenant_id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+        source_id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        created_at: '2025-01-01',
+        created_by: 'x',
+        updated_at: '2025-01-02',
+        updated_by: 'y',
+        deactivated_at: null,
+        email: 'a@b.com',
+      },
+    ];
+    const out = curateRows(rows);
+    expect(out).toEqual([{ id: '11111111-1111-1111-1111-111111111111', email: 'a@b.com' }]);
+  });
+});
+
+describe('buildChildSheet (UUID round-trip)', () => {
+  const PARENT_ID = '22222222-2222-2222-2222-222222222222';
+  const SOURCE_ID = '33333333-3333-3333-3333-333333333333';
+  const CHILD_ID_1 = '44444444-4444-4444-4444-444444444444';
+  const CHILD_ID_2 = '55555555-5555-5555-5555-555555555555';
+
+  function makeStubModel(rows) {
+    return {
+      findWhere: async () => rows,
+    };
+  }
+
+  it('exports the child UUID column so re-import can match on id', async () => {
+    const model = makeStubModel([
+      {
+        id: CHILD_ID_1,
+        tenant_id: 'tid',
+        source_id: SOURCE_ID,
+        email: 'a@b.com',
+        label: 'work',
+        is_primary: true,
+        is_login: false,
+        created_at: 'x',
+        created_by: 'x',
+        updated_at: 'x',
+        updated_by: 'x',
+        deactivated_at: null,
+      },
+      {
+        id: CHILD_ID_2,
+        tenant_id: 'tid',
+        source_id: SOURCE_ID,
+        email: 'c@d.com',
+        label: 'home',
+        is_primary: false,
+        is_login: false,
+      },
+    ]);
+
+    const wb = WorkbookBuilder.create();
+    const idBySource = new Map([[SOURCE_ID, PARENT_ID]]);
+    await buildChildSheet(wb, 'Emails', model, [SOURCE_ID], idBySource, 'employee_id', ['email', 'label', 'is_primary', 'is_login']);
+
+    const reader = WorkbookReader.fromBuffer(writeXlsx(wb.build()));
+    const sheetIdx = reader.sheetNames.indexOf('Emails');
+    const parsed = parseSheet(reader, sheetIdx);
+
+    expect(parsed.length).toBe(2);
+    expect(Object.keys(parsed[0])).toContain('id');
+    expect(Object.keys(parsed[0])).toContain('employee_id');
+    // Round-trip preserves the child UUID
+    const ids = parsed.map((r) => r.id).sort();
+    expect(ids).toEqual([CHILD_ID_1, CHILD_ID_2].sort());
+    // Linkage column is the parent UUID
+    expect(parsed[0].employee_id).toBe(PARENT_ID);
+    // Internal columns stripped
+    for (const r of parsed) {
+      expect(r.tenant_id).toBeUndefined();
+      expect(r.source_id).toBeUndefined();
+      expect(r.created_at).toBeUndefined();
+      expect(r.updated_by).toBeUndefined();
+      expect(r.deactivated_at).toBeUndefined();
+    }
+  });
+
+  it('emits an `id` column header even when no rows exist', async () => {
+    const model = makeStubModel([]);
+    const wb = WorkbookBuilder.create();
+    await buildChildSheet(wb, 'Emails', model, [SOURCE_ID], new Map(), 'employee_id', ['email', 'label']);
+
+    const reader = WorkbookReader.fromBuffer(writeXlsx(wb.build()));
+    const sheetIdx = reader.sheetNames.indexOf('Emails');
+    const sheet = reader.sheet(sheetIdx);
+    const headers = sheet.getRow(0).map((c) => c.value);
+    expect(headers).toEqual(['employee_id', 'id', 'email', 'label']);
+  });
+
+  it('emits an `id` column header when sourceIds is empty', async () => {
+    const model = makeStubModel([]);
+    const wb = WorkbookBuilder.create();
+    await buildChildSheet(wb, 'Emails', model, [], new Map(), 'employee_id', ['email', 'label']);
+
+    const reader = WorkbookReader.fromBuffer(writeXlsx(wb.build()));
+    const sheetIdx = reader.sheetNames.indexOf('Emails');
+    const sheet = reader.sheet(sheetIdx);
+    const headers = sheet.getRow(0).map((c) => c.value);
+    expect(headers).toEqual(['employee_id', 'id', 'email', 'label']);
   });
 });

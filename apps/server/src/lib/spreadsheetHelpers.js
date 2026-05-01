@@ -91,7 +91,7 @@ export async function buildChildSheet(wb, sheetName, model, sourceIds, parentIdB
 
   if (!sourceIds.length) {
     if (defaultHeaders.length) {
-      sheet.setHeaders([linkColName, ...defaultHeaders]);
+      sheet.setHeaders([linkColName, 'id', ...defaultHeaders]);
     } else {
       sheet.addRow(['No data']);
     }
@@ -99,21 +99,23 @@ export async function buildChildSheet(wb, sheetName, model, sourceIds, parentIdB
   }
 
   const rows = await model.findWhere([{ source_id: { $in: sourceIds } }]);
-  // Drop id from child rows — children are replaced wholesale on import
-  const curated = curateRows(rows, ['id']);
+  // Keep child `id` so re-import can match on UUID (round-trip dedup guarantee)
+  const curated = curateRows(rows);
 
   if (!curated.length) {
     if (defaultHeaders.length) {
-      sheet.setHeaders([linkColName, ...defaultHeaders]);
+      sheet.setHeaders([linkColName, 'id', ...defaultHeaders]);
     } else {
       sheet.addRow(['No data']);
     }
     return;
   }
 
-  // Prepend linkage column (parent id/ref) and format phone/tax values for display
+  // Prepend linkage column (parent id/ref) followed by the child UUID, then the rest.
+  // Order: <linkColName>, id, <other columns>
   const linked = curated.map((row, i) => {
-    const out = { [linkColName]: parentIdBySourceId.get(rows[i].source_id) || '', ...row };
+    const { id, ...restCols } = row;
+    const out = { [linkColName]: parentIdBySourceId.get(rows[i].source_id) || '', id, ...restCols };
     formatExportRow(out, 'phone_number', 'country_code', 'tax_value', 'country_code', 'tax_type');
     return out;
   });
@@ -523,7 +525,7 @@ export async function buildExportWorkbook(model, where, joinType, options, confi
     mainSheet.setHeaders([...schemaHeaders, ...extraHeaders]);
     for (const child of config.childSheets) {
       const childSheet = wb.sheet(child.sheetName);
-      childSheet.setHeaders([config.linkColName, ...child.headers]);
+      childSheet.setHeaders([config.linkColName, 'id', ...child.headers]);
     }
     return { wb, rows, sourceIds: [], idBySourceId: new Map(), writeXlsx };
   }
