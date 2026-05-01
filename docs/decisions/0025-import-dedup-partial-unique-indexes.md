@@ -1,11 +1,10 @@
-# 0025 — Partial unique indexes for child entities (import dedup)
+# ADR-0025: Partial unique indexes for child entities (import dedup)
 
-- Status: Accepted
-- Date: 2026-05-01
-- Related: plan
-  `/Users/ian/.claude/plans/users-ian-downloads-import-dedup-and-mu-jolly-castle.md`,
-  spec `/Users/ian/Downloads/import-dedup-and-multi-tenant-vendors.md`
-  (Part 1)
+**Status**: Accepted
+**Date**: 2026-05-01
+**Related**: Import Dedup & Multi-Tenant Vendor Access plan, "Import
+Deduplication & Multi-Tenant Vendor Access" spec (Part 1 — Import
+Deduplication).
 
 ## Context
 
