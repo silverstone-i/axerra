@@ -3,15 +3,16 @@
  * @module tests/contract/emails
  *
  * Covers: single is_login enforcement, blocking unset/archive of login email
- * while employee is_app_user. (portal_users sync is exercised implicitly but not
- * asserted directly — cross-schema assertions deferred to integration tests.)
+ * while is_app_user, and login-email sync to admin.portal_users for
+ * employee, client, and vendor_contact source types. The sync suite asserts
+ * directly against admin.portal_users via the test DB handle.
  *
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
-import { bootstrapAdmin, cleanupTestDb } from '../helpers/testDb.js';
+import { bootstrapAdmin, cleanupTestDb, DB } from '../helpers/testDb.js';
 
 const ROOT_EMAIL = process.env.ROOT_EMAIL;
 const ROOT_PASSWORD = process.env.ROOT_PASSWORD;
@@ -224,5 +225,113 @@ describe('Email CRUD — /api/core/v1/emails', () => {
       .set('Cookie', cookies)
       .send({});
     expect(res.status).toBe(200);
+  });
+});
+
+describe('Login email sync — client and vendor_contact source types', () => {
+  let cookies;
+
+  beforeAll(async () => {
+    let loginRes = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'admin@emtest.com', password: 'EmtestPass123!' });
+
+    if (!loginRes.headers['set-cookie']?.length) {
+      const rootCookies = await loginRoot();
+      await provisionTenant(rootCookies);
+      loginRes = await request(app)
+        .post('/api/auth/login')
+        .send({ email: 'admin@emtest.com', password: 'EmtestPass123!' });
+    }
+
+    cookies = loginRes.headers['set-cookie'];
+  }, 30000);
+
+  test('client app-user creation syncs login email to admin.portal_users', async () => {
+    const res = await request(app)
+      .post('/api/core/v1/clients')
+      .set('Cookie', cookies)
+      .send({
+        name: 'Sync Client Co',
+        email: 'client-login@emtest.com',
+        is_app_user: true,
+        roles: ['client'],
+        password: 'ClientPass123!',
+      });
+    expect(res.status).toBe(201);
+
+    const portal = await DB.db.oneOrNone(
+      `SELECT email FROM admin.portal_users WHERE entity_type = 'client' AND entity_id = $1 AND deactivated_at IS NULL`,
+      [res.body.id],
+    );
+    expect(portal?.email).toBe('client-login@emtest.com');
+
+    // Updating the login email should cascade
+    const emailsList = await request(app)
+      .get(`/api/core/v1/emails?source_id=${res.body.source_id}`)
+      .set('Cookie', cookies);
+    const loginEmail = (emailsList.body.rows ?? emailsList.body).find((e) => e.is_login);
+    expect(loginEmail).toBeTruthy();
+
+    const updateRes = await request(app)
+      .put(`/api/core/v1/emails/update?id=${loginEmail.id}`)
+      .set('Cookie', cookies)
+      .send({ email: 'client-login-updated@emtest.com' });
+    expect(updateRes.status).toBe(200);
+
+    const portalAfter = await DB.db.oneOrNone(
+      `SELECT email FROM admin.portal_users WHERE entity_type = 'client' AND entity_id = $1 AND deactivated_at IS NULL`,
+      [res.body.id],
+    );
+    expect(portalAfter?.email).toBe('client-login-updated@emtest.com');
+
+    // Unsetting is_login should be blocked while is_app_user
+    const unset = await request(app)
+      .put(`/api/core/v1/emails/update?id=${loginEmail.id}`)
+      .set('Cookie', cookies)
+      .send({ is_login: false });
+    expect(unset.status).toBe(400);
+    expect(unset.body.error).toMatch(/app user/i);
+  });
+
+  test('vendor_contact app-user creation syncs login email to admin.portal_users', async () => {
+    const vendorRes = await request(app)
+      .post('/api/core/v1/vendors')
+      .set('Cookie', cookies)
+      .send({ name: 'Sync Vendor Co' });
+    expect(vendorRes.status).toBe(201);
+
+    const res = await request(app)
+      .post('/api/core/v1/vendor-contacts')
+      .set('Cookie', cookies)
+      .send({
+        vendor_id: vendorRes.body.id,
+        first_name: 'VC',
+        last_name: 'Login',
+        email: 'vc-login@emtest.com',
+        is_app_user: true,
+        roles: ['vendor'],
+        password: 'VcPass123!',
+      });
+    expect(res.status).toBe(201);
+
+    const portal = await DB.db.oneOrNone(
+      `SELECT email FROM admin.portal_users WHERE entity_type = 'vendor_contact' AND entity_id = $1 AND deactivated_at IS NULL`,
+      [res.body.id],
+    );
+    expect(portal?.email).toBe('vc-login@emtest.com');
+
+    const emailsList = await request(app)
+      .get(`/api/core/v1/emails?source_id=${res.body.source_id}`)
+      .set('Cookie', cookies);
+    const loginEmail = (emailsList.body.rows ?? emailsList.body).find((e) => e.is_login);
+    expect(loginEmail).toBeTruthy();
+
+    const unset = await request(app)
+      .put(`/api/core/v1/emails/update?id=${loginEmail.id}`)
+      .set('Cookie', cookies)
+      .send({ is_login: false });
+    expect(unset.status).toBe(400);
+    expect(unset.body.error).toMatch(/app user/i);
   });
 });
