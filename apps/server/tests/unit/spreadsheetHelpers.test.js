@@ -258,4 +258,16 @@ describe('buildChildSheet (UUID round-trip)', () => {
     const headers = sheet.getRow(0).map((c) => c.value);
     expect(headers).toEqual(['employee_id', 'id', 'email', 'label']);
   });
+
+  it('emits an `id` column header when sourceIds is empty', async () => {
+    const model = makeStubModel([]);
+    const wb = WorkbookBuilder.create();
+    await buildChildSheet(wb, 'Emails', model, [], new Map(), 'employee_id', ['email', 'label']);
+
+    const reader = WorkbookReader.fromBuffer(writeXlsx(wb.build()));
+    const sheetIdx = reader.sheetNames.indexOf('Emails');
+    const sheet = reader.sheet(sheetIdx);
+    const headers = sheet.getRow(0).map((c) => c.value);
+    expect(headers).toEqual(['employee_id', 'id', 'email', 'label']);
+  });
 });

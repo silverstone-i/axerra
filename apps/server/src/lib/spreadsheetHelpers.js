@@ -91,7 +91,7 @@ export async function buildChildSheet(wb, sheetName, model, sourceIds, parentIdB
 
   if (!sourceIds.length) {
     if (defaultHeaders.length) {
-      sheet.setHeaders([linkColName, ...defaultHeaders]);
+      sheet.setHeaders([linkColName, 'id', ...defaultHeaders]);
     } else {
       sheet.addRow(['No data']);
     }
