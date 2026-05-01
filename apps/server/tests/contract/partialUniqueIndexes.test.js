@@ -178,7 +178,7 @@ describe('Partial unique indexes — emails / tax_identifiers / phone_numbers', 
     ).resolves.toBeNull();
   });
 
-  test('phone_numbers: country_code is NOT NULL — rejects inserts that omit a value', async () => {
+  test('phone_numbers: country_code is NOT NULL — rejects explicit NULL inserts', async () => {
     const src = await makeSource(schema, tenantId, 'PhoneSrcNullCC');
 
     await expect(
