@@ -2,13 +2,17 @@
  * @file Contract tests for partial unique indexes on tenant child entities
  * @module tests/contract/partialUniqueIndexes
  *
- * Verifies the following partial unique indexes exist and reject duplicates:
+ * Exercises the following partial unique indexes and adjacent constraints
+ * via direct inserts through the test DB handle:
  *   - emails:           UNIQUE (email)                                    WHERE deactivated_at IS NULL
  *   - tax_identifiers:  UNIQUE (country_code, tax_type, tax_value)        WHERE deactivated_at IS NULL
  *   - phone_numbers:    UNIQUE (country_code, phone_number)               WHERE deactivated_at IS NULL AND phone_type = 'cell'
+ *   - phone_numbers.country_code is NOT NULL
  *
- * Each case inserts a conflicting row directly via the test DB handle and
- * asserts the database rejects with a unique-violation (Postgres SQLSTATE 23505).
+ * Coverage spans positive duplicate-rejection cases (SQLSTATE 23505), the
+ * NOT NULL violation on country_code (SQLSTATE 23502), and negative cases
+ * that must succeed: soft-deleted email reuse, non-cell phone duplicates,
+ * and multiple tax values for the same source/country/type.
  *
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
