@@ -40,7 +40,7 @@ import {
   useTaxIdentifiers, useCreateTaxIdentifier, useUpdateTaxIdentifier, useArchiveTaxIdentifier,
 } from '../../hooks/useTaxIdentifiers.js';
 import {
-  useVendorContacts, useCreateVendorContact, useUpdateVendorContact, useArchiveVendorContact, useRestoreVendorContact, useResetVendorContactPassword,
+  useVendorContacts, useCreateVendorContact, useUpdateVendorContact, useArchiveVendorContact, useRestoreVendorContact, useResetVendorContactPassword, useSwapVendorContactLoginEmail,
 } from '../../hooks/useVendorContacts.js';
 import { useImportXls, useExportXls } from '../../hooks/useImportExport.js';
 import { useActivePaymentTerms } from '../../hooks/usePaymentTerms.js';
@@ -126,6 +126,7 @@ export default function VendorsPage() {
   const archiveContactMut = useArchiveVendorContact();
   const restoreContactMut = useRestoreVendorContact();
   const resetContactPwMut = useResetVendorContactPassword();
+  const swapLoginEmailMut = useSwapVendorContactLoginEmail();
 
   /* ── Selection (new system) ─────────────────────────────────── */
   const selection = useListSelection(rows);
@@ -193,6 +194,7 @@ export default function VendorsPage() {
     contactEditOpen, contactEditForm, setContactEditForm, onContactEditField,
     contactEditEmails, setContactEditEmails, contactEditPhones, setContactEditPhones,
     contactEditRow, openContactEdit, handleContactEdit, closeContactEdit, updateContactLoading,
+    swapPending, confirmSwap, closeSwapConfirm, swapLoading,
     contactPwAnchor, handleContactAppUserToggle, handleContactPwConfirm, handleContactPwCancel,
     contactViewFilter, setContactViewFilter, filteredContacts,
     contactSelection, viewContactSelection,
@@ -218,6 +220,7 @@ export default function VendorsPage() {
     createPhoneMut,
     updatePhoneMut,
     archivePhoneMut,
+    swapLoginEmailMut,
   });
 
   /* ── Bundled close handlers ─────────────────────────────────── */
@@ -478,6 +481,24 @@ export default function VendorsPage() {
 
       <ConfirmDialog {...archiveConfirmProps} />
       <ConfirmDialog {...restoreConfirmProps} />
+
+      <ConfirmDialog
+        open={!!swapPending}
+        title="Transfer tenant access?"
+        message={
+          swapPending
+            ? `This will transfer access for this tenant from ${swapPending.originalEmail} to ${swapPending.newEmail}. ` +
+              `${swapPending.originalEmail} will lose access to this tenant. ` +
+              `If ${swapPending.newEmail} already has an Axerra account, that account will be linked and its existing password is kept. ` +
+              `Otherwise a new account is created with the password you supplied (or a generated one if none was provided). Proceed?`
+            : ''
+        }
+        confirmLabel="Transfer access"
+        cancelLabel="Cancel"
+        loading={swapLoading}
+        onConfirm={confirmSwap}
+        onCancel={closeSwapConfirm}
+      />
 
       <ResetPasswordDialog
         open={resetPwDialog.isOpen}
