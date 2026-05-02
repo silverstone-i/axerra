@@ -360,11 +360,16 @@ class VendorContactsController extends BaseController {
   async swapLoginEmail(req, res) {
     const contactId = req.params.id;
     const tenantId = req.user?.tenant_id;
-    const { new_email, password: suppliedPassword } = req.body || {};
+    const { new_email: rawEmail, password: suppliedPassword } = req.body || {};
 
-    if (!new_email || typeof new_email !== 'string') {
+    if (!rawEmail || typeof rawEmail !== 'string') {
       return res.status(400).json({ error: 'new_email is required' });
     }
+    // Normalise email to lowercase up-front: portal_users.email is varchar
+    // with a case-sensitive partial unique index, so without normalisation
+    // 'Vera@x.com' and 'vera@x.com' could create duplicate active rows
+    // and the lookup below would miss an existing user with different casing.
+    const new_email = rawEmail.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(new_email)) {
       return res.status(400).json({ error: 'new_email is not a valid email address' });
     }
@@ -408,23 +413,36 @@ class VendorContactsController extends BaseController {
         [contact.source_id],
       );
 
-      if (loginEmailRow && loginEmailRow.email.toLowerCase() === new_email.toLowerCase()) {
+      if (loginEmailRow && loginEmailRow.email.toLowerCase() === new_email) {
         return res.status(400).json({ error: 'new_email matches the current login email — nothing to swap' });
       }
 
-      // 2. Look up new_email in admin.portal_users (active first, archived fallback).
+      const previousPortalUserId = currentBinding.portal_user_id;
+      let newPortalUserId;
+
+      // 2. Look up new_email in admin.portal_users (active first, archived
+      // fallback). Case-insensitive match defends against pre-normalisation
+      // rows that may exist with mixed casing.
       const matchedUser = await db.oneOrNone(
         `SELECT id, deactivated_at FROM admin.portal_users
-         WHERE email = $1
+         WHERE LOWER(email) = $1
          ORDER BY deactivated_at IS NULL DESC, deactivated_at DESC NULLS FIRST
          LIMIT 1`,
         [new_email],
       );
 
-      let newPortalUserId;
-      const previousPortalUserId = currentBinding.portal_user_id;
+      // The match could be the same portal_user already bound to this
+      // contact in this tenant — a real swap requires a different identity.
+      // Refuse with 400 so the caller doesn't accidentally downgrade their
+      // own binding to status='invited'.
+      if (matchedUser?.id === previousPortalUserId) {
+        return res.status(400).json({
+          error:
+            'new_email belongs to the same portal user already bound to this contact. Update the tenant login-email row directly if it is out of sync.',
+        });
+      }
 
-      await db.tx(async (t) => {
+      const runSwap = () => db.tx(async (t) => {
         // 3. Deactivate the current binding — old portal_user loses tenant access.
         await t.none(
           `UPDATE admin.portal_user_tenants
@@ -526,6 +544,68 @@ class VendorContactsController extends BaseController {
         }
       });
 
+      let usedMatchPath = !!matchedUser;
+      try {
+        await runSwap();
+      } catch (err) {
+        // Concurrent insert race: between the lookup and our INSERT into
+        // admin.portal_users, another request may have created a row with
+        // this email. Re-lookup once and retry through the match path.
+        const isUniqueViolation = err.code === '23505' && /portal_users.*email/i.test(err.constraint || err.detail || '');
+        if (!isUniqueViolation) throw err;
+        const racedUser = await db.oneOrNone(
+          `SELECT id, deactivated_at FROM admin.portal_users WHERE LOWER(email) = $1 LIMIT 1`,
+          [new_email],
+        );
+        if (!racedUser) throw err;
+        if (racedUser.id === previousPortalUserId) {
+          return res.status(400).json({
+            error:
+              'Concurrent update produced a portal_user that is already bound to this contact. Please try again.',
+          });
+        }
+        // Reuse the match path — rebuild the matched-user state. Note: the
+        // failed first attempt already rolled back, so the current binding
+        // is still active; runSwap will deactivate it on retry.
+        const retried = await db.tx(async (t) => {
+          await t.none(
+            `UPDATE admin.portal_user_tenants
+             SET deactivated_at = NOW(), status = 'locked', updated_by = $1
+             WHERE id = $2`,
+            [updatedBy, currentBinding.id],
+          );
+          if (racedUser.deactivated_at) {
+            await t.none(
+              `UPDATE admin.portal_users
+               SET deactivated_at = NULL, status = 'active', updated_by = $1
+               WHERE id = $2 AND deactivated_at IS NOT NULL`,
+              [updatedBy, racedUser.id],
+            );
+          }
+          await t.none(
+            `INSERT INTO admin.portal_user_tenants
+               (portal_user_id, tenant_id, entity_type, entity_id, status, created_by)
+             VALUES ($1, $2, 'vendor_contact', $3, 'invited', $4)`,
+            [racedUser.id, tenantId, contact.id, updatedBy],
+          );
+          if (loginEmailRow) {
+            await t.none(
+              `UPDATE ${s}.emails SET email = $1, updated_by = $2 WHERE id = $3`,
+              [new_email, updatedBy, loginEmailRow.id],
+            );
+          } else {
+            await t.none(
+              `INSERT INTO ${s}.emails (tenant_id, source_id, email, label, is_primary, is_login, created_by)
+               VALUES ($1, $2, $3, 'work', true, true, $4)`,
+              [tenantId, contact.source_id, new_email, updatedBy],
+            );
+          }
+          return racedUser.id;
+        });
+        newPortalUserId = retried;
+        usedMatchPath = true;
+      }
+
       logger.info(
         `Identity swap on vendor_contact ${contactId} in tenant ${tenantId}: ` +
           `portal_user ${previousPortalUserId} → ${newPortalUserId} ` +
@@ -536,7 +616,7 @@ class VendorContactsController extends BaseController {
         message: 'Login email swapped',
         previous_portal_user_id: previousPortalUserId,
         portal_user_id: newPortalUserId,
-        matched_existing: !!matchedUser,
+        matched_existing: usedMatchPath,
       });
     } catch (err) {
       if (err.status) return res.status(err.status).json({ error: err.message });

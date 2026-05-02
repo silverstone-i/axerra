@@ -83,13 +83,15 @@ class EmailsController extends BaseController {
       if (req.body.email && req.body.email !== before.email && before.is_login) {
         const s = pgp.as.name(schema);
         const source = await db.oneOrNone(
-          `SELECT source_type FROM ${s}.sources WHERE id = $1 AND deactivated_at IS NULL`,
+          `SELECT source_type, table_id FROM ${s}.sources WHERE id = $1 AND deactivated_at IS NULL`,
           [before.source_id],
         );
         if (source?.source_type === 'vendor_contact') {
           return res.status(400).json({
-            error:
-              'Changing a vendor contact login email is an identity swap. Use PUT /api/core/v1/vendor-contacts/:id/swap-login-email so the access transfer is explicit.',
+            error: 'Changing a vendor contact login email is an identity swap.',
+            code: 'VENDOR_CONTACT_LOGIN_EMAIL_SWAP_REQUIRED',
+            vendor_contact_id: source.table_id,
+            swap_endpoint: `/api/core/v1/vendor-contacts/${source.table_id}/swap-login-email`,
           });
         }
       }
