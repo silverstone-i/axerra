@@ -489,8 +489,8 @@ export default function VendorsPage() {
           swapPending
             ? `This will transfer access for this tenant from ${swapPending.originalEmail} to ${swapPending.newEmail}. ` +
               `${swapPending.originalEmail} will lose access to this tenant. ` +
-              `If ${swapPending.newEmail} already has an Axerra account, that account will be linked. ` +
-              `Otherwise a new account is created with the supplied temporary password. Proceed?`
+              `If ${swapPending.newEmail} already has an Axerra account, that account will be linked and its existing password is kept. ` +
+              `Otherwise a new account is created with the password you supplied (or a generated one if none was provided). Proceed?`
             : ''
         }
         confirmLabel="Transfer access"

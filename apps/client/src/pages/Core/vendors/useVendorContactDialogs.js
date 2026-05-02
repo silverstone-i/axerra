@@ -288,10 +288,16 @@ export function useVendorContactDialogs({
         && newLoginEm.email.trim().toLowerCase() !== originalLoginEmail.trim().toLowerCase();
 
       if (wasAppUser && stillAppUser && valueChanged && swapLoginEmailMut) {
-        // Defer the rest of the save — open the confirmation. The
-        // parent component renders the dialog and calls confirmSwap()
-        // on accept.
-        setSwapPending({ newEmail: newLoginEm.email, originalEmail: originalLoginEmail });
+        // Defer the rest of the save — open the confirmation. Capture
+        // the contact id and the password the user typed at this moment
+        // so confirmSwap doesn't depend on contactEditRow / contactEditForm
+        // staying mounted while the ConfirmDialog is open.
+        setSwapPending({
+          contactId: contactEditRow.id,
+          newEmail: newLoginEm.email,
+          originalEmail: originalLoginEmail,
+          password: contactEditForm.password || undefined,
+        });
         return;
       }
 
@@ -303,22 +309,30 @@ export function useVendorContactDialogs({
 
   const confirmSwap = useCallback(async () => {
     if (!swapPending || !swapLoginEmailMut) return;
+    if (!swapPending.contactId) {
+      setSwapPending(null);
+      return;
+    }
     try {
       await swapLoginEmailMut.mutateAsync({
-        id: contactEditRow.id,
+        id: swapPending.contactId,
         new_email: swapPending.newEmail,
-        password: contactEditForm.password || undefined,
+        password: swapPending.password,
       });
       setSwapPending(null);
       // After the swap, the tenant emails table already reflects the
       // new email, so the saveCollection re-send on the login-email
       // row is a no-op (server's guard is keyed on email value change).
-      await performContactEdit();
+      // performContactEdit only runs if the edit dialog is still open —
+      // if the user closed it mid-swap, skip the rest of the save.
+      if (contactEditRow?.id === swapPending.contactId) {
+        await performContactEdit();
+      }
     } catch (err) {
       setSwapPending(null);
       toast(errMsg(err), 'error');
     }
-  }, [swapPending, swapLoginEmailMut, contactEditRow, contactEditForm, performContactEdit, toast]);
+  }, [swapPending, swapLoginEmailMut, contactEditRow, performContactEdit, toast]);
 
   return {
     // Contact view
@@ -336,7 +350,12 @@ export function useVendorContactDialogs({
     contactEditEmails, setContactEditEmails,
     contactEditPhones, setContactEditPhones,
     contactEditRow, openContactEdit, handleContactEdit,
-    closeContactEdit: useCallback(() => { setContactEditOpen(false); setContactEditRow(null); }, []),
+    closeContactEdit: useCallback(() => {
+      setContactEditOpen(false);
+      setContactEditRow(null);
+      setOriginalLoginEmail(null);
+      setSwapPending(null);
+    }, []),
     updateContactLoading: updateContactMut.isPending,
     // Identity-swap on login-email change (Task 7)
     swapPending, confirmSwap, closeSwapConfirm,
