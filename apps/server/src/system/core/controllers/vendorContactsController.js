@@ -339,10 +339,12 @@ class VendorContactsController extends BaseController {
    *      restore it (and re-activate the portal_user if archived). The
    *      portal_user's credentials are NOT reset; they belong to the
    *      user, especially when they have other active bindings.
-   *   2. An active portal_user with this login email already exists —
-   *      bind that portal_user to this vendor_contact (status='invited').
-   *      Supplied password is ignored. The portal_user globally stays
-   *      active; only this binding is in invite state.
+   *   2. A portal_user with this login email already exists (active or
+   *      archived) — bind that portal_user to this vendor_contact with
+   *      the new binding in status='invited'. Supplied password is
+   *      ignored. The portal_user's global status stays as-is
+   *      (reactivated if archived); only the per-tenant binding row
+   *      starts in invite state.
    *   3. No match anywhere — create a new portal_users row plus binding
    *      with the hashed temp password (or a generated one).
    */
@@ -425,9 +427,21 @@ class VendorContactsController extends BaseController {
           );
         }
 
-        if (sameTenantBinding) {
-          // Either bare binding (entity_type NULL) or archived binding —
-          // upgrade in place to point at the vendor_contact.
+        // Decide whether to upgrade the existing binding row in place or
+        // insert a new one. Upgrading is only safe when the row is bare
+        // (entity_type IS NULL — typical /portal-users/register output)
+        // or already points at this same vendor_contact (idempotent
+        // re-provisioning of an archived binding). Otherwise inserting
+        // a new binding preserves the archived row's historical entity
+        // linkage; the (portal_user_id, tenant_id) WHERE active partial
+        // unique index doesn't conflict because the prior row is
+        // archived.
+        const canUpgradeInPlace =
+          sameTenantBinding
+          && (sameTenantBinding.entity_type === null
+            || (sameTenantBinding.entity_type === 'vendor_contact' && sameTenantBinding.entity_id === vendorContact.id));
+
+        if (canUpgradeInPlace) {
           await t.none(
             `UPDATE admin.portal_user_tenants
              SET deactivated_at = NULL,
@@ -494,7 +508,14 @@ class VendorContactsController extends BaseController {
   }
 
   /**
-   * Archive (soft-delete) the portal_users + binding linked to a vendor contact.
+   * Archive the per-tenant binding for a vendor_contact app user.
+   *
+   * Vendor_contacts can share a portal_user across tenants (Task 6's
+   * email-match → bind path). Archiving only this tenant's binding
+   * must NOT lock the global portal_user when other tenants still
+   * have active bindings to it — that would break their logins.
+   * The portal_user is only locked when this was the user's last
+   * remaining active binding.
    */
   async #archiveAppUser(vendorContactId, req) {
     const binding = await findActiveBinding('vendor_contact', vendorContactId, req.user?.tenant_id);
@@ -508,14 +529,20 @@ class VendorContactsController extends BaseController {
          WHERE id = $2`,
         [updatedBy, binding.id],
       );
+      // Only lock the portal_user globally if this was the last active
+      // binding. Mirrors tenantsController's cascade pattern.
       await t.none(
         `UPDATE admin.portal_users
          SET deactivated_at = NOW(), status = 'locked', updated_by = $1
-         WHERE id = $2`,
+         WHERE id = $2 AND deactivated_at IS NULL
+           AND NOT EXISTS (
+             SELECT 1 FROM admin.portal_user_tenants
+             WHERE portal_user_id = $2 AND deactivated_at IS NULL
+           )`,
         [updatedBy, binding.portal_user_id],
       );
     });
-    logger.info(`Archived portal_user ${binding.portal_user_id} + binding for vendor_contact ${vendorContactId}`);
+    logger.info(`Archived binding for vendor_contact ${vendorContactId} → portal_user ${binding.portal_user_id}`);
   }
 
   /**

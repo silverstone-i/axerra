@@ -272,4 +272,114 @@ describe('Vendor Contact app-user provisioning — cross-tenant existing-email m
     expect(tenantBBinding).toBeDefined();
     expect(tenantBBinding.status).toBe('invited');
   });
+
+  test('Case 1: archive → re-provision restores binding without resetting credentials', async () => {
+    // Create a fresh vendor + vendor_contact in tenant A so we can
+    // archive/restore without disturbing the cross-tenant SHARED_EMAIL state.
+    const vendorRes = await request(app)
+      .post('/api/core/v1/vendors')
+      .set('Cookie', cookiesA)
+      .send({ name: 'Lifecycle Vendor', code: 'LCV01' });
+
+    const createRes = await request(app)
+      .post('/api/core/v1/vendor-contacts')
+      .set('Cookie', cookiesA)
+      .send({
+        vendor_id: vendorRes.body.id,
+        first_name: 'Lana',
+        last_name: 'Lifecycle',
+        email: 'lana.lifecycle@vendor.test',
+        is_app_user: true,
+        roles: ['vendor'],
+        password: 'OriginalPass123!',
+      });
+    expect(createRes.status).toBe(201);
+    const contactId = createRes.body.id;
+
+    const portalBefore = await db.one(
+      'SELECT id, email, password_hash, status FROM admin.portal_users WHERE email = $1 AND deactivated_at IS NULL',
+      ['lana.lifecycle@vendor.test'],
+    );
+
+    // Toggle is_app_user OFF — archives the binding (and the portal_user
+    // since this is the only binding for it).
+    const offRes = await request(app)
+      .put(`/api/core/v1/vendor-contacts/update?id=${contactId}`)
+      .set('Cookie', cookiesA)
+      .send({ is_app_user: false });
+    expect(offRes.status).toBe(200);
+
+    // Toggle is_app_user back ON with a different password and email
+    // — Case 1 should restore the binding and leave portal_user
+    // credentials alone.
+    const onRes = await request(app)
+      .put(`/api/core/v1/vendor-contacts/update?id=${contactId}`)
+      .set('Cookie', cookiesA)
+      .send({
+        is_app_user: true,
+        roles: ['vendor'],
+        password: 'IgnoredOnRestore123!',
+      });
+    expect(onRes.status).toBe(200);
+
+    const portalAfter = await db.one(
+      'SELECT email, password_hash, status FROM admin.portal_users WHERE id = $1',
+      [portalBefore.id],
+    );
+    // Binding restored, portal_user reactivated, credentials unchanged
+    expect(portalAfter.email).toBe(portalBefore.email);
+    expect(portalAfter.password_hash).toBe(portalBefore.password_hash);
+    expect(portalAfter.status).toBe('active');
+
+    const restoredBinding = await db.oneOrNone(
+      `SELECT status, deactivated_at FROM admin.portal_user_tenants
+       WHERE portal_user_id = $1 AND entity_id = $2`,
+      [portalBefore.id, contactId],
+    );
+    expect(restoredBinding).not.toBeNull();
+    expect(restoredBinding.deactivated_at).toBeNull();
+    expect(restoredBinding.status).toBe('active');
+  });
+
+  test('archiving a vendor_contact does NOT lock a portal_user that has other active bindings', async () => {
+    // SHARED_EMAIL portal_user has bindings in tenant A and tenant B
+    // (from the earlier two tests). Archive the tenant-B vendor_contact
+    // and confirm the portal_user stays active because the tenant-A
+    // binding is still alive.
+    const portal = await db.one(
+      'SELECT id, status FROM admin.portal_users WHERE email = $1',
+      [SHARED_EMAIL],
+    );
+    expect(portal.status).toBe('invited'); // still in initial invited state
+
+    const tenantBContact = await db.one(
+      `SELECT b.entity_id FROM admin.portal_user_tenants b
+       JOIN admin.tenants t ON t.id = b.tenant_id
+       WHERE b.portal_user_id = $1 AND t.tenant_code = 'VCTSTB' AND b.deactivated_at IS NULL`,
+      [portal.id],
+    );
+
+    const archiveRes = await request(app)
+      .delete(`/api/core/v1/vendor-contacts/archive?id=${tenantBContact.entity_id}`)
+      .set('Cookie', cookiesB)
+      .send({});
+    expect(archiveRes.status).toBe(200);
+
+    const portalAfter = await db.one(
+      'SELECT deactivated_at, status FROM admin.portal_users WHERE id = $1',
+      [portal.id],
+    );
+    // Portal_user remains active because the tenant-A binding is still alive
+    expect(portalAfter.deactivated_at).toBeNull();
+    expect(portalAfter.status).not.toBe('locked');
+
+    // The tenant-B binding itself is locked
+    const lockedBinding = await db.one(
+      `SELECT status, deactivated_at FROM admin.portal_user_tenants
+       WHERE portal_user_id = $1 AND entity_id = $2`,
+      [portal.id, tenantBContact.entity_id],
+    );
+    expect(lockedBinding.status).toBe('locked');
+    expect(lockedBinding.deactivated_at).not.toBeNull();
+  });
 });
