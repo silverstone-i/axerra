@@ -546,7 +546,13 @@ class VendorContactsController extends BaseController {
   }
 
   /**
-   * Restore the portal_users + binding linked to a vendor contact.
+   * Restore the per-tenant binding for a vendor_contact.
+   *
+   * Only touches admin.portal_users when it is actually archived. If
+   * the portal_user is already active/invited via another tenant's
+   * binding, leave its global state alone — overwriting status='active'
+   * would clear a force-password-change ('invited') state that
+   * belongs to the user, not to this tenant's vendor_contact.
    */
   async #restoreAppUser(vendorContactId, req) {
     const binding = await db.oneOrNone(
@@ -562,7 +568,7 @@ class VendorContactsController extends BaseController {
       await t.none(
         `UPDATE admin.portal_users
          SET deactivated_at = NULL, status = 'active', updated_by = $1
-         WHERE id = $2`,
+         WHERE id = $2 AND deactivated_at IS NOT NULL`,
         [updatedBy, binding.portal_user_id],
       );
       await t.none(
@@ -572,7 +578,7 @@ class VendorContactsController extends BaseController {
         [updatedBy, binding.id],
       );
     });
-    logger.info(`Restored portal_user ${binding.portal_user_id} + binding for vendor_contact ${vendorContactId}`);
+    logger.info(`Restored binding for vendor_contact ${vendorContactId} → portal_user ${binding.portal_user_id}`);
   }
 }
 
