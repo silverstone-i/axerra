@@ -341,6 +341,187 @@ describe('Vendor Contact app-user provisioning — cross-tenant existing-email m
     expect(restoredBinding.status).toBe('active');
   });
 
+  test('swap-login-email (no match) deactivates current binding and creates new portal_user', async () => {
+    const vendorRes = await request(app)
+      .post('/api/core/v1/vendors')
+      .set('Cookie', cookiesA)
+      .send({ name: 'Swap Vendor NoMatch', code: 'SWAP1' });
+
+    const contactRes = await request(app)
+      .post('/api/core/v1/vendor-contacts')
+      .set('Cookie', cookiesA)
+      .send({
+        vendor_id: vendorRes.body.id,
+        first_name: 'Swap',
+        last_name: 'Original',
+        email: 'swap.original@vendor.test',
+        is_app_user: true,
+        roles: ['vendor'],
+        password: 'OriginalPass123!',
+      });
+    expect(contactRes.status).toBe(201);
+    const contactId = contactRes.body.id;
+
+    const bindingBefore = await db.one(
+      `SELECT b.portal_user_id FROM admin.portal_user_tenants b
+       JOIN admin.portal_users pu ON pu.id = b.portal_user_id
+       WHERE b.entity_type = 'vendor_contact' AND b.entity_id = $1 AND b.deactivated_at IS NULL`,
+      [contactId],
+    );
+
+    const swapRes = await request(app)
+      .put(`/api/core/v1/vendor-contacts/${contactId}/swap-login-email`)
+      .set('Cookie', cookiesA)
+      .send({ new_email: 'swap.replacement@vendor.test', password: 'NewPersonPass123!' });
+    expect(swapRes.status).toBe(200);
+    expect(swapRes.body.matched_existing).toBe(false);
+    expect(swapRes.body.previous_portal_user_id).toBe(bindingBefore.portal_user_id);
+    expect(swapRes.body.portal_user_id).not.toBe(bindingBefore.portal_user_id);
+
+    // Old binding archived; new active binding points at the new portal_user
+    const oldBinding = await db.one(
+      'SELECT deactivated_at, status FROM admin.portal_user_tenants WHERE portal_user_id = $1 AND entity_id = $2',
+      [bindingBefore.portal_user_id, contactId],
+    );
+    expect(oldBinding.deactivated_at).not.toBeNull();
+    expect(oldBinding.status).toBe('locked');
+
+    const newBinding = await db.one(
+      `SELECT pu.email, b.status FROM admin.portal_user_tenants b
+       JOIN admin.portal_users pu ON pu.id = b.portal_user_id
+       WHERE b.entity_id = $1 AND b.deactivated_at IS NULL`,
+      [contactId],
+    );
+    expect(newBinding.email).toBe('swap.replacement@vendor.test');
+    expect(newBinding.status).toBe('invited');
+  });
+
+  test('swap-login-email (match) deactivates current binding and binds existing portal_user', async () => {
+    // Seed a portal_user we can match against
+    const seedVendor = await request(app)
+      .post('/api/core/v1/vendors')
+      .set('Cookie', cookiesB)
+      .send({ name: 'Swap Match Seed Vendor', code: 'SWAPMS' });
+    await request(app)
+      .post('/api/core/v1/vendor-contacts')
+      .set('Cookie', cookiesB)
+      .send({
+        vendor_id: seedVendor.body.id,
+        first_name: 'Match',
+        last_name: 'Seed',
+        email: 'match.target@vendor.test',
+        is_app_user: true,
+        roles: ['vendor'],
+        password: 'SeedPass123!',
+      });
+    const seedUser = await db.one(
+      'SELECT id, password_hash FROM admin.portal_users WHERE email = $1 AND deactivated_at IS NULL',
+      ['match.target@vendor.test'],
+    );
+
+    // Create a vendor + contact in tenant A whose login we'll swap to the seeded email
+    const vendorRes = await request(app)
+      .post('/api/core/v1/vendors')
+      .set('Cookie', cookiesA)
+      .send({ name: 'Swap Match Vendor', code: 'SWAP2' });
+    const contactRes = await request(app)
+      .post('/api/core/v1/vendor-contacts')
+      .set('Cookie', cookiesA)
+      .send({
+        vendor_id: vendorRes.body.id,
+        first_name: 'Match',
+        last_name: 'Subject',
+        email: 'match.subject@vendor.test',
+        is_app_user: true,
+        roles: ['vendor'],
+        password: 'SubjectPass123!',
+      });
+    const contactId = contactRes.body.id;
+
+    const swapRes = await request(app)
+      .put(`/api/core/v1/vendor-contacts/${contactId}/swap-login-email`)
+      .set('Cookie', cookiesA)
+      .send({ new_email: 'match.target@vendor.test', password: 'IgnoredOnMatch123!' });
+    expect(swapRes.status).toBe(200);
+    expect(swapRes.body.matched_existing).toBe(true);
+    expect(swapRes.body.portal_user_id).toBe(seedUser.id);
+
+    // Seeded portal_user's password_hash unchanged
+    const seedAfter = await db.one(
+      'SELECT password_hash FROM admin.portal_users WHERE id = $1',
+      [seedUser.id],
+    );
+    expect(seedAfter.password_hash).toBe(seedUser.password_hash);
+
+    // Tenant A binding now points at the seeded portal_user with status='invited'
+    const newBinding = await db.one(
+      `SELECT b.portal_user_id, b.status FROM admin.portal_user_tenants b
+       WHERE b.entity_id = $1 AND b.deactivated_at IS NULL`,
+      [contactId],
+    );
+    expect(newBinding.portal_user_id).toBe(seedUser.id);
+    expect(newBinding.status).toBe('invited');
+  });
+
+  test('swap-login-email refuses when same email supplied', async () => {
+    const vendorRes = await request(app)
+      .post('/api/core/v1/vendors')
+      .set('Cookie', cookiesA)
+      .send({ name: 'Swap Same', code: 'SWAP3' });
+    const contactRes = await request(app)
+      .post('/api/core/v1/vendor-contacts')
+      .set('Cookie', cookiesA)
+      .send({
+        vendor_id: vendorRes.body.id,
+        first_name: 'Same',
+        last_name: 'Email',
+        email: 'same.email@vendor.test',
+        is_app_user: true,
+        roles: ['vendor'],
+        password: 'SamePass123!',
+      });
+
+    const swapRes = await request(app)
+      .put(`/api/core/v1/vendor-contacts/${contactRes.body.id}/swap-login-email`)
+      .set('Cookie', cookiesA)
+      .send({ new_email: 'same.email@vendor.test' });
+    expect(swapRes.status).toBe(400);
+    expect(swapRes.body.error).toMatch(/nothing to swap/i);
+  });
+
+  test('emailsController rejects direct edits to vendor_contact login email', async () => {
+    const vendorRes = await request(app)
+      .post('/api/core/v1/vendors')
+      .set('Cookie', cookiesA)
+      .send({ name: 'Direct Edit Block', code: 'DIRBL' });
+    const contactRes = await request(app)
+      .post('/api/core/v1/vendor-contacts')
+      .set('Cookie', cookiesA)
+      .send({
+        vendor_id: vendorRes.body.id,
+        first_name: 'Direct',
+        last_name: 'Block',
+        email: 'direct.block@vendor.test',
+        is_app_user: true,
+        roles: ['vendor'],
+        password: 'DirectBlockPass123!',
+      });
+
+    // Find the login email row id
+    const emailsList = await request(app)
+      .get(`/api/core/v1/emails?source_id=${contactRes.body.source_id}`)
+      .set('Cookie', cookiesA);
+    const loginEmail = (emailsList.body.rows ?? emailsList.body).find((e) => e.is_login);
+    expect(loginEmail).toBeDefined();
+
+    const updateRes = await request(app)
+      .put(`/api/core/v1/emails/update?id=${loginEmail.id}`)
+      .set('Cookie', cookiesA)
+      .send({ email: 'direct.attempt@vendor.test' });
+    expect(updateRes.status).toBe(400);
+    expect(updateRes.body.error).toMatch(/identity swap|swap-login-email/i);
+  });
+
   test('archiving a vendor_contact does NOT lock a portal_user that has other active bindings', async () => {
     // SHARED_EMAIL portal_user has bindings in tenant A and tenant B
     // (from the earlier two tests). Archive the tenant-B vendor_contact
