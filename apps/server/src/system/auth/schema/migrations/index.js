@@ -6,5 +6,6 @@
  */
 
 import bootstrapAdmin from './202502110001_bootstrapAdmin.js';
+import orphanPortalUsersCleanup from './202605010001_orphanPortalUsersCleanup.js';
 
-export default [bootstrapAdmin];
+export default [bootstrapAdmin, orphanPortalUsersCleanup];
