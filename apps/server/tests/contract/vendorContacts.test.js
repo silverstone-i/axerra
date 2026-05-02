@@ -138,3 +138,248 @@ describe('Vendor Contact CRUD — /api/core/v1/vendor-contacts', () => {
     expect(source.table_id).toBe(contactId);
   });
 });
+
+describe('Vendor Contact app-user provisioning — cross-tenant existing-email match → bind', () => {
+  let cookiesA;
+  let cookiesB;
+  let vendorIdA;
+  let vendorIdB;
+  const SHARED_EMAIL = 'vera.shared@vendor.test';
+
+  beforeAll(async () => {
+    const rootCookies = await loginRoot();
+
+    // Tenant A: provision if not already (so this describe runs in isolation).
+    let loginA = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'admin@vctest.com', password: 'VctestPass123!' });
+    if (!loginA.headers['set-cookie']?.length) {
+      await provisionTenant(rootCookies);
+      loginA = await request(app)
+        .post('/api/auth/login')
+        .send({ email: 'admin@vctest.com', password: 'VctestPass123!' });
+    }
+    cookiesA = loginA.headers['set-cookie'];
+
+    // Provision a second tenant B for the cross-tenant bind case.
+    await request(app)
+      .post('/api/tenants/v1/tenants')
+      .set('Cookie', rootCookies)
+      .send({
+        tenant_code: 'VCTSTB',
+        company: 'Vendor Contact Test Corp B',
+        status: 'active',
+        tier: 'starter',
+        admin_first_name: 'B',
+        admin_last_name: 'Admin',
+        admin_email: 'admin@vctstb.com',
+        admin_password: 'VctstbPass123!',
+        billing_address: { address_line_1: '1 B St', country_code: 'US' },
+      });
+    const loginB = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'admin@vctstb.com', password: 'VctstbPass123!' });
+    cookiesB = loginB.headers['set-cookie'];
+
+    const vendorA = await request(app)
+      .post('/api/core/v1/vendors')
+      .set('Cookie', cookiesA)
+      .send({ name: 'Bind Vendor A', code: 'BVEN' });
+    vendorIdA = vendorA.body.id;
+
+    const vendorB = await request(app)
+      .post('/api/core/v1/vendors')
+      .set('Cookie', cookiesB)
+      .send({ name: 'Bind Vendor B', code: 'BVENB' });
+    vendorIdB = vendorB.body.id;
+  }, 30000);
+
+  test('first vendor_contact in tenant A with new email creates portal_user + binding', async () => {
+    const res = await request(app)
+      .post('/api/core/v1/vendor-contacts')
+      .set('Cookie', cookiesA)
+      .send({
+        vendor_id: vendorIdA,
+        first_name: 'Vera',
+        last_name: 'Shared',
+        email: SHARED_EMAIL,
+        is_app_user: true,
+        roles: ['vendor'],
+        password: 'VendorPass123!',
+      });
+    expect(res.status).toBe(201);
+
+    const portal = await db.oneOrNone(
+      'SELECT id, status FROM admin.portal_users WHERE email = $1 AND deactivated_at IS NULL',
+      [SHARED_EMAIL],
+    );
+    expect(portal).not.toBeNull();
+    expect(portal.status).toBe('invited');
+
+    const binding = await db.oneOrNone(
+      `SELECT entity_type, entity_id, status FROM admin.portal_user_tenants
+       WHERE portal_user_id = $1 AND deactivated_at IS NULL`,
+      [portal.id],
+    );
+    expect(binding.entity_type).toBe('vendor_contact');
+    expect(binding.entity_id).toBe(res.body.id);
+    expect(binding.status).toBe('active');
+  });
+
+  test('second vendor_contact in tenant B with same email binds to the existing portal_user, status=invited, no new portal_user, password unchanged', async () => {
+    const before = await db.one(
+      'SELECT COUNT(*)::int AS count, MAX(password_hash) AS hash FROM admin.portal_users WHERE email = $1',
+      [SHARED_EMAIL],
+    );
+    expect(before.count).toBe(1);
+
+    const res = await request(app)
+      .post('/api/core/v1/vendor-contacts')
+      .set('Cookie', cookiesB)
+      .send({
+        vendor_id: vendorIdB,
+        first_name: 'Vera',
+        last_name: 'Shared',
+        email: SHARED_EMAIL,
+        is_app_user: true,
+        roles: ['vendor'],
+        password: 'AttemptedHijack123!',
+      });
+    expect(res.status).toBe(201);
+
+    // No new portal_users row was created
+    const after = await db.one(
+      'SELECT COUNT(*)::int AS count, MAX(password_hash) AS hash FROM admin.portal_users WHERE email = $1',
+      [SHARED_EMAIL],
+    );
+    expect(after.count).toBe(1);
+    // Supplied password was ignored — credentials unchanged
+    expect(after.hash).toBe(before.hash);
+
+    // The new tenant-B binding points at the existing portal_user with status='invited'
+    const portal = await db.one(
+      'SELECT id FROM admin.portal_users WHERE email = $1 AND deactivated_at IS NULL',
+      [SHARED_EMAIL],
+    );
+    const bindings = await db.any(
+      `SELECT entity_id, tenant_id, status FROM admin.portal_user_tenants
+       WHERE portal_user_id = $1 AND deactivated_at IS NULL
+       ORDER BY created_at ASC`,
+      [portal.id],
+    );
+    expect(bindings.length).toBe(2);
+    const tenantBBinding = bindings.find((b) => b.entity_id === res.body.id);
+    expect(tenantBBinding).toBeDefined();
+    expect(tenantBBinding.status).toBe('invited');
+  });
+
+  test('Case 1: archive → re-provision restores binding without resetting credentials', async () => {
+    // Create a fresh vendor + vendor_contact in tenant A so we can
+    // archive/restore without disturbing the cross-tenant SHARED_EMAIL state.
+    const vendorRes = await request(app)
+      .post('/api/core/v1/vendors')
+      .set('Cookie', cookiesA)
+      .send({ name: 'Lifecycle Vendor', code: 'LCV01' });
+
+    const createRes = await request(app)
+      .post('/api/core/v1/vendor-contacts')
+      .set('Cookie', cookiesA)
+      .send({
+        vendor_id: vendorRes.body.id,
+        first_name: 'Lana',
+        last_name: 'Lifecycle',
+        email: 'lana.lifecycle@vendor.test',
+        is_app_user: true,
+        roles: ['vendor'],
+        password: 'OriginalPass123!',
+      });
+    expect(createRes.status).toBe(201);
+    const contactId = createRes.body.id;
+
+    const portalBefore = await db.one(
+      'SELECT id, email, password_hash, status FROM admin.portal_users WHERE email = $1 AND deactivated_at IS NULL',
+      ['lana.lifecycle@vendor.test'],
+    );
+
+    // Toggle is_app_user OFF — archives the binding (and the portal_user
+    // since this is the only binding for it).
+    const offRes = await request(app)
+      .put(`/api/core/v1/vendor-contacts/update?id=${contactId}`)
+      .set('Cookie', cookiesA)
+      .send({ is_app_user: false });
+    expect(offRes.status).toBe(200);
+
+    // Toggle is_app_user back ON with a different password and email
+    // — Case 1 should restore the binding and leave portal_user
+    // credentials alone.
+    const onRes = await request(app)
+      .put(`/api/core/v1/vendor-contacts/update?id=${contactId}`)
+      .set('Cookie', cookiesA)
+      .send({
+        is_app_user: true,
+        roles: ['vendor'],
+        password: 'IgnoredOnRestore123!',
+      });
+    expect(onRes.status).toBe(200);
+
+    const portalAfter = await db.one(
+      'SELECT email, password_hash, status FROM admin.portal_users WHERE id = $1',
+      [portalBefore.id],
+    );
+    // Binding restored, portal_user reactivated, credentials unchanged
+    expect(portalAfter.email).toBe(portalBefore.email);
+    expect(portalAfter.password_hash).toBe(portalBefore.password_hash);
+    expect(portalAfter.status).toBe('active');
+
+    const restoredBinding = await db.oneOrNone(
+      `SELECT status, deactivated_at FROM admin.portal_user_tenants
+       WHERE portal_user_id = $1 AND entity_id = $2`,
+      [portalBefore.id, contactId],
+    );
+    expect(restoredBinding).not.toBeNull();
+    expect(restoredBinding.deactivated_at).toBeNull();
+    expect(restoredBinding.status).toBe('active');
+  });
+
+  test('archiving a vendor_contact does NOT lock a portal_user that has other active bindings', async () => {
+    // SHARED_EMAIL portal_user has bindings in tenant A and tenant B
+    // (from the earlier two tests). Archive the tenant-B vendor_contact
+    // and confirm the portal_user stays active because the tenant-A
+    // binding is still alive.
+    const portal = await db.one(
+      'SELECT id, status FROM admin.portal_users WHERE email = $1',
+      [SHARED_EMAIL],
+    );
+    expect(portal.status).toBe('invited'); // still in initial invited state
+
+    const tenantBContact = await db.one(
+      `SELECT b.entity_id FROM admin.portal_user_tenants b
+       JOIN admin.tenants t ON t.id = b.tenant_id
+       WHERE b.portal_user_id = $1 AND t.tenant_code = 'VCTSTB' AND b.deactivated_at IS NULL`,
+      [portal.id],
+    );
+
+    const archiveRes = await request(app)
+      .delete(`/api/core/v1/vendor-contacts/archive?id=${tenantBContact.entity_id}`)
+      .set('Cookie', cookiesB)
+      .send({});
+    expect(archiveRes.status).toBe(200);
+
+    const portalAfter = await db.one(
+      'SELECT deactivated_at, status FROM admin.portal_users WHERE id = $1',
+      [portal.id],
+    );
+    // Portal_user remains active because the tenant-A binding is still alive
+    expect(portalAfter.deactivated_at).toBeNull();
+    expect(portalAfter.status).not.toBe('locked');
+
+    // The tenant-B binding itself is locked
+    const lockedBinding = await db.one(
+      `SELECT status, deactivated_at FROM admin.portal_user_tenants
+       WHERE portal_user_id = $1 AND entity_id = $2`,
+      [portal.id, tenantBContact.entity_id],
+    );
+    expect(lockedBinding.status).toBe('locked');
+    expect(lockedBinding.deactivated_at).not.toBeNull();
+  });
+});
