@@ -279,6 +279,14 @@ export function getEnumColumns(schema) {
  * Checks required parent fields, valid statuses, duplicate codes, and email formats.
  * Returns an array of error objects ({ sheet, row, column, value, message }).
  *
+ * When `entityType` is supplied, also runs a single batched cross-tenant
+ * collision check against `admin.portal_users` for any child email marked
+ * `is_login`:
+ *   - 'employee' | 'client' → adds a row error blocking the import
+ *     (single-tenant entities cannot share login identity).
+ *   - 'vendor_contact'      → skipped here; the controller's bind-existing
+ *     path handles binding to the existing portal_user at write time.
+ *
  * @param {Object[]}  groups       Output of groupFlatRows
  * @param {Object}    opts
  * @param {string}    opts.sheetName     Sheet label for error messages
@@ -286,10 +294,13 @@ export function getEnumColumns(schema) {
  * @param {boolean}   [opts.codeRequired] Whether code is required
  * @param {boolean}   [opts.validateEmails] Whether to check child emails
  * @param {Object[]}  [opts.conflicts]   Conflict objects from groupFlatRows
- * @returns {Object[]} Array of validation errors (empty = valid)
+ * @param {('employee'|'client'|'vendor_contact')} [opts.entityType] Source
+ *   entity type — when set, enables the cross-tenant portal_user collision
+ *   check (and is the policy lever for whether collisions abort the row).
+ * @returns {Promise<Object[]>} Array of validation errors (empty = valid)
  */
-export function validateImportGroups(groups, opts) {
-  const { sheetName, requiredFields = [], codeRequired = false, validateEmails = true, conflicts = [] } = opts;
+export async function validateImportGroups(groups, opts) {
+  const { sheetName, requiredFields = [], codeRequired = false, validateEmails = true, conflicts = [], entityType } = opts;
   const errors = [];
 
   for (const c of conflicts) {
@@ -370,6 +381,81 @@ export function validateImportGroups(groups, opts) {
     }
   }
 
+  // Cross-tenant portal_user collision check
+  if (entityType === 'employee' || entityType === 'client') {
+    errors.push(...(await checkPortalUserEmailCollisions(groups, { sheetName, entityType })));
+  }
+
+  return errors;
+}
+
+/**
+ * Single-batch cross-tenant collision check against `admin.portal_users` for
+ * incoming login emails. For each row whose child email is marked `is_login`
+ * and matches an active portal_user, returns a row-level error.
+ *
+ * Only callers for `entityType` of 'employee' or 'client' should consume the
+ * errors — vendor_contact rows are intentionally allowed through so the
+ * controller's bind-existing path can attach to the existing portal_user at
+ * write time. The function itself is policy-agnostic — it just reports
+ * collisions; the caller decides whether to block.
+ *
+ * @param {Object[]} groups Output of groupFlatRows
+ * @param {Object}   opts
+ * @param {string}   opts.sheetName Sheet label for error messages
+ * @param {('employee'|'client'|'vendor_contact')} opts.entityType
+ * @returns {Promise<Object[]>} Array of validation errors (empty = no collisions)
+ */
+export async function checkPortalUserEmailCollisions(groups, opts) {
+  const { sheetName, entityType } = opts;
+  if (!groups?.length) return [];
+
+  // Collect all login emails (lower-cased) along with the row that carries them
+  const loginEmailRows = [];
+  for (const group of groups) {
+    for (const child of group.children?.emails || []) {
+      if (!child?.email) continue;
+      // is_login may arrive as boolean, the string 'true', or 1
+      const isLogin = child.is_login === true || child.is_login === 1 || (typeof child.is_login === 'string' && child.is_login.toLowerCase() === 'true');
+      if (!isLogin) continue;
+      // Only do the lookup for plausibly valid emails — invalid format is
+      // already flagged separately and would skew the IN-list.
+      if (!EMAIL_RE.test(child.email)) continue;
+      loginEmailRows.push({
+        email: String(child.email).trim().toLowerCase(),
+        row: child._rowNum || null,
+      });
+    }
+  }
+  if (!loginEmailRows.length) return [];
+
+  const uniqueEmails = [...new Set(loginEmailRows.map((r) => r.email))];
+  const { db } = await getDb();
+  const existing = await db.manyOrNone(
+    `SELECT LOWER(email) AS email FROM admin.portal_users
+     WHERE LOWER(email) = ANY($1::text[]) AND deactivated_at IS NULL`,
+    [uniqueEmails],
+  );
+  if (!existing.length) return [];
+
+  const taken = new Set(existing.map((r) => r.email));
+  const errors = [];
+
+  // vendor_contact rows are intentionally not aborted — the controller's
+  // bind-existing path handles them at write time.
+  if (entityType === 'vendor_contact') return errors;
+
+  for (const { email, row } of loginEmailRows) {
+    if (taken.has(email)) {
+      errors.push({
+        sheet: sheetName,
+        row,
+        column: 'email',
+        value: email,
+        message: `Login email ${email} is already in use by another portal user. Single-tenant entities cannot share login identity.`,
+      });
+    }
+  }
   return errors;
 }
 
@@ -638,6 +724,22 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
   let sourceByParentId = new Map();
   let tid;
   let createdBy = null;
+
+  // ── Cross-tenant portal_user collision check (Part 2 of import dedup spec) ──
+  const provisionEntityType = config.appUserProvisioning?.entityType;
+  if (provisionEntityType === 'employee' || provisionEntityType === 'client') {
+    const emailSheetIdx = config.childSheets.findIndex((c) => c.modelName === 'emails') + 1;
+    if (emailSheetIdx > 0 && reader.sheetCount > emailSheetIdx) {
+      const emailRows = parseSheet(reader, emailSheetIdx);
+      // Build a single synthetic group so checkPortalUserEmailCollisions can iterate uniformly
+      const syntheticGroups = [{ parent: {}, children: { emails: emailRows } }];
+      const collisionErrors = await checkPortalUserEmailCollisions(syntheticGroups, {
+        sheetName: reader.sheetNames?.[emailSheetIdx] || 'Emails',
+        entityType: provisionEntityType,
+      });
+      if (collisionErrors.length) return { errors: collisionErrors };
+    }
+  }
 
   try {
     await db.tx(async (t) => {
@@ -1230,6 +1332,12 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
     childEnums.push({ key: cfg.key, enumMap, flatColByCol });
   }
   errors.push(...validateChildEnums(groups, { sheetName, childEnums }));
+
+  // Cross-tenant portal_user collision check (Part 2 of import dedup spec)
+  const provisionEntityType = config.appUserProvisioning?.entityType;
+  if (provisionEntityType === 'employee' || provisionEntityType === 'client') {
+    errors.push(...(await checkPortalUserEmailCollisions(groups, { sheetName, entityType: provisionEntityType })));
+  }
 
   // Validate no duplicate codes
   const codeCounts = new Map();
