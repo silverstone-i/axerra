@@ -12,8 +12,17 @@ import passport from '../services/passportService.js';
 import { signAccessToken, signRefreshToken, verifyRefresh } from '../services/tokenService.js';
 import { setAuthCookies, clearAuthCookies } from '../../../lib/cookies.js';
 import jwt from 'jsonwebtoken';
-import db from '../../../db/db.js';
+import db, { pgp } from '../../../db/db.js';
 import { invalidateByUser } from '../../../services/permCacheInvalidator.js';
+import logger from '../../../lib/logger.js';
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const SOURCE_TYPE_BY_ENTITY_TYPE = {
+  employee: 'employee',
+  client: 'client',
+  vendor_contact: 'vendor_contact',
+};
 
 /**
  * POST /api/auth/login — Authenticate with email/password
@@ -228,4 +237,90 @@ export const changePassword = async (req, res) => {
   }
 };
 
-export default { login, refresh, logout, me, check, changePassword };
+/**
+ * PATCH /api/auth/me/email — Change the authenticated user's login email.
+ *
+ * Updates admin.portal_users.email for the caller and cascades the change
+ * to every tenant-scoped emails row (is_login=true) for each active binding
+ * the user has. Runs inside a single transaction so partial failures roll
+ * back the global identity update.
+ */
+export const changeEmail = async (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+  const newEmailRaw = req.body?.email;
+  if (typeof newEmailRaw !== 'string') {
+    return res.status(400).json({ message: 'email is required' });
+  }
+  const newEmail = newEmailRaw.trim();
+  if (!EMAIL_RE.test(newEmail)) {
+    return res.status(400).json({ message: 'Invalid email format' });
+  }
+
+  try {
+    const result = await db.tx(async (t) => {
+      // Update the global portal_users identity. The partial unique index
+      // on (email) WHERE deactivated_at IS NULL surfaces collisions as 23505.
+      const updated = await t.oneOrNone(
+        `UPDATE admin.portal_users
+            SET email = $1, updated_by = $2
+          WHERE id = $3 AND deactivated_at IS NULL
+          RETURNING id, email, status`,
+        [newEmail, userId, userId],
+      );
+      if (!updated) {
+        const err = new Error('User not found');
+        err.code = 'USER_NOT_FOUND';
+        throw err;
+      }
+
+      // Cascade to per-tenant emails.is_login rows for each active binding.
+      const bindings = await t.manyOrNone(
+        `SELECT b.entity_type, b.entity_id, tn.schema_name
+           FROM admin.portal_user_tenants b
+           JOIN admin.tenants tn ON tn.id = b.tenant_id
+          WHERE b.portal_user_id = $1
+            AND b.deactivated_at IS NULL
+            AND b.entity_type IS NOT NULL
+            AND b.entity_id IS NOT NULL`,
+        [userId],
+      );
+
+      for (const binding of bindings) {
+        const sourceType = SOURCE_TYPE_BY_ENTITY_TYPE[binding.entity_type];
+        if (!sourceType) continue;
+        const s = pgp.as.name(binding.schema_name);
+        await t.none(
+          `UPDATE ${s}.emails AS e
+              SET email = $1, updated_by = $2
+             FROM ${s}.sources AS s
+            WHERE e.source_id = s.id
+              AND s.source_type = $3
+              AND s.table_id = $4
+              AND e.is_login = true
+              AND e.deactivated_at IS NULL`,
+          [newEmail, userId, sourceType, binding.entity_id],
+        );
+      }
+
+      return updated;
+    });
+
+    return res.json({
+      message: 'Email changed successfully',
+      user: { id: result.id, email: result.email, status: result.status },
+    });
+  } catch (err) {
+    if (err?.code === '23505') {
+      return res.status(409).json({ message: 'Email is already in use' });
+    }
+    if (err?.code === 'USER_NOT_FOUND') {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    logger.error('Failed to change login email', { userId, error: err.message });
+    return res.status(500).json({ message: 'Error changing email' });
+  }
+};
+
+export default { login, refresh, logout, me, check, changePassword, changeEmail };
