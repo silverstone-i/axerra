@@ -149,10 +149,16 @@ describe('Vendor Contact app-user provisioning — cross-tenant existing-email m
   beforeAll(async () => {
     const rootCookies = await loginRoot();
 
-    // Tenant A reuses the VCTEST tenant from the prior describe.
-    const loginA = await request(app)
+    // Tenant A: provision if not already (so this describe runs in isolation).
+    let loginA = await request(app)
       .post('/api/auth/login')
       .send({ email: 'admin@vctest.com', password: 'VctestPass123!' });
+    if (!loginA.headers['set-cookie']?.length) {
+      await provisionTenant(rootCookies);
+      loginA = await request(app)
+        .post('/api/auth/login')
+        .send({ email: 'admin@vctest.com', password: 'VctestPass123!' });
+    }
     cookiesA = loginA.headers['set-cookie'];
 
     // Provision a second tenant B for the cross-tenant bind case.

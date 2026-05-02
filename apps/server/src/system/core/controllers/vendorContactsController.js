@@ -376,17 +376,78 @@ class VendorContactsController extends BaseController {
     }
 
     // ── Case 2: existing portal_user with this email → bind, ignore password ──
+    // Match active rows first; fall back to archived rows so we never
+    // create a duplicate credentials row for the same email. If matched
+    // archived, the portal_user gets reactivated as part of the bind.
     const existingUser = await db.oneOrNone(
-      'SELECT id FROM admin.portal_users WHERE email = $1 AND deactivated_at IS NULL',
+      `SELECT id, deactivated_at FROM admin.portal_users
+       WHERE email = $1
+       ORDER BY deactivated_at IS NULL DESC, deactivated_at DESC NULLS FIRST
+       LIMIT 1`,
       [loginEmail],
     );
     if (existingUser) {
-      await db.none(
-        `INSERT INTO admin.portal_user_tenants
-           (portal_user_id, tenant_id, entity_type, entity_id, status, created_by)
-         VALUES ($1, $2, 'vendor_contact', $3, 'invited', $4)`,
-        [existingUser.id, tenantId, vendorContact.id, updatedBy],
+      // Detect a pre-existing binding for (this portal_user, this tenant).
+      // The (portal_user_id, tenant_id) WHERE active partial unique index
+      // means we can only have one active binding here; bare bindings
+      // from /portal-users/register get upgraded in place, entity bindings
+      // collide loudly.
+      const sameTenantBinding = await db.oneOrNone(
+        `SELECT id, entity_type, entity_id, deactivated_at
+         FROM admin.portal_user_tenants
+         WHERE portal_user_id = $1 AND tenant_id = $2
+         ORDER BY deactivated_at IS NULL DESC, created_at DESC
+         LIMIT 1`,
+        [existingUser.id, tenantId],
       );
+
+      if (sameTenantBinding && sameTenantBinding.deactivated_at === null && sameTenantBinding.entity_type) {
+        if (sameTenantBinding.entity_type !== 'vendor_contact' || sameTenantBinding.entity_id !== vendorContact.id) {
+          const err = new Error(
+            'A portal user with this email already has an active binding to this tenant. Resolve the existing binding before re-using the email.',
+          );
+          err.status = 409;
+          throw err;
+        }
+        // Idempotent re-provisioning: same vendor_contact already bound
+        // (the prior-binding branch should have caught this — defensive).
+        logger.info(`Re-provisioning hit existing matching binding for vendor_contact ${vendorContact.id}; no-op`);
+        return existingUser.id;
+      }
+
+      await db.tx(async (t) => {
+        if (existingUser.deactivated_at) {
+          await t.none(
+            `UPDATE admin.portal_users
+             SET deactivated_at = NULL, status = 'active', updated_by = $1
+             WHERE id = $2`,
+            [updatedBy, existingUser.id],
+          );
+        }
+
+        if (sameTenantBinding) {
+          // Either bare binding (entity_type NULL) or archived binding —
+          // upgrade in place to point at the vendor_contact.
+          await t.none(
+            `UPDATE admin.portal_user_tenants
+             SET deactivated_at = NULL,
+                 entity_type = 'vendor_contact',
+                 entity_id = $1,
+                 status = 'invited',
+                 updated_by = $2
+             WHERE id = $3`,
+            [vendorContact.id, updatedBy, sameTenantBinding.id],
+          );
+        } else {
+          await t.none(
+            `INSERT INTO admin.portal_user_tenants
+               (portal_user_id, tenant_id, entity_type, entity_id, status, created_by)
+             VALUES ($1, $2, 'vendor_contact', $3, 'invited', $4)`,
+            [existingUser.id, tenantId, vendorContact.id, updatedBy],
+          );
+        }
+      });
+
       logger.info(`Bound existing portal_user ${existingUser.id} to vendor_contact ${vendorContact.id} (email match)`);
       return existingUser.id;
     }
