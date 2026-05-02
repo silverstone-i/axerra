@@ -1,5 +1,5 @@
 /**
- * @file Auth controller — login, refresh, logout, me, check, changePassword per PRD §3.1.1
+ * @file Auth controller — login, refresh, logout, me, check, changePassword, changeEmail per PRD §3.1.1
  * @module auth/controllers/authController
  *
  * Auth flow with RBAC permission caching and cache invalidation on logout.
@@ -17,6 +17,7 @@ import { invalidateByUser } from '../../../services/permCacheInvalidator.js';
 import logger from '../../../lib/logger.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_MAX_LEN = 128;
 
 const SOURCE_TYPE_BY_ENTITY_TYPE = {
   employee: 'employee',
@@ -257,6 +258,9 @@ export const changeEmail = async (req, res) => {
   if (!EMAIL_RE.test(newEmail)) {
     return res.status(400).json({ message: 'Invalid email format' });
   }
+  if (newEmail.length > EMAIL_MAX_LEN) {
+    return res.status(400).json({ message: `Email must be ${EMAIL_MAX_LEN} characters or fewer` });
+  }
 
   try {
     const result = await db.tx(async (t) => {
@@ -290,15 +294,15 @@ export const changeEmail = async (req, res) => {
       for (const binding of bindings) {
         const sourceType = SOURCE_TYPE_BY_ENTITY_TYPE[binding.entity_type];
         if (!sourceType) continue;
-        const s = pgp.as.name(binding.schema_name);
+        const schemaIdent = pgp.as.name(binding.schema_name);
         await t.none(
-          `UPDATE ${s}.emails AS e
+          `UPDATE ${schemaIdent}.emails AS e
               SET email = $1, updated_by = $2
-             FROM ${s}.sources AS s
-            WHERE e.source_id = s.id
-              AND s.source_type = $3
-              AND s.table_id = $4
-              AND s.deactivated_at IS NULL
+             FROM ${schemaIdent}.sources AS src
+            WHERE e.source_id = src.id
+              AND src.source_type = $3
+              AND src.table_id = $4
+              AND src.deactivated_at IS NULL
               AND e.is_login = true
               AND e.deactivated_at IS NULL`,
           [newEmail, userId, sourceType, binding.entity_id],
