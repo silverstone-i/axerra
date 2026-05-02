@@ -25,6 +25,14 @@ export default createRouter(
       rbac('full'),
       (req, res) => vendorContactsController.resetPassword(req, res),
     );
+    router.put(
+      '/:id/swap-login-email',
+      withMeta({ module: 'core', router: 'vendor-contacts', action: 'swap-login-email' }),
+      moduleEntitlement,
+      addAuditFields,
+      rbac('full'),
+      (req, res) => vendorContactsController.swapLoginEmail(req, res),
+    );
   },
   {
     getMiddlewares: [meta],
