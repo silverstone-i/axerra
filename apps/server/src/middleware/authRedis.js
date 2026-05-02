@@ -237,9 +237,17 @@ export function authRedis() {
               effectiveUser = { ...targetUser, entity_type: targetBinding.entity_type, entity_id: targetBinding.entity_id };
               // Set effective context from the resolved binding so downstream
               // queries don't operate against a tenant the target lacks a
-              // binding for.
-              effectiveTenantCode = (targetBinding.tenant_code || requestedTargetCode || tenantCode).toLowerCase();
-              effectiveSchemaName = targetSchemaOverride || targetBinding.schema_name;
+              // binding for. The Redis-stored targetSchemaName is only
+              // honored when the resolved binding still matches the
+              // originally-chosen tenant — otherwise the original binding
+              // has been archived and the override is stale, so we use
+              // the resolved binding's current schema_name.
+              const bindingTenantCode = targetBinding.tenant_code?.toLowerCase();
+              const overrideMatches = targetSchemaOverride
+                && requestedTargetCode
+                && bindingTenantCode === requestedTargetCode.toLowerCase();
+              effectiveTenantCode = bindingTenantCode || requestedTargetCode || tenantCode;
+              effectiveSchemaName = overrideMatches ? targetSchemaOverride : targetBinding.schema_name;
 
               if (targetBinding.tenant_id !== effectiveTenantRecord.id) {
                 const targetTenant = await db2('tenants', 'admin').findById(targetBinding.tenant_id);
