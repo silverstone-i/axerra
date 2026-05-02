@@ -41,10 +41,11 @@ function resolveLevel(edits, key, routerKey, moduleKey) {
 /**
  * Build a tree from flat catalog rows.
  *
- * Three entry types:
- *   1. Module heading  (router=null, action=null) → sets mod.label
- *   2. Module action   (router=null, action≠null) → mod.actions Map
- *   3. Router row      (action=null)              → mod.routers Map
+ * Four entry types:
+ *   1. Module heading   (router=null, action=null) → sets mod.label
+ *   2. Module action    (router=null, action≠null) → mod.actions Map
+ *   3. Router heading   (router≠null, action=null) → mod.routers Map
+ *   4. Router action    (router≠null, action≠null) → rtr.actions Map (nested)
  */
 function buildCatalogTree(catalogRows) {
   const sorted = [...catalogRows]
@@ -63,7 +64,19 @@ function buildCatalogTree(catalogRows) {
     } else if (entry.router === null && entry.action !== null) {
       mod.actions.set(entry.action, { label: entry.label, description: entry.description });
     } else if (entry.action === null) {
-      mod.routers.set(entry.router, { label: entry.label, description: entry.description });
+      const existing = mod.routers.get(entry.router);
+      mod.routers.set(entry.router, {
+        label: entry.label,
+        description: entry.description,
+        actions: existing?.actions ?? new Map(),
+      });
+    } else {
+      let rtr = mod.routers.get(entry.router);
+      if (!rtr) {
+        rtr = { label: entry.router, description: '', actions: new Map() };
+        mod.routers.set(entry.router, rtr);
+      }
+      rtr.actions.set(entry.action, { label: entry.label, description: entry.description });
     }
   }
 
@@ -228,28 +241,54 @@ export default function PolicyEditor({ roleId, readOnly = false, actionsContaine
                 );
               })}
 
-              {/* Router rows */}
+              {/* Router rows (with nested router-action sub-rows) */}
               {[...mod.routers.entries()].map(([routerName, rtr]) => {
                 const routerKey = policyKey(moduleName, routerName, null);
                 return (
-                  <Box
-                    key={routerName}
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      py: 0.5,
-                      px: 1,
-                      '&:hover': { bgcolor: 'action.hover' },
-                      borderRadius: 0.5,
-                    }}
-                  >
-                    <Typography variant="body2">{rtr.label}</Typography>
-                    <LevelSelector
-                      value={resolveLevel(edits, routerKey, routerKey, moduleKey)}
-                      onChange={(val) => handleChange(routerKey, val)}
-                      disabled={readOnly}
-                    />
+                  <Box key={routerName}>
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        py: 0.5,
+                        px: 1,
+                        '&:hover': { bgcolor: 'action.hover' },
+                        borderRadius: 0.5,
+                      }}
+                    >
+                      <Typography variant="body2">{rtr.label}</Typography>
+                      <LevelSelector
+                        value={resolveLevel(edits, routerKey, routerKey, moduleKey)}
+                        onChange={(val) => handleChange(routerKey, val)}
+                        disabled={readOnly}
+                      />
+                    </Box>
+                    {rtr.actions && [...rtr.actions.entries()].map(([actionName, act]) => {
+                      const actionKey = policyKey(moduleName, routerName, actionName);
+                      return (
+                        <Box
+                          key={actionName}
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            py: 0.5,
+                            pl: 4,
+                            pr: 1,
+                            '&:hover': { bgcolor: 'action.hover' },
+                            borderRadius: 0.5,
+                          }}
+                        >
+                          <Typography variant="body2" color="text.secondary">{act.label}</Typography>
+                          <LevelSelector
+                            value={resolveLevel(edits, actionKey, routerKey, moduleKey)}
+                            onChange={(val) => handleChange(actionKey, val)}
+                            disabled={readOnly}
+                          />
+                        </Box>
+                      );
+                    })}
                   </Box>
                 );
               })}
