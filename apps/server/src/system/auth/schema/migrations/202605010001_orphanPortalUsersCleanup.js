@@ -2,11 +2,11 @@
  * @file Migration: install admin-scope find_orphan_portal_users / cleanup_orphan_portal_users functions
  * @module auth/schema/migrations/202605010001_orphanPortalUsersCleanup
  *
- * portal_users rows can become orphaned when all of their portal_user_tenants
- * bindings are hard-deleted (e.g. tenant fully removed, or all entity links
- * detached). These admin-schema helpers let Axerra operators discover and
- * remove them. Hard-delete is correct here — orphans have no bindings and
- * therefore no downstream entity references.
+ * portal_users rows are considered orphaned only when no portal_user_tenants
+ * row references them — active OR archived. Archived bindings still represent
+ * recoverable history, so the helpers must not classify those portal_users as
+ * orphans. Hard-delete is correct here — true orphans have no bindings at all
+ * and therefore no downstream entity references.
  *
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
@@ -29,7 +29,6 @@ export default defineMigration({
           SELECT 1
           FROM admin.portal_user_tenants put
           WHERE put.portal_user_id = pu.id
-            AND put.deactivated_at IS NULL
         )
         ORDER BY pu.created_at;
       $fn$;
@@ -43,7 +42,6 @@ export default defineMigration({
             SELECT 1
             FROM admin.portal_user_tenants put
             WHERE put.portal_user_id = pu.id
-              AND put.deactivated_at IS NULL
           )
         RETURNING pu.id, pu.email, pu.status;
       $fn$;

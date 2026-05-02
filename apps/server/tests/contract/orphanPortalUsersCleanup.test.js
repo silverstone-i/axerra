@@ -82,7 +82,7 @@ describe('Orphan portal_users cleanup — /api/tenants/v1/orphan-portal-users/or
       DELETE FROM admin.portal_users pu
       WHERE NOT EXISTS (
         SELECT 1 FROM admin.portal_user_tenants put
-        WHERE put.portal_user_id = pu.id AND put.deactivated_at IS NULL
+        WHERE put.portal_user_id = pu.id
       )
     `);
 
@@ -124,6 +124,37 @@ describe('Orphan portal_users cleanup — /api/tenants/v1/orphan-portal-users/or
 
     const stillThere = await db.oneOrNone('SELECT id FROM admin.portal_users WHERE id = $1', [orphan.id]);
     expect(stillThere).toBeNull();
+  });
+
+  test('GET does NOT classify a portal_user with only archived bindings as an orphan', async () => {
+    const tenant = await db.oneOrNone('SELECT id FROM admin.tenants LIMIT 1');
+    expect(tenant?.id).toBeTruthy();
+
+    const archivedOnly = await db.one(
+      `INSERT INTO admin.portal_users (email, password_hash, status)
+       VALUES ('archived-binding@example.com', 'x', 'active')
+       RETURNING id`,
+    );
+    await db.none(
+      `INSERT INTO admin.portal_user_tenants (portal_user_id, tenant_id, status, deactivated_at)
+       VALUES ($1, $2, 'active', now())`,
+      [archivedOnly.id, tenant.id],
+    );
+
+    const previewRes = await request(app)
+      .get('/api/tenants/v1/orphan-portal-users/orphans/preview')
+      .set('Cookie', rootCookies);
+    expect(previewRes.status).toBe(200);
+    expect(previewRes.body.orphans.find((o) => o.id === archivedOnly.id)).toBeUndefined();
+
+    const cleanupRes = await request(app)
+      .post('/api/tenants/v1/orphan-portal-users/orphans/cleanup')
+      .set('Cookie', rootCookies)
+      .send({ id: archivedOnly.id });
+    expect(cleanupRes.status).toBe(404);
+
+    const stillThere = await db.oneOrNone('SELECT id FROM admin.portal_users WHERE id = $1', [archivedOnly.id]);
+    expect(stillThere).not.toBeNull();
   });
 
   test('POST returns 400 for missing/invalid id', async () => {
