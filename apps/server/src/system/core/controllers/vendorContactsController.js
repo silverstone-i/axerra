@@ -332,15 +332,66 @@ class VendorContactsController extends BaseController {
   /* ── Private helpers ──────────────────────────────────── */
 
   /**
-   * Create or restore a portal_users + portal_user_tenants binding for a
-   * vendor_contact gaining app access. Vendors may end up with multiple
-   * bindings across tenants (Task 6 handles existing-email match → bind);
-   * here we just manage the per-tenant binding pair.
+   * Provision app-user access for a vendor_contact. Three cases per the
+   * Import Dedup & Multi-Tenant Vendor Access spec, Part 3:
+   *
+   *   1. A prior binding for this vendor_contact in this tenant exists —
+   *      restore it (and re-activate the portal_user if archived). The
+   *      portal_user's credentials are NOT reset; they belong to the
+   *      user, especially when they have other active bindings.
+   *   2. An active portal_user with this login email already exists —
+   *      bind that portal_user to this vendor_contact (status='invited').
+   *      Supplied password is ignored. The portal_user globally stays
+   *      active; only this binding is in invite state.
+   *   3. No match anywhere — create a new portal_users row plus binding
+   *      with the hashed temp password (or a generated one).
    */
   async #provisionAppUser(vendorContact, req, suppliedPassword, loginEmail) {
     const tenantId = req.user?.tenant_id;
     if (!tenantId) throw new Error('Tenant context required to provision app user');
+    const updatedBy = req.user?.id || null;
 
+    // ── Case 1: prior binding for THIS vendor_contact in this tenant ──
+    const priorBinding = await findAnyBinding('vendor_contact', vendorContact.id, tenantId);
+    if (priorBinding) {
+      await db.tx(async (t) => {
+        await t.none(
+          `UPDATE admin.portal_user_tenants
+           SET deactivated_at = NULL, status = 'active', updated_by = $1
+           WHERE id = $2`,
+          [updatedBy, priorBinding.id],
+        );
+        // If the portal_user itself was archived (e.g. when its last
+        // active binding got locked), reactivate it. Don't touch its
+        // credentials — they belong to the user.
+        await t.none(
+          `UPDATE admin.portal_users
+           SET deactivated_at = NULL, status = 'active', updated_by = $1
+           WHERE id = $2 AND deactivated_at IS NOT NULL`,
+          [updatedBy, priorBinding.portal_user_id],
+        );
+      });
+      logger.info(`Restored binding for vendor_contact ${vendorContact.id} → portal_user ${priorBinding.portal_user_id}`);
+      return priorBinding.portal_user_id;
+    }
+
+    // ── Case 2: existing portal_user with this email → bind, ignore password ──
+    const existingUser = await db.oneOrNone(
+      'SELECT id FROM admin.portal_users WHERE email = $1 AND deactivated_at IS NULL',
+      [loginEmail],
+    );
+    if (existingUser) {
+      await db.none(
+        `INSERT INTO admin.portal_user_tenants
+           (portal_user_id, tenant_id, entity_type, entity_id, status, created_by)
+         VALUES ($1, $2, 'vendor_contact', $3, 'invited', $4)`,
+        [existingUser.id, tenantId, vendorContact.id, updatedBy],
+      );
+      logger.info(`Bound existing portal_user ${existingUser.id} to vendor_contact ${vendorContact.id} (email match)`);
+      return existingUser.id;
+    }
+
+    // ── Case 3: no match — create new portal_user + binding ────────────
     if (suppliedPassword) {
       const pwRules = [
         { test: (p) => p.length >= 8, msg: 'at least 8 characters' },
@@ -360,29 +411,6 @@ class VendorContactsController extends BaseController {
     const clearPassword = suppliedPassword || crypto.randomBytes(12).toString('base64url');
     const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
     const passwordHash = await bcrypt.hash(clearPassword, rounds);
-    const updatedBy = req.user?.id || null;
-
-    const priorBinding = await findAnyBinding('vendor_contact', vendorContact.id, tenantId);
-
-    if (priorBinding) {
-      await db.tx(async (t) => {
-        await t.none(
-          `UPDATE admin.portal_users
-           SET deactivated_at = NULL, status = 'invited',
-               password_hash = $1, email = $2, updated_by = $3
-           WHERE id = $4`,
-          [passwordHash, loginEmail, updatedBy, priorBinding.portal_user_id],
-        );
-        await t.none(
-          `UPDATE admin.portal_user_tenants
-           SET deactivated_at = NULL, status = 'active', updated_by = $1
-           WHERE id = $2`,
-          [updatedBy, priorBinding.id],
-        );
-      });
-      logger.info(`Restored portal_user ${priorBinding.portal_user_id} + binding for vendor_contact ${vendorContact.id}`);
-      return priorBinding.portal_user_id;
-    }
 
     const portalUserId = await db.tx(async (t) => {
       const user = await t.one(
