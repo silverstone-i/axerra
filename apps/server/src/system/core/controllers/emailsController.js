@@ -143,6 +143,8 @@ class EmailsController extends BaseController {
 
   /**
    * Sync the login email to admin.portal_users for the entity linked to this source.
+   * Resolves the portal_users.id via the portal_user_tenants binding for
+   * the (entity_type, entity_id) pair in the request's tenant.
    */
   async #syncLoginEmail(schema, sourceId, email, req) {
     const s = pgp.as.name(schema);
@@ -154,10 +156,20 @@ class EmailsController extends BaseController {
       if (!source) return;
       if (!ENTITY_TABLE_BY_SOURCE_TYPE[source.source_type]) return;
 
+      const tenantId = req.user?.tenant_id;
+      if (!tenantId) return;
+
+      const binding = await db.oneOrNone(
+        `SELECT portal_user_id FROM admin.portal_user_tenants
+         WHERE entity_type = $1 AND entity_id = $2 AND tenant_id = $3 AND deactivated_at IS NULL`,
+        [source.source_type, source.table_id, tenantId],
+      );
+      if (!binding) return;
+
       await db.none(
         `UPDATE admin.portal_users SET email = $1, updated_by = $2
-         WHERE entity_type = $3 AND entity_id = $4 AND deactivated_at IS NULL`,
-        [email, req.user?.id || null, source.source_type, source.table_id],
+         WHERE id = $3 AND deactivated_at IS NULL`,
+        [email, req.user?.id || null, binding.portal_user_id],
       );
     } catch (err) {
       logger.error('Failed to sync login email to portal_users', { sourceId, email, error: err.message });

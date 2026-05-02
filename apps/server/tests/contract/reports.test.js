@@ -109,7 +109,32 @@ vi.mock('../../src/db/db.js', () => {
   dbProxy.none = vi.fn();
   dbProxy.result = vi.fn(async () => ({ rowCount: 1 }));
   dbProxy.manyOrNone = vi.fn(async () => []);
-  dbProxy.oneOrNone = vi.fn(async () => null);
+  // Catch-all for raw SQL lookups across login + authRedis. Passport's
+  // login query SELECTs t.* from a tenants/portal_user_tenants join;
+  // authRedis queries portal_user_tenants for home + matched bindings,
+  // and admin.tenants for the x-tenant-code lookup.
+  dbProxy.oneOrNone = vi.fn(async (sql) => {
+    if (typeof sql !== 'string') return null;
+    if (sql.includes('portal_user_tenants') && sql.includes('admin.tenants')) {
+      // passport's login JOIN returning a full tenant row
+      return mockTenant;
+    }
+    if (sql.includes('portal_user_tenants')) {
+      // authRedis home binding lookup
+      return {
+        id: 'binding-1',
+        portal_user_id: mockUser.id,
+        tenant_id: mockTenant.id,
+        entity_type: 'employee',
+        entity_id: '880e8400-e29b-41d4-a716-446655440000',
+        status: 'active',
+      };
+    }
+    if (sql.includes('admin.tenants')) {
+      return mockTenant;
+    }
+    return null;
+  });
   dbProxy.tx = vi.fn(async (fn) => {
     const t = {
       one: vi.fn(async () => ({ id: 'tx-entry' })),

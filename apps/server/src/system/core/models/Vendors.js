@@ -1103,24 +1103,26 @@ export default class Vendors extends TableModel {
 
           if (toProvision.length) {
             const hashMap = await batchHashPasswords(toProvision.map((p) => ({ index: p.index, password: p.clearPassword })));
+            const entityType = CONTACT_CONFIG.appUserProvisioning.entityType;
 
-            const portalUsersModel = db('portalUsers', 'admin');
-            portalUsersModel.tx = t;
             for (const { index, email } of toProvision) {
               const existing = await t.oneOrNone(
                 'SELECT id FROM admin.portal_users WHERE email = $1 AND deactivated_at IS NULL',
                 [email],
               );
               if (existing) continue;
-              await portalUsersModel.insert({
-                tenant_id: tid,
-                entity_type: CONTACT_CONFIG.appUserProvisioning.entityType,
-                entity_id: insertResults[index].id,
-                email,
-                password_hash: hashMap.get(index),
-                status: 'invited',
-                created_by: createdBy,
-              });
+              const inserted = await t.one(
+                `INSERT INTO admin.portal_users (email, password_hash, status, created_by)
+                 VALUES ($1, $2, 'invited', $3)
+                 RETURNING id`,
+                [email, hashMap.get(index), createdBy],
+              );
+              await t.none(
+                `INSERT INTO admin.portal_user_tenants
+                   (portal_user_id, tenant_id, entity_type, entity_id, status, created_by)
+                 VALUES ($1, $2, $3, $4, 'active', $5)`,
+                [inserted.id, tid, entityType, insertResults[index].id, createdBy],
+              );
             }
           }
         }

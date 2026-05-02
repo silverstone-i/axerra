@@ -99,6 +99,10 @@ class TenantsController extends BaseController {
       }
     }
 
+    if (!req.query.id && !req.query.tenant_code) {
+      return res.status(400).json({ error: 'id or tenant_code query parameter is required' });
+    }
+
     const now = new Date();
     req.body.deactivated_at = now;
 
@@ -107,21 +111,41 @@ class TenantsController extends BaseController {
       const count = await this.model('admin').updateWhere([{ ...req.query }], req.body);
       if (!count) return res.status(404).json({ error: `${this.errorLabel} not found or already inactive` });
 
-      // Cascade: deactivate and lock all currently-active users
-      if (req.query.id) {
-        await db.none(
-          `UPDATE admin.portal_users SET deactivated_at = $1, status = 'locked', updated_by = $2
-           WHERE tenant_id = $3 AND deactivated_at IS NULL`,
-          [now, req.user?.id || null, req.query.id],
-        );
-      } else if (req.query.tenant_code) {
-        await db.none(
-          `UPDATE admin.portal_users SET deactivated_at = $1, status = 'locked', updated_by = $2
-           WHERE tenant_id = (SELECT id FROM admin.tenants WHERE tenant_code = $3)
-             AND deactivated_at IS NULL`,
-          [now, req.user?.id || null, req.query.tenant_code],
-        );
-      }
+      // Cascade: archive every active binding to this tenant; lock
+      // portal_users whose final active binding just went away. The
+      // RETURNING clause scopes the user-lock cascade to users we
+      // actually touched — bare-registered users with active bindings
+      // to other tenants are unaffected.
+      const updatedBy = req.user?.id || null;
+      await db.tx(async (t) => {
+        const affected = req.query.id
+          ? await t.manyOrNone(
+              `UPDATE admin.portal_user_tenants SET deactivated_at = $1, status = 'locked', updated_by = $2
+               WHERE tenant_id = $3 AND deactivated_at IS NULL
+               RETURNING portal_user_id`,
+              [now, updatedBy, req.query.id],
+            )
+          : await t.manyOrNone(
+              `UPDATE admin.portal_user_tenants SET deactivated_at = $1, status = 'locked', updated_by = $2
+               WHERE tenant_id = (SELECT id FROM admin.tenants WHERE tenant_code = $3)
+                 AND deactivated_at IS NULL
+               RETURNING portal_user_id`,
+              [now, updatedBy, req.query.tenant_code],
+            );
+
+        const affectedIds = [...new Set(affected.map((r) => r.portal_user_id))];
+        if (affectedIds.length) {
+          await t.none(
+            `UPDATE admin.portal_users SET deactivated_at = $1, status = 'locked', updated_by = $2
+             WHERE id = ANY($3::uuid[])
+               AND deactivated_at IS NULL
+               AND id NOT IN (
+                 SELECT portal_user_id FROM admin.portal_user_tenants WHERE deactivated_at IS NULL
+               )`,
+            [now, updatedBy, affectedIds],
+          );
+        }
+      });
 
       res.status(200).json({ message: `${this.errorLabel} marked as inactive` });
     } catch (err) {

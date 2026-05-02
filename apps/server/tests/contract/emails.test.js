@@ -261,7 +261,7 @@ describe('Login email sync — client and vendor_contact source types', () => {
     expect(res.status).toBe(201);
 
     const portal = await DB.db.oneOrNone(
-      `SELECT email FROM admin.portal_users WHERE entity_type = 'client' AND entity_id = $1 AND deactivated_at IS NULL`,
+      `SELECT pu.email FROM admin.portal_users pu JOIN admin.portal_user_tenants b ON b.portal_user_id = pu.id WHERE b.entity_type = 'client' AND b.entity_id = $1 AND b.deactivated_at IS NULL AND pu.deactivated_at IS NULL`,
       [res.body.id],
     );
     expect(portal?.email).toBe('client-login@emtest.com');
@@ -280,7 +280,7 @@ describe('Login email sync — client and vendor_contact source types', () => {
     expect(updateRes.status).toBe(200);
 
     const portalAfter = await DB.db.oneOrNone(
-      `SELECT email FROM admin.portal_users WHERE entity_type = 'client' AND entity_id = $1 AND deactivated_at IS NULL`,
+      `SELECT pu.email FROM admin.portal_users pu JOIN admin.portal_user_tenants b ON b.portal_user_id = pu.id WHERE b.entity_type = 'client' AND b.entity_id = $1 AND b.deactivated_at IS NULL AND pu.deactivated_at IS NULL`,
       [res.body.id],
     );
     expect(portalAfter?.email).toBe('client-login-updated@emtest.com');
@@ -316,7 +316,7 @@ describe('Login email sync — client and vendor_contact source types', () => {
     expect(res.status).toBe(201);
 
     const portal = await DB.db.oneOrNone(
-      `SELECT email FROM admin.portal_users WHERE entity_type = 'vendor_contact' AND entity_id = $1 AND deactivated_at IS NULL`,
+      `SELECT pu.email FROM admin.portal_users pu JOIN admin.portal_user_tenants b ON b.portal_user_id = pu.id WHERE b.entity_type = 'vendor_contact' AND b.entity_id = $1 AND b.deactivated_at IS NULL AND pu.deactivated_at IS NULL`,
       [res.body.id],
     );
     expect(portal?.email).toBe('vc-login@emtest.com');

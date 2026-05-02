@@ -94,10 +94,17 @@ describe('Tenant lifecycle — create, provision, archive, restore', () => {
     const user = await db.oneOrNone('SELECT * FROM admin.portal_users WHERE id = $1', [adminUserId]);
     expect(user).not.toBeNull();
     expect(user.email).toBe('admin@testco.com');
-    expect(user.tenant_id).toBe(tenantId);
     expect(user.status).toBe('invited');
     expect(user.password_hash).toBeDefined();
     expect(user.password_hash.startsWith('$2')).toBe(true); // bcrypt
+
+    const binding = await db.oneOrNone(
+      'SELECT tenant_id, entity_type FROM admin.portal_user_tenants WHERE portal_user_id = $1 AND deactivated_at IS NULL',
+      [adminUserId],
+    );
+    expect(binding).not.toBeNull();
+    expect(binding.tenant_id).toBe(tenantId);
+    expect(binding.entity_type).toBe('employee');
   });
 
   test('5. Admin user can log in', async () => {

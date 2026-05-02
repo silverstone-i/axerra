@@ -100,33 +100,50 @@ export function authRedis() {
       const dbMod = await import('../db/db.js');
       const db = dbMod.default || dbMod.db;
       let userRecord = null;
-      let tenantRecord = null;
+      let homeBinding = null;
+      let homeTenantRecord = null;
       try {
         userRecord = await db('portalUsers', 'admin').findOneBy([{ id: uid }]);
         if (userRecord) {
-          tenantRecord = await db('tenants', 'admin').findById(userRecord.tenant_id);
+          // Default to the user's earliest active binding as their "home"
+          // tenant. Tasks 5–9 keep employees and clients single-binding;
+          // vendor_contacts may have multiple but the first-by-created_at
+          // is a deterministic default the x-tenant-code header overrides.
+          homeBinding = await db.oneOrNone(
+            `SELECT id, portal_user_id, tenant_id, entity_type, entity_id, status
+             FROM admin.portal_user_tenants
+             WHERE portal_user_id = $1 AND deactivated_at IS NULL
+             ORDER BY created_at ASC
+             LIMIT 1`,
+            [uid],
+          );
+          if (homeBinding) {
+            homeTenantRecord = await db('tenants', 'admin').findById(homeBinding.tenant_id);
+          }
         }
       } catch {
         // DB unavailable — reject
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      if (!userRecord || !tenantRecord) {
+      if (!userRecord || !homeBinding || !homeTenantRecord) {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      // Resolve tenant code from header or user's tenant
+      // Resolve tenant code from header or user's home binding
       const headerTenant = req.headers['x-tenant-code'];
-      const homeTenantCode = tenantRecord.tenant_code.toLowerCase();
+      const homeTenantCode = homeTenantRecord.tenant_code.toLowerCase();
       const tenantCode = headerTenant ? headerTenant.toLowerCase() : homeTenantCode;
 
-      // ── Schema resolution ───────────────────────────────────────────────
-      // Permissions always load from the user's home tenant (where their roles live).
-      // Data queries use the assumed tenant's schema when the header is present.
-      // effectiveTenantRecord tracks the tenant whose data the request operates on.
-      const homeSchemaName = tenantRecord.schema_name;
+      // ── Schema + binding resolution ─────────────────────────────────────
+      // Schema/data resolution follows the resolved tenant_code. Entity
+      // context (entity_type/entity_id) follows the matching binding when
+      // one exists — otherwise it falls back to the home binding so
+      // Axerra cross-tenant switching keeps working without a binding.
+      const homeSchemaName = homeTenantRecord.schema_name;
       let dataSchemaName = homeSchemaName;
-      let effectiveTenantRecord = tenantRecord;
+      let effectiveTenantRecord = homeTenantRecord;
+      let activeBinding = homeBinding;
       if (headerTenant && tenantCode !== homeTenantCode) {
         try {
           const row = await db.oneOrNone(
@@ -136,6 +153,15 @@ export function authRedis() {
           if (row) {
             dataSchemaName = row.schema_name;
             effectiveTenantRecord = row;
+            const matchedBinding = await db.oneOrNone(
+              `SELECT id, portal_user_id, tenant_id, entity_type, entity_id, status
+               FROM admin.portal_user_tenants
+               WHERE portal_user_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
+              [uid, row.id],
+            );
+            if (matchedBinding) {
+              activeBinding = matchedBinding;
+            }
           }
         } catch {
           // Fall back to home schema if lookup fails
@@ -143,17 +169,26 @@ export function authRedis() {
       }
 
       // ── RBAC Permission Loading ─────────────────────────────────────────
-      const schemaName = homeSchemaName;
-      let permissions = await getCachedPermissions(uid, homeTenantCode);
+      // Permissions are scoped to the active binding's schema. Cache key
+      // follows the binding: when a matching per-tenant binding was found
+      // we key on the active tenant_code; when we fell back to the home
+      // binding (e.g. Axerra cross-tenant switch with no binding) the
+      // perms are home-tenant perms, so cache under homeTenantCode. Mixing
+      // these would let stale home perms shadow real per-tenant perms
+      // once the user gains a binding to that tenant.
+      const fellBackToHome = activeBinding === homeBinding;
+      const schemaName = fellBackToHome ? homeSchemaName : effectiveTenantRecord.schema_name;
+      const permCacheKey = fellBackToHome ? homeTenantCode : tenantCode;
+      let permissions = await getCachedPermissions(uid, permCacheKey);
 
       if (!permissions) {
         permissions = await loadPermissions({
           schemaName,
           userId: uid,
-          entityType: userRecord.entity_type,
-          entityId: userRecord.entity_id,
+          entityType: activeBinding.entity_type,
+          entityId: activeBinding.entity_id,
         });
-        await cachePermissions(uid, homeTenantCode, permissions);
+        await cachePermissions(uid, permCacheKey, permissions);
       }
 
       // ── Stale Token Detection ───────────────────────────────────────────
@@ -183,23 +218,49 @@ export function authRedis() {
           const db2 = dbMod2.default || dbMod2.db;
           const targetUser = await db2('portalUsers', 'admin').findOneBy([{ id: parsed.targetUserId }]);
           if (targetUser) {
-            effectiveUser = targetUser;
-            effectiveTenantCode = parsed.targetTenantCode || tenantCode;
-            effectiveSchemaName = parsed.targetSchemaName || schemaName;
+            // Resolve the impersonated target's binding: prefer one that
+            // matches the requested target tenant, otherwise fall back
+            // to their earliest active binding.
+            const requestedTargetCode = parsed.targetTenantCode || tenantCode || null;
+            const targetSchemaOverride = parsed.targetSchemaName;
+            const targetBinding = await db2.oneOrNone(
+              `SELECT b.entity_type, b.entity_id, b.tenant_id, t.schema_name, t.tenant_code
+               FROM admin.portal_user_tenants b
+               JOIN admin.tenants t ON t.id = b.tenant_id
+               WHERE b.portal_user_id = $1 AND b.deactivated_at IS NULL
+               ORDER BY ($2::text IS NOT NULL AND LOWER(t.tenant_code) = LOWER($2)) DESC, b.created_at ASC
+               LIMIT 1`,
+              [targetUser.id, requestedTargetCode],
+            );
 
-            // Resolve the impersonated user's tenant record
-            if (targetUser.tenant_id !== tenantRecord.id) {
-              const targetTenant = await db2('tenants', 'admin').findById(targetUser.tenant_id);
-              if (targetTenant) effectiveTenantRecord = targetTenant;
+            if (targetBinding) {
+              effectiveUser = { ...targetUser, entity_type: targetBinding.entity_type, entity_id: targetBinding.entity_id };
+              // Set effective context from the resolved binding so downstream
+              // queries don't operate against a tenant the target lacks a
+              // binding for. The Redis-stored targetSchemaName is only
+              // honored when the resolved binding still matches the
+              // originally-chosen tenant — otherwise the original binding
+              // has been archived and the override is stale, so we use
+              // the resolved binding's current schema_name.
+              const bindingTenantCode = targetBinding.tenant_code?.toLowerCase();
+              const overrideMatches = targetSchemaOverride
+                && requestedTargetCode
+                && bindingTenantCode === requestedTargetCode.toLowerCase();
+              effectiveTenantCode = bindingTenantCode || requestedTargetCode || tenantCode;
+              effectiveSchemaName = overrideMatches ? targetSchemaOverride : targetBinding.schema_name;
+
+              if (targetBinding.tenant_id !== effectiveTenantRecord.id) {
+                const targetTenant = await db2('tenants', 'admin').findById(targetBinding.tenant_id);
+                if (targetTenant) effectiveTenantRecord = targetTenant;
+              }
+
+              effectivePermissions = await loadPermissions({
+                schemaName: effectiveSchemaName,
+                userId: targetUser.id,
+                entityType: targetBinding.entity_type,
+                entityId: targetBinding.entity_id,
+              });
             }
-
-            // Re-load permissions for target user
-            effectivePermissions = await loadPermissions({
-              schemaName: effectiveSchemaName,
-              userId: targetUser.id,
-              entityType: targetUser.entity_type,
-              entityId: targetUser.entity_id,
-            });
           }
         }
       } catch {
@@ -207,11 +268,14 @@ export function authRedis() {
       }
 
       // ── Populate req.user ───────────────────────────────────────────────
+      const effectiveEntityType = isImpersonating ? effectiveUser.entity_type : activeBinding.entity_type;
+      const effectiveEntityId = isImpersonating ? effectiveUser.entity_id : activeBinding.entity_id;
+
       req.user = {
         id: isImpersonating ? impersonatedBy : uid,
         email: effectiveUser.email,
-        entity_type: effectiveUser.entity_type,
-        entity_id: effectiveUser.entity_id,
+        entity_type: effectiveEntityType,
+        entity_id: effectiveEntityId,
         status: effectiveUser.status,
         tenant_id: effectiveTenantRecord.id,
         tenant_code: effectiveTenantCode,

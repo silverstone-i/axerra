@@ -7,11 +7,13 @@
 
 import Tenants from './models/Tenants.js';
 import PortalUsers from './models/PortalUsers.js';
+import PortalUserTenants from './models/PortalUserTenants.js';
 import ImpersonationLogs from './models/ImpersonationLogs.js';
 import MatchReviewLogs from './models/MatchReviewLogs.js';
 const repositories = {
   tenants: Tenants,
   portalUsers: PortalUsers,
+  portalUserTenants: PortalUserTenants,
   impersonationLogs: ImpersonationLogs,
   matchReviewLogs: MatchReviewLogs,
 };

@@ -2,10 +2,11 @@
  * @file Migration: bootstrap admin schema tables and seed root tenant + super user
  * @module auth/schema/migrations/202502110001_bootstrapAdmin
  *
- * Creates admin schema tables (tenants, portal_users, impersonation_logs,
- * match_review_logs). Seeds the Axerra root tenant and a bootstrap
- * super user. The entity link (entity_type, entity_id) is set by
- * setupAdmin.js after tenant provisioning creates the employees table.
+ * Creates admin schema tables (tenants, portal_users, portal_user_tenants,
+ * impersonation_logs, match_review_logs). Seeds the Axerra root tenant
+ * and a bootstrap super user. The tenant binding (portal_user_tenants
+ * row) is created by setupAdmin.js after tenant provisioning creates
+ * the employees table.
  *
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
@@ -63,27 +64,20 @@ export default defineMigration({
     const rootPassword = process.env.ROOT_PASSWORD;
 
     if (rootEmail && rootPassword) {
-      const tenant = await db.oneOrNone(
-        'SELECT id FROM admin.tenants WHERE tenant_code = $1',
-        [rootTenantCode],
+      const existingUser = await db.oneOrNone(
+        'SELECT id FROM admin.portal_users WHERE email = $1 AND deactivated_at IS NULL',
+        [rootEmail],
       );
 
-      if (tenant) {
-        const existingUser = await db.oneOrNone(
-          'SELECT id FROM admin.portal_users WHERE email = $1 AND deactivated_at IS NULL',
-          [rootEmail],
+      if (!existingUser) {
+        const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
+        const passwordHash = await bcrypt.hash(rootPassword, rounds);
+
+        await db.none(
+          `INSERT INTO admin.portal_users (email, password_hash, status)
+           VALUES ($1, $2, 'active')`,
+          [rootEmail, passwordHash],
         );
-
-        if (!existingUser) {
-          const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
-          const passwordHash = await bcrypt.hash(rootPassword, rounds);
-
-          await db.none(
-            `INSERT INTO admin.portal_users (tenant_id, entity_type, entity_id, email, password_hash, status)
-             VALUES ($1, NULL, NULL, $2, $3, 'active')`,
-            [tenant.id, rootEmail, passwordHash],
-          );
-        }
       }
     }
   },
@@ -92,7 +86,7 @@ export default defineMigration({
     if (schema !== 'admin') return;
 
     // Drop in reverse dependency order
-    const tables = ['match_review_logs', 'impersonation_logs', 'portal_users', 'tenants'];
+    const tables = ['match_review_logs', 'impersonation_logs', 'portal_user_tenants', 'portal_users', 'tenants'];
     for (const table of tables) {
       await db.none(`DROP TABLE IF EXISTS admin.${table} CASCADE`);
     }

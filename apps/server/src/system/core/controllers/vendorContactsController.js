@@ -17,6 +17,7 @@ import crypto from 'node:crypto';
 import BaseController from '../../../lib/BaseController.js';
 import db, { pgp } from '../../../db/db.js';
 import { invalidateByEntity } from '../../../services/permCacheInvalidator.js';
+import { findActiveBinding, findAnyBinding } from '../../auth/services/index.js';
 import logger from '../../../lib/logger.js';
 
 class VendorContactsController extends BaseController {
@@ -160,13 +161,7 @@ class VendorContactsController extends BaseController {
 
       // Determine if provisioning is needed (fresh toggle or retry after partial failure)
       const needsProvisioning =
-        isNowAppUser &&
-        (!wasAppUser ||
-          !(await db.oneOrNone(
-            `SELECT id FROM admin.portal_users
-           WHERE entity_type = 'vendor_contact' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
-            [before.id, req.user?.tenant_id],
-          )));
+        isNowAppUser && (!wasAppUser || !(await findActiveBinding('vendor_contact', before.id, req.user?.tenant_id)));
 
       if (needsProvisioning) {
         const roles = req.body.roles || before.roles || [];
@@ -314,14 +309,8 @@ class VendorContactsController extends BaseController {
     }
 
     try {
-      const tenantId = req.user?.tenant_id;
-      const portalUser = await db.oneOrNone(
-        `SELECT id FROM admin.portal_users
-         WHERE entity_type = 'vendor_contact' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
-        [contactId, tenantId],
-      );
-
-      if (!portalUser) {
+      const binding = await findActiveBinding('vendor_contact', contactId, req.user?.tenant_id);
+      if (!binding) {
         return res.status(404).json({ error: 'No active app user account found for this vendor contact' });
       }
 
@@ -330,10 +319,10 @@ class VendorContactsController extends BaseController {
       await db.none('UPDATE admin.portal_users SET password_hash = $/hash/, updated_by = $/updatedBy/ WHERE id = $/id/', {
         hash,
         updatedBy: req.user?.id || null,
-        id: portalUser.id,
+        id: binding.portal_user_id,
       });
 
-      logger.info(`Admin reset password for portal_user ${portalUser.id} (vendor_contact ${contactId})`);
+      logger.info(`Admin reset password for portal_user ${binding.portal_user_id} (vendor_contact ${contactId})`);
       res.json({ message: 'Password reset successfully' });
     } catch (err) {
       this.handleError(err, res, 'resetting password for', this.errorLabel);
@@ -343,13 +332,15 @@ class VendorContactsController extends BaseController {
   /* ── Private helpers ──────────────────────────────────── */
 
   /**
-   * Create or restore a portal_users record for a vendor contact gaining app access.
+   * Create or restore a portal_users + portal_user_tenants binding for a
+   * vendor_contact gaining app access. Vendors may end up with multiple
+   * bindings across tenants (Task 6 handles existing-email match → bind);
+   * here we just manage the per-tenant binding pair.
    */
   async #provisionAppUser(vendorContact, req, suppliedPassword, loginEmail) {
     const tenantId = req.user?.tenant_id;
     if (!tenantId) throw new Error('Tenant context required to provision app user');
 
-    // Validate supplied password strength (if provided)
     if (suppliedPassword) {
       const pwRules = [
         { test: (p) => p.length >= 8, msg: 'at least 8 characters' },
@@ -366,83 +357,106 @@ class VendorContactsController extends BaseController {
       }
     }
 
-    // Check if an archived portal_user already exists for this vendor contact
-    const existing = await db.oneOrNone(
-      `SELECT id, deactivated_at FROM admin.portal_users
-       WHERE entity_type = 'vendor_contact' AND entity_id = $1 AND tenant_id = $2`,
-      [vendorContact.id, tenantId],
-    );
-
     const clearPassword = suppliedPassword || crypto.randomBytes(12).toString('base64url');
     const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
     const passwordHash = await bcrypt.hash(clearPassword, rounds);
+    const updatedBy = req.user?.id || null;
 
-    if (existing) {
-      // Restore the archived record
-      await db.none(
-        `UPDATE admin.portal_users
-         SET deactivated_at = NULL, status = 'invited',
-             password_hash = $1, email = $2, updated_by = $3
-         WHERE id = $4`,
-        [passwordHash, loginEmail, req.user?.id || null, existing.id],
-      );
-      logger.info(`Restored portal_user ${existing.id} for vendor_contact ${vendorContact.id}`);
-      return existing.id;
+    const priorBinding = await findAnyBinding('vendor_contact', vendorContact.id, tenantId);
+
+    if (priorBinding) {
+      await db.tx(async (t) => {
+        await t.none(
+          `UPDATE admin.portal_users
+           SET deactivated_at = NULL, status = 'invited',
+               password_hash = $1, email = $2, updated_by = $3
+           WHERE id = $4`,
+          [passwordHash, loginEmail, updatedBy, priorBinding.portal_user_id],
+        );
+        await t.none(
+          `UPDATE admin.portal_user_tenants
+           SET deactivated_at = NULL, status = 'active', updated_by = $1
+           WHERE id = $2`,
+          [updatedBy, priorBinding.id],
+        );
+      });
+      logger.info(`Restored portal_user ${priorBinding.portal_user_id} + binding for vendor_contact ${vendorContact.id}`);
+      return priorBinding.portal_user_id;
     }
 
-    // Create a new portal_users record
-    const user = await db('portalUsers', 'admin').insert({
-      tenant_id: tenantId,
-      entity_type: 'vendor_contact',
-      entity_id: vendorContact.id,
-      email: loginEmail,
-      password_hash: passwordHash,
-      status: 'invited',
-      created_by: req.user?.id || null,
+    const portalUserId = await db.tx(async (t) => {
+      const user = await t.one(
+        `INSERT INTO admin.portal_users (email, password_hash, status, created_by)
+         VALUES ($1, $2, 'invited', $3)
+         RETURNING id`,
+        [loginEmail, passwordHash, updatedBy],
+      );
+      await t.none(
+        `INSERT INTO admin.portal_user_tenants
+           (portal_user_id, tenant_id, entity_type, entity_id, status, created_by)
+         VALUES ($1, $2, 'vendor_contact', $3, 'active', $4)`,
+        [user.id, tenantId, vendorContact.id, updatedBy],
+      );
+      return user.id;
     });
 
-    logger.info(`Provisioned portal_user ${user.id} for vendor_contact ${vendorContact.id}`);
-    return user.id;
+    logger.info(`Provisioned portal_user ${portalUserId} + binding for vendor_contact ${vendorContact.id}`);
+    return portalUserId;
   }
 
   /**
-   * Archive (soft-delete) the portal_users record linked to a vendor contact.
+   * Archive (soft-delete) the portal_users + binding linked to a vendor contact.
    */
   async #archiveAppUser(vendorContactId, req) {
-    const portalUser = await db.oneOrNone(
-      `SELECT id FROM admin.portal_users
-       WHERE entity_type = 'vendor_contact' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
-      [vendorContactId, req.user?.tenant_id],
-    );
-    if (portalUser) {
-      await db.none(
+    const binding = await findActiveBinding('vendor_contact', vendorContactId, req.user?.tenant_id);
+    if (!binding) return;
+
+    const updatedBy = req.user?.id || null;
+    await db.tx(async (t) => {
+      await t.none(
+        `UPDATE admin.portal_user_tenants
+         SET deactivated_at = NOW(), status = 'locked', updated_by = $1
+         WHERE id = $2`,
+        [updatedBy, binding.id],
+      );
+      await t.none(
         `UPDATE admin.portal_users
          SET deactivated_at = NOW(), status = 'locked', updated_by = $1
          WHERE id = $2`,
-        [req.user?.id || null, portalUser.id],
+        [updatedBy, binding.portal_user_id],
       );
-      logger.info(`Archived portal_user ${portalUser.id} for vendor_contact ${vendorContactId}`);
-    }
+    });
+    logger.info(`Archived portal_user ${binding.portal_user_id} + binding for vendor_contact ${vendorContactId}`);
   }
 
   /**
-   * Restore the portal_users record linked to a vendor contact.
+   * Restore the portal_users + binding linked to a vendor contact.
    */
   async #restoreAppUser(vendorContactId, req) {
-    const portalUser = await db.oneOrNone(
-      `SELECT id FROM admin.portal_users
-       WHERE entity_type = 'vendor_contact' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NOT NULL`,
+    const binding = await db.oneOrNone(
+      `SELECT id, portal_user_id FROM admin.portal_user_tenants
+       WHERE entity_type = 'vendor_contact' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NOT NULL
+       ORDER BY deactivated_at DESC LIMIT 1`,
       [vendorContactId, req.user?.tenant_id],
     );
-    if (portalUser) {
-      await db.none(
+    if (!binding) return;
+
+    const updatedBy = req.user?.id || null;
+    await db.tx(async (t) => {
+      await t.none(
         `UPDATE admin.portal_users
          SET deactivated_at = NULL, status = 'active', updated_by = $1
          WHERE id = $2`,
-        [req.user?.id || null, portalUser.id],
+        [updatedBy, binding.portal_user_id],
       );
-      logger.info(`Restored portal_user ${portalUser.id} for vendor_contact ${vendorContactId}`);
-    }
+      await t.none(
+        `UPDATE admin.portal_user_tenants
+         SET deactivated_at = NULL, status = 'active', updated_by = $1
+         WHERE id = $2`,
+        [updatedBy, binding.id],
+      );
+    });
+    logger.info(`Restored portal_user ${binding.portal_user_id} + binding for vendor_contact ${vendorContactId}`);
   }
 }
 

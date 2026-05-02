@@ -78,8 +78,8 @@ async function resolveEntityRoles(schemaName, entityType, entityId) {
  * @param {object} options
  * @param {string} options.schemaName Tenant schema name
  * @param {string} options.userId User UUID
- * @param {string|null} [options.entityType] From portal_users.entity_type
- * @param {string|null} [options.entityId] From portal_users.entity_id
+ * @param {string|null} [options.entityType] From the active portal_user_tenants binding
+ * @param {string|null} [options.entityId] From the active portal_user_tenants binding
  * @returns {Promise<object>} Permission canon
  */
 export async function loadPermissions({ schemaName, userId, entityType = null, entityId = null }) {
