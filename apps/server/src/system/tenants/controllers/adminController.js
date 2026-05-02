@@ -27,13 +27,18 @@ export async function getAllSchemas(req, res) {
 
 /**
  * POST /impersonate — start impersonating a target user
- * Body: { target_user_id, reason? }
+ * Body: { target_user_id, target_tenant_id?, target_tenant_code?, reason? }
+ *
+ * For multi-binding users (vendor_contacts) the caller should pass
+ * target_tenant_id or target_tenant_code so the session opens in the
+ * tenant the admin selected from the picker. Without it we fall back
+ * to the target's earliest active binding.
  */
 export async function startImpersonation(req, res) {
   const impersonatorId = req.user?.id;
   if (!impersonatorId) return res.status(401).json({ error: 'Unauthorized' });
 
-  const { target_user_id, reason } = req.body || {};
+  const { target_user_id, target_tenant_id, target_tenant_code, reason } = req.body || {};
   if (!target_user_id) return res.status(400).json({ error: 'target_user_id required' });
 
   try {
@@ -41,17 +46,30 @@ export async function startImpersonation(req, res) {
     const targetUser = await db('portalUsers', 'admin').findOneBy([{ id: target_user_id }]);
     if (!targetUser) return res.status(404).json({ error: 'Target user not found' });
 
-    // Resolve the target's earliest active binding for tenant/entity context.
+    // Resolve the target's binding. Prefer the requested tenant when one
+    // was supplied; otherwise fall back to the earliest active binding.
+    const requestedTenantCode = target_tenant_code ? target_tenant_code.toLowerCase() : null;
     const targetBinding = await db.oneOrNone(
       `SELECT b.tenant_id, b.entity_type, b.entity_id, t.tenant_code, t.schema_name
        FROM admin.portal_user_tenants b
        JOIN admin.tenants t ON t.id = b.tenant_id
        WHERE b.portal_user_id = $1 AND b.deactivated_at IS NULL
-       ORDER BY b.created_at ASC
+       ORDER BY
+         ($2::uuid IS NOT NULL AND b.tenant_id = $2) DESC,
+         ($3::text IS NOT NULL AND LOWER(t.tenant_code) = $3) DESC,
+         b.created_at ASC
        LIMIT 1`,
-      [targetUser.id],
+      [targetUser.id, target_tenant_id || null, requestedTenantCode],
     );
     if (!targetBinding) return res.status(400).json({ error: 'Target user has no active tenant binding' });
+
+    // If the caller specified a tenant, refuse if the target has no binding for it
+    if (target_tenant_id && targetBinding.tenant_id !== target_tenant_id) {
+      return res.status(400).json({ error: 'Target user has no active binding for the requested tenant' });
+    }
+    if (requestedTenantCode && targetBinding.tenant_code.toLowerCase() !== requestedTenantCode) {
+      return res.status(400).json({ error: 'Target user has no active binding for the requested tenant' });
+    }
 
     // Check no active session exists for this impersonator
     const redis = await getRedis();

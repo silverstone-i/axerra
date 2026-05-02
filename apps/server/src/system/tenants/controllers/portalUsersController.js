@@ -162,16 +162,49 @@ class PortalUsersController extends BaseController {
   };
 
   /**
+   * Run a parent ViewController method against a captured response so
+   * we can post-process its data before sending. Lets hydration errors
+   * stay inside the controller's normal try/catch flow rather than
+   * leaking as unhandled rejections through an async res.json wrapper.
+   */
+  async #captureSuper(method, req, res) {
+    let captured;
+    let captureType = null;
+    let capturedStatus = 200;
+    const captureRes = {
+      json(data) {
+        captured = data;
+        captureType = 'json';
+        return captureRes;
+      },
+      status(code) {
+        capturedStatus = code;
+        return captureRes;
+      },
+      setHeader: () => captureRes,
+      get headersSent() {
+        return false;
+      },
+    };
+    await super[method](req, captureRes);
+    return { type: captureType, status: capturedStatus, body: captured };
+  }
+
+  /**
    * Override GET / to strip password_hash from results and hydrate the
    * primary active binding (entity_type / entity_id / tenant_id).
    */
   async get(req, res) {
-    const origJson = res.json.bind(res);
-    res.json = async (data) => {
-      const hydrated = await this.#hydrateBindings(data);
-      return origJson(this.#stripPasswords(hydrated));
-    };
-    return super.get(req, res);
+    try {
+      const captured = await this.#captureSuper('get', req, res);
+      if (captured.status >= 400) {
+        return res.status(captured.status).json(captured.body);
+      }
+      const hydrated = await this.#hydrateBindings(captured.body);
+      return res.json(this.#stripPasswords(hydrated));
+    } catch (err) {
+      this.handleError(err, res, 'fetching', this.errorLabel);
+    }
   }
 
   /**
@@ -192,12 +225,16 @@ class PortalUsersController extends BaseController {
    * Override GET /where to strip password_hash and hydrate binding.
    */
   async getWhere(req, res) {
-    const origJson = res.json.bind(res);
-    res.json = async (data) => {
-      const hydrated = await this.#hydrateBindings(data);
-      return origJson(this.#stripPasswords(hydrated));
-    };
-    return super.getWhere(req, res);
+    try {
+      const captured = await this.#captureSuper('getWhere', req, res);
+      if (captured.status >= 400) {
+        return res.status(captured.status).json(captured.body);
+      }
+      const hydrated = await this.#hydrateBindings(captured.body);
+      return res.json(this.#stripPasswords(hydrated));
+    } catch (err) {
+      this.handleError(err, res, 'fetching', this.errorLabel);
+    }
   }
 
   /**
