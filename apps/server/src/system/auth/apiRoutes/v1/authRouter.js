@@ -1,5 +1,5 @@
 /**
- * @file Auth routes — login, refresh, logout, me, check, change-password per PRD §3.1.1
+ * @file Auth routes — login, refresh, logout, me, check, change-password, change-email (self-service) per PRD §3.1.1
  * @module auth/apiRoutes/v1/authRouter
  *
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.

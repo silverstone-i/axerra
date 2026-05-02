@@ -298,6 +298,7 @@ export const changeEmail = async (req, res) => {
             WHERE e.source_id = s.id
               AND s.source_type = $3
               AND s.table_id = $4
+              AND s.deactivated_at IS NULL
               AND e.is_login = true
               AND e.deactivated_at IS NULL`,
           [newEmail, userId, sourceType, binding.entity_id],
