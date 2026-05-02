@@ -15,7 +15,7 @@ import BaseController from '../../../lib/BaseController.js';
 import db, { pgp } from '../../../db/db.js';
 import { allocateNumber } from '../services/numberingService.js';
 import { invalidateByEntity } from '../../../services/permCacheInvalidator.js';
-import { findActiveBinding, findAnyBinding } from '../../auth/services/portalUserBindings.js';
+import { findActiveBinding, findAnyBinding } from '../../auth/services/index.js';
 import logger from '../../../lib/logger.js';
 
 class EmployeesController extends BaseController {

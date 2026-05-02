@@ -152,13 +152,16 @@ async function main() {
     );
 
     if (superUser && tenant) {
+      // Look for an existing binding for the root tenant. A bare binding
+      // (no entity_type yet) gets its entity link populated rather than
+      // a second binding being inserted.
       const existingBinding = await db.oneOrNone(
-        `SELECT id FROM admin.portal_user_tenants
-         WHERE portal_user_id = $1 AND deactivated_at IS NULL`,
-        [superUser.id],
+        `SELECT id, entity_type, entity_id FROM admin.portal_user_tenants
+         WHERE portal_user_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
+        [superUser.id, tenant.id],
       );
 
-      if (!existingBinding) {
+      if (!existingBinding || existingBinding.entity_type === null) {
         logger.info('Linking root super user to employee record...');
         const s = DB.pgp.as.name(tenantSchema);
 
@@ -191,16 +194,27 @@ async function main() {
           [tenant.id, source.id, rootEmail],
         );
 
-        // 4. Bind portal_user to the employee via portal_user_tenants
-        await db.none(
-          `INSERT INTO admin.portal_user_tenants (portal_user_id, tenant_id, entity_type, entity_id, status)
-           VALUES ($1, $2, 'employee', $3, 'active')`,
-          [superUser.id, tenant.id, employee.id],
-        );
+        // 4. Populate (or insert) the binding's entity link. A bare
+        // binding from a prior register call is updated in place to
+        // preserve the unique (portal_user_id, tenant_id) row.
+        if (existingBinding) {
+          await db.none(
+            `UPDATE admin.portal_user_tenants
+             SET entity_type = 'employee', entity_id = $1, status = 'active'
+             WHERE id = $2`,
+            [employee.id, existingBinding.id],
+          );
+        } else {
+          await db.none(
+            `INSERT INTO admin.portal_user_tenants (portal_user_id, tenant_id, entity_type, entity_id, status)
+             VALUES ($1, $2, 'employee', $3, 'active')`,
+            [superUser.id, tenant.id, employee.id],
+          );
+        }
 
         logger.info(`Root super user bound to employee ${employee.id}`);
       } else {
-        logger.info('Root super user already bound to a tenant, skipping.');
+        logger.info('Root super user already linked to entity, skipping.');
       }
     }
   }

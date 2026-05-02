@@ -169,10 +169,17 @@ export function authRedis() {
       }
 
       // ── RBAC Permission Loading ─────────────────────────────────────────
-      // Permissions are scoped to the active binding's home schema (where
-      // the binding's entity record lives) and cached per-tenant.
-      const schemaName = activeBinding === homeBinding ? homeSchemaName : effectiveTenantRecord.schema_name;
-      let permissions = await getCachedPermissions(uid, tenantCode);
+      // Permissions are scoped to the active binding's schema. Cache key
+      // follows the binding: when a matching per-tenant binding was found
+      // we key on the active tenant_code; when we fell back to the home
+      // binding (e.g. Axerra cross-tenant switch with no binding) the
+      // perms are home-tenant perms, so cache under homeTenantCode. Mixing
+      // these would let stale home perms shadow real per-tenant perms
+      // once the user gains a binding to that tenant.
+      const fellBackToHome = activeBinding === homeBinding;
+      const schemaName = fellBackToHome ? homeSchemaName : effectiveTenantRecord.schema_name;
+      const permCacheKey = fellBackToHome ? homeTenantCode : tenantCode;
+      let permissions = await getCachedPermissions(uid, permCacheKey);
 
       if (!permissions) {
         permissions = await loadPermissions({
@@ -181,7 +188,7 @@ export function authRedis() {
           entityType: activeBinding.entity_type,
           entityId: activeBinding.entity_id,
         });
-        await cachePermissions(uid, tenantCode, permissions);
+        await cachePermissions(uid, permCacheKey, permissions);
       }
 
       // ── Stale Token Detection ───────────────────────────────────────────
@@ -211,25 +218,28 @@ export function authRedis() {
           const db2 = dbMod2.default || dbMod2.db;
           const targetUser = await db2('portalUsers', 'admin').findOneBy([{ id: parsed.targetUserId }]);
           if (targetUser) {
-            // Resolve the impersonated target's binding for the chosen tenant,
-            // falling back to their first active binding.
-            const targetTenantCode = parsed.targetTenantCode || tenantCode;
-            const targetSchemaName = parsed.targetSchemaName;
+            // Resolve the impersonated target's binding: prefer one that
+            // matches the requested target tenant, otherwise fall back
+            // to their earliest active binding.
+            const requestedTargetCode = parsed.targetTenantCode || tenantCode || null;
+            const targetSchemaOverride = parsed.targetSchemaName;
             const targetBinding = await db2.oneOrNone(
               `SELECT b.entity_type, b.entity_id, b.tenant_id, t.schema_name, t.tenant_code
                FROM admin.portal_user_tenants b
                JOIN admin.tenants t ON t.id = b.tenant_id
                WHERE b.portal_user_id = $1 AND b.deactivated_at IS NULL
-                 AND ($2::text IS NULL OR LOWER(t.tenant_code) = LOWER($2))
-               ORDER BY (LOWER(t.tenant_code) = LOWER($2)) DESC NULLS LAST, b.created_at ASC
+               ORDER BY ($2::text IS NOT NULL AND LOWER(t.tenant_code) = LOWER($2)) DESC, b.created_at ASC
                LIMIT 1`,
-              [targetUser.id, targetTenantCode || null],
+              [targetUser.id, requestedTargetCode],
             );
 
             if (targetBinding) {
               effectiveUser = { ...targetUser, entity_type: targetBinding.entity_type, entity_id: targetBinding.entity_id };
-              effectiveTenantCode = targetTenantCode;
-              effectiveSchemaName = targetSchemaName || targetBinding.schema_name;
+              // Set effective context from the resolved binding so downstream
+              // queries don't operate against a tenant the target lacks a
+              // binding for.
+              effectiveTenantCode = (targetBinding.tenant_code || requestedTargetCode || tenantCode).toLowerCase();
+              effectiveSchemaName = targetSchemaOverride || targetBinding.schema_name;
 
               if (targetBinding.tenant_id !== effectiveTenantRecord.id) {
                 const targetTenant = await db2('tenants', 'admin').findById(targetBinding.tenant_id);

@@ -17,7 +17,7 @@ import crypto from 'node:crypto';
 import BaseController from '../../../lib/BaseController.js';
 import db, { pgp } from '../../../db/db.js';
 import { invalidateByEntity } from '../../../services/permCacheInvalidator.js';
-import { findActiveBinding, findAnyBinding } from '../../auth/services/portalUserBindings.js';
+import { findActiveBinding, findAnyBinding } from '../../auth/services/index.js';
 import logger from '../../../lib/logger.js';
 
 class VendorContactsController extends BaseController {

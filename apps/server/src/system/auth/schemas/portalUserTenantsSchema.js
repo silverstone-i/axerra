@@ -37,6 +37,16 @@ const portalUserTenantsSchema = {
     ],
     indexes: [
       { type: 'Index', columns: ['portal_user_id', 'tenant_id'], unique: true, where: 'deactivated_at IS NULL' },
+      // Preserves the "exactly one active portal_user per tenant-scoped
+      // entity" invariant that previously lived on portal_users. NULL
+      // entity rows (bare registrations) are excluded so multiple of
+      // those can coexist for the same tenant.
+      {
+        type: 'Index',
+        columns: ['tenant_id', 'entity_type', 'entity_id'],
+        unique: true,
+        where: 'deactivated_at IS NULL AND entity_type IS NOT NULL',
+      },
       { type: 'Index', columns: ['portal_user_id'] },
       { type: 'Index', columns: ['tenant_id'] },
       { type: 'Index', columns: ['entity_type', 'entity_id'] },
