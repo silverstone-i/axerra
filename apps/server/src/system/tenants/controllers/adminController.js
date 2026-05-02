@@ -41,8 +41,17 @@ export async function startImpersonation(req, res) {
     const targetUser = await db('portalUsers', 'admin').findOneBy([{ id: target_user_id }]);
     if (!targetUser) return res.status(404).json({ error: 'Target user not found' });
 
-    // Look up target user's tenant for schema_name
-    const targetTenant = await db('tenants', 'admin').findById(targetUser.tenant_id);
+    // Resolve the target's earliest active binding for tenant/entity context.
+    const targetBinding = await db.oneOrNone(
+      `SELECT b.tenant_id, b.entity_type, b.entity_id, t.tenant_code, t.schema_name
+       FROM admin.portal_user_tenants b
+       JOIN admin.tenants t ON t.id = b.tenant_id
+       WHERE b.portal_user_id = $1 AND b.deactivated_at IS NULL
+       ORDER BY b.created_at ASC
+       LIMIT 1`,
+      [targetUser.id],
+    );
+    if (!targetBinding) return res.status(400).json({ error: 'Target user has no active tenant binding' });
 
     // Check no active session exists for this impersonator
     const redis = await getRedis();
@@ -55,7 +64,7 @@ export async function startImpersonation(req, res) {
     const log = await db('impersonationLogs', 'admin').insert({
       impersonator_id: impersonatorId,
       target_user_id,
-      target_tenant_code: targetTenant?.tenant_code || null,
+      target_tenant_code: targetBinding.tenant_code || null,
       reason: reason || null,
       created_by: impersonatorId,
     });
@@ -64,15 +73,15 @@ export async function startImpersonation(req, res) {
     const impData = {
       logId: log.id,
       targetUserId: targetUser.id,
-      targetTenantCode: targetTenant?.tenant_code?.toLowerCase(),
-      targetSchemaName: targetTenant?.schema_name,
+      targetTenantCode: targetBinding.tenant_code?.toLowerCase(),
+      targetSchemaName: targetBinding.schema_name,
       targetUser: {
         id: targetUser.id,
         email: targetUser.email,
         status: targetUser.status,
-        tenant_id: targetUser.tenant_id,
-        entity_type: targetUser.entity_type,
-        entity_id: targetUser.entity_id,
+        tenant_id: targetBinding.tenant_id,
+        entity_type: targetBinding.entity_type,
+        entity_id: targetBinding.entity_id,
       },
     };
     await redis.set(`imp:${impersonatorId}`, JSON.stringify(impData));

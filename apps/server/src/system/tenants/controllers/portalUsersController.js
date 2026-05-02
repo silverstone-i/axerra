@@ -50,6 +50,57 @@ class PortalUsersController extends BaseController {
   }
 
   /**
+   * Hydrate users with their primary active binding so list views can
+   * keep showing entity_type / entity_id / tenant_id. For users with
+   * multiple bindings (vendor_contacts) the earliest active binding
+   * wins — matches the home-binding choice authRedis makes.
+   */
+  async #hydrateBindings(records) {
+    const list = Array.isArray(records) ? records : records?.rows;
+    if (!list || !list.length) return records;
+
+    const ids = list.map((r) => r.id).filter(Boolean);
+    if (!ids.length) return records;
+
+    const bindings = await db.any(
+      `SELECT DISTINCT ON (portal_user_id)
+         portal_user_id, tenant_id, entity_type, entity_id, status AS binding_status
+       FROM admin.portal_user_tenants
+       WHERE portal_user_id = ANY($1::uuid[]) AND deactivated_at IS NULL
+       ORDER BY portal_user_id, created_at ASC`,
+      [ids],
+    );
+    const byUser = new Map(bindings.map((b) => [b.portal_user_id, b]));
+
+    const decorate = (row) => {
+      const b = byUser.get(row.id);
+      if (!b) return { ...row, tenant_id: null, entity_type: null, entity_id: null };
+      return { ...row, tenant_id: b.tenant_id, entity_type: b.entity_type, entity_id: b.entity_id };
+    };
+
+    if (Array.isArray(records)) return records.map(decorate);
+    if (records?.rows) return { ...records, rows: records.rows.map(decorate) };
+    return records;
+  }
+
+  async #hydrateOne(record) {
+    if (!record?.id) return record;
+    const binding = await db.oneOrNone(
+      `SELECT tenant_id, entity_type, entity_id FROM admin.portal_user_tenants
+       WHERE portal_user_id = $1 AND deactivated_at IS NULL
+       ORDER BY created_at ASC
+       LIMIT 1`,
+      [record.id],
+    );
+    return {
+      ...record,
+      tenant_id: binding?.tenant_id ?? null,
+      entity_type: binding?.entity_type ?? null,
+      entity_id: binding?.entity_id ?? null,
+    };
+  }
+
+  /**
    * POST /register — register a new user with password hashing.
    *
    * Body: { tenant_code, email, password }
@@ -111,33 +162,41 @@ class PortalUsersController extends BaseController {
   };
 
   /**
-   * Override GET / to strip password_hash from results
+   * Override GET / to strip password_hash from results and hydrate the
+   * primary active binding (entity_type / entity_id / tenant_id).
    */
   async get(req, res) {
     const origJson = res.json.bind(res);
-    res.json = (data) => origJson(this.#stripPasswords(data));
+    res.json = async (data) => {
+      const hydrated = await this.#hydrateBindings(data);
+      return origJson(this.#stripPasswords(hydrated));
+    };
     return super.get(req, res);
   }
 
   /**
-   * GET /:id — fetch user record, strip password_hash
+   * GET /:id — fetch user record, strip password_hash, hydrate binding.
    */
   async getById(req, res) {
     try {
       const record = await this.model('admin').findById(req.params.id);
       if (!record) return res.status(404).json({ error: `${this.errorLabel} not found` });
-      res.json(this.#stripPassword(record));
+      const hydrated = await this.#hydrateOne(record);
+      res.json(this.#stripPassword(hydrated));
     } catch (err) {
       this.handleError(err, res, 'fetching', this.errorLabel);
     }
   }
 
   /**
-   * Override GET /where to strip password_hash from results
+   * Override GET /where to strip password_hash and hydrate binding.
    */
   async getWhere(req, res) {
     const origJson = res.json.bind(res);
-    res.json = (data) => origJson(this.#stripPasswords(data));
+    res.json = async (data) => {
+      const hydrated = await this.#hydrateBindings(data);
+      return origJson(this.#stripPasswords(hydrated));
+    };
     return super.getWhere(req, res);
   }
 
