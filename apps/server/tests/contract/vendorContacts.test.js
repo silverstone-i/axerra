@@ -10,7 +10,7 @@
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
-import { bootstrapAdmin, cleanupTestDb } from '../helpers/testDb.js';
+import { bootstrapAdmin, cleanupTestDb, DB } from '../helpers/testDb.js';
 
 const ROOT_EMAIL = process.env.ROOT_EMAIL;
 const ROOT_PASSWORD = process.env.ROOT_PASSWORD;
@@ -743,8 +743,9 @@ describe('Vendor Contact reset-password authority — multi-tenant guard (Task 9
       [rootUser.id, tenantB.id],
     );
     if (!existingBinding) {
+      const schemaIdent = DB.pgp.as.name(tenantB.schema_name);
       const empId = await db.one(
-        `INSERT INTO ${tenantB.schema_name}.employees
+        `INSERT INTO ${schemaIdent}.employees
            (tenant_id, first_name, last_name, is_app_user, roles)
          VALUES ($1, 'Axerra', 'Operator', true, '{admin}')
          RETURNING id`,

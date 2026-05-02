@@ -324,7 +324,9 @@ class VendorContactsController extends BaseController {
          WHERE portal_user_id = $1 AND deactivated_at IS NULL`,
         [binding.portal_user_id],
       );
-      if (count > 1 && req.user?.home_tenant !== 'axerra') {
+      const rootTenantCode = (process.env.ROOT_TENANT_CODE || 'axerra').toLowerCase();
+      const callerTenantCode = req.user?.home_tenant?.toLowerCase?.();
+      if (count > 1 && callerTenantCode !== rootTenantCode) {
         return res.status(403).json({ error: 'Tenant admins cannot change the password of a multi-tenant vendor user.' });
       }
 
