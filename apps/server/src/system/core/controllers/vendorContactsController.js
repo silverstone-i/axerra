@@ -314,6 +314,20 @@ class VendorContactsController extends BaseController {
         return res.status(404).json({ error: 'No active app user account found for this vendor contact' });
       }
 
+      // Multi-tenant authority guard (Part 3 of Import Dedup spec):
+      // If the underlying portal_user has more than one active tenant
+      // binding, only the user themselves or an Axerra admin may reset
+      // the password. A tenant admin in any single tenant does not own
+      // credentials shared across tenants.
+      const { count } = await db.one(
+        `SELECT COUNT(*)::int AS count FROM admin.portal_user_tenants
+         WHERE portal_user_id = $1 AND deactivated_at IS NULL`,
+        [binding.portal_user_id],
+      );
+      if (count > 1 && req.user?.home_tenant !== 'axerra') {
+        return res.status(403).json({ error: 'Tenant admins cannot change the password of a multi-tenant vendor user.' });
+      }
+
       const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
       const hash = await bcrypt.hash(password, rounds);
       await db.none('UPDATE admin.portal_users SET password_hash = $/hash/, updated_by = $/updatedBy/ WHERE id = $/id/', {

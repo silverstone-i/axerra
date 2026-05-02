@@ -383,3 +383,210 @@ describe('Vendor Contact app-user provisioning — cross-tenant existing-email m
     expect(lockedBinding.deactivated_at).not.toBeNull();
   });
 });
+
+describe('Vendor Contact reset-password authority — multi-tenant guard (Task 9)', () => {
+  let cookiesA;
+  let cookiesB;
+  let rootCookies;
+  let vendorIdA;
+  let vendorIdB;
+
+  beforeAll(async () => {
+    rootCookies = await loginRoot();
+
+    // Tenants A & B may already exist from earlier describe blocks.
+    let loginA = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'admin@vctest.com', password: 'VctestPass123!' });
+    if (!loginA.headers['set-cookie']?.length) {
+      await provisionTenant(rootCookies);
+      loginA = await request(app)
+        .post('/api/auth/login')
+        .send({ email: 'admin@vctest.com', password: 'VctestPass123!' });
+    }
+    cookiesA = loginA.headers['set-cookie'];
+
+    let loginB = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'admin@vctstb.com', password: 'VctstbPass123!' });
+    if (!loginB.headers['set-cookie']?.length) {
+      await request(app)
+        .post('/api/tenants/v1/tenants')
+        .set('Cookie', rootCookies)
+        .send({
+          tenant_code: 'VCTSTB',
+          company: 'Vendor Contact Test Corp B',
+          status: 'active',
+          tier: 'starter',
+          admin_first_name: 'B',
+          admin_last_name: 'Admin',
+          admin_email: 'admin@vctstb.com',
+          admin_password: 'VctstbPass123!',
+          billing_address: { address_line_1: '1 B St', country_code: 'US' },
+        });
+      loginB = await request(app)
+        .post('/api/auth/login')
+        .send({ email: 'admin@vctstb.com', password: 'VctstbPass123!' });
+    }
+    cookiesB = loginB.headers['set-cookie'];
+
+    const vendorA = await request(app)
+      .post('/api/core/v1/vendors')
+      .set('Cookie', cookiesA)
+      .send({ name: 'Reset Vendor A', code: 'RVENA' });
+    vendorIdA = vendorA.body.id;
+
+    const vendorB = await request(app)
+      .post('/api/core/v1/vendors')
+      .set('Cookie', cookiesB)
+      .send({ name: 'Reset Vendor B', code: 'RVENB' });
+    vendorIdB = vendorB.body.id;
+  }, 30000);
+
+  test('single-tenant vendor → tenant admin can reset password (200)', async () => {
+    const email = 'solo.reset@vendor.test';
+    const createRes = await request(app)
+      .post('/api/core/v1/vendor-contacts')
+      .set('Cookie', cookiesA)
+      .send({
+        vendor_id: vendorIdA,
+        first_name: 'Solo',
+        last_name: 'Reset',
+        email,
+        is_app_user: true,
+        roles: ['vendor'],
+        password: 'OriginalPass123!',
+      });
+    expect(createRes.status).toBe(201);
+    const contactId = createRes.body.id;
+
+    const resetRes = await request(app)
+      .post(`/api/core/v1/vendor-contacts/${contactId}/reset-password`)
+      .set('Cookie', cookiesA)
+      .send({ password: 'NewSoloPass123!' });
+    expect(resetRes.status).toBe(200);
+    expect(resetRes.body.message).toMatch(/reset/i);
+  });
+
+  test('multi-tenant vendor → tenant admin gets 403 with domain error', async () => {
+    const sharedEmail = 'multi.reset@vendor.test';
+
+    // Create vendor_contact in tenant A → creates portal_user.
+    const createA = await request(app)
+      .post('/api/core/v1/vendor-contacts')
+      .set('Cookie', cookiesA)
+      .send({
+        vendor_id: vendorIdA,
+        first_name: 'Multi',
+        last_name: 'Reset',
+        email: sharedEmail,
+        is_app_user: true,
+        roles: ['vendor'],
+        password: 'OriginalPass123!',
+      });
+    expect(createA.status).toBe(201);
+
+    // Create matching vendor_contact in tenant B → binds to existing portal_user.
+    const createB = await request(app)
+      .post('/api/core/v1/vendor-contacts')
+      .set('Cookie', cookiesB)
+      .send({
+        vendor_id: vendorIdB,
+        first_name: 'Multi',
+        last_name: 'Reset',
+        email: sharedEmail,
+        is_app_user: true,
+        roles: ['vendor'],
+      });
+    expect(createB.status).toBe(201);
+    const contactBId = createB.body.id;
+
+    const resetRes = await request(app)
+      .post(`/api/core/v1/vendor-contacts/${contactBId}/reset-password`)
+      .set('Cookie', cookiesB)
+      .send({ password: 'NewMultiPass123!' });
+    expect(resetRes.status).toBe(403);
+    expect(resetRes.body.error).toBe('Tenant admins cannot change the password of a multi-tenant vendor user.');
+  });
+
+  test('multi-tenant vendor → Axerra admin can still reset password (200)', async () => {
+    const sharedEmail = 'axerra.reset@vendor.test';
+
+    const createA = await request(app)
+      .post('/api/core/v1/vendor-contacts')
+      .set('Cookie', cookiesA)
+      .send({
+        vendor_id: vendorIdA,
+        first_name: 'Axerra',
+        last_name: 'Reset',
+        email: sharedEmail,
+        is_app_user: true,
+        roles: ['vendor'],
+        password: 'OriginalPass123!',
+      });
+    expect(createA.status).toBe(201);
+
+    const createB = await request(app)
+      .post('/api/core/v1/vendor-contacts')
+      .set('Cookie', cookiesB)
+      .send({
+        vendor_id: vendorIdB,
+        first_name: 'Axerra',
+        last_name: 'Reset',
+        email: sharedEmail,
+        is_app_user: true,
+        roles: ['vendor'],
+      });
+    expect(createB.status).toBe(201);
+    const contactBId = createB.body.id;
+
+    // Give the root user a real binding into tenant B so RBAC has caps
+    // to evaluate. The earliest active binding (AXERRA) stays the home
+    // tenant — so home_tenant === 'axerra' on this request and the
+    // controller-level Axerra escape hatch fires. We create an employee
+    // in tenant B's schema with the seeded 'admin' role (wildcard full
+    // policies) and link the binding to it.
+    const tenantB = await db.one(
+      'SELECT id, schema_name FROM admin.tenants WHERE tenant_code = $1',
+      ['VCTSTB'],
+    );
+    const rootUser = await db.one(
+      'SELECT id FROM admin.portal_users WHERE email = $1 AND deactivated_at IS NULL',
+      [process.env.ROOT_EMAIL],
+    );
+
+    // Idempotent: only seed if no binding yet
+    const existingBinding = await db.oneOrNone(
+      `SELECT id FROM admin.portal_user_tenants
+       WHERE portal_user_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
+      [rootUser.id, tenantB.id],
+    );
+    if (!existingBinding) {
+      const empId = await db.one(
+        `INSERT INTO ${tenantB.schema_name}.employees
+           (tenant_id, first_name, last_name, is_app_user, roles)
+         VALUES ($1, 'Axerra', 'Operator', true, '{admin}')
+         RETURNING id`,
+        [tenantB.id],
+      );
+      await db.none(
+        `INSERT INTO admin.portal_user_tenants
+           (portal_user_id, tenant_id, entity_type, entity_id, status)
+         VALUES ($1, $2, 'employee', $3, 'active')`,
+        [rootUser.id, tenantB.id, empId.id],
+      );
+    }
+
+    // Re-login as root so the auth/perm cache picks up the new binding.
+    const freshRootCookies = await loginRoot();
+
+    // Axerra root admin acts on tenant B via x-tenant-code header.
+    const resetRes = await request(app)
+      .post(`/api/core/v1/vendor-contacts/${contactBId}/reset-password`)
+      .set('Cookie', freshRootCookies)
+      .set('x-tenant-code', 'VCTSTB')
+      .send({ password: 'AxerraNewPass123!' });
+    expect(resetRes.status).toBe(200);
+    expect(resetRes.body.message).toMatch(/reset/i);
+  });
+});
