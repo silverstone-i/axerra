@@ -22,14 +22,14 @@ export default createRouter(
   (router) => {
     router.get(
       '/orphans/preview',
-      withMeta({ module: 'core', router: 'sources', action: 'view' }),
+      withMeta({ module: 'core', router: 'sources', action: 'find_orphans' }),
       moduleEntitlement,
       rbac('view'),
       (req, res) => sourcesController.findOrphanSources(req, res),
     );
     router.post(
       '/orphans/cleanup',
-      withMeta({ module: 'core', router: 'sources', action: 'cleanup' }),
+      withMeta({ module: 'core', router: 'sources', action: 'cleanup_orphans' }),
       moduleEntitlement,
       rbac('full'),
       (req, res) => sourcesController.cleanupOrphanSources(req, res),

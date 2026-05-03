@@ -16,6 +16,7 @@ import CompanyCashflowPage from './pages/Dashboard/CompanyCashflowPage.jsx';
 import ManageTenantsPage from './pages/Tenant/ManageTenantsPage.jsx';
 import ManageUsersPage from './pages/Tenant/ManageUsersPage.jsx';
 import ManageRolesPage from './pages/Tenant/ManageRolesPage.jsx';
+import PlatformMaintenancePage from './pages/Tenant/PlatformMaintenancePage.jsx';
 import VendorsPage from './pages/Core/VendorsPage.jsx';
 import ClientsPage from './pages/Core/ClientsPage.jsx';
 import EmployeesPage from './pages/Core/EmployeesPage.jsx';
@@ -67,6 +68,7 @@ export default function App() {
           <Route path="/tenant/manage-tenants" element={<ManageTenantsPage />} />
           <Route path="/tenant/manage-users" element={<ManageUsersPage />} />
           <Route path="/tenant/manage-roles" element={<ManageRolesPage />} />
+          <Route path="/tenant/platform-maintenance" element={<PlatformMaintenancePage />} />
 
           {/* Core entity routes */}
           <Route path="/core/vendors" element={<VendorsPage />} />
