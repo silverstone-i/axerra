@@ -65,3 +65,15 @@ export function useResetVendorContactPassword() {
     onSuccess: () => qc.invalidateQueries({ queryKey: VENDOR_CONTACTS_KEY }),
   });
 }
+
+export function useSwapVendorContactLoginEmail() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, new_email, password }) => vendorContactApi.swapLoginEmail(id, { new_email, password }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: VENDOR_CONTACTS_KEY });
+      qc.invalidateQueries({ queryKey: ['emails'] });
+      qc.invalidateQueries({ queryKey: ['portal-users'] });
+    },
+  });
+}
