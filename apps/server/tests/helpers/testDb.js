@@ -114,10 +114,12 @@ async function reseedAdmin(db) {
     userId = inserted.id;
   }
 
-  // Bind the root super user to the root tenant. Tests don't create the
-  // backing employees row (setupAdmin.js does that in real envs), so the
-  // binding's entity link stays NULL — entity_type/entity_id are
-  // nullable on portal_user_tenants for exactly this pre-link case.
+  // Insert a bare binding first so seedRootEntity can update it in place
+  // (preserving the unique (portal_user_id, tenant_id) row). On re-runs
+  // after admin-table truncation, the binding has been wiped — recreate
+  // it bare. The axerra tenant schema is preserved across runs (see
+  // cleanupTestDb), so seedRootEntity will rebind to the existing
+  // System Administrator employee instead of creating a duplicate.
   const existingBinding = await db.oneOrNone(
     `SELECT id FROM admin.portal_user_tenants WHERE portal_user_id = $1 AND deactivated_at IS NULL`,
     [userId],
@@ -130,6 +132,20 @@ async function reseedAdmin(db) {
       [userId, tenant.id],
     );
   }
+
+  // Link the root super user to a real employee row + super_user role
+  // (which seeds wildcard '::::full' caps via systemRoleSeeder on first
+  // axerra provision). Required so loadPermissions returns real caps
+  // for any rbac()-protected route — see issue #57.
+  const { seedRootEntity } = await import('../../src/services/seedRootEntity.js');
+  await seedRootEntity({
+    db,
+    pgp: DB.pgp,
+    logger,
+    tenantSchema: rootTenantCode.toLowerCase(),
+    rootEmail,
+    includeLoginEmail: false,
+  });
 }
 
 // ── Public API ────────────────────────────────────────────────────────
@@ -189,10 +205,21 @@ export async function bootstrapAdmin() {
     },
   });
 
-  // Bootstrap migration creates the auth-only portal_users row. The root
-  // tenant binding lives on portal_user_tenants; in real deploys
-  // setupAdmin.js writes it after creating the admin employee. Tests don't
-  // run setupAdmin, so seed the binding here directly (matches reseedAdmin).
+  // Provision the axerra tenant schema (runs all tenant migrations and
+  // seeds system roles via tenantProvisioning → seedSystemRoles). Without
+  // this, loadPermissions short-circuits to empty caps on the root user's
+  // bare binding, and any rbac()-enforced route 403s every test that logs
+  // in as root. The schema is preserved across cleanupTestDb calls so
+  // we only pay the provisioning cost once per test-suite run.
+  const rootTenantCode = process.env.ROOT_TENANT_CODE || 'AXERRA';
+  const tenantSchema = rootTenantCode.toLowerCase();
+  const { provisionTenant } = await import('../../src/services/tenantProvisioning.js');
+  await provisionTenant({ schemaName: tenantSchema, tenantCode: rootTenantCode });
+
+  // reseedAdmin handles admin.portal_users + binding + seedRootEntity.
+  // Bootstrap migration created the auth-only portal_users row; in real
+  // deploys setupAdmin.js writes the binding + entity link after the
+  // employee is created. Tests run reseedAdmin which now does both.
   await reseedAdmin(db);
 
   adminReady = true;
@@ -211,13 +238,18 @@ export async function bootstrapAdmin() {
  */
 export async function cleanupTestDb() {
   const db = await initTestDb();
+  const rootSchema = (process.env.ROOT_TENANT_CODE || 'AXERRA').toLowerCase();
 
-  // Drop any test-created tenant schemas (provisioned during tests)
+  // Drop any test-created tenant schemas (provisioned during tests).
+  // Protect: admin (auth-side), pgschemata (migrator), and the root
+  // tenant schema (axerra) which we provision once in bootstrapAdmin
+  // and reuse across tests for rbac role/policy seeding.
+  const protectedSchemas = ['public', 'admin', 'pgschemata', 'pg_catalog', 'information_schema', 'pg_toast', rootSchema];
   const testSchemas = await db.manyOrNone(
     `SELECT schema_name FROM information_schema.schemata
-     WHERE schema_name NOT IN ('public', 'admin', 'pgschemata', 'pg_catalog',
-                                'information_schema', 'pg_toast')
+     WHERE schema_name NOT IN ($1:csv)
        AND schema_name NOT LIKE 'pg_%'`,
+    [protectedSchemas],
   );
   for (const row of testSchemas) {
     await db.none(`DROP SCHEMA IF EXISTS ${db.$config.pgp.as.name(row.schema_name)} CASCADE`);
@@ -225,7 +257,11 @@ export async function cleanupTestDb() {
 
   if (adminReady) {
     // Admin schema persists — truncate all admin tables (FK-safe) and
-    // clear non-admin migration history. Tables + types remain intact.
+    // clear migration history for non-protected schemas. Tables + types
+    // remain intact. The root tenant schema (axerra) is preserved as-is
+    // so its seeded roles/policies and the System Administrator employee
+    // survive across test files; reseedAdmin → seedRootEntity rebinds
+    // to that existing employee on the next bootstrapAdmin call.
     const adminTables = await db.manyOrNone(
       "SELECT table_name FROM information_schema.tables WHERE table_schema = 'admin' AND table_type = 'BASE TABLE'",
     );
@@ -233,11 +269,15 @@ export async function cleanupTestDb() {
       const tableList = adminTables.map((r) => `admin.${DB.pgp.as.name(r.table_name)}`).join(', ');
       await db.none(`TRUNCATE ${tableList} CASCADE`);
     }
-    await db.none("DELETE FROM pgschemata.migrations WHERE schema_name != 'admin'");
+    await db.none(
+      "DELETE FROM pgschemata.migrations WHERE schema_name NOT IN ('admin', $1)",
+      [rootSchema],
+    );
   } else {
     // First run: full reset (handles stale state from a previous test run)
     await db.none('DROP SCHEMA IF EXISTS admin CASCADE');
     await db.none('DROP SCHEMA IF EXISTS pgschemata CASCADE');
+    await db.none(`DROP SCHEMA IF EXISTS ${db.$config.pgp.as.name(rootSchema)} CASCADE`);
   }
 }
 

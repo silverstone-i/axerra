@@ -64,31 +64,49 @@ export async function seedRootEntity({ db, pgp, logger, tenantSchema, rootEmail,
   logger?.info?.('Linking root super user to employee record...');
   const s = pgp.as.name(tenantSchema);
 
-  const employee = await db.one(
-    `INSERT INTO ${s}.employees
-       (tenant_id, first_name, last_name, is_app_user, roles, is_primary_contact)
-     VALUES ($1, 'System', 'Administrator', true, '{super_user}', true)
-     RETURNING id`,
-    [tenant.id],
+  // Find an existing System/Administrator employee (idempotent path used
+  // by the test bootstrap, where the axerra schema persists across the
+  // admin truncation between test files but the binding is recreated).
+  // If found, reuse it and just rebind. Otherwise create a fresh one.
+  const existingEmployee = await db.oneOrNone(
+    `SELECT id FROM ${s}.employees
+     WHERE first_name = 'System' AND last_name = 'Administrator'
+       AND deactivated_at IS NULL
+     ORDER BY created_at ASC
+     LIMIT 1`,
   );
 
-  const source = await db.one(
-    `INSERT INTO ${s}.sources (tenant_id, table_id, source_type, label)
-     VALUES ($1, $2, 'employee', 'System Administrator')
-     RETURNING id`,
-    [tenant.id, employee.id],
-  );
-
-  await db.none(`UPDATE ${s}.employees SET source_id = $1 WHERE id = $2`, [source.id, employee.id]);
-
-  if (includeLoginEmail) {
-    await db.one(
-      `INSERT INTO ${s}.emails
-         (tenant_id, source_id, email, label, is_primary, is_login)
-       VALUES ($1, $2, $3, 'work', true, true)
+  let employee;
+  if (existingEmployee) {
+    employee = existingEmployee;
+    logger?.info?.(`Reusing existing System Administrator employee ${employee.id}`);
+  } else {
+    employee = await db.one(
+      `INSERT INTO ${s}.employees
+         (tenant_id, first_name, last_name, is_app_user, roles, is_primary_contact)
+       VALUES ($1, 'System', 'Administrator', true, '{super_user}', true)
        RETURNING id`,
-      [tenant.id, source.id, rootEmail],
+      [tenant.id],
     );
+
+    const source = await db.one(
+      `INSERT INTO ${s}.sources (tenant_id, table_id, source_type, label)
+       VALUES ($1, $2, 'employee', 'System Administrator')
+       RETURNING id`,
+      [tenant.id, employee.id],
+    );
+
+    await db.none(`UPDATE ${s}.employees SET source_id = $1 WHERE id = $2`, [source.id, employee.id]);
+
+    if (includeLoginEmail) {
+      await db.one(
+        `INSERT INTO ${s}.emails
+           (tenant_id, source_id, email, label, is_primary, is_login)
+         VALUES ($1, $2, $3, 'work', true, true)
+         RETURNING id`,
+        [tenant.id, source.id, rootEmail],
+      );
+    }
   }
 
   let bindingId;
