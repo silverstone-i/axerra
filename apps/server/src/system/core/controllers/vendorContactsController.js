@@ -314,6 +314,28 @@ class VendorContactsController extends BaseController {
         return res.status(404).json({ error: 'No active app user account found for this vendor contact' });
       }
 
+      // Multi-tenant authority guard (Part 3 of Import Dedup spec).
+      // This endpoint is the admin reset path for an *already-provisioned*
+      // vendor — the 404 above filters out unprovisioned vendors, whose
+      // initial password is set by #provisionAppUser instead.
+      //
+      // Rule: tenant admins may reset the password only when the underlying
+      // portal_user has at most one active tenant binding (single-tenant
+      // vendor). If the portal_user is bound to multiple tenants, only the
+      // Axerra root tenant may reset, because credentials are shared across
+      // every tenant the vendor is bound to. Self-service password change
+      // is handled by POST /api/auth/change-password, not this route.
+      const { count } = await db.one(
+        `SELECT COUNT(*)::int AS count FROM admin.portal_user_tenants
+         WHERE portal_user_id = $1 AND deactivated_at IS NULL`,
+        [binding.portal_user_id],
+      );
+      const rootTenantCode = (process.env.ROOT_TENANT_CODE || 'axerra').toLowerCase();
+      const callerTenantCode = req.user?.home_tenant?.toLowerCase?.();
+      if (count > 1 && callerTenantCode !== rootTenantCode) {
+        return res.status(403).json({ error: 'Tenant admins cannot change the password of a multi-tenant vendor user.' });
+      }
+
       const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
       const hash = await bcrypt.hash(password, rounds);
       await db.none('UPDATE admin.portal_users SET password_hash = $/hash/, updated_by = $/updatedBy/ WHERE id = $/id/', {
