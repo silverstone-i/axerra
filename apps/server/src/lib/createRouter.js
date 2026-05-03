@@ -55,6 +55,7 @@ export default function createRouter(controller, extendRoutes, options = {}) {
     disableImportXls = false,
     disableExportXls = false,
     disableGetArchived = false,
+    disablePing = false,
   } = options;
 
   // Ensure addAuditFields is included on mutation routes
@@ -97,10 +98,15 @@ export default function createRouter(controller, extendRoutes, options = {}) {
     router.get('/archived', ...safeGet, (req, res) => controller.getWhere(req, res));
   }
 
-  // Ping route (always enabled, no middleware)
-  router.get('/ping', (_req, res) => {
-    res.status(200).json({ message: 'pong' });
-  });
+  // Ping route — defaults to no middleware (cheap health check). Routers
+  // that need every endpoint gated (e.g. tenants/* under requireRootTenant)
+  // should pass disablePing: true so /ping doesn't leak the route's
+  // existence to non-Axerra users.
+  if (!disablePing) {
+    router.get('/ping', (_req, res) => {
+      res.status(200).json({ message: 'pong' });
+    });
+  }
 
   if (!disableGetById) {
     router.get('/:id', ...safeGet, (req, res) => controller.getById(req, res));

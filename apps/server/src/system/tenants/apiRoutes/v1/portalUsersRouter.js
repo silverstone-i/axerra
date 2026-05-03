@@ -11,13 +11,26 @@
 import portalUsersController from '../../controllers/portalUsersController.js';
 import createRouter from '../../../../lib/createRouter.js';
 import { addAuditFields } from '../../../../middleware/addAuditFields.js';
+import { moduleEntitlement } from '../../../../middleware/moduleEntitlement.js';
 import { requireRootTenant } from '../../../../middleware/requireRootTenant.js';
+import { rbac } from '../../../../middleware/rbac.js';
 import { withMeta } from '../../../../middleware/withMeta.js';
 
 const meta = withMeta({ module: 'tenants', router: 'portal-users' });
 
-// Note: RBAC enforcement deferred to Phase 5 (no role_members exist yet).
-// requireRootTenant gates all routes to Axerra users only.
+// Per-method middleware order, reading routes:
+//   requireRootTenant → withMeta → moduleEntitlement → rbac → handler
+// On mutation routes (PUT/DELETE/PATCH) createRouter prepends
+// addAuditFields, so the effective chain becomes:
+//   addAuditFields → requireRootTenant → withMeta → moduleEntitlement → rbac → handler
+//
+// Standard POST is disabled (use /register, which assembles its own
+// chain explicitly with addAuditFields in last position).
+// disableBulkInsert/disableBulkUpdate/disableImportXls/disableExportXls:
+// portal_users are auth-side records, not data-import surfaces — the
+// auto-attached endpoints would bypass requireRootTenant since
+// disablePost only affects POST /, leaving POST /bulk-insert and
+// POST /import-xls live with no per-method middleware applied.
 export default createRouter(
   portalUsersController,
   (router) => {
@@ -25,15 +38,22 @@ export default createRouter(
       '/register',
       requireRootTenant,
       meta,
+      moduleEntitlement,
+      rbac('full'),
       addAuditFields,
       (req, res) => portalUsersController.register(req, res),
     );
   },
   {
     disablePost: true,
-    getMiddlewares: [requireRootTenant, meta],
-    putMiddlewares: [requireRootTenant, meta],
-    deleteMiddlewares: [requireRootTenant, meta],
-    patchMiddlewares: [requireRootTenant, meta],
+    disableBulkInsert: true,
+    disableBulkUpdate: true,
+    disableImportXls: true,
+    disableExportXls: true,
+    disablePing: true,
+    getMiddlewares: [requireRootTenant, meta, moduleEntitlement, rbac('view')],
+    putMiddlewares: [requireRootTenant, meta, moduleEntitlement, rbac('full')],
+    deleteMiddlewares: [requireRootTenant, meta, moduleEntitlement, rbac('full')],
+    patchMiddlewares: [requireRootTenant, meta, moduleEntitlement, rbac('full')],
   },
 );

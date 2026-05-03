@@ -235,24 +235,25 @@ const CATALOG_ENTRIES = [
   { module: 'reports', router: 'margin-analysis', action: null, label: 'Margin Analysis', description: 'Cross-project margin comparison and trending', sort_order: 1070 },
 
   // ── Tenants (Axerra admin scope) ───────────────────────────────
+  // Tenants module routes are gated first by `requireRootTenant` (Axerra
+  // membership) and then by `rbac()`, so the action-level rows below are
+  // independently grantable in the role editor. Use them to compose
+  // finer-grained Axerra ops roles (e.g. read-only auditor with only
+  // view-level grants) on top of the wildcard super_user role.
+  // tenants::tenants and tenants::portal-users disable createRouter's
+  // auto-attached /import-xls and /export-xls (they aren't real
+  // spreadsheet I/O surfaces here), so no import/export catalog rows
+  // for those routers — granting them would have no effect.
   { module: 'tenants', router: null, action: null, label: 'Tenants Module', description: 'Multi-tenant administration (Axerra only)', sort_order: 1100 },
   { module: 'tenants', router: 'tenants', action: null, label: 'Tenants', description: 'Tenant CRUD and provisioning', sort_order: 1110 },
-  { module: 'tenants', router: 'tenants', action: 'import', label: 'Import Tenants', description: 'Import tenant records from spreadsheet', sort_order: 1111, policy_required: false },
-  { module: 'tenants', router: 'tenants', action: 'export', label: 'Export Tenants', description: 'Export tenant records to spreadsheet', sort_order: 1112, policy_required: false },
   { module: 'tenants', router: 'portal-users', action: null, label: 'Portal Users', description: 'Application user accounts', sort_order: 1120 },
-  { module: 'tenants', router: 'portal-users', action: 'import', label: 'Import Portal Users', description: 'Import portal user records from spreadsheet', sort_order: 1121, policy_required: false },
-  { module: 'tenants', router: 'portal-users', action: 'export', label: 'Export Portal Users', description: 'Export portal user records to spreadsheet', sort_order: 1122, policy_required: false },
-  // Decorative catalog entries — the tenants/* router convention enforces
-  // Axerra-only via requireRootTenant, not via rbac(), so these rows
-  // document the action codes for tooling but are not independently grantable.
-  { module: 'tenants', router: 'orphan-portal-users', action: null, label: 'Orphan Portal Users', description: 'Maintenance for portal_users with no tenant bindings (Axerra only — gated by requireRootTenant, not rbac)', sort_order: 1125, policy_required: false },
-  { module: 'tenants', router: 'orphan-portal-users', action: 'find_orphans', label: 'Preview Orphan Portal Users', description: 'List portal_users rows with no portal_user_tenants binding (active or archived) and no impersonation_logs reference. Decorative — enforcement is requireRootTenant.', sort_order: 1126, policy_required: false },
-  { module: 'tenants', router: 'orphan-portal-users', action: 'cleanup_orphans', label: 'Clean Up Orphan Portal Users', description: 'Hard-delete a single orphan portal_user. Decorative — enforcement is requireRootTenant.', sort_order: 1127, policy_required: false },
+  { module: 'tenants', router: 'orphan-portal-users', action: null, label: 'Orphan Portal Users', description: 'Maintenance for portal_users with no tenant bindings (Axerra only)', sort_order: 1125 },
+  { module: 'tenants', router: 'orphan-portal-users', action: 'find_orphans', label: 'Preview Orphan Portal Users', description: 'List portal_users rows with no portal_user_tenants binding (active or archived) and no impersonation_logs reference', sort_order: 1126 },
+  { module: 'tenants', router: 'orphan-portal-users', action: 'cleanup_orphans', label: 'Clean Up Orphan Portal Users', description: 'Hard-delete a single orphan portal_user. Requires Preview Orphan Portal Users — the UI gates cleanup on a successful preview.', sort_order: 1127 },
   { module: 'tenants', router: 'admin', action: null, label: 'Admin Operations', description: 'Schema listing, impersonation', sort_order: 1130 },
-  { module: 'tenants', router: 'admin', action: 'import', label: 'Import Admin', description: 'Import admin operation records from spreadsheet', sort_order: 1131, policy_required: false },
-  { module: 'tenants', router: 'admin', action: 'export', label: 'Export Admin', description: 'Export admin operation records to spreadsheet', sort_order: 1132, policy_required: false },
+  { module: 'tenants', router: 'admin', action: 'list_schemas', label: 'List Tenant Schemas', description: 'Enumerate all provisioned tenant schemas (Axerra only)', sort_order: 1131 },
+  { module: 'tenants', router: 'admin', action: 'impersonate', label: 'Impersonate User', description: 'Begin an impersonation session as another portal_user. Exit and status checks are always allowed within an active session.', sort_order: 1132 },
   { module: 'tenants', router: 'match-review-logs', action: null, label: 'Match Review Logs', description: 'BOM vendor SKU matching audit trail', sort_order: 1140 },
-  { module: 'tenants', router: 'match-review-logs', action: 'export', label: 'Export Match Review Logs', description: 'Export match review log records to spreadsheet', sort_order: 1142, policy_required: false },
 ];
 
 /**

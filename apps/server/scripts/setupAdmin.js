@@ -144,80 +144,15 @@ async function main() {
   }
 
   // ── Link root super user to an employee record ──────────────
-  const rootEmail = process.env.ROOT_EMAIL;
-  if (rootEmail) {
-    const superUser = await db.oneOrNone(
-      'SELECT id FROM admin.portal_users WHERE email = $1 AND deactivated_at IS NULL',
-      [rootEmail],
-    );
-
-    if (superUser && tenant) {
-      // Look for an existing binding for the root tenant. A bare binding
-      // (no entity_type yet) gets its entity link populated rather than
-      // a second binding being inserted.
-      const existingBinding = await db.oneOrNone(
-        `SELECT id, entity_type, entity_id FROM admin.portal_user_tenants
-         WHERE portal_user_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
-        [superUser.id, tenant.id],
-      );
-
-      if (!existingBinding || existingBinding.entity_type === null) {
-        logger.info('Linking root super user to employee record...');
-        const s = DB.pgp.as.name(tenantSchema);
-
-        // 1. Insert employee with super_user role
-        const employee = await db.one(
-          `INSERT INTO ${s}.employees
-             (tenant_id, first_name, last_name, is_app_user, roles, is_primary_contact)
-           VALUES ($1, 'System', 'Administrator', true, '{super_user}', true)
-           RETURNING id`,
-          [tenant.id],
-        );
-
-        // 2. Create polymorphic source record
-        const source = await db.one(
-          `INSERT INTO ${s}.sources (tenant_id, table_id, source_type, label)
-           VALUES ($1, $2, 'employee', 'System Administrator')
-           RETURNING id`,
-          [tenant.id, employee.id],
-        );
-
-        // 3. Link source back to employee
-        await db.none(`UPDATE ${s}.employees SET source_id = $1 WHERE id = $2`, [source.id, employee.id]);
-
-        // 3b. Create login email in the emails table
-        await db.one(
-          `INSERT INTO ${s}.emails
-             (tenant_id, source_id, email, label, is_primary, is_login)
-           VALUES ($1, $2, $3, 'work', true, true)
-           RETURNING id`,
-          [tenant.id, source.id, rootEmail],
-        );
-
-        // 4. Populate (or insert) the binding's entity link. A bare
-        // binding from a prior register call is updated in place to
-        // preserve the unique (portal_user_id, tenant_id) row.
-        if (existingBinding) {
-          await db.none(
-            `UPDATE admin.portal_user_tenants
-             SET entity_type = 'employee', entity_id = $1, status = 'active'
-             WHERE id = $2`,
-            [employee.id, existingBinding.id],
-          );
-        } else {
-          await db.none(
-            `INSERT INTO admin.portal_user_tenants (portal_user_id, tenant_id, entity_type, entity_id, status)
-             VALUES ($1, $2, 'employee', $3, 'active')`,
-            [superUser.id, tenant.id, employee.id],
-          );
-        }
-
-        logger.info(`Root super user bound to employee ${employee.id}`);
-      } else {
-        logger.info('Root super user already linked to entity, skipping.');
-      }
-    }
-  }
+  const { seedRootEntity } = await import('../src/services/seedRootEntity.js');
+  await seedRootEntity({
+    db,
+    pgp: DB.pgp,
+    logger,
+    tenantSchema,
+    rootEmail: process.env.ROOT_EMAIL,
+    includeLoginEmail: true,
+  });
 
   logger.info('Admin setup complete.');
   await db.$pool.end();
