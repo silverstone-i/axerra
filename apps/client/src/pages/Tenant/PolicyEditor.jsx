@@ -46,34 +46,53 @@ function resolveLevel(edits, key, routerKey, moduleKey) {
  *   2. Module action    (router=null, action≠null) → mod.actions Map
  *   3. Router heading   (router≠null, action=null) → mod.routers Map
  *   4. Router action    (router≠null, action≠null) → rtr.actions Map (nested)
+ *
+ * Grantability: rows with `policy_required: false` represent capabilities
+ * that exist in the API but are intentionally NOT independently grantable
+ * (e.g. legacy router-level access codes hidden in favor of finer actions).
+ * They aren't filtered out at build time — the renderer hides their
+ * level-selector toggle but still uses them so router+action nodes don't
+ * accidentally synthesize a grantable router heading. Empty router groups
+ * (no grantable router-level toggle and no grantable actions) are pruned
+ * during rendering.
  */
 function buildCatalogTree(catalogRows) {
-  const sorted = [...catalogRows]
-    .filter((e) => e.policy_required !== false)
-    .sort((a, b) => a.sort_order - b.sort_order);
+  const sorted = [...catalogRows].sort((a, b) => a.sort_order - b.sort_order);
   const modules = new Map();
 
   for (const entry of sorted) {
+    const grantable = entry.policy_required !== false;
+
     if (!modules.has(entry.module)) {
-      modules.set(entry.module, { label: entry.module, actions: new Map(), routers: new Map() });
+      modules.set(entry.module, { label: entry.module, grantable: true, actions: new Map(), routers: new Map() });
     }
     const mod = modules.get(entry.module);
 
     if (entry.router === null && entry.action === null) {
       mod.label = entry.label;
+      mod.grantable = grantable;
     } else if (entry.router === null && entry.action !== null) {
+      if (!grantable) continue;
       mod.actions.set(entry.action, { label: entry.label, description: entry.description });
     } else if (entry.action === null) {
       const existing = mod.routers.get(entry.router);
       mod.routers.set(entry.router, {
         label: entry.label,
         description: entry.description,
+        grantable,
         actions: existing?.actions ?? new Map(),
       });
     } else {
+      if (!grantable) continue;
       let rtr = mod.routers.get(entry.router);
       if (!rtr) {
-        rtr = { label: entry.router, description: '', actions: new Map() };
+        // No router-heading row in the catalog. Synthesize a label-only
+        // node — never grantable, since the catalog didn't expose a
+        // router-level toggle for this name. Granting the synthetic router
+        // would have implicitly opened any other endpoints the router
+        // serves (e.g. raw CRUD), which is not what the catalog author
+        // intended.
+        rtr = { label: entry.router, description: '', grantable: false, actions: new Map() };
         mod.routers.set(entry.router, rtr);
       }
       rtr.actions.set(entry.action, { label: entry.label, description: entry.description });
@@ -200,18 +219,27 @@ export default function PolicyEditor({ roleId, readOnly = false, actionsContaine
       {/* Accordion per module */}
       {[...catalogTree.entries()].map(([moduleName, mod]) => {
         const moduleKey = policyKey(moduleName, null, null);
+        // Skip empty modules: nothing grantable at module, action, or router level.
+        const visibleRouters = [...mod.routers.entries()].filter(
+          ([, rtr]) => rtr.grantable !== false || rtr.actions.size > 0,
+        );
+        if (mod.grantable === false && mod.actions.size === 0 && visibleRouters.length === 0) {
+          return null;
+        }
         return (
           <Accordion key={moduleName} defaultExpanded={false} disableGutters variant="outlined">
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', pr: 1 }}>
                 <Typography variant="subtitle2">{mod.label}</Typography>
-                <Box onClick={(e) => e.stopPropagation()}>
-                  <LevelSelector
-                    value={resolveLevel(edits, moduleKey, moduleKey, moduleKey)}
-                    onChange={(val) => handleChange(moduleKey, val)}
-                    disabled={readOnly}
-                  />
-                </Box>
+                {mod.grantable !== false && (
+                  <Box onClick={(e) => e.stopPropagation()}>
+                    <LevelSelector
+                      value={resolveLevel(edits, moduleKey, moduleKey, moduleKey)}
+                      onChange={(val) => handleChange(moduleKey, val)}
+                      disabled={readOnly}
+                    />
+                  </Box>
+                )}
               </Box>
             </AccordionSummary>
             <AccordionDetails sx={{ pt: 0 }}>
@@ -242,7 +270,7 @@ export default function PolicyEditor({ roleId, readOnly = false, actionsContaine
               })}
 
               {/* Router rows (with nested router-action sub-rows) */}
-              {[...mod.routers.entries()].map(([routerName, rtr]) => {
+              {visibleRouters.map(([routerName, rtr]) => {
                 const routerKey = policyKey(moduleName, routerName, null);
                 return (
                   <Box key={routerName}>
@@ -258,11 +286,13 @@ export default function PolicyEditor({ roleId, readOnly = false, actionsContaine
                       }}
                     >
                       <Typography variant="body2">{rtr.label}</Typography>
-                      <LevelSelector
-                        value={resolveLevel(edits, routerKey, routerKey, moduleKey)}
-                        onChange={(val) => handleChange(routerKey, val)}
-                        disabled={readOnly}
-                      />
+                      {rtr.grantable !== false && (
+                        <LevelSelector
+                          value={resolveLevel(edits, routerKey, routerKey, moduleKey)}
+                          onChange={(val) => handleChange(routerKey, val)}
+                          disabled={readOnly}
+                        />
+                      )}
                     </Box>
                     {rtr.actions && [...rtr.actions.entries()].map(([actionName, act]) => {
                       const actionKey = policyKey(moduleName, routerName, actionName);
