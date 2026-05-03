@@ -7,9 +7,25 @@
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
-import { describe, test, expect, vi, beforeEach } from 'vitest';
+import { describe, test, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest';
 import jwt from 'jsonwebtoken';
 import { authRedis } from '../../src/middleware/authRedis.js';
+
+// Pin ROOT_TENANT_CODE for the lifetime of this file. Other test suites
+// (helpers/testDb.js, contract/reports.test.js) write the env at module
+// load, and Vitest can reuse workers across files — without an explicit
+// pin here, root-vs-non-root expectations would be order-dependent.
+const ORIGINAL_ROOT_TENANT_CODE = process.env.ROOT_TENANT_CODE;
+beforeAll(() => {
+  process.env.ROOT_TENANT_CODE = 'AXERRA';
+});
+afterAll(() => {
+  if (ORIGINAL_ROOT_TENANT_CODE === undefined) {
+    delete process.env.ROOT_TENANT_CODE;
+  } else {
+    process.env.ROOT_TENANT_CODE = ORIGINAL_ROOT_TENANT_CODE;
+  }
+});
 
 // Mock Redis module
 vi.mock('../../src/db/redis.js', () => {
@@ -435,6 +451,7 @@ describe('authRedis middleware', () => {
     await middleware(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Unknown tenant_code: nope' });
     expect(next).not.toHaveBeenCalled();
   });
 });
