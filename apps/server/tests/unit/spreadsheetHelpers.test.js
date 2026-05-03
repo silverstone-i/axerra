@@ -292,9 +292,11 @@ describe('validateImportGroups (cross-tenant portal_user collision)', () => {
     dbMock.manyOrNone.mockReset();
   });
 
-  function makeGroup({ name = 'Acme', email = 'a@b.com', isLogin = true, rowNum = 2 } = {}) {
+  function makeGroup({ name = 'Acme', email = 'a@b.com', isLogin = true, rowNum = 2, isAppUser = true, parentId = null } = {}) {
+    const parent = { name, _rowNum: rowNum, is_app_user: isAppUser };
+    if (parentId) parent.id = parentId;
     return {
-      parent: { name, _rowNum: rowNum },
+      parent,
       children: { emails: [{ email, is_login: isLogin, _rowNum: rowNum }] },
     };
   }
@@ -370,18 +372,41 @@ describe('validateImportGroups (cross-tenant portal_user collision)', () => {
 describe('checkPortalUserEmailCollisions', () => {
   beforeEach(() => dbMock.manyOrNone.mockReset());
 
-  it('returns no errors when entityType is vendor_contact even with collisions', async () => {
-    dbMock.manyOrNone.mockResolvedValueOnce([{ email: 'a@b.com' }]);
-    const groups = [{ parent: {}, children: { emails: [{ email: 'a@b.com', is_login: true, _rowNum: 2 }] } }];
+  it('short-circuits without a DB query when entityType is vendor_contact', async () => {
+    const groups = [{ parent: { is_app_user: true }, children: { emails: [{ email: 'a@b.com', is_login: true, _rowNum: 2 }] } }];
     const errs = await checkPortalUserEmailCollisions(groups, { sheetName: 'X', entityType: 'vendor_contact' });
     expect(errs).toEqual([]);
+    expect(dbMock.manyOrNone).not.toHaveBeenCalled();
   });
 
   it('treats string "true" is_login values as truthy', async () => {
     dbMock.manyOrNone.mockResolvedValueOnce([{ email: 'a@b.com' }]);
-    const groups = [{ parent: {}, children: { emails: [{ email: 'a@b.com', is_login: 'true', _rowNum: 3 }] } }];
+    const groups = [{
+      parent: { is_app_user: true },
+      children: { emails: [{ email: 'a@b.com', is_login: 'true', _rowNum: 3 }] },
+    }];
     const errs = await checkPortalUserEmailCollisions(groups, { sheetName: 'X', entityType: 'employee' });
     expect(errs.length).toBe(1);
     expect(errs[0].row).toBe(3);
+  });
+
+  it('skips rows whose parent has an id set (round-trip update)', async () => {
+    const groups = [{
+      parent: { id: '11111111-1111-1111-1111-111111111111', is_app_user: true },
+      children: { emails: [{ email: 'roundtrip@example.com', is_login: true, _rowNum: 4 }] },
+    }];
+    const errs = await checkPortalUserEmailCollisions(groups, { sheetName: 'X', entityType: 'employee' });
+    expect(errs).toEqual([]);
+    expect(dbMock.manyOrNone).not.toHaveBeenCalled();
+  });
+
+  it('skips rows whose parent.is_app_user is falsy', async () => {
+    const groups = [{
+      parent: { is_app_user: false },
+      children: { emails: [{ email: 'noapp@example.com', is_login: true, _rowNum: 5 }] },
+    }];
+    const errs = await checkPortalUserEmailCollisions(groups, { sheetName: 'X', entityType: 'client' });
+    expect(errs).toEqual([]);
+    expect(dbMock.manyOrNone).not.toHaveBeenCalled();
   });
 });

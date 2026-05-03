@@ -391,14 +391,19 @@ export async function validateImportGroups(groups, opts) {
 
 /**
  * Single-batch cross-tenant collision check against `admin.portal_users` for
- * incoming login emails. For each row whose child email is marked `is_login`
- * and matches an active portal_user, returns a row-level error.
+ * incoming login emails. Returns a row-level error for each insert whose
+ * `is_login` email matches an active portal_user in another tenant.
  *
- * Only callers for `entityType` of 'employee' or 'client' should consume the
- * errors — vendor_contact rows are intentionally allowed through so the
- * controller's bind-existing path can attach to the existing portal_user at
- * write time. The function itself is policy-agnostic — it just reports
- * collisions; the caller decides whether to block.
+ * The helper is import-policy aware (not policy-agnostic):
+ *   - vendor_contact rows are intentionally allowed through — the controller's
+ *     bind-existing path attaches to the existing portal_user at write time.
+ *     Returns immediately without touching the database.
+ *   - Rows whose `group.parent.id` is a UUID are treated as updates (round-trip
+ *     export/import) and skipped — the existing portal_user already belongs
+ *     to that entity, so the email match is expected. Non-UUID `id` values
+ *     are spreadsheet-only linkage refs for new rows and don't disqualify.
+ *   - Rows whose `group.parent.is_app_user` is falsy are skipped — no
+ *     portal_user will be provisioned, so no collision can occur.
  *
  * @param {Object[]} groups Output of groupFlatRows
  * @param {Object}   opts
@@ -410,9 +415,23 @@ export async function checkPortalUserEmailCollisions(groups, opts) {
   const { sheetName, entityType } = opts;
   if (!groups?.length) return [];
 
-  // Collect all login emails (lower-cased) along with the row that carries them
+  // vendor_contact bind-existing flow runs in the controller — don't pay
+  // for a DB query whose result we'd discard.
+  if (entityType === 'vendor_contact') return [];
+
+  // Collect login emails for *new* app-user parents only. Updates and
+  // non-app-users never provision a portal_user, so they can't collide.
   const loginEmailRows = [];
   for (const group of groups) {
+    const parent = group.parent || {};
+    // parent.id is a UUID → existing entity → row is an update → existing
+    // portal_user already owns this email; skip. Non-UUID id values are
+    // just spreadsheet linkage refs for new rows and don't disqualify.
+    if (isUuid(parent.id)) continue;
+    // is_app_user falsy → no portal_user will be provisioned; skip.
+    const isAppUser = parent.is_app_user === true || parent.is_app_user === 1 || (typeof parent.is_app_user === 'string' && parent.is_app_user.toLowerCase() === 'true');
+    if (!isAppUser) continue;
+
     for (const child of group.children?.emails || []) {
       if (!child?.email) continue;
       // is_login may arrive as boolean, the string 'true', or 1
@@ -440,11 +459,6 @@ export async function checkPortalUserEmailCollisions(groups, opts) {
 
   const taken = new Set(existing.map((r) => r.email));
   const errors = [];
-
-  // vendor_contact rows are intentionally not aborted — the controller's
-  // bind-existing path handles them at write time.
-  if (entityType === 'vendor_contact') return errors;
-
   for (const { email, row } of loginEmailRows) {
     if (taken.has(email)) {
       errors.push({
@@ -726,14 +740,28 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
   let createdBy = null;
 
   // ── Cross-tenant portal_user collision check (Part 2 of import dedup spec) ──
+  // Build groups keyed by parent so the helper can filter to inserts only
+  // (parent.id absent + parent.is_app_user truthy). Updates round-tripping
+  // through export/import keep their existing portal_user binding and must
+  // not be flagged as collisions.
   const provisionEntityType = config.appUserProvisioning?.entityType;
   if (provisionEntityType === 'employee' || provisionEntityType === 'client') {
     const emailSheetIdx = config.childSheets.findIndex((c) => c.modelName === 'emails') + 1;
     if (emailSheetIdx > 0 && reader.sheetCount > emailSheetIdx) {
       const emailRows = parseSheet(reader, emailSheetIdx);
-      // Build a single synthetic group so checkPortalUserEmailCollisions can iterate uniformly
-      const syntheticGroups = [{ parent: {}, children: { emails: emailRows } }];
-      const collisionErrors = await checkPortalUserEmailCollisions(syntheticGroups, {
+      const groupsByRef = new Map();
+      for (const parent of parentRows) {
+        groupsByRef.set(parent.id || parent[config.linkColName] || parent._rowNum, {
+          parent,
+          children: { emails: [] },
+        });
+      }
+      for (const e of emailRows) {
+        const ref = e[config.linkColName];
+        const group = groupsByRef.get(ref);
+        if (group) group.children.emails.push(e);
+      }
+      const collisionErrors = await checkPortalUserEmailCollisions([...groupsByRef.values()], {
         sheetName: reader.sheetNames?.[emailSheetIdx] || 'Emails',
         entityType: provisionEntityType,
       });
