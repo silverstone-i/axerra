@@ -44,7 +44,7 @@ export default function Sidebar() {
   const [flyout, setFlyout] = useState({ anchorEl: null, group: null });
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, isRootTenantUser } = useAuth();
+  const { user, isRootTenantUser, impersonation } = useAuth();
 
   const width = collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED;
 
@@ -59,7 +59,7 @@ export default function Sidebar() {
     if (!user) return [];
     const caps = user.perms?.caps || {};
     const capKeys = Object.keys(caps);
-    const isImpersonating = user.is_impersonating === true;
+    const isImpersonating = impersonation?.active === true;
     // Items flagged hideWhileImpersonating point at routes whose middleware
     // explicitly rejects impersonated sessions (e.g. destructive Axerra-only
     // platform maintenance). Hiding the link while impersonating prevents
@@ -112,7 +112,7 @@ export default function Sidebar() {
           .filter(Boolean),
       }))
       .filter((group) => group.children.length > 0);
-  }, [user, isRootTenantUser]);
+  }, [user, isRootTenantUser, impersonation]);
 
   const toggleGroup = (label) => {
     setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
