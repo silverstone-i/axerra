@@ -18,8 +18,14 @@ import { withMeta } from '../../../../middleware/withMeta.js';
 
 const meta = withMeta({ module: 'tenants', router: 'portal-users' });
 
-// Per-method middleware order: requireRootTenant → withMeta →
-// moduleEntitlement → rbac. Standard POST is disabled (use /register).
+// Per-method middleware order, reading routes:
+//   requireRootTenant → withMeta → moduleEntitlement → rbac → handler
+// On mutation routes (PUT/DELETE/PATCH) createRouter prepends
+// addAuditFields, so the effective chain becomes:
+//   addAuditFields → requireRootTenant → withMeta → moduleEntitlement → rbac → handler
+//
+// Standard POST is disabled (use /register, which assembles its own
+// chain explicitly with addAuditFields in last position).
 // disableBulkInsert/disableBulkUpdate/disableImportXls/disableExportXls:
 // portal_users are auth-side records, not data-import surfaces — the
 // auto-attached endpoints would bypass requireRootTenant since

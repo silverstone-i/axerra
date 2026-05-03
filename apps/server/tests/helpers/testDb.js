@@ -76,18 +76,16 @@ async function getCachedPasswordHash() {
 }
 
 /**
- * Re-seed the root tenant and super user into an existing (but empty)
- * admin schema. Called by bootstrapAdmin when adminReady is true.
+ * Idempotently insert the root tenant row into admin.tenants. Used both
+ * before provisionTenant (so its numberingConfig/tenantPreferences seeders
+ * find the tenant by schema_name) and inside reseedAdmin.
  */
-async function reseedAdmin(db) {
+async function ensureRootTenantRow(db) {
   const rootTenantCode = process.env.ROOT_TENANT_CODE || 'AXERRA';
   const rootCompany = process.env.ROOT_COMPANY || 'Axerra LLC';
   const rootSchema = rootTenantCode.toLowerCase();
-  const rootEmail = process.env.ROOT_EMAIL || 'admin@axerra.io';
-  const passwordHash = await getCachedPasswordHash();
 
   const existingTenant = await db.oneOrNone('SELECT id FROM admin.tenants WHERE tenant_code = $1', [rootTenantCode]);
-
   if (!existingTenant) {
     await db.none(
       `INSERT INTO admin.tenants (tenant_code, company, schema_name, status, tier, allowed_modules)
@@ -95,6 +93,18 @@ async function reseedAdmin(db) {
       [rootTenantCode, rootCompany, rootSchema, JSON.stringify([])],
     );
   }
+}
+
+/**
+ * Re-seed the root tenant and super user into an existing (but empty)
+ * admin schema. Called by bootstrapAdmin when adminReady is true.
+ */
+async function reseedAdmin(db) {
+  const rootTenantCode = process.env.ROOT_TENANT_CODE || 'AXERRA';
+  const rootEmail = process.env.ROOT_EMAIL || 'admin@axerra.io';
+  const passwordHash = await getCachedPasswordHash();
+
+  await ensureRootTenantRow(db);
 
   const tenant = await db.one('SELECT id FROM admin.tenants WHERE tenant_code = $1', [rootTenantCode]);
 
@@ -204,6 +214,14 @@ export async function bootstrapAdmin() {
       }
     },
   });
+
+  // Insert the root admin.tenants row BEFORE provisionTenant runs.
+  // Otherwise tenantProvisioning's numberingConfigSeeder and
+  // tenantPreferencesSeeder look up admin.tenants by schema_name, find
+  // nothing, and silently skip the seed — leaving the root schema
+  // missing those rows on the initial bootstrap. (reseedAdmin's call
+  // is idempotent, so this prepass doesn't conflict.)
+  await ensureRootTenantRow(db);
 
   // Provision the axerra tenant schema (runs all tenant migrations and
   // seeds system roles via tenantProvisioning → seedSystemRoles). Without

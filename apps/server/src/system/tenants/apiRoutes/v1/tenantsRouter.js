@@ -14,9 +14,13 @@ import { withMeta } from '../../../../middleware/withMeta.js';
 
 const meta = withMeta({ module: 'tenants', router: 'tenants' });
 
-// Per-method middleware order: requireRootTenant → withMeta →
-// moduleEntitlement → rbac. Including moduleEntitlement explicitly
-// keeps it BEFORE rbac (createRouter would otherwise append it after).
+// Per-method middleware order, reading routes:
+//   requireRootTenant → withMeta → moduleEntitlement → rbac → handler
+// On mutation routes (POST/PUT/DELETE/PATCH) createRouter prepends
+// addAuditFields, so the effective chain becomes:
+//   addAuditFields → requireRootTenant → withMeta → moduleEntitlement → rbac → handler
+// Including moduleEntitlement explicitly in the per-method arrays keeps
+// it BEFORE rbac (createRouter would otherwise append it after).
 //
 // disableImportXls/disableExportXls/disableBulkInsert/disableBulkUpdate:
 // tenant records are admin-managed via the API, not via spreadsheet
