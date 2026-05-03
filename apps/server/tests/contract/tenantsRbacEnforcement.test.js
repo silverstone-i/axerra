@@ -15,7 +15,7 @@
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
-import { bootstrapAdmin, cleanupTestDb } from '../helpers/testDb.js';
+import { bootstrapAdmin, cleanupTestDb, DB } from '../helpers/testDb.js';
 
 let db;
 beforeAll(async () => {
@@ -33,6 +33,10 @@ const TEST_EMAIL = 'rbac57-test@axerra.io';
 const TEST_PASSWORD = 'RbacTest57!';
 const TEST_ROLE_CODE = '_test_rbac_57';
 const TEST_TENANT_SCHEMA = (process.env.ROOT_TENANT_CODE || 'AXERRA').toLowerCase();
+// Quote the schema identifier safely (matches the convention in other
+// contract tests). Avoids accidental breakage if ROOT_TENANT_CODE ever
+// resolves to a value that needs escaping.
+const TS = DB.pgp.as.name(TEST_TENANT_SCHEMA);
 
 describe('RBAC enforcement on tenants/* routes (issue #57)', () => {
   let testUserCookies;
@@ -51,7 +55,7 @@ describe('RBAC enforcement on tenants/* routes (issue #57)', () => {
     // resolution cascade (module::router::action → module::router::
     // → module:::: → ::::).
     const role = await db.one(
-      `INSERT INTO ${TEST_TENANT_SCHEMA}.roles (code, name, description, scope, is_system, is_immutable)
+      `INSERT INTO ${TS}.roles (code, name, description, scope, is_system, is_immutable)
        VALUES ($1, 'RBAC Test Role', 'Issue #57 contract test fixture', 'all_projects', false, false)
        RETURNING id`,
       [TEST_ROLE_CODE],
@@ -59,7 +63,7 @@ describe('RBAC enforcement on tenants/* routes (issue #57)', () => {
     testRoleId = role.id;
 
     await db.none(
-      `INSERT INTO ${TEST_TENANT_SCHEMA}.policies (role_id, module, router, action, level)
+      `INSERT INTO ${TS}.policies (role_id, module, router, action, level)
        VALUES ($1, '', null, null, 'view'),
               ($1, 'tenants', 'admin', 'list_schemas', 'none')`,
       [testRoleId],
@@ -67,7 +71,7 @@ describe('RBAC enforcement on tenants/* routes (issue #57)', () => {
 
     // Test employee carrying the custom role
     const employee = await db.one(
-      `INSERT INTO ${TEST_TENANT_SCHEMA}.employees
+      `INSERT INTO ${TS}.employees
          (tenant_id, first_name, last_name, is_app_user, roles)
        VALUES ($1, 'RBAC57', 'Tester', true, $2)
        RETURNING id`,
@@ -76,13 +80,13 @@ describe('RBAC enforcement on tenants/* routes (issue #57)', () => {
     employeeId = employee.id;
 
     const source = await db.one(
-      `INSERT INTO ${TEST_TENANT_SCHEMA}.sources (tenant_id, table_id, source_type, label)
+      `INSERT INTO ${TS}.sources (tenant_id, table_id, source_type, label)
        VALUES ($1, $2, 'employee', 'RBAC57 Tester')
        RETURNING id`,
       [tenant.id, employeeId],
     );
     await db.none(
-      `UPDATE ${TEST_TENANT_SCHEMA}.employees SET source_id = $1 WHERE id = $2`,
+      `UPDATE ${TS}.employees SET source_id = $1 WHERE id = $2`,
       [source.id, employeeId],
     );
 
@@ -115,15 +119,15 @@ describe('RBAC enforcement on tenants/* routes (issue #57)', () => {
       await db.none('DELETE FROM admin.portal_users WHERE id = $1', [testUserId]);
     }
     if (testRoleId) {
-      await db.none(`DELETE FROM ${TEST_TENANT_SCHEMA}.policies WHERE role_id = $1`, [testRoleId]);
-      await db.none(`DELETE FROM ${TEST_TENANT_SCHEMA}.roles WHERE id = $1`, [testRoleId]);
+      await db.none(`DELETE FROM ${TS}.policies WHERE role_id = $1`, [testRoleId]);
+      await db.none(`DELETE FROM ${TS}.roles WHERE id = $1`, [testRoleId]);
     }
     if (employeeId) {
       await db.none(
-        `DELETE FROM ${TEST_TENANT_SCHEMA}.sources WHERE table_id = $1 AND source_type = 'employee'`,
+        `DELETE FROM ${TS}.sources WHERE table_id = $1 AND source_type = 'employee'`,
         [employeeId],
       );
-      await db.none(`DELETE FROM ${TEST_TENANT_SCHEMA}.employees WHERE id = $1`, [employeeId]);
+      await db.none(`DELETE FROM ${TS}.employees WHERE id = $1`, [employeeId]);
     }
   }, 15000);
 
@@ -136,7 +140,7 @@ describe('RBAC enforcement on tenants/* routes (issue #57)', () => {
 
   test('GET /admin/schemas → 200 after lifting the deny to view', async () => {
     await db.none(
-      `UPDATE ${TEST_TENANT_SCHEMA}.policies SET level = 'view'
+      `UPDATE ${TS}.policies SET level = 'view'
        WHERE role_id = $1 AND module = 'tenants' AND router = 'admin' AND action = 'list_schemas'`,
       [testRoleId],
     );

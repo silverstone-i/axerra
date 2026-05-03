@@ -64,21 +64,36 @@ export async function seedRootEntity({ db, pgp, logger, tenantSchema, rootEmail,
   logger?.info?.('Linking root super user to employee record...');
   const s = pgp.as.name(tenantSchema);
 
-  // Find an existing System/Administrator employee (idempotent path used
-  // by the test bootstrap, where the axerra schema persists across the
-  // admin truncation between test files but the binding is recreated).
-  // If found, reuse it and just rebind. Otherwise create a fresh one.
+  // Find an existing System/Administrator employee scoped to THIS tenant
+  // and verified to carry the super_user role. The idempotent path used
+  // by the test bootstrap is: axerra schema persists across the admin
+  // truncation between test files but the binding is recreated. The
+  // tenant_id and roles checks ensure we never bind to an unrelated
+  // employee that happens to share the System/Administrator name.
   const existingEmployee = await db.oneOrNone(
     `SELECT id FROM ${s}.employees
      WHERE first_name = 'System' AND last_name = 'Administrator'
+       AND tenant_id = $1
+       AND 'super_user' = ANY(roles)
        AND deactivated_at IS NULL
      ORDER BY created_at ASC
      LIMIT 1`,
+    [tenant.id],
   );
 
   let employee;
   if (existingEmployee) {
     employee = existingEmployee;
+    // Defensive re-assert that the role is present and the row is the
+    // primary contact — protects against a partial seed from an earlier
+    // failed run.
+    await db.none(
+      `UPDATE ${s}.employees
+       SET roles = ARRAY(SELECT DISTINCT unnest(roles || '{super_user}')),
+           is_primary_contact = true
+       WHERE id = $1`,
+      [employee.id],
+    );
     logger?.info?.(`Reusing existing System Administrator employee ${employee.id}`);
   } else {
     employee = await db.one(

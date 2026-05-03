@@ -11,15 +11,20 @@
 import portalUsersController from '../../controllers/portalUsersController.js';
 import createRouter from '../../../../lib/createRouter.js';
 import { addAuditFields } from '../../../../middleware/addAuditFields.js';
+import { moduleEntitlement } from '../../../../middleware/moduleEntitlement.js';
 import { requireRootTenant } from '../../../../middleware/requireRootTenant.js';
 import { rbac } from '../../../../middleware/rbac.js';
 import { withMeta } from '../../../../middleware/withMeta.js';
 
 const meta = withMeta({ module: 'tenants', router: 'portal-users' });
 
-// Three-layer enforcement: requireRootTenant + meta + rbac. Standard
-// POST is disabled (use /register). The /register custom route is a
-// 'full'-level mutation since it provisions a new portal_user.
+// Per-method middleware order: requireRootTenant → withMeta →
+// moduleEntitlement → rbac. Standard POST is disabled (use /register).
+// disableBulkInsert/disableBulkUpdate/disableImportXls/disableExportXls:
+// portal_users are auth-side records, not data-import surfaces — the
+// auto-attached endpoints would bypass requireRootTenant since
+// disablePost only affects POST /, leaving POST /bulk-insert and
+// POST /import-xls live with no per-method middleware applied.
 export default createRouter(
   portalUsersController,
   (router) => {
@@ -27,6 +32,7 @@ export default createRouter(
       '/register',
       requireRootTenant,
       meta,
+      moduleEntitlement,
       rbac('full'),
       addAuditFields,
       (req, res) => portalUsersController.register(req, res),
@@ -34,9 +40,13 @@ export default createRouter(
   },
   {
     disablePost: true,
-    getMiddlewares: [requireRootTenant, meta, rbac('view')],
-    putMiddlewares: [requireRootTenant, meta, rbac('full')],
-    deleteMiddlewares: [requireRootTenant, meta, rbac('full')],
-    patchMiddlewares: [requireRootTenant, meta, rbac('full')],
+    disableBulkInsert: true,
+    disableBulkUpdate: true,
+    disableImportXls: true,
+    disableExportXls: true,
+    getMiddlewares: [requireRootTenant, meta, moduleEntitlement, rbac('view')],
+    putMiddlewares: [requireRootTenant, meta, moduleEntitlement, rbac('full')],
+    deleteMiddlewares: [requireRootTenant, meta, moduleEntitlement, rbac('full')],
+    patchMiddlewares: [requireRootTenant, meta, moduleEntitlement, rbac('full')],
   },
 );
