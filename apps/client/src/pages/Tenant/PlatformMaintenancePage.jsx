@@ -133,9 +133,11 @@ export default function PlatformMaintenancePage() {
               Orphan portal users
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              portal_users rows that have no active portal_user_tenants binding —
-              typically left behind when every tenant binding has been removed.
-              Deleting a row is permanent.
+              portal_users rows with no portal_user_tenants reference at all
+              (active or archived) and no impersonation_logs reference. Archived
+              bindings still represent restorable history; users referenced by
+              the impersonation audit trail are also preserved. Deleting a row
+              is permanent.
             </Typography>
           </Box>
 
@@ -179,8 +181,8 @@ export default function PlatformMaintenancePage() {
               {' '}<strong>{confirmTarget?.email}</strong>.
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              The user has no active tenant bindings and no entity references. This cannot
-              be undone.
+              The user has no tenant bindings (active or archived) and no
+              impersonation-log references. This cannot be undone.
             </Typography>
           </Box>
         }
