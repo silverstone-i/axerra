@@ -2,11 +2,14 @@
  * @file Migration: install admin-scope find_orphan_portal_users / cleanup_orphan_portal_users functions
  * @module auth/schema/migrations/202605010001_orphanPortalUsersCleanup
  *
- * portal_users rows are considered orphaned only when no portal_user_tenants
- * row references them — active OR archived. Archived bindings still represent
- * recoverable history, so the helpers must not classify those portal_users as
- * orphans. Hard-delete is correct here — true orphans have no bindings at all
- * and therefore no downstream entity references.
+ * portal_users rows are considered orphaned only when:
+ *   - no portal_user_tenants row references them (active OR archived), AND
+ *   - no impersonation_logs row references them (impersonator_id or
+ *     target_user_id) — those rows are audit history with FKs that have no
+ *     ON DELETE CASCADE, so a hard-delete would either raise 23503 or
+ *     destroy the audit trail.
+ * Archived bindings represent recoverable history, so they also disqualify
+ * a portal_user from being classified as an orphan.
  *
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
@@ -30,6 +33,11 @@ export default defineMigration({
           FROM admin.portal_user_tenants put
           WHERE put.portal_user_id = pu.id
         )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM admin.impersonation_logs il
+          WHERE il.impersonator_id = pu.id OR il.target_user_id = pu.id
+        )
         ORDER BY pu.created_at;
       $fn$;
 
@@ -42,6 +50,11 @@ export default defineMigration({
             SELECT 1
             FROM admin.portal_user_tenants put
             WHERE put.portal_user_id = pu.id
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM admin.impersonation_logs il
+            WHERE il.impersonator_id = pu.id OR il.target_user_id = pu.id
           )
         RETURNING pu.id, pu.email, pu.status;
       $fn$;

@@ -157,6 +157,44 @@ describe('Orphan portal_users cleanup — /api/tenants/v1/orphan-portal-users/or
     expect(stillThere).not.toBeNull();
   });
 
+  test('GET does NOT classify a portal_user referenced by impersonation_logs as an orphan', async () => {
+    // Two portal_users — one acts as impersonator, one is "orphan-looking".
+    // Without the impersonation_logs guard, target would be misclassified
+    // as an orphan and the FK to admin.impersonation_logs.target_user_id
+    // (no ON DELETE CASCADE) would raise 23503 on cleanup.
+    const impersonator = await db.one(
+      `INSERT INTO admin.portal_users (email, password_hash, status)
+       VALUES ('imp-actor@example.com', 'x', 'active')
+       RETURNING id`,
+    );
+    const target = await db.one(
+      `INSERT INTO admin.portal_users (email, password_hash, status)
+       VALUES ('imp-target@example.com', 'x', 'active')
+       RETURNING id`,
+    );
+    await db.none(
+      `INSERT INTO admin.impersonation_logs
+         (impersonator_id, target_user_id, target_tenant_code, started_at, ended_at)
+       VALUES ($1, $2, 'TEST', now(), now())`,
+      [impersonator.id, target.id],
+    );
+
+    const previewRes = await request(app)
+      .get('/api/tenants/v1/orphan-portal-users/orphans/preview')
+      .set('Cookie', rootCookies);
+    expect(previewRes.status).toBe(200);
+    expect(previewRes.body.orphans.find((o) => o.id === target.id)).toBeUndefined();
+
+    const cleanupRes = await request(app)
+      .post('/api/tenants/v1/orphan-portal-users/orphans/cleanup')
+      .set('Cookie', rootCookies)
+      .send({ id: target.id });
+    expect(cleanupRes.status).toBe(404);
+
+    const stillThere = await db.oneOrNone('SELECT id FROM admin.portal_users WHERE id = $1', [target.id]);
+    expect(stillThere).not.toBeNull();
+  });
+
   test('POST returns 400 for missing/invalid id', async () => {
     const missing = await request(app)
       .post('/api/tenants/v1/orphan-portal-users/orphans/cleanup')

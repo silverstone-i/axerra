@@ -2,9 +2,13 @@
  * @file Orphan portal_users controller — Axerra-only maintenance for unbound users
  * @module tenants/controllers/orphanPortalUsersController
  *
- * Lists portal_users rows that have no active portal_user_tenants binding,
- * and hard-deletes them on demand. Backed by SQL helpers installed via the
- * 202605010001_orphanPortalUsersCleanup admin migration.
+ * Lists portal_users rows that have zero portal_user_tenants references
+ * (active OR archived) and zero impersonation_logs references, and hard-
+ * deletes them on demand. Archived bindings are intentionally excluded
+ * because they preserve restorable history; impersonation_logs rows are
+ * intentionally excluded because their FKs have no ON DELETE CASCADE and
+ * the audit trail must be preserved. Backed by SQL helpers installed via
+ * the 202605010001_orphanPortalUsersCleanup admin migration.
  *
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
@@ -14,8 +18,8 @@ import logger from '../../../lib/logger.js';
 
 /**
  * GET /orphans/preview — read-only preview of orphan portal_users.
- * An orphan is a portal_users row with zero rows in portal_user_tenants
- * where deactivated_at IS NULL.
+ * An orphan is a portal_users row with zero portal_user_tenants references
+ * (active OR archived) AND zero impersonation_logs references.
  */
 export async function findOrphans(req, res) {
   try {
