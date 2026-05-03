@@ -6,16 +6,22 @@
  *   GET  /orphans/preview   → list orphan portal_users
  *   POST /orphans/cleanup   → hard-delete one orphan by id
  *
- * Mirrors the established `tenants/*` router convention: Axerra-only routes
- * are gated by `requireRootTenant` — but additionally these destructive
- * maintenance routes block impersonated sessions. `requireRootTenant` keys
- * off `req.user.home_tenant`, which stays as the impersonator's home tenant
- * during impersonation; without `rejectImpersonation`, an Axerra admin could
- * preview/delete orphan portal_users while impersonating a tenant user, and
- * the audit trail (req.user.id is the impersonator in either case) wouldn't
- * distinguish the two contexts. Policy-catalog entries for
- * `tenants::orphan_portal_users::*` are still seeded so the role-configuration
- * UI can list these capabilities, but enforcement is tenant-membership based.
+ * Two-layer enforcement, in order:
+ *   1. requireRootTenant — only Axerra-tenant users may reach these routes.
+ *   2. rejectImpersonation — even an Axerra user must be in a direct (non-
+ *      impersonated) session. Without this an Axerra admin could hit these
+ *      destructive routes from an impersonated tenant-user-shaped session
+ *      and the audit log wouldn't distinguish the two contexts.
+ *
+ * The `tenants/*` router convention enforces Axerra-only via tenant
+ * membership rather than role-based rbac() — every other tenants/*
+ * route does the same. The `tenants::orphan_portal_users::*` catalog
+ * entries are seeded (with `policy_required: false`) so the action codes
+ * are discoverable in role tooling, but they aren't independently
+ * grantable; enforcement on these routes is tenant-membership based.
+ * Wiring rbac across the tenants/* surface is a coordinated change that
+ * also needs the platform-deploy role provisioning of the Axerra root
+ * user (and the test bootstrap) — out of scope for this PR.
  *
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */

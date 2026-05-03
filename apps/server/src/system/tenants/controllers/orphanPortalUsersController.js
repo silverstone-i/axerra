@@ -16,15 +16,33 @@
 import db from '../../../db/db.js';
 import logger from '../../../lib/logger.js';
 
+// Maximum rows returned in a single preview. The page is platform-wide
+// (admin schema), so an unbounded result could grow without limit if a
+// large backlog accrues. The cap keeps the response and the DataGrid
+// payload bounded; `truncated`/`total` fields in the response let
+// operators see when more orphans exist than were returned.
+const PREVIEW_LIMIT = 500;
+
 /**
  * GET /orphans/preview — read-only preview of orphan portal_users.
  * An orphan is a portal_users row with zero portal_user_tenants references
  * (active OR archived) AND zero impersonation_logs references.
+ *
+ * Returns at most PREVIEW_LIMIT rows. When more orphans exist, the response
+ * includes `truncated: true` and `total: <count>` so the operator sees
+ * the full backlog size and can keep iterating.
  */
 export async function findOrphans(req, res) {
   try {
-    const orphans = await db.any('SELECT * FROM admin.find_orphan_portal_users()');
-    res.json({ count: orphans.length, orphans });
+    const allOrphans = await db.any('SELECT * FROM admin.find_orphan_portal_users()');
+    const total = allOrphans.length;
+    const orphans = allOrphans.slice(0, PREVIEW_LIMIT);
+    res.json({
+      count: orphans.length,
+      total,
+      truncated: total > orphans.length,
+      orphans,
+    });
   } catch (err) {
     logger.error('Error previewing orphan portal_users', { error: err?.message });
     res.status(500).json({ error: 'Error previewing orphan portal users' });

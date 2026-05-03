@@ -242,9 +242,12 @@ const CATALOG_ENTRIES = [
   { module: 'tenants', router: 'portal-users', action: null, label: 'Portal Users', description: 'Application user accounts', sort_order: 1120 },
   { module: 'tenants', router: 'portal-users', action: 'import', label: 'Import Portal Users', description: 'Import portal user records from spreadsheet', sort_order: 1121, policy_required: false },
   { module: 'tenants', router: 'portal-users', action: 'export', label: 'Export Portal Users', description: 'Export portal user records to spreadsheet', sort_order: 1122, policy_required: false },
-  { module: 'tenants', router: 'orphan_portal_users', action: null, label: 'Orphan Portal Users', description: 'Maintenance for portal_users with no tenant bindings (Axerra only)', sort_order: 1125 },
-  { module: 'tenants', router: 'orphan_portal_users', action: 'find_orphans', label: 'Preview Orphan Portal Users', description: 'List portal_users rows with no portal_user_tenants binding (active or archived) and no impersonation_logs reference', sort_order: 1126 },
-  { module: 'tenants', router: 'orphan_portal_users', action: 'cleanup_orphans', label: 'Clean Up Orphan Portal Users', description: 'Hard-delete a single orphan portal_user. Requires Preview Orphan Portal Users — the UI gates cleanup on a successful preview.', sort_order: 1127 },
+  // Decorative catalog entries — the tenants/* router convention enforces
+  // Axerra-only via requireRootTenant, not via rbac(), so these rows
+  // document the action codes for tooling but are not independently grantable.
+  { module: 'tenants', router: 'orphan_portal_users', action: null, label: 'Orphan Portal Users', description: 'Maintenance for portal_users with no tenant bindings (Axerra only — gated by requireRootTenant, not rbac)', sort_order: 1125, policy_required: false },
+  { module: 'tenants', router: 'orphan_portal_users', action: 'find_orphans', label: 'Preview Orphan Portal Users', description: 'List portal_users rows with no portal_user_tenants binding (active or archived) and no impersonation_logs reference. Decorative — enforcement is requireRootTenant.', sort_order: 1126, policy_required: false },
+  { module: 'tenants', router: 'orphan_portal_users', action: 'cleanup_orphans', label: 'Clean Up Orphan Portal Users', description: 'Hard-delete a single orphan portal_user. Decorative — enforcement is requireRootTenant.', sort_order: 1127, policy_required: false },
   { module: 'tenants', router: 'admin', action: null, label: 'Admin Operations', description: 'Schema listing, impersonation', sort_order: 1130 },
   { module: 'tenants', router: 'admin', action: 'import', label: 'Import Admin', description: 'Import admin operation records from spreadsheet', sort_order: 1131, policy_required: false },
   { module: 'tenants', router: 'admin', action: 'export', label: 'Export Admin', description: 'Export admin operation records to spreadsheet', sort_order: 1132, policy_required: false },
