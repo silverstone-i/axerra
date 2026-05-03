@@ -49,9 +49,12 @@ export async function cleanupOrphan(req, res) {
     if (!removed) {
       return res.status(404).json({ error: 'Portal user not found or not an orphan' });
     }
+    // The router rejects impersonated sessions, so this entry is always a
+    // direct root action — actor_id is unambiguously the Axerra operator.
     logger.info('orphan-portal-user-cleanup', {
       actor_id: req.user?.id,
-      impersonated_by: req.user?.impersonated_by ?? null,
+      actor_email: req.user?.email,
+      impersonated: req.user?.is_impersonating === true,
       removed_id: removed.id,
       removed_email: removed.email,
     });

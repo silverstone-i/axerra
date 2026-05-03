@@ -228,6 +228,39 @@ describe('Orphan portal_users cleanup — /api/tenants/v1/orphan-portal-users/or
     expect(stillThere).not.toBeNull();
   });
 
+  test('Axerra root receives 403 while in an impersonated session', async () => {
+    // Provision a tenant + tenant admin to impersonate.
+    await provisionTenant(rootCookies, 'IMP');
+    const target = await db.one(
+      `SELECT pu.id FROM admin.portal_users pu
+       WHERE pu.email = $1 AND pu.deactivated_at IS NULL`,
+      ['admin@imp.com'],
+    );
+
+    // Start impersonation — root cookies now carry an impersonator_id claim.
+    const startRes = await request(app)
+      .post('/api/tenants/v1/admin/impersonate')
+      .set('Cookie', rootCookies)
+      .send({ target_user_id: target.id });
+    expect(startRes.status).toBe(200);
+
+    try {
+      const previewRes = await request(app)
+        .get('/api/tenants/v1/orphan-portal-users/orphans/preview')
+        .set('Cookie', rootCookies);
+      expect(previewRes.status).toBe(403);
+      expect(previewRes.body.error).toMatch(/impersonated session/i);
+
+      const cleanupRes = await request(app)
+        .post('/api/tenants/v1/orphan-portal-users/orphans/cleanup')
+        .set('Cookie', rootCookies)
+        .send({ id: '00000000-0000-0000-0000-000000000000' });
+      expect(cleanupRes.status).toBe(403);
+    } finally {
+      await request(app).post('/api/tenants/v1/admin/exit-impersonation').set('Cookie', rootCookies);
+    }
+  });
+
   test('Non-Axerra user receives 403 (requireRootTenant)', async () => {
     const tenantRec = await provisionTenant(rootCookies, 'OPU');
     expect(tenantRec.id).toBeTruthy();

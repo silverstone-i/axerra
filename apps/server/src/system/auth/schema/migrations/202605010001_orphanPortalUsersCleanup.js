@@ -18,7 +18,7 @@ import { defineMigration } from '../../../../db/migrations/defineMigration.js';
 
 export default defineMigration({
   id: '202605010001-orphan-portal-users-cleanup',
-  description: 'Install admin.find_orphan_portal_users / cleanup_orphan_portal_users functions',
+  description: 'Install admin.find_orphan_portal_users / cleanup_orphan_portal_user functions',
 
   async up({ schema, db }) {
     if (schema !== 'admin') return;
