@@ -5,9 +5,23 @@
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { WorkbookBuilder, WorkbookReader, writeXlsx } from '@nap-sft/tablsx';
-import { getEnumColumns, validateChildEnums, buildChildSheet, curateRows, parseSheet } from '../../src/lib/spreadsheetHelpers.js';
+
+// Mock the db module so validateImportGroups / checkPortalUserEmailCollisions
+// can be exercised without a real Postgres connection.
+const dbMock = { manyOrNone: vi.fn() };
+vi.mock('../../src/db/db.js', () => ({ default: dbMock, pgp: { as: { name: (s) => `"${s}"` } } }));
+
+const {
+  getEnumColumns,
+  validateChildEnums,
+  buildChildSheet,
+  curateRows,
+  parseSheet,
+  validateImportGroups,
+  checkPortalUserEmailCollisions,
+} = await import('../../src/lib/spreadsheetHelpers.js');
 
 describe('getEnumColumns', () => {
   it('extracts enum values from a CHECK IN (...) constraint', () => {
@@ -269,5 +283,130 @@ describe('buildChildSheet (UUID round-trip)', () => {
     const sheet = reader.sheet(sheetIdx);
     const headers = sheet.getRow(0).map((c) => c.value);
     expect(headers).toEqual(['employee_id', 'id', 'email', 'label']);
+  });
+});
+
+// ── Cross-tenant portal_user collision check ───────────────────────────────
+describe('validateImportGroups (cross-tenant portal_user collision)', () => {
+  beforeEach(() => {
+    dbMock.manyOrNone.mockReset();
+  });
+
+  function makeGroup({ name = 'Acme', email = 'a@b.com', isLogin = true, rowNum = 2, isAppUser = true, parentId = null } = {}) {
+    const parent = { name, _rowNum: rowNum, is_app_user: isAppUser };
+    if (parentId) parent.id = parentId;
+    return {
+      parent,
+      children: { emails: [{ email, is_login: isLogin, _rowNum: rowNum }] },
+    };
+  }
+
+  it('blocks an employee row whose login email matches an existing portal_user', async () => {
+    dbMock.manyOrNone.mockResolvedValueOnce([{ email: 'collide@x.com' }]);
+    const groups = [makeGroup({ email: 'collide@x.com', rowNum: 5 })];
+    const errors = await validateImportGroups(groups, {
+      sheetName: 'Employees',
+      requiredFields: ['name'],
+      entityType: 'employee',
+    });
+    expect(dbMock.manyOrNone).toHaveBeenCalledTimes(1);
+    const collisionErrs = errors.filter((e) => /already in use by another portal user/.test(e.message));
+    expect(collisionErrs.length).toBe(1);
+    expect(collisionErrs[0].row).toBe(5);
+    expect(collisionErrs[0].column).toBe('email');
+    expect(collisionErrs[0].value).toBe('collide@x.com');
+  });
+
+  it('blocks a client row on collision', async () => {
+    dbMock.manyOrNone.mockResolvedValueOnce([{ email: 'shared@x.com' }]);
+    const groups = [makeGroup({ email: 'shared@x.com', rowNum: 7 })];
+    const errors = await validateImportGroups(groups, {
+      sheetName: 'Clients',
+      requiredFields: ['name'],
+      entityType: 'client',
+    });
+    expect(errors.some((e) => /already in use by another portal user/.test(e.message))).toBe(true);
+  });
+
+  it('does NOT block a vendor_contact row on collision (controller binds existing)', async () => {
+    dbMock.manyOrNone.mockResolvedValueOnce([{ email: 'shared@x.com' }]);
+    const groups = [makeGroup({ email: 'shared@x.com', rowNum: 9 })];
+    const errors = await validateImportGroups(groups, {
+      sheetName: 'Vendor Contacts',
+      requiredFields: ['first_name', 'last_name'],
+      entityType: 'vendor_contact',
+    });
+    // entityType 'vendor_contact' currently short-circuits before issuing the
+    // DB lookup, so we don't even hit the DB.
+    expect(errors.some((e) => /already in use by another portal user/.test(e.message))).toBe(false);
+  });
+
+  it('skips the DB lookup entirely when there are no groups or no login emails', async () => {
+    // Empty groups
+    let errors = await validateImportGroups([], {
+      sheetName: 'Employees',
+      requiredFields: ['name'],
+      entityType: 'employee',
+    });
+    expect(errors).toEqual([]);
+    expect(dbMock.manyOrNone).not.toHaveBeenCalled();
+
+    // Groups without any is_login email
+    const groups = [makeGroup({ email: 'a@b.com', isLogin: false })];
+    errors = await validateImportGroups(groups, {
+      sheetName: 'Employees',
+      requiredFields: ['name'],
+      entityType: 'employee',
+    });
+    expect(dbMock.manyOrNone).not.toHaveBeenCalled();
+    expect(errors.filter((e) => /already in use by another portal user/.test(e.message))).toEqual([]);
+  });
+
+  it('does not run the lookup when entityType is omitted', async () => {
+    const groups = [makeGroup({ email: 'a@b.com' })];
+    await validateImportGroups(groups, { sheetName: 'Vendors', requiredFields: ['name'] });
+    expect(dbMock.manyOrNone).not.toHaveBeenCalled();
+  });
+});
+
+describe('checkPortalUserEmailCollisions', () => {
+  beforeEach(() => dbMock.manyOrNone.mockReset());
+
+  it('short-circuits without a DB query when entityType is vendor_contact', async () => {
+    const groups = [{ parent: { is_app_user: true }, children: { emails: [{ email: 'a@b.com', is_login: true, _rowNum: 2 }] } }];
+    const errs = await checkPortalUserEmailCollisions(groups, { sheetName: 'X', entityType: 'vendor_contact' });
+    expect(errs).toEqual([]);
+    expect(dbMock.manyOrNone).not.toHaveBeenCalled();
+  });
+
+  it('treats string "true" is_login values as truthy', async () => {
+    dbMock.manyOrNone.mockResolvedValueOnce([{ email: 'a@b.com' }]);
+    const groups = [{
+      parent: { is_app_user: true },
+      children: { emails: [{ email: 'a@b.com', is_login: 'true', _rowNum: 3 }] },
+    }];
+    const errs = await checkPortalUserEmailCollisions(groups, { sheetName: 'X', entityType: 'employee' });
+    expect(errs.length).toBe(1);
+    expect(errs[0].row).toBe(3);
+  });
+
+  it('skips rows whose parent has an id set (round-trip update)', async () => {
+    const groups = [{
+      parent: { id: '11111111-1111-1111-1111-111111111111', is_app_user: true },
+      children: { emails: [{ email: 'roundtrip@example.com', is_login: true, _rowNum: 4 }] },
+    }];
+    const errs = await checkPortalUserEmailCollisions(groups, { sheetName: 'X', entityType: 'employee' });
+    expect(errs).toEqual([]);
+    expect(dbMock.manyOrNone).not.toHaveBeenCalled();
+  });
+
+  it('skips rows whose parent.is_app_user is falsy', async () => {
+    const groups = [{
+      parent: { is_app_user: false },
+      children: { emails: [{ email: 'noapp@example.com', is_login: true, _rowNum: 5 }] },
+    }];
+    const errs = await checkPortalUserEmailCollisions(groups, { sheetName: 'X', entityType: 'client' });
+    expect(errs).toEqual([]);
+    expect(dbMock.manyOrNone).not.toHaveBeenCalled();
   });
 });

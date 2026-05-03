@@ -314,6 +314,28 @@ class VendorContactsController extends BaseController {
         return res.status(404).json({ error: 'No active app user account found for this vendor contact' });
       }
 
+      // Multi-tenant authority guard (Part 3 of Import Dedup spec).
+      // This endpoint is the admin reset path for an *already-provisioned*
+      // vendor — the 404 above filters out unprovisioned vendors, whose
+      // initial password is set by #provisionAppUser instead.
+      //
+      // Rule: tenant admins may reset the password only when the underlying
+      // portal_user has at most one active tenant binding (single-tenant
+      // vendor). If the portal_user is bound to multiple tenants, only the
+      // Axerra root tenant may reset, because credentials are shared across
+      // every tenant the vendor is bound to. Self-service password change
+      // is handled by POST /api/auth/change-password, not this route.
+      const { count } = await db.one(
+        `SELECT COUNT(*)::int AS count FROM admin.portal_user_tenants
+         WHERE portal_user_id = $1 AND deactivated_at IS NULL`,
+        [binding.portal_user_id],
+      );
+      const rootTenantCode = (process.env.ROOT_TENANT_CODE || 'axerra').toLowerCase();
+      const callerTenantCode = req.user?.home_tenant?.toLowerCase?.();
+      if (count > 1 && callerTenantCode !== rootTenantCode) {
+        return res.status(403).json({ error: 'Tenant admins cannot change the password of a multi-tenant vendor user.' });
+      }
+
       const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
       const hash = await bcrypt.hash(password, rounds);
       await db.none('UPDATE admin.portal_users SET password_hash = $/hash/, updated_by = $/updatedBy/ WHERE id = $/id/', {
@@ -326,6 +348,301 @@ class VendorContactsController extends BaseController {
       res.json({ message: 'Password reset successfully' });
     } catch (err) {
       this.handleError(err, res, 'resetting password for', this.errorLabel);
+    }
+  }
+
+  /**
+   * PUT /:id/swap-login-email — identity-swap semantics for tenant admins.
+   *
+   * Per the Import Dedup & Multi-Tenant Vendor Access spec (Part 3), changing
+   * a vendor_contact's login email by a tenant admin is treated as
+   * "transfer access to this tenant from one identity to another", NOT as
+   * "edit this person's email."
+   *
+   * Flow (in a single transaction):
+   *   1. Look up the current active binding for (vendor_contact, this tenant).
+   *   2. Look up new_email in admin.portal_users (active or archived).
+   *   3. Deactivate the current binding (the previous portal_user loses
+   *      access to this tenant; their global identity is preserved and
+   *      may still be active in other tenants).
+   *   4a. Match found → upgrade or insert a binding for the matched
+   *       portal_user with status='invited'. Reactivate that user if
+   *       archived. Supplied password is ignored.
+   *   4b. No match → create a new portal_users row with new_email + temp
+   *       password (or one supplied), then create a binding.
+   *   5. Update the vendor_contact's tenant-scoped login email row to the
+   *      new email so the tenant data view stays consistent.
+   *
+   * The previous portal_user may end up with no active bindings; they are
+   * NOT auto-archived — Task 12's orphan-portal_users maintenance API
+   * cleans those up explicitly.
+   *
+   * Body: { new_email, password? }
+   */
+  async swapLoginEmail(req, res) {
+    const contactId = req.params.id;
+    const tenantId = req.user?.tenant_id;
+    const { new_email: rawEmail, password: suppliedPassword } = req.body || {};
+
+    if (!rawEmail || typeof rawEmail !== 'string') {
+      return res.status(400).json({ error: 'new_email is required' });
+    }
+    // Normalise email to lowercase up-front: portal_users.email is varchar
+    // with a case-sensitive partial unique index, so without normalisation
+    // 'Vera@x.com' and 'vera@x.com' could create duplicate active rows
+    // and the lookup below would miss an existing user with different casing.
+    const new_email = rawEmail.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(new_email)) {
+      return res.status(400).json({ error: 'new_email is not a valid email address' });
+    }
+
+    if (suppliedPassword) {
+      const pwRules = [
+        { test: (p) => p.length >= 8, msg: 'at least 8 characters' },
+        { test: (p) => /[A-Z]/.test(p), msg: 'an uppercase letter' },
+        { test: (p) => /[a-z]/.test(p), msg: 'a lowercase letter' },
+        { test: (p) => /[0-9]/.test(p), msg: 'a digit' },
+        { test: (p) => /[^A-Za-z0-9]/.test(p), msg: 'a special character' },
+      ];
+      const failures = pwRules.filter((r) => !r.test(suppliedPassword)).map((r) => r.msg);
+      if (failures.length) {
+        return res.status(400).json({ error: `Password must contain ${failures.join(', ')}` });
+      }
+    }
+
+    const schema = this.getSchema(req);
+    const s = pgp.as.name(schema);
+    const updatedBy = req.user?.id || null;
+
+    try {
+      // 1. Resolve current active binding
+      const currentBinding = await findActiveBinding('vendor_contact', contactId, tenantId);
+      if (!currentBinding) {
+        return res.status(400).json({ error: 'Vendor contact has no active app-user binding to swap' });
+      }
+
+      // Lookup current contact for source_id
+      const contact = await db.oneOrNone(
+        `SELECT id, source_id FROM ${s}.vendor_contacts WHERE id = $1 AND deactivated_at IS NULL`,
+        [contactId],
+      );
+      if (!contact) return res.status(404).json({ error: 'Vendor contact not found' });
+
+      // Locate the existing login-email row in the tenant schema
+      const loginEmailRow = await db.oneOrNone(
+        `SELECT id, email FROM ${s}.emails
+         WHERE source_id = $1 AND is_login = true AND deactivated_at IS NULL`,
+        [contact.source_id],
+      );
+
+      if (loginEmailRow && loginEmailRow.email.toLowerCase() === new_email) {
+        return res.status(400).json({ error: 'new_email matches the current login email — nothing to swap' });
+      }
+
+      const previousPortalUserId = currentBinding.portal_user_id;
+      let newPortalUserId;
+
+      // 2. Look up new_email in admin.portal_users (active first, archived
+      // fallback). Case-insensitive match defends against pre-normalisation
+      // rows that may exist with mixed casing.
+      const matchedUser = await db.oneOrNone(
+        `SELECT id, deactivated_at FROM admin.portal_users
+         WHERE LOWER(email) = $1
+         ORDER BY deactivated_at IS NULL DESC, deactivated_at DESC NULLS FIRST
+         LIMIT 1`,
+        [new_email],
+      );
+
+      // The match could be the same portal_user already bound to this
+      // contact in this tenant — a real swap requires a different identity.
+      // Refuse with 400 so the caller doesn't accidentally downgrade their
+      // own binding to status='invited'.
+      if (matchedUser?.id === previousPortalUserId) {
+        return res.status(400).json({
+          error:
+            'new_email belongs to the same portal user already bound to this contact. Update the tenant login-email row directly if it is out of sync.',
+        });
+      }
+
+      const runSwap = () => db.tx(async (t) => {
+        // 3. Deactivate the current binding — old portal_user loses tenant access.
+        await t.none(
+          `UPDATE admin.portal_user_tenants
+           SET deactivated_at = NOW(), status = 'locked', updated_by = $1
+           WHERE id = $2`,
+          [updatedBy, currentBinding.id],
+        );
+
+        if (matchedUser) {
+          // 4a. Reactivate the matched portal_user if archived; do not
+          // touch credentials.
+          if (matchedUser.deactivated_at) {
+            await t.none(
+              `UPDATE admin.portal_users
+               SET deactivated_at = NULL, status = 'active', updated_by = $1
+               WHERE id = $2 AND deactivated_at IS NOT NULL`,
+              [updatedBy, matchedUser.id],
+            );
+          }
+
+          // Find any pre-existing binding for (matched user, this tenant)
+          // — bare bindings get upgraded; entity bindings collide loudly;
+          // archived rows: insert a new active binding alongside.
+          const sameTenantBinding = await t.oneOrNone(
+            `SELECT id, entity_type, entity_id, deactivated_at
+             FROM admin.portal_user_tenants
+             WHERE portal_user_id = $1 AND tenant_id = $2
+             ORDER BY deactivated_at IS NULL DESC, created_at DESC
+             LIMIT 1`,
+            [matchedUser.id, tenantId],
+          );
+
+          if (sameTenantBinding && sameTenantBinding.deactivated_at === null && sameTenantBinding.entity_type) {
+            const err = new Error(
+              'A portal user with the new email already has an active binding to this tenant. Resolve it before swapping.',
+            );
+            err.status = 409;
+            throw err;
+          }
+
+          const canUpgradeInPlace =
+            sameTenantBinding
+            && (sameTenantBinding.entity_type === null
+              || (sameTenantBinding.entity_type === 'vendor_contact' && sameTenantBinding.entity_id === contact.id));
+
+          if (canUpgradeInPlace) {
+            await t.none(
+              `UPDATE admin.portal_user_tenants
+               SET deactivated_at = NULL,
+                   entity_type = 'vendor_contact',
+                   entity_id = $1,
+                   status = 'invited',
+                   updated_by = $2
+               WHERE id = $3`,
+              [contact.id, updatedBy, sameTenantBinding.id],
+            );
+          } else {
+            await t.none(
+              `INSERT INTO admin.portal_user_tenants
+                 (portal_user_id, tenant_id, entity_type, entity_id, status, created_by)
+               VALUES ($1, $2, 'vendor_contact', $3, 'invited', $4)`,
+              [matchedUser.id, tenantId, contact.id, updatedBy],
+            );
+          }
+          newPortalUserId = matchedUser.id;
+        } else {
+          // 4b. No match — create new portal_user + binding
+          const clearPassword = suppliedPassword || crypto.randomBytes(12).toString('base64url');
+          const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
+          const passwordHash = await bcrypt.hash(clearPassword, rounds);
+          const newUser = await t.one(
+            `INSERT INTO admin.portal_users (email, password_hash, status, created_by)
+             VALUES ($1, $2, 'invited', $3)
+             RETURNING id`,
+            [new_email, passwordHash, updatedBy],
+          );
+          await t.none(
+            `INSERT INTO admin.portal_user_tenants
+               (portal_user_id, tenant_id, entity_type, entity_id, status, created_by)
+             VALUES ($1, $2, 'vendor_contact', $3, 'invited', $4)`,
+            [newUser.id, tenantId, contact.id, updatedBy],
+          );
+          newPortalUserId = newUser.id;
+        }
+
+        // 5. Update the tenant-scoped login email row so the tenant data view stays consistent.
+        if (loginEmailRow) {
+          await t.none(
+            `UPDATE ${s}.emails SET email = $1, updated_by = $2 WHERE id = $3`,
+            [new_email, updatedBy, loginEmailRow.id],
+          );
+        } else {
+          // Defensive: no login email row — create one
+          await t.none(
+            `INSERT INTO ${s}.emails (tenant_id, source_id, email, label, is_primary, is_login, created_by)
+             VALUES ($1, $2, $3, 'work', true, true, $4)`,
+            [tenantId, contact.source_id, new_email, updatedBy],
+          );
+        }
+      });
+
+      let usedMatchPath = !!matchedUser;
+      try {
+        await runSwap();
+      } catch (err) {
+        // Concurrent insert race: between the lookup and our INSERT into
+        // admin.portal_users, another request may have created a row with
+        // this email. Re-lookup once and retry through the match path.
+        const isUniqueViolation = err.code === '23505' && /portal_users.*email/i.test(err.constraint || err.detail || '');
+        if (!isUniqueViolation) throw err;
+        const racedUser = await db.oneOrNone(
+          `SELECT id, deactivated_at FROM admin.portal_users WHERE LOWER(email) = $1 LIMIT 1`,
+          [new_email],
+        );
+        if (!racedUser) throw err;
+        if (racedUser.id === previousPortalUserId) {
+          return res.status(400).json({
+            error:
+              'Concurrent update produced a portal_user that is already bound to this contact. Please try again.',
+          });
+        }
+        // Reuse the match path — rebuild the matched-user state. Note: the
+        // failed first attempt already rolled back, so the current binding
+        // is still active; runSwap will deactivate it on retry.
+        const retried = await db.tx(async (t) => {
+          await t.none(
+            `UPDATE admin.portal_user_tenants
+             SET deactivated_at = NOW(), status = 'locked', updated_by = $1
+             WHERE id = $2`,
+            [updatedBy, currentBinding.id],
+          );
+          if (racedUser.deactivated_at) {
+            await t.none(
+              `UPDATE admin.portal_users
+               SET deactivated_at = NULL, status = 'active', updated_by = $1
+               WHERE id = $2 AND deactivated_at IS NOT NULL`,
+              [updatedBy, racedUser.id],
+            );
+          }
+          await t.none(
+            `INSERT INTO admin.portal_user_tenants
+               (portal_user_id, tenant_id, entity_type, entity_id, status, created_by)
+             VALUES ($1, $2, 'vendor_contact', $3, 'invited', $4)`,
+            [racedUser.id, tenantId, contact.id, updatedBy],
+          );
+          if (loginEmailRow) {
+            await t.none(
+              `UPDATE ${s}.emails SET email = $1, updated_by = $2 WHERE id = $3`,
+              [new_email, updatedBy, loginEmailRow.id],
+            );
+          } else {
+            await t.none(
+              `INSERT INTO ${s}.emails (tenant_id, source_id, email, label, is_primary, is_login, created_by)
+               VALUES ($1, $2, $3, 'work', true, true, $4)`,
+              [tenantId, contact.source_id, new_email, updatedBy],
+            );
+          }
+          return racedUser.id;
+        });
+        newPortalUserId = retried;
+        usedMatchPath = true;
+      }
+
+      logger.info(
+        `Identity swap on vendor_contact ${contactId} in tenant ${tenantId}: ` +
+          `portal_user ${previousPortalUserId} → ${newPortalUserId} ` +
+          `(by user ${updatedBy ?? 'unknown'})`,
+      );
+
+      res.json({
+        message: 'Login email swapped',
+        previous_portal_user_id: previousPortalUserId,
+        portal_user_id: newPortalUserId,
+        matched_existing: usedMatchPath,
+      });
+    } catch (err) {
+      if (err.status) return res.status(err.status).json({ error: err.message });
+      this.handleError(err, res, 'swapping login email for', this.errorLabel);
     }
   }
 

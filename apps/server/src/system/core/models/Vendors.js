@@ -440,17 +440,18 @@ export default class Vendors extends TableModel {
     const vendorChildEnums = buildChildEnumsFromArrays(VENDOR_CHILD_ARRAYS_CONFIG, db, schema);
     const contactChildEnums = buildChildEnumsFromArrays(CONTACT_CHILD_ARRAYS_CONFIG, db, schema);
     const errors = [
-      ...validateImportGroups(vendorGroups, {
+      ...(await validateImportGroups(vendorGroups, {
         sheetName: vendorSheetName,
         requiredFields: ['name'],
         conflicts: vendorConflicts,
-      }),
+      })),
       ...validateChildEnums(vendorGroups, { sheetName: vendorSheetName, childEnums: vendorChildEnums }),
-      ...validateImportGroups(contactGroups, {
+      ...(await validateImportGroups(contactGroups, {
         sheetName: contactSheetName,
         requiredFields: ['first_name', 'last_name'],
         conflicts: contactConflicts,
-      }),
+        entityType: 'vendor_contact',
+      })),
       ...validateChildEnums(contactGroups, { sheetName: contactSheetName, childEnums: contactChildEnums }),
     ];
     if (errors.length) return { errors };
