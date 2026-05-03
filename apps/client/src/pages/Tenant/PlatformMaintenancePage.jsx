@@ -67,6 +67,8 @@ export default function PlatformMaintenancePage() {
   const data = previewQuery.data;
   const orphans = data?.orphans ?? [];
   const orphanCount = data?.count ?? 0;
+  const orphanTotal = data?.total ?? orphanCount;
+  const truncated = data?.truncated === true;
   const hasPreviewed = !!data;
 
   const columns = useMemo(
@@ -149,7 +151,9 @@ export default function PlatformMaintenancePage() {
               <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
                 {orphanCount === 0
                   ? 'No orphans found.'
-                  : `${orphanCount} orphan${orphanCount === 1 ? '' : 's'} found.`}
+                  : truncated
+                    ? `Showing ${orphanCount} of ${orphanTotal} orphans (capped). Clean up some, then Refresh to see the next batch.`
+                    : `${orphanCount} orphan${orphanCount === 1 ? '' : 's'} found.`}
               </Typography>
             )}
           </Stack>

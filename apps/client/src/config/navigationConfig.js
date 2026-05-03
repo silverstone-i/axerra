@@ -158,7 +158,7 @@ export const NAV_ITEMS = [
     children: [
       { label: 'Manage Tenants', path: '/tenant/manage-tenants', capability: 'tenants::' },
       { label: 'Manage Users', path: '/tenant/manage-users', capability: 'tenants::' },
-      { label: 'Platform Maintenance', path: '/tenant/platform-maintenance', capability: 'tenants::', hideWhileImpersonating: true },
+      { label: 'Platform Maintenance', path: '/tenant/platform-maintenance', capability: 'tenants::orphan_portal_users::find_orphans', hideWhileImpersonating: true },
     ],
   },
 ];
