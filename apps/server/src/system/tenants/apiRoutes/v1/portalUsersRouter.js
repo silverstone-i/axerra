@@ -12,12 +12,14 @@ import portalUsersController from '../../controllers/portalUsersController.js';
 import createRouter from '../../../../lib/createRouter.js';
 import { addAuditFields } from '../../../../middleware/addAuditFields.js';
 import { requireRootTenant } from '../../../../middleware/requireRootTenant.js';
+import { rbac } from '../../../../middleware/rbac.js';
 import { withMeta } from '../../../../middleware/withMeta.js';
 
 const meta = withMeta({ module: 'tenants', router: 'portal-users' });
 
-// Note: RBAC enforcement deferred to Phase 5 (no role_members exist yet).
-// requireRootTenant gates all routes to Axerra users only.
+// Three-layer enforcement: requireRootTenant + meta + rbac. Standard
+// POST is disabled (use /register). The /register custom route is a
+// 'full'-level mutation since it provisions a new portal_user.
 export default createRouter(
   portalUsersController,
   (router) => {
@@ -25,15 +27,16 @@ export default createRouter(
       '/register',
       requireRootTenant,
       meta,
+      rbac('full'),
       addAuditFields,
       (req, res) => portalUsersController.register(req, res),
     );
   },
   {
     disablePost: true,
-    getMiddlewares: [requireRootTenant, meta],
-    putMiddlewares: [requireRootTenant, meta],
-    deleteMiddlewares: [requireRootTenant, meta],
-    patchMiddlewares: [requireRootTenant, meta],
+    getMiddlewares: [requireRootTenant, meta, rbac('view')],
+    putMiddlewares: [requireRootTenant, meta, rbac('full')],
+    deleteMiddlewares: [requireRootTenant, meta, rbac('full')],
+    patchMiddlewares: [requireRootTenant, meta, rbac('full')],
   },
 );

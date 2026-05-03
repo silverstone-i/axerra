@@ -8,12 +8,15 @@
 import tenantsController from '../../controllers/tenantsController.js';
 import createRouter from '../../../../lib/createRouter.js';
 import { requireRootTenant } from '../../../../middleware/requireRootTenant.js';
+import { rbac } from '../../../../middleware/rbac.js';
 import { withMeta } from '../../../../middleware/withMeta.js';
 
 const meta = withMeta({ module: 'tenants', router: 'tenants' });
 
-// requireRootTenant gates all routes to Axerra users only.
-// RBAC not applied — access control relies on requireRootTenant + moduleEntitlement.
+// Three-layer enforcement: requireRootTenant gates Axerra membership,
+// withMeta sets the resource for rbac, and rbac() consults the
+// tenants::tenants policy (cascades up to tenants:: and the ::::
+// wildcard). Custom routes use view-level rbac since they're reads.
 export default createRouter(
   tenantsController,
   (router) => {
@@ -21,26 +24,29 @@ export default createRouter(
       '/:id/modules',
       requireRootTenant,
       meta,
+      rbac('view'),
       (req, res) => tenantsController.getAllowedModules(req, res),
     );
     router.get(
       '/:id/contacts',
       requireRootTenant,
       meta,
+      rbac('view'),
       (req, res) => tenantsController.getContacts(req, res),
     );
     router.get(
       '/:id/company',
       requireRootTenant,
       meta,
+      rbac('view'),
       (req, res) => tenantsController.getCompany(req, res),
     );
   },
   {
-    postMiddlewares: [requireRootTenant, meta],
-    getMiddlewares: [requireRootTenant, meta],
-    putMiddlewares: [requireRootTenant, meta],
-    deleteMiddlewares: [requireRootTenant, meta],
-    patchMiddlewares: [requireRootTenant, meta],
+    postMiddlewares: [requireRootTenant, meta, rbac('full')],
+    getMiddlewares: [requireRootTenant, meta, rbac('view')],
+    putMiddlewares: [requireRootTenant, meta, rbac('full')],
+    deleteMiddlewares: [requireRootTenant, meta, rbac('full')],
+    patchMiddlewares: [requireRootTenant, meta, rbac('full')],
   },
 );

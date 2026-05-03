@@ -6,22 +6,18 @@
  *   GET  /orphans/preview   → list orphan portal_users
  *   POST /orphans/cleanup   → hard-delete one orphan by id
  *
- * Two-layer enforcement, in order:
+ * Three-layer enforcement, in order:
  *   1. requireRootTenant — only Axerra-tenant users may reach these routes.
  *   2. rejectImpersonation — even an Axerra user must be in a direct (non-
  *      impersonated) session. Without this an Axerra admin could hit these
  *      destructive routes from an impersonated tenant-user-shaped session
  *      and the audit log wouldn't distinguish the two contexts.
- *
- * The `tenants/*` router convention enforces Axerra-only via tenant
- * membership rather than role-based rbac() — every other tenants/*
- * route does the same. The `tenants::orphan-portal-users::*` catalog
- * entries are seeded (with `policy_required: false`) so the action codes
- * are discoverable in role tooling, but they aren't independently
- * grantable; enforcement on these routes is tenant-membership based.
- * Wiring rbac across the tenants/* surface is a coordinated change that
- * also needs the platform-deploy role provisioning of the Axerra root
- * user (and the test bootstrap) — out of scope for this PR.
+ *   3. rbac() — the role's policy on
+ *      `tenants::orphan-portal-users::find_orphans|cleanup_orphans` is
+ *      consulted, so the policy-catalog entries seeded for these actions
+ *      are actually enforced. The Axerra system roles (super_user,
+ *      support) seed wildcard `'::::'` policy and pass; finer-grained
+ *      Axerra ops roles can deny specific actions independently.
  *
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
@@ -29,9 +25,9 @@
 import { Router } from 'express';
 import { findOrphans, cleanupOrphan } from '../../controllers/orphanPortalUsersController.js';
 import { requireRootTenant } from '../../../../middleware/requireRootTenant.js';
+import { moduleEntitlement } from '../../../../middleware/moduleEntitlement.js';
+import { rbac } from '../../../../middleware/rbac.js';
 import { withMeta } from '../../../../middleware/withMeta.js';
-
-const meta = withMeta({ module: 'tenants', router: 'orphan-portal-users' });
 
 /**
  * Reject the request when the caller is in an impersonated session.
@@ -54,7 +50,9 @@ router.get(
   '/orphans/preview',
   requireRootTenant,
   rejectImpersonation,
-  meta,
+  withMeta({ module: 'tenants', router: 'orphan-portal-users', action: 'find_orphans' }),
+  moduleEntitlement,
+  rbac('view'),
   findOrphans,
 );
 
@@ -62,7 +60,9 @@ router.post(
   '/orphans/cleanup',
   requireRootTenant,
   rejectImpersonation,
-  meta,
+  withMeta({ module: 'tenants', router: 'orphan-portal-users', action: 'cleanup_orphans' }),
+  moduleEntitlement,
+  rbac('full'),
   cleanupOrphan,
 );
 
