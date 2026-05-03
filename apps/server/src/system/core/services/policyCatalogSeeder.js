@@ -240,13 +240,13 @@ const CATALOG_ENTRIES = [
   // independently grantable in the role editor. Use them to compose
   // finer-grained Axerra ops roles (e.g. read-only auditor with only
   // view-level grants) on top of the wildcard super_user role.
+  // tenants::tenants and tenants::portal-users disable createRouter's
+  // auto-attached /import-xls and /export-xls (they aren't real
+  // spreadsheet I/O surfaces here), so no import/export catalog rows
+  // for those routers — granting them would have no effect.
   { module: 'tenants', router: null, action: null, label: 'Tenants Module', description: 'Multi-tenant administration (Axerra only)', sort_order: 1100 },
   { module: 'tenants', router: 'tenants', action: null, label: 'Tenants', description: 'Tenant CRUD and provisioning', sort_order: 1110 },
-  { module: 'tenants', router: 'tenants', action: 'import', label: 'Import Tenants', description: 'Import tenant records from spreadsheet', sort_order: 1111 },
-  { module: 'tenants', router: 'tenants', action: 'export', label: 'Export Tenants', description: 'Export tenant records to spreadsheet', sort_order: 1112 },
   { module: 'tenants', router: 'portal-users', action: null, label: 'Portal Users', description: 'Application user accounts', sort_order: 1120 },
-  { module: 'tenants', router: 'portal-users', action: 'import', label: 'Import Portal Users', description: 'Import portal user records from spreadsheet', sort_order: 1121 },
-  { module: 'tenants', router: 'portal-users', action: 'export', label: 'Export Portal Users', description: 'Export portal user records to spreadsheet', sort_order: 1122 },
   { module: 'tenants', router: 'orphan-portal-users', action: null, label: 'Orphan Portal Users', description: 'Maintenance for portal_users with no tenant bindings (Axerra only)', sort_order: 1125 },
   { module: 'tenants', router: 'orphan-portal-users', action: 'find_orphans', label: 'Preview Orphan Portal Users', description: 'List portal_users rows with no portal_user_tenants binding (active or archived) and no impersonation_logs reference', sort_order: 1126 },
   { module: 'tenants', router: 'orphan-portal-users', action: 'cleanup_orphans', label: 'Clean Up Orphan Portal Users', description: 'Hard-delete a single orphan portal_user. Requires Preview Orphan Portal Users — the UI gates cleanup on a successful preview.', sort_order: 1127 },

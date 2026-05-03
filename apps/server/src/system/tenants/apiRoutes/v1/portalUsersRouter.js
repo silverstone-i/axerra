@@ -44,6 +44,7 @@ export default createRouter(
     disableBulkUpdate: true,
     disableImportXls: true,
     disableExportXls: true,
+    disablePing: true,
     getMiddlewares: [requireRootTenant, meta, moduleEntitlement, rbac('view')],
     putMiddlewares: [requireRootTenant, meta, moduleEntitlement, rbac('full')],
     deleteMiddlewares: [requireRootTenant, meta, moduleEntitlement, rbac('full')],

@@ -256,19 +256,26 @@ export async function cleanupTestDb() {
   }
 
   if (adminReady) {
-    // Admin schema persists — truncate all admin tables (FK-safe) and
-    // clear migration history for non-protected schemas. Tables + types
-    // remain intact. The root tenant schema (axerra) is preserved as-is
-    // so its seeded roles/policies and the System Administrator employee
-    // survive across test files; reseedAdmin → seedRootEntity rebinds
-    // to that existing employee on the next bootstrapAdmin call.
+    // Admin schema persists — truncate all admin tables EXCEPT
+    // admin.tenants (FK-safe via CASCADE on the truncated tables).
+    // Then DELETE the non-root tenant rows from admin.tenants.
+    //
+    // Why: the root tenant row's UUID must stay stable across the
+    // cleanup → reseed cycle. axerra.employees.tenant_id (preserved
+    // because the root tenant schema persists) points at that UUID;
+    // if we truncated and re-inserted admin.tenants we'd get a fresh
+    // UUID and seedRootEntity's tenant-scoped reuse query would never
+    // find the existing System Administrator row, leaking duplicate
+    // employees on every test file.
+    const rootTenantCode = process.env.ROOT_TENANT_CODE || 'AXERRA';
     const adminTables = await db.manyOrNone(
-      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'admin' AND table_type = 'BASE TABLE'",
+      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'admin' AND table_type = 'BASE TABLE' AND table_name != 'tenants'",
     );
     if (adminTables.length) {
       const tableList = adminTables.map((r) => `admin.${DB.pgp.as.name(r.table_name)}`).join(', ');
       await db.none(`TRUNCATE ${tableList} CASCADE`);
     }
+    await db.none('DELETE FROM admin.tenants WHERE tenant_code != $1', [rootTenantCode]);
     await db.none(
       "DELETE FROM pgschemata.migrations WHERE schema_name NOT IN ('admin', $1)",
       [rootSchema],

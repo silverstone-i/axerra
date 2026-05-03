@@ -56,7 +56,11 @@ export async function seedRootEntity({ db, pgp, logger, tenantSchema, rootEmail,
     [superUser.id, tenant.id],
   );
 
-  if (existingBinding && existingBinding.entity_type !== null) {
+  // A binding is only "linked" if BOTH entity_type AND entity_id are set.
+  // The portal_user_tenants schema doesn't enforce that pairing, so a
+  // partially-written row (entity_type set, entity_id NULL) from a
+  // failed earlier seed should be treated as unlinked and repaired.
+  if (existingBinding && existingBinding.entity_type !== null && existingBinding.entity_id !== null) {
     logger?.info?.('Root super user already linked to entity, skipping.');
     return null;
   }

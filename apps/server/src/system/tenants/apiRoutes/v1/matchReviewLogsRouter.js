@@ -35,5 +35,6 @@ export default createRouter(matchReviewLogsController, null, {
   disableBulkUpdate: true,
   disableImportXls: true,
   disableExportXls: true,
+  disablePing: true,
   getMiddlewares: [requireRootTenant, meta, moduleEntitlement, rbac('view')],
 });
