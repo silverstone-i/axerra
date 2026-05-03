@@ -7,9 +7,25 @@
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
-import { describe, test, expect, vi, beforeEach } from 'vitest';
+import { describe, test, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest';
 import jwt from 'jsonwebtoken';
 import { authRedis } from '../../src/middleware/authRedis.js';
+
+// Pin ROOT_TENANT_CODE for the lifetime of this file. Other test suites
+// (helpers/testDb.js, contract/reports.test.js) write the env at module
+// load, and Vitest can reuse workers across files — without an explicit
+// pin here, root-vs-non-root expectations would be order-dependent.
+const ORIGINAL_ROOT_TENANT_CODE = process.env.ROOT_TENANT_CODE;
+beforeAll(() => {
+  process.env.ROOT_TENANT_CODE = 'AXERRA';
+});
+afterAll(() => {
+  if (ORIGINAL_ROOT_TENANT_CODE === undefined) {
+    delete process.env.ROOT_TENANT_CODE;
+  } else {
+    process.env.ROOT_TENANT_CODE = ORIGINAL_ROOT_TENANT_CODE;
+  }
+});
 
 // Mock Redis module
 vi.mock('../../src/db/redis.js', () => {
@@ -285,5 +301,157 @@ describe('authRedis middleware', () => {
     // req.user.tenant_id must reflect assumed tenant, not home tenant
     expect(req.user.tenant_id).toBe(acmeTenantId);
     expect(req.user.home_tenant).toBe('axerra');
+  });
+
+  // ── Task 13: cross-tenant binding validation ──────────────────────────
+
+  test('non-Axerra user with no binding to requested tenant → 403', async () => {
+    const userId = '550e8400-e29b-41d4-a716-446655440000';
+    const homeTenantId = '660e8400-e29b-41d4-a716-446655440000';
+    const otherTenantId = '770e8400-e29b-41d4-a716-446655440000';
+    const token = jwt.sign({ sub: userId, ph: null }, SECRET, { expiresIn: '15m' });
+
+    mockFindOneBy.mockResolvedValue({
+      id: userId,
+      email: 'vendor@acme.com',
+      status: 'active',
+    });
+
+    mockFindById.mockResolvedValue({
+      id: homeTenantId,
+      tenant_code: 'ACME',
+      schema_name: 'acme',
+    });
+
+    // 1) home binding (ACME), 2) requested tenant lookup (BETA), 3) matched binding for BETA → none
+    mockOneOrNone
+      .mockResolvedValueOnce({
+        id: 'binding-1',
+        portal_user_id: userId,
+        tenant_id: homeTenantId,
+        entity_type: 'vendor_contact',
+        entity_id: 'vc-1',
+        status: 'active',
+      })
+      .mockResolvedValueOnce({
+        id: otherTenantId,
+        tenant_code: 'BETA',
+        schema_name: 'beta',
+      })
+      .mockResolvedValueOnce(null);
+
+    const req = makeReq({
+      cookies: { auth_token: token },
+      headers: { 'x-tenant-code': 'BETA' },
+    });
+    const res = makeRes();
+    const next = vi.fn();
+
+    await middleware(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({ error: 'No active binding to the requested tenant' });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  test('non-Axerra user with binding to requested tenant → switches successfully', async () => {
+    const userId = '550e8400-e29b-41d4-a716-446655440000';
+    const homeTenantId = '660e8400-e29b-41d4-a716-446655440000';
+    const otherTenantId = '770e8400-e29b-41d4-a716-446655440000';
+    const token = jwt.sign({ sub: userId, ph: null }, SECRET, { expiresIn: '15m' });
+
+    mockFindOneBy.mockResolvedValue({
+      id: userId,
+      email: 'vendor@multi.com',
+      status: 'active',
+    });
+
+    mockFindById.mockResolvedValue({
+      id: homeTenantId,
+      tenant_code: 'ACME',
+      schema_name: 'acme',
+    });
+
+    // 1) home binding (ACME), 2) requested tenant (BETA), 3) matched binding (BETA)
+    mockOneOrNone
+      .mockResolvedValueOnce({
+        id: 'binding-1',
+        portal_user_id: userId,
+        tenant_id: homeTenantId,
+        entity_type: 'vendor_contact',
+        entity_id: 'vc-1',
+        status: 'active',
+      })
+      .mockResolvedValueOnce({
+        id: otherTenantId,
+        tenant_code: 'BETA',
+        schema_name: 'beta',
+      })
+      .mockResolvedValueOnce({
+        id: 'binding-2',
+        portal_user_id: userId,
+        tenant_id: otherTenantId,
+        entity_type: 'vendor_contact',
+        entity_id: 'vc-2',
+        status: 'active',
+      });
+
+    const req = makeReq({
+      cookies: { auth_token: token },
+      headers: { 'x-tenant-code': 'BETA' },
+    });
+    const res = makeRes();
+    const next = vi.fn();
+
+    await middleware(req, res, next);
+
+    expect(next).toHaveBeenCalled();
+    expect(req.user.tenant_code).toBe('beta');
+    expect(req.user.schema_name).toBe('beta');
+    expect(req.user.entity_id).toBe('vc-2');
+    expect(req.user.home_tenant).toBe('acme');
+  });
+
+  test('returns 404 when x-tenant-code points at a tenant that does not exist', async () => {
+    const userId = '550e8400-e29b-41d4-a716-446655440000';
+    const homeTenantId = '660e8400-e29b-41d4-a716-446655440000';
+    const token = jwt.sign({ sub: userId, ph: null }, SECRET, { expiresIn: '15m' });
+
+    mockFindOneBy.mockResolvedValue({
+      id: userId,
+      email: 'admin@axerra.io',
+      status: 'active',
+    });
+
+    mockFindById.mockResolvedValue({
+      id: homeTenantId,
+      tenant_code: 'AXERRA',
+      schema_name: 'axerra',
+    });
+
+    // 1) home binding, 2) requested tenant lookup → none
+    mockOneOrNone
+      .mockResolvedValueOnce({
+        id: 'binding-1',
+        portal_user_id: userId,
+        tenant_id: homeTenantId,
+        entity_type: 'employee',
+        entity_id: 'emp-1',
+        status: 'active',
+      })
+      .mockResolvedValueOnce(null);
+
+    const req = makeReq({
+      cookies: { auth_token: token },
+      headers: { 'x-tenant-code': 'NOPE' },
+    });
+    const res = makeRes();
+    const next = vi.fn();
+
+    await middleware(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Unknown tenant_code: nope' });
+    expect(next).not.toHaveBeenCalled();
   });
 });

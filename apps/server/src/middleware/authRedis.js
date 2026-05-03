@@ -138,33 +138,47 @@ export function authRedis() {
       // ── Schema + binding resolution ─────────────────────────────────────
       // Schema/data resolution follows the resolved tenant_code. Entity
       // context (entity_type/entity_id) follows the matching binding when
-      // one exists — otherwise it falls back to the home binding so
-      // Axerra cross-tenant switching keeps working without a binding.
+      // one exists.
+      //
+      // Cross-tenant switch policy (Task 13):
+      //   - Tenant users (vendors, clients, employees) MUST have an active
+      //     portal_user_tenants binding to the requested tenant. No binding
+      //     → 403. Without this guard a vendor in tenant A could set
+      //     `x-tenant-code: TENANT_B` and read TENANT_B data with their
+      //     home-tenant permissions.
+      //   - Axerra root users may switch without a binding — that's the
+      //     design for cross-tenant administration. The Axerra escape
+      //     hatch keys off `home_tenant === ROOT_TENANT_CODE` (case-
+      //     insensitive, same pattern as requireRootTenant).
+      const rootTenantCode = (process.env.ROOT_TENANT_CODE || 'axerra').toLowerCase();
+      const isRootHomeTenant = homeTenantCode === rootTenantCode;
       const homeSchemaName = homeTenantRecord.schema_name;
       let dataSchemaName = homeSchemaName;
       let effectiveTenantRecord = homeTenantRecord;
       let activeBinding = homeBinding;
       if (headerTenant && tenantCode !== homeTenantCode) {
-        try {
-          const row = await db.oneOrNone(
-            'SELECT * FROM admin.tenants WHERE LOWER(tenant_code) = $1 AND deactivated_at IS NULL',
-            [tenantCode],
-          );
-          if (row) {
-            dataSchemaName = row.schema_name;
-            effectiveTenantRecord = row;
-            const matchedBinding = await db.oneOrNone(
-              `SELECT id, portal_user_id, tenant_id, entity_type, entity_id, status
-               FROM admin.portal_user_tenants
-               WHERE portal_user_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
-              [uid, row.id],
-            );
-            if (matchedBinding) {
-              activeBinding = matchedBinding;
-            }
-          }
-        } catch {
-          // Fall back to home schema if lookup fails
+        // DB errors here propagate to the outer catch which 401s — we
+        // can't safely authorize a request whose tenant resolution failed.
+        const row = await db.oneOrNone(
+          'SELECT * FROM admin.tenants WHERE LOWER(tenant_code) = $1 AND deactivated_at IS NULL',
+          [tenantCode],
+        );
+        if (!row) {
+          return res.status(404).json({ error: `Unknown tenant_code: ${tenantCode}` });
+        }
+        const matchedBinding = await db.oneOrNone(
+          `SELECT id, portal_user_id, tenant_id, entity_type, entity_id, status
+           FROM admin.portal_user_tenants
+           WHERE portal_user_id = $1 AND tenant_id = $2 AND deactivated_at IS NULL`,
+          [uid, row.id],
+        );
+        if (!matchedBinding && !isRootHomeTenant) {
+          return res.status(403).json({ error: 'No active binding to the requested tenant' });
+        }
+        dataSchemaName = row.schema_name;
+        effectiveTenantRecord = row;
+        if (matchedBinding) {
+          activeBinding = matchedBinding;
         }
       }
 
