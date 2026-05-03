@@ -1,5 +1,15 @@
 # AGENTS.md — Project Instructions for Codex
 
+## Verify Working Directory Before Edits
+
+- At the start of any task referencing a project name (e.g., 'napsoft', 'axerra', 'vimber'), verify you are in the correct repository via `pwd` and `git remote -v`
+- If the task references identifiers absent from the current repo, STOP and ask the user before exploring further
+
+## Verification Before Speculation
+
+- Before proposing theories about bugs, deployment issues, or discrepancies, run actual commands to verify (git log, branch checks, SQL queries, file reads)
+- Never speculate when verification is cheap and fast
+
 ## Git & Commits
 
 - **Never add `Co-Authored-By` lines** to commit messages — suppress the default trailer entirely
@@ -8,9 +18,20 @@
   - Feature branches push directly to origin with no protection.
   - Merging into `main` requires a PR with passing Lint, Architecture Check,
     and Copilot review.
-  - Local `.husky/pre-push` runs the full server suite as the pre-PR gate.
+  - `npm run pr` is the pre-PR gate: runs the full server suite, pushes the branch, then opens a PR via `gh pr create` (pass-through args supported). There is no pre-push hook — intermediate pushes don't run tests locally.
   - Releases: bump version on a feature branch, open PR, merge, then
     `git checkout main && git pull --ff-only origin main && git tag -a v<X.Y.Z> -m "Release v<X.Y.Z>" && git push origin v<X.Y.Z>`.
+
+## Authorization for Destructive/Remote Actions
+
+- Do NOT run `npm run pr`, `git push`, `gh pr create`, or open PRs without explicit user authorization
+- Commits are fine when requested; pushing/PR-opening requires confirmation
+
+## Rebrand/Rename Refactors
+
+- For brand/identifier renames, distinguish between (a) literal string replacement and (b) replacing one brand identity with another's actual design — ask if unclear
+- Watch for glued tokens after renames (e.g., `constportalUser`) and scan for them before committing
+- Stay strictly within the requested file scope; do not edit adjacent files unless asked
 
 ## Project Overview
 
@@ -61,6 +82,11 @@ npm -w apps/server run seed             # seed dev data
 - Self-referential FKs: define in schema — `createTable()` handles them natively (single atomic DDL)
 - Cross-table circular FKs: remove from schema definition, add via `ALTER TABLE` in migration after both tables created
 - `model.update(id, partialDto)` resets all ColumnSet columns to defaults — use raw SQL for single-column updates
+
+## Database — Schema Changes Require Migrations
+
+- When adding/modifying any model schema (foreign keys, columns, constraints), ALWAYS create the corresponding database migration in the same change
+- Verify migration exists before declaring schema work complete
 
 ## Code Style
 
