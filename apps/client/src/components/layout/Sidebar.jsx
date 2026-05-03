@@ -59,7 +59,19 @@ export default function Sidebar() {
     if (!user) return [];
     const caps = user.perms?.caps || {};
     const capKeys = Object.keys(caps);
-    if (capKeys.length === 0) return NAV_ITEMS.filter((g) => !g.rootTenantOnly || isRootTenantUser);
+    const isImpersonating = user.is_impersonating === true;
+    // Items flagged hideWhileImpersonating point at routes whose middleware
+    // explicitly rejects impersonated sessions (e.g. destructive Axerra-only
+    // platform maintenance). Hiding the link while impersonating prevents
+    // a guaranteed-to-fail click.
+    const visibleWhileImpersonating = (item) => !(isImpersonating && item.hideWhileImpersonating);
+    if (capKeys.length === 0) {
+      return NAV_ITEMS
+        .filter((g) => !g.rootTenantOnly || isRootTenantUser)
+        .filter(visibleWhileImpersonating)
+        .map((g) => ({ ...g, children: g.children.filter(visibleWhileImpersonating) }))
+        .filter((g) => g.children.length > 0);
+    }
 
     const hasCap = (capability) => {
       if (!capability) return true;
@@ -80,14 +92,18 @@ export default function Sidebar() {
 
     return NAV_ITEMS.filter((group) => {
       if (group.rootTenantOnly && !isRootTenantUser) return false;
+      if (!visibleWhileImpersonating(group)) return false;
       return hasCap(group.capability);
     })
       .map((group) => ({
         ...group,
         children: group.children
           .map((child) => {
+            if (!visibleWhileImpersonating(child)) return null;
             if (child.children) {
-              const visibleLeaves = child.children.filter((leaf) => hasCap(leaf.capability));
+              const visibleLeaves = child.children
+                .filter(visibleWhileImpersonating)
+                .filter((leaf) => hasCap(leaf.capability));
               if (!visibleLeaves.length) return null;
               return { ...child, children: visibleLeaves };
             }
