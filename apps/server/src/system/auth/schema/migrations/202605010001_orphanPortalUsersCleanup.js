@@ -1,5 +1,5 @@
 /**
- * @file Migration: install admin-scope find_orphan_portal_users / cleanup_orphan_portal_users functions
+ * @file Migration: install admin-scope find_orphan_portal_users / cleanup_orphan_portal_user functions
  * @module auth/schema/migrations/202605010001_orphanPortalUsersCleanup
  *
  * portal_users rows are considered orphaned only when:

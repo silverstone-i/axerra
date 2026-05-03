@@ -22,7 +22,8 @@ export default defineMigration({
     if (schema === 'admin') return;
 
     const tenant = await db.oneOrNone('SELECT tenant_code FROM admin.tenants WHERE schema_name = $1', [schema]);
-    const isRootTenant = tenant?.tenant_code === process.env.ROOT_TENANT_CODE;
+    const rootTenantCode = (process.env.ROOT_TENANT_CODE || 'axerra').toLowerCase();
+    const isRootTenant = tenant?.tenant_code?.toLowerCase() === rootTenantCode;
 
     await seedPolicyCatalog(db, pgp, schema, isRootTenant);
   },
