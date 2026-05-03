@@ -15,7 +15,7 @@
  *
  * The `tenants/*` router convention enforces Axerra-only via tenant
  * membership rather than role-based rbac() — every other tenants/*
- * route does the same. The `tenants::orphan_portal_users::*` catalog
+ * route does the same. The `tenants::orphan-portal-users::*` catalog
  * entries are seeded (with `policy_required: false`) so the action codes
  * are discoverable in role tooling, but they aren't independently
  * grantable; enforcement on these routes is tenant-membership based.
@@ -31,7 +31,7 @@ import { findOrphans, cleanupOrphan } from '../../controllers/orphanPortalUsersC
 import { requireRootTenant } from '../../../../middleware/requireRootTenant.js';
 import { withMeta } from '../../../../middleware/withMeta.js';
 
-const meta = withMeta({ module: 'tenants', router: 'orphan_portal_users' });
+const meta = withMeta({ module: 'tenants', router: 'orphan-portal-users' });
 
 /**
  * Reject the request when the caller is in an impersonated session.
