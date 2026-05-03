@@ -18,9 +18,10 @@ import logger from '../../../lib/logger.js';
 
 // Maximum rows returned in a single preview. The page is platform-wide
 // (admin schema), so an unbounded result could grow without limit if a
-// large backlog accrues. The cap keeps the response and the DataGrid
-// payload bounded; `truncated`/`total` fields in the response let
-// operators see when more orphans exist than were returned.
+// large backlog accrues. The cap is applied in SQL via
+// `find_orphan_portal_users(p_limit)`, and the full backlog count comes
+// from `count_orphan_portal_users()` so we never materialize all rows
+// in application memory just to slice.
 const PREVIEW_LIMIT = 500;
 
 /**
@@ -34,9 +35,11 @@ const PREVIEW_LIMIT = 500;
  */
 export async function findOrphans(req, res) {
   try {
-    const allOrphans = await db.any('SELECT * FROM admin.find_orphan_portal_users()');
-    const total = allOrphans.length;
-    const orphans = allOrphans.slice(0, PREVIEW_LIMIT);
+    const [orphans, totalRow] = await Promise.all([
+      db.any('SELECT * FROM admin.find_orphan_portal_users($1)', [PREVIEW_LIMIT]),
+      db.one('SELECT admin.count_orphan_portal_users() AS total'),
+    ]);
+    const total = Number(totalRow.total);
     res.json({
       count: orphans.length,
       total,

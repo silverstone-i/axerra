@@ -23,7 +23,7 @@ export default defineMigration({
   async up({ schema, db }) {
     if (schema !== 'admin') return;
     await db.none(`
-      CREATE OR REPLACE FUNCTION admin.find_orphan_portal_users()
+      CREATE OR REPLACE FUNCTION admin.find_orphan_portal_users(p_limit integer DEFAULT NULL)
       RETURNS TABLE (id uuid, email varchar, status varchar, created_at timestamptz)
       LANGUAGE sql STABLE AS $fn$
         SELECT pu.id, pu.email, pu.status, pu.created_at
@@ -38,7 +38,25 @@ export default defineMigration({
           FROM admin.impersonation_logs il
           WHERE il.impersonator_id = pu.id OR il.target_user_id = pu.id
         )
-        ORDER BY pu.created_at;
+        ORDER BY pu.created_at
+        LIMIT p_limit;
+      $fn$;
+
+      CREATE OR REPLACE FUNCTION admin.count_orphan_portal_users()
+      RETURNS bigint
+      LANGUAGE sql STABLE AS $fn$
+        SELECT COUNT(*)::bigint
+        FROM admin.portal_users pu
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM admin.portal_user_tenants put
+          WHERE put.portal_user_id = pu.id
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM admin.impersonation_logs il
+          WHERE il.impersonator_id = pu.id OR il.target_user_id = pu.id
+        );
       $fn$;
 
       CREATE OR REPLACE FUNCTION admin.cleanup_orphan_portal_user(p_id uuid)
@@ -65,6 +83,8 @@ export default defineMigration({
     if (schema !== 'admin') return;
     await db.none(`
       DROP FUNCTION IF EXISTS admin.cleanup_orphan_portal_user(uuid);
+      DROP FUNCTION IF EXISTS admin.count_orphan_portal_users();
+      DROP FUNCTION IF EXISTS admin.find_orphan_portal_users(integer);
       DROP FUNCTION IF EXISTS admin.find_orphan_portal_users();
     `);
   },

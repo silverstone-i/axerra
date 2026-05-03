@@ -6,7 +6,9 @@
  * (core::sources::find_orphans / cleanup_orphans) and the Axerra-only
  * orphan portal_users router (tenants::orphan_portal_users::*).
  *
- * Throwaway migration — safe to delete after running once.
+ * Idempotent — re-runs are safe because seedPolicyCatalog upserts. Must
+ * remain in source control so fresh environments pick up these catalog
+ * entries on first migrate.
  *
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
