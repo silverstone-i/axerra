@@ -63,6 +63,31 @@ The root Axerra tenant (code `AXERRA`) has special protections:
 - The bootstrap super user (created during admin setup) is identified by
   `entity_type IS NULL` and belongs to the root tenant
 
+## Spreadsheet Import / Export
+
+Tenant records are spreadsheet-importable and -exportable per PRD §3.2.1:
+
+- `POST /api/tenants/v1/tenants/import-xls` — gated by
+  `tenants::tenants::import` (`full`)
+- `POST /api/tenants/v1/tenants/export-xls` — gated by
+  `tenants::tenants::export` (`view`)
+
+`tenantsController.importXls` overrides the base implementation: each row
+already carries its own `tenant_code`, so the upload callback only injects
+`created_by` from the authenticated user.
+
+**Known limitation:** the import path currently only inserts rows into
+`admin.tenants`. It does NOT run the full provisioning pipeline that
+`POST /tenants` does (schema create + tenant migrations + RBAC seed +
+admin user creation via `provisionNewTenant`). Imported tenants must be
+provisioned separately before they are usable. Track follow-up work to
+either route imports through `provisionNewTenant` or document a manual
+provisioning step.
+
+`portal_users` is **not** importable or exportable — users are created via
+`/register`. `portalUsersRouter` sets `disableImportXls`/`disableExportXls`
+and the policy catalog has no `tenants::portal-users::import|export` rows.
+
 ## User Registration Prerequisites
 
 Before a user can be registered:

@@ -426,6 +426,7 @@ Roles with `is_immutable = true` OR `is_system = true` are read-only across all 
 - The root tenant (Axerra, `AXERRA`) cannot be archived — server rejects the request with 403
 - Restore reactivates the tenant only — users remain archived and must be individually restored by an admin
 - **View Details dialog** (`maxWidth="md"`): displays tenant fields in a responsive 3-column grid of `FieldRow` components (label:value pairs). Fields: Code, Tier, Region, Status (rendered as `StatusBadge` chip), Max Users, Schema (monospace), Created, Updated, Notes (full-width). Below a divider, two `DataGrid` tables display **Primary Contacts** and **Billing Contacts** with Name, Email (mailto link), and Phone columns. Contact data is fetched via `useTenantContacts(tenantId)` hook.
+- The Module Bar exposes **Import** and **Export** XLSX actions for the tenants list, mirroring the toolbar contract used by every other resource page (see ADR-0024).
 
 **Endpoints:**
 
@@ -439,6 +440,8 @@ Roles with `is_immutable = true` OR `is_system = true` are read-only across all 
 | `PATCH`  | `/api/tenants/v1/tenants/restore`      | Restore archived tenant                                                                                                  |
 | `GET`    | `/api/tenants/v1/tenants/:id/modules`  | Get tenant's allowed modules                                                                                             |
 | `GET`    | `/api/tenants/v1/tenants/:id/contacts` | Get primary and billing contacts with phone/address (cross-schema query into tenant's employees)                         |
+| `POST`   | `/api/tenants/v1/tenants/import-xls`   | Import tenants from XLSX (requires `tenants::tenants::import` = `full`). Each row carries its own `tenant_code`. **Note:** the current implementation only inserts rows into `admin.tenants` — it does NOT call the full provisioning pipeline (no schema create / migrations / RBAC seed / admin user). Imported tenants must be provisioned separately. |
+| `POST`   | `/api/tenants/v1/tenants/export-xls`   | Export tenants to XLSX (requires `tenants::tenants::export` = `view`)                                                    |
 
 #### 3.2.2 Manage Users
 
@@ -476,6 +479,7 @@ Partial unique index: `(entity_type, entity_id) WHERE deactivated_at IS NULL` �
 **Business Rules:**
 
 - Standard POST is disabled; users must be created via the `/register` endpoint
+- Spreadsheet import/export is **not** supported on `portal-users`. `portalUsersRouter` sets `disableImportXls: true` and `disableExportXls: true`, and `policyCatalogSeeder` does not emit `tenants::portal-users::import|export` rows. Users are created via `/register` only.
 - Registration collects: `tenant_code`, `email`, `password`. Validates the tenant exists and is active. Entity linkage (`entity_type`, `entity_id`) and entity pre-validation (roles assigned, `is_app_user = true`) are not yet enforced — these fields can be set via subsequent update
 - Password automatically hashed with bcrypt on registration
 - Email must be globally unique across all active users (enforced by partial unique index WHERE deactivated_at IS NULL)

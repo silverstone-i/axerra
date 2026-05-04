@@ -91,6 +91,11 @@ All system roles resolve through full RBAC — no bypass.
   for export
 - Both auto-applied by `createRouter` on `/import-xls`
   and `/export-xls`
+- `tenants::tenants::import|export` ARE seeded in
+  `policyCatalogSeeder` and gate `POST /tenants/import-xls` and
+  `POST /tenants/export-xls`. `tenants::portal-users::import|export`
+  are intentionally NOT seeded — `portalUsersRouter` disables those
+  routes (users are created via `/register`).
 
 ## Middleware Chain
 

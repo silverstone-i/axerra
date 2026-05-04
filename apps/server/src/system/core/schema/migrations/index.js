@@ -12,4 +12,14 @@ import importExportCatalog from './202603150013_importExportCatalog.js';
 import tenantPreferences from './202603270015_tenantPreferences.js';
 import reseedPolicyCatalog from './202603270016_reseedPolicyCatalog.js';
 import orphanSourceCleanup from './202604270017_orphanSourceCleanup.js';
-export default [coreRbac, coreEntities, numberingSystem, importExportCatalog, tenantPreferences, reseedPolicyCatalog, orphanSourceCleanup];
+import reseedTenantImportExportCatalog from './202605040018_reseedTenantImportExportCatalog.js';
+export default [
+  coreRbac,
+  coreEntities,
+  numberingSystem,
+  importExportCatalog,
+  tenantPreferences,
+  reseedPolicyCatalog,
+  orphanSourceCleanup,
+  reseedTenantImportExportCatalog,
+];

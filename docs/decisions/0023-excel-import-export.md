@@ -35,6 +35,16 @@ Extend `createRouter` with two auto-generated routes per resource:
 
 **Disable flags:** `disableImportXls: true` / `disableExportXls: true` in `createRouter` options for resources that should not support file operations.
 
+**Routers that disable import/export (and why):**
+
+- `portalUsersRouter` — users are created via the `/register` endpoint, not from spreadsheets. Bulk-insert is also disabled.
+- `matchReviewLogsRouter` — append-only audit trail for BOM SKU matching; rows are emitted by the matching service, never imported.
+- `adminRouter` and `orphanPortalUsersRouter` — administrative action surfaces, not data resources.
+
+**Routers that explicitly DO support import/export** (callout because PRD §3.2.1 expects this and PR #63 once incorrectly disabled it):
+
+- `tenantsRouter` — `POST /tenants/import-xls` and `/export-xls` are required and policy-gated by `tenants::tenants::import|export` catalog rows.
+
 ### Frontend
 
 Two custom hooks in `hooks/useImportExport.js`:
@@ -52,7 +62,7 @@ A shared `ImportDialog` component (`components/shared/ImportDialog.jsx`) wraps `
 
 ### RBAC Policy Catalog
 
-The `policyCatalogSeeder` includes `import` and `export` action entries for every module/router combination (with exceptions: `policy-catalog`, `ledger-balances`, and `match-review-logs` are export-only; `numbering-config` and reports module have neither). Migration `202603150013_importExportCatalog` seeds these entries for existing tenants.
+The `policyCatalogSeeder` includes `import` and `export` action entries for every module/router combination (with exceptions: `policy-catalog`, `ledger-balances`, and `match-review-logs` are export-only; `numbering-config` and reports module have neither; `tenants::portal-users` has neither — users are created via `/register`). `tenants::tenants` has both. Migration `202603150013_importExportCatalog` seeds these entries for existing tenants.
 
 ## Consequences
 
