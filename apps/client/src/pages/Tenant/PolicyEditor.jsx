@@ -272,53 +272,97 @@ export default function PolicyEditor({ roleId, readOnly = false, actionsContaine
               {/* Router rows (with nested router-action sub-rows) */}
               {visibleRouters.map(([routerName, rtr]) => {
                 const routerKey = policyKey(moduleName, routerName, null);
-                return (
-                  <Box key={routerName}>
+                const hasActions = rtr.actions && rtr.actions.size > 0;
+
+                const actionRows = hasActions ? [...rtr.actions.entries()].map(([actionName, act]) => {
+                  const actionKey = policyKey(moduleName, routerName, actionName);
+                  return (
                     <Box
+                      key={actionName}
                       sx={{
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
                         py: 0.5,
-                        px: 1,
+                        pl: 4,
+                        pr: 1,
                         '&:hover': { bgcolor: 'action.hover' },
                         borderRadius: 0.5,
                       }}
                     >
-                      <Typography variant="body2">{rtr.label}</Typography>
-                      {rtr.grantable !== false && (
-                        <LevelSelector
-                          value={resolveLevel(edits, routerKey, routerKey, moduleKey)}
-                          onChange={(val) => handleChange(routerKey, val)}
-                          disabled={readOnly}
-                        />
-                      )}
+                      <Typography variant="body2" color="text.secondary">{act.label}</Typography>
+                      <LevelSelector
+                        value={resolveLevel(edits, actionKey, routerKey, moduleKey)}
+                        onChange={(val) => handleChange(actionKey, val)}
+                        disabled={readOnly}
+                      />
                     </Box>
-                    {rtr.actions && [...rtr.actions.entries()].map(([actionName, act]) => {
-                      const actionKey = policyKey(moduleName, routerName, actionName);
-                      return (
-                        <Box
-                          key={actionName}
-                          sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            py: 0.5,
-                            pl: 4,
-                            pr: 1,
-                            '&:hover': { bgcolor: 'action.hover' },
-                            borderRadius: 0.5,
-                          }}
-                        >
-                          <Typography variant="body2" color="text.secondary">{act.label}</Typography>
-                          <LevelSelector
-                            value={resolveLevel(edits, actionKey, routerKey, moduleKey)}
-                            onChange={(val) => handleChange(actionKey, val)}
-                            disabled={readOnly}
-                          />
+                  );
+                }) : null;
+
+                if (hasActions) {
+                  return (
+                    <Accordion
+                      key={routerName}
+                      defaultExpanded={false}
+                      disableGutters
+                      elevation={0}
+                      sx={{
+                        bgcolor: 'transparent',
+                        '&::before': { display: 'none' },
+                      }}
+                    >
+                      <AccordionSummary
+                        expandIcon={<ExpandMoreIcon />}
+                        sx={{
+                          minHeight: 0,
+                          px: 1,
+                          '& .MuiAccordionSummary-content': { my: 0.5 },
+                          '&:hover': { bgcolor: 'action.hover' },
+                          borderRadius: 0.5,
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', pr: 1 }}>
+                          <Typography variant="body2">{rtr.label}</Typography>
+                          {rtr.grantable !== false && (
+                            <Box onClick={(e) => e.stopPropagation()}>
+                              <LevelSelector
+                                value={resolveLevel(edits, routerKey, routerKey, moduleKey)}
+                                onChange={(val) => handleChange(routerKey, val)}
+                                disabled={readOnly}
+                              />
+                            </Box>
+                          )}
                         </Box>
-                      );
-                    })}
+                      </AccordionSummary>
+                      <AccordionDetails sx={{ pt: 0, pb: 0 }}>
+                        {actionRows}
+                      </AccordionDetails>
+                    </Accordion>
+                  );
+                }
+
+                return (
+                  <Box
+                    key={routerName}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      py: 0.5,
+                      px: 1,
+                      '&:hover': { bgcolor: 'action.hover' },
+                      borderRadius: 0.5,
+                    }}
+                  >
+                    <Typography variant="body2">{rtr.label}</Typography>
+                    {rtr.grantable !== false && (
+                      <LevelSelector
+                        value={resolveLevel(edits, routerKey, routerKey, moduleKey)}
+                        onChange={(val) => handleChange(routerKey, val)}
+                        disabled={readOnly}
+                      />
+                    )}
                   </Box>
                 );
               })}
