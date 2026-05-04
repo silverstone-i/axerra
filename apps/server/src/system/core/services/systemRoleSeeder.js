@@ -16,9 +16,25 @@
  */
 
 import logger from '../../../lib/logger.js';
+import { CATALOG_ENTRIES } from './policyCatalogSeeder.js';
 
 /** Modules where support role gets 'none' instead of 'full'. */
 const FINANCIAL_MODULES = ['accounting', 'ap', 'ar'];
+
+/**
+ * Action addresses that require an explicit policy grant — they bypass
+ * the wildcard `::::` fallback (see EXACT_MATCH_KEYS in rbac middleware).
+ * Derived from the catalog: any router-action row where policy_required
+ * is not explicitly false. System roles that should retain full access
+ * must enumerate these explicitly.
+ */
+const EXACT_MATCH_POLICIES = CATALOG_ENTRIES
+  .filter((e) => e.router && e.action && e.policy_required !== false)
+  .map((e) => ({ module: e.module, router: e.router, action: e.action, level: 'full' }));
+
+/** Tenants-module exact-match policies are Axerra-only. */
+const EXACT_MATCH_TENANT_SCOPED = EXACT_MATCH_POLICIES.filter((p) => p.module !== 'tenants');
+const EXACT_MATCH_ROOT_ONLY = EXACT_MATCH_POLICIES;
 
 /**
  * System role definitions.
@@ -36,7 +52,10 @@ function getSystemRoleDefinitions(isRootTenant) {
     is_system: true,
     is_immutable: true,
     scope: 'all_projects',
-    policies: [{ module: '', router: null, action: null, level: 'full' }],
+    policies: [
+      { module: '', router: null, action: null, level: 'full' },
+      ...EXACT_MATCH_TENANT_SCOPED,
+    ],
   });
 
   // vendor_contact — seeded in all tenants; portal access for vendor contact people
@@ -80,7 +99,10 @@ function getSystemRoleDefinitions(isRootTenant) {
       is_system: true,
       is_immutable: true,
       scope: 'all_projects',
-      policies: [{ module: '', router: null, action: null, level: 'full' }],
+      policies: [
+        { module: '', router: null, action: null, level: 'full' },
+        ...EXACT_MATCH_ROOT_ONLY,
+      ],
     });
 
     // support — Axerra only
@@ -93,6 +115,7 @@ function getSystemRoleDefinitions(isRootTenant) {
       scope: 'all_projects',
       policies: [
         { module: '', router: null, action: null, level: 'full' },
+        ...EXACT_MATCH_ROOT_ONLY,
         // Override financial modules to none
         ...FINANCIAL_MODULES.map((mod) => ({ module: mod, router: null, action: null, level: 'none' })),
       ],

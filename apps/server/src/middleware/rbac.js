@@ -12,16 +12,38 @@
  */
 
 import logger from '../lib/logger.js';
+import { CATALOG_ENTRIES } from '../system/core/services/policyCatalogSeeder.js';
 
 const LEVEL_ORDER = { none: 0, view: 1, full: 2 };
 
 /**
+ * Action addresses that require an exact-match policy grant — no fallback
+ * to router/module/wildcard. Derived from the policy catalog: any
+ * router-scoped action with `policy_required: true` (the default).
+ *
+ * Catalog rows with `policy_required: false` represent capabilities that
+ * are intentionally not independently grantable; they continue to use the
+ * regular fallback resolver and inherit from broader grants.
+ */
+export const EXACT_MATCH_KEYS = new Set(
+  CATALOG_ENTRIES
+    .filter((e) => e.router && e.action && e.policy_required !== false)
+    .map((e) => `${e.module}::${e.router}::${e.action}`),
+);
+
+/**
  * Resolve the effective permission level from a capabilities map.
- * Checks most-specific key first, falling back to broader grants:
+ *
+ * For most addresses, checks most-specific key first and falls back:
  *   module::router::action → module::router:: → module:::: → :::: (wildcard)
  *
  * The final '::::' fallback matches the empty-module wildcard policy seeded
  * for admin/super_user roles, ensuring they pass without per-module entries.
+ *
+ * For addresses in EXACT_MATCH_KEYS (catalog `policy_required: true` actions),
+ * only the exact key is consulted — broader grants do not satisfy the check.
+ * This keeps sensitive actions (e.g. password resets) out of router-level
+ * CRUD grants.
  *
  * @param {object} caps Capabilities map from permission canon
  * @param {string} moduleName
@@ -30,8 +52,12 @@ const LEVEL_ORDER = { none: 0, view: 1, full: 2 };
  * @returns {string} Resolved level: 'none', 'view', or 'full'
  */
 export function resolveLevel(caps, moduleName, routerName, actionName) {
+  const exactKey = `${moduleName}::${routerName}::${actionName}`;
+  if (EXACT_MATCH_KEYS.has(exactKey)) {
+    return caps[exactKey] || 'none';
+  }
   const keys = [
-    `${moduleName}::${routerName}::${actionName}`,
+    exactKey,
     `${moduleName}::${routerName}::`,
     `${moduleName}::::`,
     '::::',

@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { rbac, resolveLevel } from '../../src/middleware/rbac.js';
+import { rbac, resolveLevel, EXACT_MATCH_KEYS } from '../../src/middleware/rbac.js';
 
 describe('resolveLevel', () => {
   it('returns exact match for module::router::action', () => {
@@ -65,6 +65,40 @@ describe('resolveLevel', () => {
     const caps = { '::::': 'full' };
     expect(resolveLevel(caps, 'core', 'vendors', 'import')).toBe('full');
     expect(resolveLevel(caps, 'core', 'vendors', 'export')).toBe('full');
+  });
+
+  // ── Exact-match (policy_required) actions ─────────────────────
+
+  it('registers reset-password addresses as exact-match', () => {
+    expect(EXACT_MATCH_KEYS.has('core::employees::reset-password')).toBe(true);
+    expect(EXACT_MATCH_KEYS.has('core::clients::reset-password')).toBe(true);
+    expect(EXACT_MATCH_KEYS.has('core::vendor-contacts::reset-password')).toBe(true);
+  });
+
+  it('exact-match action ignores router-level grant', () => {
+    const caps = { 'core::employees::': 'full' };
+    expect(resolveLevel(caps, 'core', 'employees', 'reset-password')).toBe('none');
+  });
+
+  it('exact-match action ignores module-level grant', () => {
+    const caps = { 'core::::': 'full' };
+    expect(resolveLevel(caps, 'core', 'clients', 'reset-password')).toBe('none');
+  });
+
+  it('exact-match action ignores wildcard grant', () => {
+    const caps = { '::::': 'full' };
+    expect(resolveLevel(caps, 'core', 'vendor-contacts', 'reset-password')).toBe('none');
+  });
+
+  it('exact-match action requires exact key', () => {
+    const caps = { 'core::employees::reset-password': 'full' };
+    expect(resolveLevel(caps, 'core', 'employees', 'reset-password')).toBe('full');
+  });
+
+  it('exact-match does not affect non-listed actions', () => {
+    expect(EXACT_MATCH_KEYS.has('core::employees::')).toBe(false);
+    const caps = { 'core::employees::': 'full' };
+    expect(resolveLevel(caps, 'core', 'employees', 'create')).toBe('full');
   });
 });
 
@@ -264,5 +298,45 @@ describe('rbac middleware', () => {
     await rbac()(req, res, next);
     expect(next).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(403);
+  });
+
+  // ── Exact-match (reset-password) endpoint enforcement ─────────
+
+  it('denies reset-password when role only has router-level full', async () => {
+    const req = makeReq(
+      'POST',
+      { caps: { 'core::employees::': 'full' } },
+      { module: 'core', router: 'employees', action: 'reset-password' },
+    );
+    const res = makeRes();
+    const next = vi.fn();
+    await rbac('full')(req, res, next);
+    expect(next).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('denies reset-password when role only has wildcard ::::', async () => {
+    const req = makeReq(
+      'POST',
+      { caps: { '::::': 'full' } },
+      { module: 'core', router: 'clients', action: 'reset-password' },
+    );
+    const res = makeRes();
+    const next = vi.fn();
+    await rbac('full')(req, res, next);
+    expect(next).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('allows reset-password when role has the exact action grant', async () => {
+    const req = makeReq(
+      'POST',
+      { caps: { 'core::vendor-contacts::reset-password': 'full' } },
+      { module: 'core', router: 'vendor-contacts', action: 'reset-password' },
+    );
+    const res = makeRes();
+    const next = vi.fn();
+    await rbac('full')(req, res, next);
+    expect(next).toHaveBeenCalledOnce();
   });
 });
