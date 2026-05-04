@@ -56,17 +56,26 @@ export async function seedRootEntity({ db, pgp, logger, tenantSchema, rootEmail,
     [superUser.id, tenant.id],
   );
 
-  // A binding is only "linked" if BOTH entity_type AND entity_id are set.
-  // The portal_user_tenants schema doesn't enforce that pairing, so a
-  // partially-written row (entity_type set, entity_id NULL) from a
-  // failed earlier seed should be treated as unlinked and repaired.
+  const s = pgp.as.name(tenantSchema);
+
+  // A binding is only "linked" if BOTH entity_type AND entity_id are set
+  // AND the referenced employee row actually exists in the tenant schema.
+  // The portal_user_tenants schema doesn't enforce that pairing, and
+  // dropping/recreating the tenant schema can leave the binding pointing
+  // at a vanished employee — both cases must trigger a repair.
   if (existingBinding && existingBinding.entity_type !== null && existingBinding.entity_id !== null) {
-    logger?.info?.('Root super user already linked to entity, skipping.');
-    return null;
+    const referenced = await db.oneOrNone(
+      `SELECT id FROM ${s}.employees WHERE id = $1 AND deactivated_at IS NULL`,
+      [existingBinding.entity_id],
+    );
+    if (referenced) {
+      logger?.info?.('Root super user already linked to entity, skipping.');
+      return null;
+    }
+    logger?.info?.('Existing binding references a missing employee — repairing.');
   }
 
   logger?.info?.('Linking root super user to employee record...');
-  const s = pgp.as.name(tenantSchema);
 
   // Find an existing System/Administrator employee scoped to THIS tenant
   // and verified to carry the super_user role. The idempotent path used

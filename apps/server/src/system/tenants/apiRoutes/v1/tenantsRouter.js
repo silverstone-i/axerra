@@ -22,12 +22,15 @@ const meta = withMeta({ module: 'tenants', router: 'tenants' });
 // Including moduleEntitlement explicitly in the per-method arrays keeps
 // it BEFORE rbac (createRouter would otherwise append it after).
 //
-// disableImportXls/disableExportXls/disableBulkInsert/disableBulkUpdate:
-// tenant records are admin-managed via the API, not via spreadsheet
-// I/O. The auto-attached /import-xls and /export-xls would otherwise
-// run their own rbac() AFTER our middleware chain, double-evaluating
-// rbac with two different action codes (router-level then 'import'/
-// 'export'). Disabling them keeps the enforcement story simple.
+// Spreadsheet I/O: tenants are importable/exportable per PRD §3.2.1, so
+// /import-xls and /export-xls stay enabled. createRouter wires its own
+// rbac on those routes after setImportAction/setExportAction, which
+// AND-combines with our router-level rbac('full'): the first evaluation
+// resolves against the generic POST action, the second against the
+// 'import'/'export' action codes. Both must pass — finer-grained Axerra
+// roles can grant CRUD without import, or import without CRUD.
+// Bulk-insert/bulk-update remain disabled — admin tenant batch ops are
+// always admin-only and the API doesn't expose them.
 export default createRouter(
   tenantsController,
   (router) => {
@@ -59,8 +62,6 @@ export default createRouter(
   {
     disableBulkInsert: true,
     disableBulkUpdate: true,
-    disableImportXls: true,
-    disableExportXls: true,
     disablePing: true,
     postMiddlewares: [requireRootTenant, meta, moduleEntitlement, rbac('full')],
     getMiddlewares: [requireRootTenant, meta, moduleEntitlement, rbac('view')],
