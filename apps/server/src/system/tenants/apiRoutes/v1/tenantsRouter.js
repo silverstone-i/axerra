@@ -25,17 +25,26 @@ const meta = withMeta({ module: 'tenants', router: 'tenants' });
 // Spreadsheet I/O: tenants are importable/exportable per PRD §3.2.1, so
 // /import-xls and /export-xls stay enabled. createRouter wires its own
 // rbac on those routes after setImportAction/setExportAction, which
-// AND-combines with our router-level rbac('full'). Both rbac calls
-// resolve through the most-specific-first cascade
+// AND-combines with the router-level rbac chosen for that HTTP method.
+// Both rbac calls resolve through the most-specific-first cascade
 // (module::router::action → module::router:: → module:::: → ::::):
-//   1. Router-level: req.resource.action='' (set by withMeta), so
-//      rbac('full') resolves against tenants::tenants:: (router-level).
-//   2. After setImportAction: action='import', resolves against
-//      tenants::tenants::import.
-// Both must pass with full. A role can deny import while keeping CRUD
-// (set tenants::tenants::import::none over a wildcard full), but cannot
-// grant import without router-level CRUD — the first rbac would fall
-// through to a wildcard that must already permit full.
+//
+//   /import-xls (POST) — uses postMiddlewares
+//     1. Router-level: req.resource.action='' (set by withMeta), so
+//        rbac('full') resolves against tenants::tenants:: (router-level).
+//     2. After setImportAction: action='import', second rbac('full')
+//        resolves against tenants::tenants::import.
+//     Both must pass with full. A role can deny import while keeping
+//     CRUD (set tenants::tenants::import::none over a wildcard full),
+//     but cannot grant import without router-level CRUD — the first
+//     rbac would fall through to a wildcard that must permit full.
+//
+//   /export-xls (POST, but uses getMiddlewares — read-side semantics)
+//     1. Router-level: rbac('view') against tenants::tenants::.
+//     2. After setExportAction: action='export', second rbac('view')
+//        against tenants::tenants::export.
+//     Both must pass with view, mirroring the import semantics at the
+//     view level — a role can deny export while keeping list/get.
 // Bulk-insert/bulk-update remain disabled — admin tenant batch ops are
 // always admin-only and the API doesn't expose them.
 export default createRouter(
