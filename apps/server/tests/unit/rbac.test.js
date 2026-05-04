@@ -131,6 +131,29 @@ describe('resolveLevel', () => {
     const caps = { 'core::vendors::': 'full' };
     expect(resolveLevel(caps, 'core', 'vendors', 'import')).toBe('full');
   });
+
+  it('exact-match short-circuits module-level deny (motivates support-role financial filter)', () => {
+    // Demonstrates why systemRoleSeeder must NOT seed support with
+    // explicit financial export grants: an exact-match key for
+    // ap::ap-invoices::export would bypass the ap=none module deny.
+    const caps = {
+      '::::': 'full',
+      'ap::::': 'none',
+      'ap::ap-invoices::export': 'full',
+    };
+    expect(resolveLevel(caps, 'ap', 'ap-invoices', 'export')).toBe('full');
+  });
+
+  it('without an explicit financial export grant, exact-match returns none (support-role behavior)', () => {
+    // Support role gets wildcard full + ap/ar/accounting=none, but no
+    // explicit ap::ap-invoices::export. exact-match resolution reads
+    // only the exact key, returns none — financial export blocked.
+    const caps = {
+      '::::': 'full',
+      'ap::::': 'none',
+    };
+    expect(resolveLevel(caps, 'ap', 'ap-invoices', 'export')).toBe('none');
+  });
 });
 
 describe('rbac middleware', () => {

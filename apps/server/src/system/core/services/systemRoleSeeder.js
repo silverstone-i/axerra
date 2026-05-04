@@ -37,6 +37,16 @@ const EXACT_MATCH_TENANT_SCOPED = EXACT_MATCH_POLICIES.filter((p) => p.module !=
 const EXACT_MATCH_ROOT_ONLY = EXACT_MATCH_POLICIES;
 
 /**
+ * Support role variant — same as root-only but with financial-module
+ * exact-match grants stripped. Required because rbac.resolveLevel()
+ * short-circuits the broader-grant fallback for exact-match keys, so
+ * an explicit `ap::ap-invoices::export = full` would override the
+ * module-level `ap = none` deny that defines the role's non-financial
+ * scope.
+ */
+const EXACT_MATCH_NON_FINANCIAL = EXACT_MATCH_POLICIES.filter((p) => !FINANCIAL_MODULES.includes(p.module));
+
+/**
  * System role definitions.
  * @param {boolean} isRootTenant Whether this is the Axerra platform tenant
  * @returns {Array<object>} Role definitions with their policies
@@ -115,7 +125,7 @@ function getSystemRoleDefinitions(isRootTenant) {
       scope: 'all_projects',
       policies: [
         { module: '', router: null, action: null, level: 'full' },
-        ...EXACT_MATCH_ROOT_ONLY,
+        ...EXACT_MATCH_NON_FINANCIAL,
         // Override financial modules to none
         ...FINANCIAL_MODULES.map((mod) => ({ module: mod, router: null, action: null, level: 'none' })),
       ],
