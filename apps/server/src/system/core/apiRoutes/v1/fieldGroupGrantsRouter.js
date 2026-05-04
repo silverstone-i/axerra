@@ -30,5 +30,7 @@ export default createRouter(
     putMiddlewares: [meta],
     deleteMiddlewares: [meta],
     patchMiddlewares: [meta],
+    disableImportXls: true,
+    disableExportXls: true,
   },
 );

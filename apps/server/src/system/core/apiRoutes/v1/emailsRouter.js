@@ -17,4 +17,6 @@ export default createRouter(emailsController, null, {
   putMiddlewares: [meta],
   deleteMiddlewares: [meta],
   patchMiddlewares: [meta],
+  disableImportXls: true,
+  disableExportXls: true,
 });

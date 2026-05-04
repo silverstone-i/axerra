@@ -27,4 +27,5 @@ export default createRouter(policyCatalogController, null, {
   disableBulkInsert: true,
   disableBulkUpdate: true,
   disableImportXls: true,
+  disableExportXls: true,
 });

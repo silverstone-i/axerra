@@ -17,4 +17,6 @@ export default createRouter(taxIdentifiersController, null, {
   putMiddlewares: [meta],
   deleteMiddlewares: [meta],
   patchMiddlewares: [meta],
+  disableImportXls: true,
+  disableExportXls: true,
 });

@@ -61,10 +61,10 @@ describe('resolveLevel', () => {
     expect(resolveLevel(caps, 'core', 'vendors', 'import')).toBe('none');
   });
 
-  it('wildcard :::: covers import/export for system roles', () => {
+  it('wildcard :::: covers import (policy_required: false) but NOT export (exact-match)', () => {
     const caps = { '::::': 'full' };
     expect(resolveLevel(caps, 'core', 'vendors', 'import')).toBe('full');
-    expect(resolveLevel(caps, 'core', 'vendors', 'export')).toBe('full');
+    expect(resolveLevel(caps, 'core', 'vendors', 'export')).toBe('none');
   });
 
   // ── Exact-match (policy_required) actions ─────────────────────
@@ -99,6 +99,37 @@ describe('resolveLevel', () => {
     expect(EXACT_MATCH_KEYS.has('core::employees::')).toBe(false);
     const caps = { 'core::employees::': 'full' };
     expect(resolveLevel(caps, 'core', 'employees', 'create')).toBe('full');
+  });
+
+  // ── Exact-match (export) — independent compliance gate ────────
+
+  it('registers export addresses as exact-match (compliance gate)', () => {
+    expect(EXACT_MATCH_KEYS.has('core::vendors::export')).toBe(true);
+    expect(EXACT_MATCH_KEYS.has('core::employees::export')).toBe(true);
+    expect(EXACT_MATCH_KEYS.has('ap::ap-invoices::export')).toBe(true);
+    expect(EXACT_MATCH_KEYS.has('ar::ar-invoices::export')).toBe(true);
+    expect(EXACT_MATCH_KEYS.has('accounting::journal-entries::export')).toBe(true);
+  });
+
+  it('does NOT register import addresses as exact-match (covered by CRUD)', () => {
+    expect(EXACT_MATCH_KEYS.has('core::vendors::import')).toBe(false);
+    expect(EXACT_MATCH_KEYS.has('ap::ap-invoices::import')).toBe(false);
+    expect(EXACT_MATCH_KEYS.has('accounting::journal-entries::import')).toBe(false);
+  });
+
+  it('export with router-level full alone resolves to none', () => {
+    const caps = { 'core::vendors::': 'full' };
+    expect(resolveLevel(caps, 'core', 'vendors', 'export')).toBe('none');
+  });
+
+  it('export with explicit view grant resolves to view', () => {
+    const caps = { 'core::vendors::export': 'view' };
+    expect(resolveLevel(caps, 'core', 'vendors', 'export')).toBe('view');
+  });
+
+  it('import still falls back to router-level (policy_required: false)', () => {
+    const caps = { 'core::vendors::': 'full' };
+    expect(resolveLevel(caps, 'core', 'vendors', 'import')).toBe('full');
   });
 });
 
@@ -257,8 +288,17 @@ describe('rbac middleware', () => {
     expect(next).toHaveBeenCalledOnce();
   });
 
-  it('falls back to router-level when no export action policy exists', async () => {
-    const req = makeReq('POST', { caps: { 'core::vendors::': 'view' } }, { module: 'core', router: 'vendors', action: 'export' });
+  it('export does NOT fall back to router-level (exact-match required)', async () => {
+    const req = makeReq('POST', { caps: { 'core::vendors::': 'full' } }, { module: 'core', router: 'vendors', action: 'export' });
+    const res = makeRes();
+    const next = vi.fn();
+    await rbac('view')(req, res, next);
+    expect(next).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('export with explicit grant succeeds', async () => {
+    const req = makeReq('POST', { caps: { 'core::vendors::export': 'view' } }, { module: 'core', router: 'vendors', action: 'export' });
     const res = makeRes();
     const next = vi.fn();
     await rbac('view')(req, res, next);
@@ -275,7 +315,7 @@ describe('rbac middleware', () => {
     expect(res.statusCode).toBe(403);
   });
 
-  it('wildcard :::: grants import/export to system roles', async () => {
+  it('wildcard :::: grants import (policy_required: false) but NOT export (exact-match)', async () => {
     const importReq = makeReq('POST', { caps: { '::::': 'full' } }, { module: 'core', router: 'vendors', action: 'import' });
     const exportReq = makeReq('POST', { caps: { '::::': 'full' } }, { module: 'core', router: 'vendors', action: 'export' });
     const res1 = makeRes();
@@ -285,7 +325,8 @@ describe('rbac middleware', () => {
     await rbac('full')(importReq, res1, next1);
     await rbac('view')(exportReq, res2, next2);
     expect(next1).toHaveBeenCalledOnce();
-    expect(next2).toHaveBeenCalledOnce();
+    expect(next2).not.toHaveBeenCalled();
+    expect(res2.statusCode).toBe(403);
   });
 
   it('does NOT bypass for any special role — all go through policy resolution', async () => {
