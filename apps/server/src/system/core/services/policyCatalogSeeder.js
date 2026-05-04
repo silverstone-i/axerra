@@ -24,19 +24,20 @@ import logger from '../../../lib/logger.js';
 // tenant_id, tenant_code, source_id, audit fields, deactivated_at)
 // ────────────────────────────────────────────────────────────────────
 
-const CATALOG_ENTRIES = [
+export const CATALOG_ENTRIES = [
   // ── Core ────────────────────────────────────────────────────────
   { module: 'core', router: null, action: null, label: 'Admin Module', description: 'Entity management and RBAC configuration', sort_order: 100 },
-  { module: 'core', router: null, action: 'reset-password', label: 'Reset Password', description: 'Reset any app-user password', sort_order: 101 },
   { module: 'core', router: 'vendors', action: null, label: 'Vendors', description: 'Vendor company records', sort_order: 110, available_fields: ['name', 'code', 'payment_term_id', 'is_active', 'notes'] },
   { module: 'core', router: 'vendors', action: 'import', label: 'Import Vendors', description: 'Import vendor records from spreadsheet', sort_order: 111, policy_required: false },
   { module: 'core', router: 'vendors', action: 'export', label: 'Export Vendors', description: 'Export vendor records to spreadsheet', sort_order: 112, policy_required: false },
   { module: 'core', router: 'clients', action: null, label: 'Clients', description: 'Client company records', sort_order: 120, available_fields: ['name', 'code', 'roles', 'is_app_user', 'is_active'] },
   { module: 'core', router: 'clients', action: 'import', label: 'Import Clients', description: 'Import client records from spreadsheet', sort_order: 121, policy_required: false },
   { module: 'core', router: 'clients', action: 'export', label: 'Export Clients', description: 'Export client records to spreadsheet', sort_order: 122, policy_required: false },
+  { module: 'core', router: 'clients', action: 'reset-password', label: 'Reset Password', description: 'Reset password for a client app-user', sort_order: 123 },
   { module: 'core', router: 'employees', action: null, label: 'Employees', description: 'Employee records', sort_order: 130, available_fields: ['first_name', 'last_name', 'code', 'position', 'department', 'is_app_user', 'roles', 'is_primary_contact', 'is_billing_contact'] },
   { module: 'core', router: 'employees', action: 'import', label: 'Import Employees', description: 'Import employee records from spreadsheet', sort_order: 131, policy_required: false },
   { module: 'core', router: 'employees', action: 'export', label: 'Export Employees', description: 'Export employee records to spreadsheet', sort_order: 132, policy_required: false },
+  { module: 'core', router: 'employees', action: 'reset-password', label: 'Reset Password', description: 'Reset password for an employee app-user', sort_order: 133 },
   { module: 'core', router: 'contacts', action: null, label: 'Contacts', description: 'Miscellaneous contacts / payees', sort_order: 140, available_fields: ['name', 'code', 'is_active'] },
   { module: 'core', router: 'contacts', action: 'import', label: 'Import Contacts', description: 'Import contact records from spreadsheet', sort_order: 141, policy_required: false },
   { module: 'core', router: 'contacts', action: 'export', label: 'Export Contacts', description: 'Export contact records to spreadsheet', sort_order: 142, policy_required: false },
@@ -60,6 +61,7 @@ const CATALOG_ENTRIES = [
   { module: 'core', router: 'vendor-contacts', action: null, label: 'Vendor Contacts', description: 'Individual contacts associated with vendors', sort_order: 183, policy_required: false, available_fields: ['first_name', 'last_name', 'position', 'department', 'is_app_user', 'roles'] },
   { module: 'core', router: 'vendor-contacts', action: 'import', label: 'Import Vendor Contacts', description: 'Import vendor contact records from spreadsheet', sort_order: 184, policy_required: false },
   { module: 'core', router: 'vendor-contacts', action: 'export', label: 'Export Vendor Contacts', description: 'Export vendor contact records to spreadsheet', sort_order: 185, policy_required: false },
+  { module: 'core', router: 'vendor-contacts', action: 'reset-password', label: 'Reset Password', description: 'Reset password for a vendor-contact app-user', sort_order: 186 },
   { module: 'core', router: 'companies', action: null, label: 'Companies', description: 'Company entities for intercompany accounting', sort_order: 186, available_fields: ['code', 'name', 'is_active'] },
   { module: 'core', router: 'companies', action: 'import', label: 'Import Companies', description: 'Import company records from spreadsheet', sort_order: 187, policy_required: false },
   { module: 'core', router: 'companies', action: 'export', label: 'Export Companies', description: 'Export company records to spreadsheet', sort_order: 188, policy_required: false },
