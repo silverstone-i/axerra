@@ -25,10 +25,17 @@ const meta = withMeta({ module: 'tenants', router: 'tenants' });
 // Spreadsheet I/O: tenants are importable/exportable per PRD §3.2.1, so
 // /import-xls and /export-xls stay enabled. createRouter wires its own
 // rbac on those routes after setImportAction/setExportAction, which
-// AND-combines with our router-level rbac('full'): the first evaluation
-// resolves against the generic POST action, the second against the
-// 'import'/'export' action codes. Both must pass — finer-grained Axerra
-// roles can grant CRUD without import, or import without CRUD.
+// AND-combines with our router-level rbac('full'). Both rbac calls
+// resolve through the most-specific-first cascade
+// (module::router::action → module::router:: → module:::: → ::::):
+//   1. Router-level: req.resource.action='' (set by withMeta), so
+//      rbac('full') resolves against tenants::tenants:: (router-level).
+//   2. After setImportAction: action='import', resolves against
+//      tenants::tenants::import.
+// Both must pass with full. A role can deny import while keeping CRUD
+// (set tenants::tenants::import::none over a wildcard full), but cannot
+// grant import without router-level CRUD — the first rbac would fall
+// through to a wildcard that must already permit full.
 // Bulk-insert/bulk-update remain disabled — admin tenant batch ops are
 // always admin-only and the API doesn't expose them.
 export default createRouter(

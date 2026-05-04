@@ -244,10 +244,14 @@ const CATALOG_ENTRIES = [
   // tenants::portal-users does NOT — users are created via /register, so
   // portalUsersRouter sets disableImportXls/disableExportXls and there
   // are no catalog rows for those actions (granting them would no-op).
+  // Import/export rows here are policy_required: true so finer-grained
+  // Axerra ops roles can deny them independently of CRUD via PolicyEditor
+  // (other modules' import/export rows use policy_required: false for
+  // historical reasons; aligning them is a separate PR).
   { module: 'tenants', router: null, action: null, label: 'Tenants Module', description: 'Multi-tenant administration (Axerra only)', sort_order: 1100 },
   { module: 'tenants', router: 'tenants', action: null, label: 'Tenants', description: 'Tenant CRUD and provisioning', sort_order: 1110 },
-  { module: 'tenants', router: 'tenants', action: 'import', label: 'Import Tenants', description: 'Import tenant records from spreadsheet', sort_order: 1111, policy_required: false },
-  { module: 'tenants', router: 'tenants', action: 'export', label: 'Export Tenants', description: 'Export tenant records to spreadsheet', sort_order: 1112, policy_required: false },
+  { module: 'tenants', router: 'tenants', action: 'import', label: 'Import Tenants', description: 'Import tenant records from spreadsheet', sort_order: 1111 },
+  { module: 'tenants', router: 'tenants', action: 'export', label: 'Export Tenants', description: 'Export tenant records to spreadsheet', sort_order: 1112 },
   { module: 'tenants', router: 'portal-users', action: null, label: 'Portal Users', description: 'Application user accounts', sort_order: 1120 },
   { module: 'tenants', router: 'orphan-portal-users', action: null, label: 'Orphan Portal Users', description: 'Maintenance for portal_users with no tenant bindings (Axerra only)', sort_order: 1125 },
   { module: 'tenants', router: 'orphan-portal-users', action: 'find_orphans', label: 'Preview Orphan Portal Users', description: 'List portal_users rows with no portal_user_tenants binding (active or archived) and no impersonation_logs reference', sort_order: 1126 },
