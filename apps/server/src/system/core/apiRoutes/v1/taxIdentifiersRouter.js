@@ -9,7 +9,7 @@ import createRouter from '../../../../lib/createRouter.js';
 import taxIdentifiersController from '../../controllers/taxIdentifiersController.js';
 import { withMeta } from '../../../../middleware/withMeta.js';
 
-const meta = withMeta({ module: 'core' });
+const meta = withMeta({ module: 'core', router: 'tax-identifiers' });
 
 export default createRouter(taxIdentifiersController, null, {
   getMiddlewares: [meta],
