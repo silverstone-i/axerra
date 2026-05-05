@@ -9,7 +9,7 @@ import createRouter from '../../../../lib/createRouter.js';
 import addressesController from '../../controllers/addressesController.js';
 import { withMeta } from '../../../../middleware/withMeta.js';
 
-const meta = withMeta({ module: 'core' });
+const meta = withMeta({ module: 'core', router: 'addresses' });
 
 export default createRouter(addressesController, null, {
   getMiddlewares: [meta],
