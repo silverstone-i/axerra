@@ -70,10 +70,10 @@ export const CATALOG_ENTRIES = [
   { module: 'core', router: 'vendor-contacts', action: 'export', label: 'Export Vendor Contacts', description: 'Export vendor contact records to spreadsheet', sort_order: 185 },
   { module: 'core', router: 'vendor-contacts', action: 'reset-password', label: 'Reset Password', description: 'Reset password for a vendor-contact app-user', sort_order: 186 },
   { module: 'core', router: 'vendor-contacts', action: 'swap-login-email', label: 'Swap Login Email', description: "Replace a vendor-contact app-user's login email address", sort_order: 187 },
-  { module: 'core', router: 'companies', action: null, label: 'Companies', description: 'Company entities for intercompany accounting', sort_order: 186, available_fields: ['code', 'name', 'is_active'] },
-  { module: 'core', router: 'companies', action: 'import', label: 'Import Companies', description: 'Import company records from spreadsheet', sort_order: 187, policy_required: false },
-  { module: 'core', router: 'companies', action: 'export', label: 'Export Companies', description: 'Export company records to spreadsheet', sort_order: 188 },
-  { module: 'core', router: 'payment-terms', action: null, label: 'Payment Terms', description: 'Standardised vendor payment terms', sort_order: 189, available_fields: ['label', 'term', 'units', 'is_active'] },
+  { module: 'core', router: 'companies', action: null, label: 'Companies', description: 'Company entities for intercompany accounting', sort_order: 195, available_fields: ['code', 'name', 'is_active'] },
+  { module: 'core', router: 'companies', action: 'import', label: 'Import Companies', description: 'Import company records from spreadsheet', sort_order: 196, policy_required: false },
+  { module: 'core', router: 'companies', action: 'export', label: 'Export Companies', description: 'Export company records to spreadsheet', sort_order: 197 },
+  { module: 'core', router: 'payment-terms', action: null, label: 'Payment Terms', description: 'Standardised vendor payment terms', sort_order: 199, available_fields: ['label', 'term', 'units', 'is_active'] },
   // roles, policies, state-filters, field-group-*, policy-catalog:
   // UI-managed config — spreadsheet I/O disabled at the router level.
   { module: 'core', router: 'roles', action: null, label: 'Roles', description: 'RBAC role definitions', sort_order: 190, available_fields: ['code', 'name', 'description', 'is_system', 'is_immutable', 'scope'] },
