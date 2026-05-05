@@ -8,6 +8,7 @@
  */
 
 import createRouter from '../../../../lib/createRouter.js';
+import { addAuditFields } from '../../../../middleware/addAuditFields.js';
 import { moduleEntitlement } from '../../../../middleware/moduleEntitlement.js';
 import { withMeta } from '../../../../middleware/withMeta.js';
 import { rbac } from '../../../../middleware/rbac.js';
@@ -28,6 +29,7 @@ router.post(
   '/new-version',
   withMeta({ module: 'activities', router: 'budgets', action: 'new-version' }),
   moduleEntitlement,
+  addAuditFields,
   rbac('full'),
   (req, res) => budgetsController.createNewVersion(req, res),
 );

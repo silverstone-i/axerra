@@ -69,7 +69,7 @@ export const CATALOG_ENTRIES = [
   { module: 'core', router: 'vendor-contacts', action: 'import', label: 'Import Vendor Contacts', description: 'Import vendor contact records from spreadsheet', sort_order: 184, policy_required: false },
   { module: 'core', router: 'vendor-contacts', action: 'export', label: 'Export Vendor Contacts', description: 'Export vendor contact records to spreadsheet', sort_order: 185 },
   { module: 'core', router: 'vendor-contacts', action: 'reset-password', label: 'Reset Password', description: 'Reset password for a vendor-contact app-user', sort_order: 186 },
-  { module: 'core', router: 'vendor-contacts', action: 'swap-login-email', label: 'Swap Login Email', description: 'Replace a vendor-contact app-user’s login email address', sort_order: 187 },
+  { module: 'core', router: 'vendor-contacts', action: 'swap-login-email', label: 'Swap Login Email', description: "Replace a vendor-contact app-user's login email address", sort_order: 187 },
   { module: 'core', router: 'companies', action: null, label: 'Companies', description: 'Company entities for intercompany accounting', sort_order: 186, available_fields: ['code', 'name', 'is_active'] },
   { module: 'core', router: 'companies', action: 'import', label: 'Import Companies', description: 'Import company records from spreadsheet', sort_order: 187, policy_required: false },
   { module: 'core', router: 'companies', action: 'export', label: 'Export Companies', description: 'Export company records to spreadsheet', sort_order: 188 },

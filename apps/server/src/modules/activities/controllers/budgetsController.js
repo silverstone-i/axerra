@@ -110,6 +110,8 @@ class BudgetsController extends BaseController {
         version: current.version + 1,
         is_current: true,
         status: 'draft',
+        created_by: req.body.created_by ?? null,
+        updated_by: req.body.updated_by ?? null,
       });
 
       logger.info(`Budget new version ${current.version + 1} created from ${budget_id}`);
