@@ -13,7 +13,6 @@ import tenantPreferences from './202603270015_tenantPreferences.js';
 import reseedPolicyCatalog from './202603270016_reseedPolicyCatalog.js';
 import orphanSourceCleanup from './202604270017_orphanSourceCleanup.js';
 import reseedTenantImportExportCatalog from './202605040018_reseedTenantImportExportCatalog.js';
-import reseedWorkflowActionGrants from './202605050019_reseedWorkflowActionGrants.js';
 export default [
   coreRbac,
   coreEntities,
@@ -23,5 +22,4 @@ export default [
   reseedPolicyCatalog,
   orphanSourceCleanup,
   reseedTenantImportExportCatalog,
-  reseedWorkflowActionGrants,
 ];
