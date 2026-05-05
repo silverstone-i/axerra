@@ -32,7 +32,13 @@ describe('System Role Seeding', () => {
         return role;
       }),
       none: vi.fn().mockImplementation(async (_sql, params) => {
-        insertedPolicies.push({ role_id: params[1], module: params[2], level: params[5] });
+        insertedPolicies.push({
+          role_id: params[1],
+          module: params[2],
+          router: params[3],
+          action: params[4],
+          level: params[5],
+        });
       }),
     };
 
@@ -81,6 +87,32 @@ describe('System Role Seeding', () => {
       (p) => ['accounting', 'ap', 'ar'].includes(p.module) && p.level === 'none',
     );
     expect(financialDenied.length).toBe(3);
+  });
+
+  it('support does NOT receive explicit financial-module exact-match grants', async () => {
+    // Regression guard: exact-match keys short-circuit the broader-grant
+    // fallback in rbac.resolveLevel(), so an explicit ap::*::export=full
+    // would override the module-level ap=none deny. Support's policies
+    // must NOT include any financial-module router-action rows.
+    await seedSystemRoles(mockDb, mockPgp, 'axerra', 'AXERRA', true);
+
+    const supportPolicies = insertedPolicies.filter((p) => p.role_id === 'role-support');
+    const leaks = supportPolicies.filter(
+      (p) => ['accounting', 'ap', 'ar'].includes(p.module) && p.router && p.action,
+    );
+    expect(leaks).toEqual([]);
+  });
+
+  it('super_user DOES receive financial-module exact-match grants (full platform access)', async () => {
+    // super_user has no financial deny, so exact-match grants are correct.
+    await seedSystemRoles(mockDb, mockPgp, 'axerra', 'AXERRA', true);
+
+    const superPolicies = insertedPolicies.filter((p) => p.role_id === 'role-super_user');
+    const apExport = superPolicies.find(
+      (p) => p.module === 'ap' && p.router === 'ap-invoices' && p.action === 'export',
+    );
+    expect(apExport).toBeDefined();
+    expect(apExport.level).toBe('full');
   });
 
   it('is idempotent — skips existing roles', async () => {
