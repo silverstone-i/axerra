@@ -13,13 +13,28 @@ import createRouter from '../../../../lib/createRouter.js';
 import { addAuditFields } from '../../../../middleware/addAuditFields.js';
 import { withMeta } from '../../../../middleware/withMeta.js';
 import { moduleEntitlement } from '../../../../middleware/moduleEntitlement.js';
+import { rbac } from '../../../../middleware/rbac.js';
 import journalEntriesController from '../../controllers/journalEntriesController.js';
 
 const router = Router();
 const meta = withMeta({ module: 'accounting', router: 'journal-entries' });
 
-router.post('/post', meta, moduleEntitlement, addAuditFields, (req, res) => journalEntriesController.post(req, res));
-router.post('/reverse', meta, moduleEntitlement, addAuditFields, (req, res) => journalEntriesController.reverse(req, res));
+router.post(
+  '/post',
+  withMeta({ module: 'accounting', router: 'journal-entries', action: 'post' }),
+  moduleEntitlement,
+  addAuditFields,
+  rbac('full'),
+  (req, res) => journalEntriesController.post(req, res),
+);
+router.post(
+  '/reverse',
+  withMeta({ module: 'accounting', router: 'journal-entries', action: 'reverse' }),
+  moduleEntitlement,
+  addAuditFields,
+  rbac('full'),
+  (req, res) => journalEntriesController.reverse(req, res),
+);
 
 router.use('/', createRouter(journalEntriesController, null, {
   getMiddlewares: [meta],

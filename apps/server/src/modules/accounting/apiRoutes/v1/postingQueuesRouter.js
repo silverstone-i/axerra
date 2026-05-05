@@ -12,12 +12,20 @@ import createRouter from '../../../../lib/createRouter.js';
 import { addAuditFields } from '../../../../middleware/addAuditFields.js';
 import { withMeta } from '../../../../middleware/withMeta.js';
 import { moduleEntitlement } from '../../../../middleware/moduleEntitlement.js';
+import { rbac } from '../../../../middleware/rbac.js';
 import postingQueuesController from '../../controllers/postingQueuesController.js';
 
 const router = Router();
 const meta = withMeta({ module: 'accounting', router: 'posting-queues' });
 
-router.post('/retry', meta, moduleEntitlement, addAuditFields, (req, res) => postingQueuesController.retry(req, res));
+router.post(
+  '/retry',
+  withMeta({ module: 'accounting', router: 'posting-queues', action: 'retry' }),
+  moduleEntitlement,
+  addAuditFields,
+  rbac('full'),
+  (req, res) => postingQueuesController.retry(req, res),
+);
 
 router.use('/', createRouter(postingQueuesController, null, {
   getMiddlewares: [meta],
