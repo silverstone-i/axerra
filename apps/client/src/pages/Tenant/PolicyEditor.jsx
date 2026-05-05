@@ -33,9 +33,24 @@ function policyKey(module, router, action) {
   return `${module}::${router || ''}::${action || ''}`;
 }
 
-/** Cascade: action → router → module → root → '' */
+/** Cascade: action → router → module → root → '' (used for module + router headings). */
 function resolveLevel(edits, key, routerKey, moduleKey) {
   return edits[key] ?? edits[routerKey] ?? edits[moduleKey] ?? edits[ROOT_KEY] ?? '';
+}
+
+/**
+ * Exact-match resolution — used for action rows.
+ *
+ * Mirrors `rbac.resolveLevel()` on the server: any action address whose
+ * catalog row is `policy_required !== false` requires an exact-match
+ * policy grant; broader grants do NOT satisfy it. `buildCatalogTree`
+ * only emits `policy_required !== false` rows into the action maps, so
+ * every rendered action row uses this resolver. Displaying the cascade
+ * here would lie — the user would see Export = F inherited from
+ * Vendors:F while the endpoint returns 403.
+ */
+function resolveExact(edits, key) {
+  return edits[key] ?? '';
 }
 
 /**
@@ -261,7 +276,7 @@ export default function PolicyEditor({ roleId, readOnly = false, actionsContaine
                   >
                     <Typography variant="body2" color="text.secondary">{act.label}</Typography>
                     <LevelSelector
-                      value={resolveLevel(edits, actionKey, actionKey, moduleKey)}
+                      value={resolveExact(edits, actionKey)}
                       onChange={(val) => handleChange(actionKey, val)}
                       disabled={readOnly}
                     />
@@ -292,7 +307,7 @@ export default function PolicyEditor({ roleId, readOnly = false, actionsContaine
                     >
                       <Typography variant="body2" color="text.secondary">{act.label}</Typography>
                       <LevelSelector
-                        value={resolveLevel(edits, actionKey, routerKey, moduleKey)}
+                        value={resolveExact(edits, actionKey)}
                         onChange={(val) => handleChange(actionKey, val)}
                         disabled={readOnly}
                       />
