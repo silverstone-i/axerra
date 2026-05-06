@@ -102,13 +102,12 @@ class BudgetsController extends BaseController {
       // Atomic version switch: flip prior version + insert new draft in one tx
       // so a failed insert doesn't leave the deliverable with no current budget.
       const createdBy = req.user?.id ?? null;
-      const tenantCode = req.user?.tenant_code ?? null;
       const newBudget = await db.tx(async (t) => {
         await t.none(`UPDATE ${s}.budgets SET is_current = false WHERE id = $1`, [budget_id]);
         return t.one(
           `INSERT INTO ${s}.budgets
-             (deliverable_id, activity_id, budgeted_amount, version, is_current, status, created_by, tenant_code)
-           VALUES ($1, $2, $3, $4, true, 'draft', $5, $6)
+             (deliverable_id, activity_id, budgeted_amount, version, is_current, status, created_by)
+           VALUES ($1, $2, $3, $4, true, 'draft', $5)
            RETURNING *`,
           [
             current.deliverable_id,
@@ -116,7 +115,6 @@ class BudgetsController extends BaseController {
             current.budgeted_amount,
             current.version + 1,
             createdBy,
-            tenantCode,
           ],
         );
       });
