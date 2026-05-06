@@ -69,10 +69,11 @@ export const CATALOG_ENTRIES = [
   { module: 'core', router: 'vendor-contacts', action: 'import', label: 'Import Vendor Contacts', description: 'Import vendor contact records from spreadsheet', sort_order: 184, policy_required: false },
   { module: 'core', router: 'vendor-contacts', action: 'export', label: 'Export Vendor Contacts', description: 'Export vendor contact records to spreadsheet', sort_order: 185 },
   { module: 'core', router: 'vendor-contacts', action: 'reset-password', label: 'Reset Password', description: 'Reset password for a vendor-contact app-user', sort_order: 186 },
-  { module: 'core', router: 'companies', action: null, label: 'Companies', description: 'Company entities for intercompany accounting', sort_order: 186, available_fields: ['code', 'name', 'is_active'] },
-  { module: 'core', router: 'companies', action: 'import', label: 'Import Companies', description: 'Import company records from spreadsheet', sort_order: 187, policy_required: false },
-  { module: 'core', router: 'companies', action: 'export', label: 'Export Companies', description: 'Export company records to spreadsheet', sort_order: 188 },
-  { module: 'core', router: 'payment-terms', action: null, label: 'Payment Terms', description: 'Standardised vendor payment terms', sort_order: 189, available_fields: ['label', 'term', 'units', 'is_active'] },
+  { module: 'core', router: 'vendor-contacts', action: 'swap-login-email', label: 'Swap Login Email', description: "Replace a vendor-contact app-user's login email address", sort_order: 187 },
+  { module: 'core', router: 'companies', action: null, label: 'Companies', description: 'Company entities for intercompany accounting', sort_order: 195, available_fields: ['code', 'name', 'is_active'] },
+  { module: 'core', router: 'companies', action: 'import', label: 'Import Companies', description: 'Import company records from spreadsheet', sort_order: 196, policy_required: false },
+  { module: 'core', router: 'companies', action: 'export', label: 'Export Companies', description: 'Export company records to spreadsheet', sort_order: 197 },
+  { module: 'core', router: 'payment-terms', action: null, label: 'Payment Terms', description: 'Standardised vendor payment terms', sort_order: 199, available_fields: ['label', 'term', 'units', 'is_active'] },
   // roles, policies, state-filters, field-group-*, policy-catalog:
   // UI-managed config — spreadsheet I/O disabled at the router level.
   { module: 'core', router: 'roles', action: null, label: 'Roles', description: 'RBAC role definitions', sort_order: 190, available_fields: ['code', 'name', 'description', 'is_system', 'is_immutable', 'scope'] },
@@ -138,6 +139,7 @@ export const CATALOG_ENTRIES = [
   { module: 'activities', router: 'budgets', action: null, label: 'Budgets', description: 'Deliverable-activity budget allocations', sort_order: 550, valid_statuses: ['draft', 'submitted', 'approved', 'locked', 'rejected'], available_fields: ['deliverable_id', 'activity_id', 'budgeted_amount', 'version', 'is_current', 'status', 'submitted_by', 'submitted_at', 'approved_by', 'approved_at'] },
   { module: 'activities', router: 'budgets', action: 'import', label: 'Import Budgets', description: 'Import budget records from spreadsheet', sort_order: 551, policy_required: false },
   { module: 'activities', router: 'budgets', action: 'export', label: 'Export Budgets', description: 'Export budget records to spreadsheet', sort_order: 552 },
+  { module: 'activities', router: 'budgets', action: 'new-version', label: 'Create Budget Version', description: 'Branch a new editable version of an existing budget', sort_order: 553 },
   { module: 'activities', router: 'cost-lines', action: null, label: 'Cost Lines', description: 'Individual cost entries per deliverable', sort_order: 560, valid_statuses: ['draft', 'submitted', 'approved', 'change_order'], available_fields: ['company_id', 'deliverable_id', 'vendor_id', 'activity_id', 'budget_id', 'tenant_sku', 'source_type', 'quantity', 'unit_price', 'markup_pct', 'status'] },
   { module: 'activities', router: 'cost-lines', action: 'import', label: 'Import Cost Lines', description: 'Import cost line records from spreadsheet', sort_order: 561, policy_required: false },
   { module: 'activities', router: 'cost-lines', action: 'export', label: 'Export Cost Lines', description: 'Export cost line records to spreadsheet', sort_order: 562 },
@@ -179,6 +181,7 @@ export const CATALOG_ENTRIES = [
   { module: 'ar', router: 'ar-invoices', action: null, label: 'AR Invoices', description: 'Client invoices', sort_order: 810, valid_statuses: ['open', 'sent', 'paid', 'voided'], available_fields: ['company_id', 'client_id', 'project_id', 'deliverable_id', 'invoice_number', 'invoice_date', 'due_date', 'total_amount', 'currency', 'status', 'notes'] },
   { module: 'ar', router: 'ar-invoices', action: 'import', label: 'Import AR Invoices', description: 'Import AR invoice records from spreadsheet', sort_order: 811, policy_required: false },
   { module: 'ar', router: 'ar-invoices', action: 'export', label: 'Export AR Invoices', description: 'Export AR invoice records to spreadsheet', sort_order: 812 },
+  { module: 'ar', router: 'ar-invoices', action: 'approve', label: 'Approve AR Invoice', description: 'Approve a draft AR invoice and mark it sent to the client', sort_order: 813 },
   // ar-invoice-lines: line/sub-record — spreadsheet I/O disabled.
   { module: 'ar', router: 'ar-invoice-lines', action: null, label: 'AR Invoice Lines', description: 'Line items on client invoices', sort_order: 820, policy_required: false, available_fields: ['invoice_id', 'description', 'amount', 'account_id'] },
   { module: 'ar', router: 'receipts', action: null, label: 'Receipts', description: 'Client payment receipts', sort_order: 830, available_fields: ['client_id', 'ar_invoice_id', 'receipt_date', 'amount', 'method', 'reference', 'notes'] },
@@ -193,6 +196,8 @@ export const CATALOG_ENTRIES = [
   { module: 'accounting', router: 'journal-entries', action: null, label: 'Journal Entries', description: 'Double-entry journal headers', sort_order: 920, valid_statuses: ['pending', 'posted', 'reversed'], available_fields: ['company_id', 'project_id', 'entry_date', 'description', 'status', 'source_type', 'corrects_id'] },
   { module: 'accounting', router: 'journal-entries', action: 'import', label: 'Import Journal Entries', description: 'Import journal entry records from spreadsheet', sort_order: 921, policy_required: false },
   { module: 'accounting', router: 'journal-entries', action: 'export', label: 'Export Journal Entries', description: 'Export journal entry records to spreadsheet', sort_order: 922 },
+  { module: 'accounting', router: 'journal-entries', action: 'post', label: 'Post Journal Entry', description: 'Post a pending journal entry to the ledger', sort_order: 923 },
+  { module: 'accounting', router: 'journal-entries', action: 'reverse', label: 'Reverse Journal Entry', description: 'Create a reversing entry against a posted journal entry', sort_order: 924 },
   // journal-entry-lines: line/sub-record — bypasses balanced-entry
   // validation if imported standalone. Spreadsheet I/O disabled.
   { module: 'accounting', router: 'journal-entry-lines', action: null, label: 'Journal Entry Lines', description: 'Debit/credit lines per journal entry', sort_order: 930, policy_required: false, available_fields: ['entry_id', 'account_id', 'debit', 'credit', 'memo', 'related_table', 'related_id'] },
@@ -201,6 +206,7 @@ export const CATALOG_ENTRIES = [
   { module: 'accounting', router: 'posting-queues', action: null, label: 'Posting Queues', description: 'Async journal entry posting queue', sort_order: 950, valid_statuses: ['pending', 'posted', 'failed'], available_fields: ['journal_entry_id', 'status', 'error_message', 'processed_at'] },
   { module: 'accounting', router: 'posting-queues', action: 'import', label: 'Import Posting Queues', description: 'Import posting queue records from spreadsheet', sort_order: 951, policy_required: false },
   { module: 'accounting', router: 'posting-queues', action: 'export', label: 'Export Posting Queues', description: 'Export posting queue records to spreadsheet', sort_order: 952 },
+  { module: 'accounting', router: 'posting-queues', action: 'retry', label: 'Retry Posting', description: 'Retry a failed async posting queue entry', sort_order: 953 },
   { module: 'accounting', router: 'category-account-map', action: null, label: 'Category Account Map', description: 'Maps cost categories to GL accounts', sort_order: 960, available_fields: ['category_id', 'account_id', 'valid_from', 'valid_to'] },
   { module: 'accounting', router: 'category-account-map', action: 'import', label: 'Import Category Account Map', description: 'Import category-account mapping records from spreadsheet', sort_order: 961, policy_required: false },
   { module: 'accounting', router: 'category-account-map', action: 'export', label: 'Export Category Account Map', description: 'Export category-account mapping records to spreadsheet', sort_order: 962 },

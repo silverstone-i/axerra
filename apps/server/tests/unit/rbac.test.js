@@ -111,6 +111,34 @@ describe('resolveLevel', () => {
     expect(EXACT_MATCH_KEYS.has('accounting::journal-entries::export')).toBe(true);
   });
 
+  it('registers workflow action addresses as exact-match (independent grants)', () => {
+    expect(EXACT_MATCH_KEYS.has('accounting::journal-entries::post')).toBe(true);
+    expect(EXACT_MATCH_KEYS.has('accounting::journal-entries::reverse')).toBe(true);
+    expect(EXACT_MATCH_KEYS.has('accounting::posting-queues::retry')).toBe(true);
+    expect(EXACT_MATCH_KEYS.has('ar::ar-invoices::approve')).toBe(true);
+    expect(EXACT_MATCH_KEYS.has('core::vendor-contacts::swap-login-email')).toBe(true);
+    expect(EXACT_MATCH_KEYS.has('activities::budgets::new-version')).toBe(true);
+  });
+
+  it('workflow exact-match action ignores router-level grant', () => {
+    const caps = { 'accounting::journal-entries::': 'full' };
+    expect(resolveLevel(caps, 'accounting', 'journal-entries', 'post')).toBe('none');
+    expect(resolveLevel(caps, 'accounting', 'journal-entries', 'reverse')).toBe('none');
+  });
+
+  it('workflow exact-match action ignores wildcard grant', () => {
+    const caps = { '::::': 'full' };
+    expect(resolveLevel(caps, 'ar', 'ar-invoices', 'approve')).toBe('none');
+    expect(resolveLevel(caps, 'core', 'vendor-contacts', 'swap-login-email')).toBe('none');
+    expect(resolveLevel(caps, 'activities', 'budgets', 'new-version')).toBe('none');
+    expect(resolveLevel(caps, 'accounting', 'posting-queues', 'retry')).toBe('none');
+  });
+
+  it('workflow exact-match action allows when explicit grant is present', () => {
+    const caps = { 'ar::ar-invoices::approve': 'full' };
+    expect(resolveLevel(caps, 'ar', 'ar-invoices', 'approve')).toBe('full');
+  });
+
   it('does NOT register import addresses as exact-match (covered by CRUD)', () => {
     expect(EXACT_MATCH_KEYS.has('core::vendors::import')).toBe(false);
     expect(EXACT_MATCH_KEYS.has('ap::ap-invoices::import')).toBe(false);

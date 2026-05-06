@@ -99,17 +99,24 @@ class BudgetsController extends BaseController {
         });
       }
 
-      // Mark old version as not current via raw SQL to avoid ColumnSet reset
-      await db.none(`UPDATE ${s}.budgets SET is_current = false WHERE id = $1`, [budget_id]);
-
-      // Create new draft version
-      const newBudget = await this.model(schema).insert({
-        deliverable_id: current.deliverable_id,
-        activity_id: current.activity_id,
-        budgeted_amount: current.budgeted_amount,
-        version: current.version + 1,
-        is_current: true,
-        status: 'draft',
+      // Atomic version switch: flip prior version + insert new draft in one tx
+      // so a failed insert doesn't leave the deliverable with no current budget.
+      const createdBy = req.user?.id ?? null;
+      const newBudget = await db.tx(async (t) => {
+        await t.none(`UPDATE ${s}.budgets SET is_current = false WHERE id = $1`, [budget_id]);
+        return t.one(
+          `INSERT INTO ${s}.budgets
+             (deliverable_id, activity_id, budgeted_amount, version, is_current, status, created_by)
+           VALUES ($1, $2, $3, $4, true, 'draft', $5)
+           RETURNING *`,
+          [
+            current.deliverable_id,
+            current.activity_id,
+            current.budgeted_amount,
+            current.version + 1,
+            createdBy,
+          ],
+        );
       });
 
       logger.info(`Budget new version ${current.version + 1} created from ${budget_id}`);
