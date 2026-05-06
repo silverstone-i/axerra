@@ -16,7 +16,7 @@ import { DB } from 'pg-schemata';
 import migrator from '../db/migrations/index.js';
 import { tenantModules } from '../db/migrations/moduleScopes.js';
 import { seedSystemRoles } from '../system/core/services/systemRoleSeeder.js';
-import { seedPolicyCatalog } from '../system/core/services/policyCatalogSeeder.js';
+import { reconcilePolicyCatalog } from '../system/core/services/policyCatalogReconciler.js';
 import { seedNumberingConfig } from '../system/core/services/numberingConfigSeeder.js';
 import { seedTenantPreferences } from '../system/core/services/tenantPreferencesSeeder.js';
 import logger from '../lib/logger.js';
@@ -80,11 +80,11 @@ export async function provisionTenant({ schemaName, tenantCode, createdBy: _crea
     logger.warn(`RBAC seeding failed for "${normalized}":`, err?.message || err);
   }
 
-  // 5. Seed policy catalog (permission discovery for role-config UI)
+  // 5. Reconcile policy catalog (permission discovery for role-config UI)
   try {
-    await seedPolicyCatalog(DB.db, DB.pgp, normalized, isRootTenant);
+    await reconcilePolicyCatalog(DB.db, DB.pgp, normalized, { isRootTenant });
   } catch (err) {
-    logger.warn(`Policy catalog seeding failed for "${normalized}":`, err?.message || err);
+    logger.warn(`Policy catalog reconciliation failed for "${normalized}":`, err?.message || err);
   }
 
   // 6. Seed default numbering configuration (all disabled — opt-in)

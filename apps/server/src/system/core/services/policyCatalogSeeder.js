@@ -3,8 +3,12 @@
  *       (module, router, action) tuples for role-configuration UI discovery
  * @module core/services/policyCatalogSeeder
  *
- * Called during tenant provisioning (after systemRoleSeeder).
- * Idempotent — safe to re-run on existing tenants.
+ * `CATALOG_ENTRIES` is the declarative source of truth for policy_catalog
+ * rows. New code (tenant provisioning, the reconcile CLI) routes through
+ * `policyCatalogReconciler.js`, which performs a full diff/upsert/delete
+ * pass against a tenant schema. The legacy `seedPolicyCatalog` export
+ * below is INSERT-only and is retained solely for the historical "reseed"
+ * data migrations that import it; do not call it from new code.
  *
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
