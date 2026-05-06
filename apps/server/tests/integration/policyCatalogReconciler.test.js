@@ -19,7 +19,6 @@ const TEST_TENANT_CODE = 'PCRT';
 
 let db;
 let pgp;
-let testTenantId;
 
 beforeAll(async () => {
   await cleanupTestDb();
@@ -27,14 +26,12 @@ beforeAll(async () => {
   pgp = DB.pgp;
 
   // Insert tenant row (non-root) and provision the schema.
-  const inserted = await db.one(
+  await db.none(
     `INSERT INTO admin.tenants (tenant_code, schema_name, company, status, tier)
      VALUES ($1, $2, 'PCR Test Co', 'active', 'growth')
-     ON CONFLICT (tenant_code) DO UPDATE SET schema_name = EXCLUDED.schema_name
-     RETURNING id`,
+     ON CONFLICT (tenant_code) DO UPDATE SET schema_name = EXCLUDED.schema_name`,
     [TEST_TENANT_CODE, TEST_SCHEMA],
   );
-  testTenantId = inserted.id;
 
   const { provisionTenant } = await import('../../src/services/tenantProvisioning.js');
   await provisionTenant({ schemaName: TEST_SCHEMA, tenantCode: TEST_TENANT_CODE });
