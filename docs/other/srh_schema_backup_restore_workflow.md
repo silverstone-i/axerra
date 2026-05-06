@@ -12,15 +12,21 @@ Automate a full database rebuild that:
 
 ## Why rebuild from scratch?
 
-A simple backup/restore into an existing database can leave stale seed data.
-In particular, `policy_catalog` entries may lack `valid_statuses` and
-`available_fields` arrays that are only populated by `policyCatalogSeeder.js`
-during provisioning. This causes:
+A full rebuild remains the cleanest way to validate that admin schema,
+migrations, and seed data all line up with the current codebase end-to-end.
 
-- Status dropdown in "add state filter" to not populate
-- Field group column options to not appear in the create dialog
+For routine `policy_catalog` drift (new entries, label/description tweaks,
+`valid_statuses` or `available_fields` updates), a full rebuild is no longer
+required: run the reconciler instead.
 
-Rebuilding from scratch ensures the database matches the current codebase.
+```bash
+cross-env NODE_ENV=development node scripts/db/reconcilePolicyCatalog.js
+```
+
+The reconciler diff/upserts `CATALOG_ENTRIES` (defined in
+`policyCatalogSeeder.js`) against every tenant schema and reports
+`{ inserted, updated, removed, unchanged }` per tenant. It is also the path
+used during tenant provisioning, so new and existing tenants stay in lockstep.
 
 ---
 
@@ -79,7 +85,10 @@ Runs `provisionTenantCli.js` which:
 5. **Truncate** `srh` tables in reverse FK order, **excluding `policy_catalog`**
 6. **Insert** from `srh_restore` to `srh` in FK order, **excluding `policy_catalog`**
 
-Excluding `policy_catalog` preserves the freshly-seeded data from Step 5.
+Excluding `policy_catalog` preserves the freshly-seeded data from Step 5. This
+carve-out is a historical workaround — for restores that don't otherwise need
+a full rebuild, restore everything and then run `reconcilePolicyCatalog.js`
+to bring the catalog back in line with the current codebase.
 
 ### Step 7 — Restore portal_users
 
@@ -122,15 +131,30 @@ cross-env NODE_ENV=development node scripts/db/provisionTenantCli.js \
 
 Inserts tenant record (idempotent) and calls `provisionTenant()`.
 
-### `scripts/db/reseedPolicyCatalog.js`
+### `scripts/db/reconcilePolicyCatalog.js`
 
-Standalone utility to truncate and reseed `policy_catalog` for any schema.
-Useful after code changes to `policyCatalogSeeder.js` without re-provisioning.
+Diff/upsert/delete reconciler for `policy_catalog`. Imports `CATALOG_ENTRIES`
+from `policyCatalogSeeder.js` and applies the delta against one or all
+tenant schemas. Stable row IDs, idempotent, safe to re-run.
 
 ```bash
-cross-env NODE_ENV=development node scripts/db/reseedPolicyCatalog.js --schema srh
-cross-env NODE_ENV=development node scripts/db/reseedPolicyCatalog.js --schema axerra --root
+# All non-admin tenants in admin.tenants
+cross-env NODE_ENV=development node scripts/db/reconcilePolicyCatalog.js
+
+# Single schema (root flag derived from admin.tenants)
+cross-env NODE_ENV=development node scripts/db/reconcilePolicyCatalog.js --schema srh
+
+# Override root flag for a not-yet-registered schema
+cross-env NODE_ENV=development node scripts/db/reconcilePolicyCatalog.js --schema axerra --root
+
+# Diff only, no writes
+cross-env NODE_ENV=development node scripts/db/reconcilePolicyCatalog.js --dry-run
 ```
+
+Removed entries (rows in DB whose tuple no longer appears in `CATALOG_ENTRIES`)
+are hard-deleted. Any matching grants in `<schema>.policies` for the removed
+tuple become orphaned — the reconciler logs a warning with the dependent count
+so an operator can clean them up.
 
 ---
 
@@ -138,7 +162,9 @@ cross-env NODE_ENV=development node scripts/db/reseedPolicyCatalog.js --schema a
 
 1. **Exclude only `policy_catalog`** from the restore — all other tables
    (roles, policies, numbering_config) are restored from backup since they
-   contain user-customized data.
+   contain user-customized data. With the reconciler now in place, an
+   alternative flow is to restore `policy_catalog` along with everything
+   else and then run `reconcilePolicyCatalog.js` to sync to current code.
 
 2. **Preserve passwords** by backing up `admin.portal_users` to CSV before
    dropping. Employee UUIDs are stable across backup/restore, so `entity_id`
