@@ -2,10 +2,9 @@
  * @file Platform maintenance page — Axerra-only data hygiene operations
  * @module client/pages/Tenant/PlatformMaintenancePage
  *
- * Sibling of Core/DataMaintenancePage, scoped to the platform-level
- * (admin schema) operations that only Axerra operators can run. Currently
- * exposes orphan portal_users cleanup; future cross-tenant maintenance
- * lands as additional cards on this page.
+ * Platform-level (admin schema) data hygiene operations that only Axerra
+ * operators can run. Currently exposes orphan portal_users cleanup; future
+ * cross-tenant maintenance lands as additional cards on this page.
  *
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */

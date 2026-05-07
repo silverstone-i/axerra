@@ -147,7 +147,6 @@ export const NAV_ITEMS = [
       { label: 'Contacts', path: '/core/contacts', capability: 'core::contacts' },
       { label: 'Companies', path: '/core/companies', capability: 'core::companies' },
       { label: 'Roles', path: '/tenant/manage-roles', capability: 'core::roles' },
-      { label: 'Data Maintenance', path: '/core/data-maintenance', capability: 'core::sources' },
     ],
   },
   {
