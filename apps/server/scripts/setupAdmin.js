@@ -84,6 +84,10 @@ async function main() {
   }
   logger.info('Admin migrations complete.');
 
+  // ── Seed admin reference data ─────────────────────────────────────
+  const { seedCountries } = await import('../src/system/auth/services/countriesSeeder.js');
+  await seedCountries(db, DB.pgp);
+
   // ── Provision Axerra tenant schema ────────────────────────────────
   const rootTenantCode = process.env.ROOT_TENANT_CODE || 'AXERRA';
   const tenantSchema = rootTenantCode.toLowerCase();
