@@ -6,6 +6,7 @@
  */
 
 import { Router } from 'express';
+import sourcesRouter from './sourcesRouter.js';
 import vendorsRouter from './vendorsRouter.js';
 import clientsRouter from './clientsRouter.js';
 import employeesRouter from './employeesRouter.js';
@@ -30,6 +31,7 @@ import tenantPreferencesRouter from './tenantPreferencesRouter.js';
 
 const router = Router();
 
+router.use('/v1/sources', sourcesRouter);
 router.use('/v1/vendors', vendorsRouter);
 router.use('/v1/clients', clientsRouter);
 router.use('/v1/employees', employeesRouter);
