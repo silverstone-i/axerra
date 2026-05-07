@@ -215,6 +215,12 @@ export async function bootstrapAdmin() {
     },
   });
 
+  // Seed admin.countries — tenant tables FK to it, so it must be populated
+  // before any tenant provisioning that creates phone_numbers/addresses/
+  // tax_identifiers rows.
+  const { seedCountries } = await import('../../src/system/auth/services/countriesSeeder.js');
+  await seedCountries(db, DB.pgp);
+
   // Insert the root admin.tenants row BEFORE provisionTenant runs.
   // Otherwise tenantProvisioning's numberingConfigSeeder and
   // tenantPreferencesSeeder look up admin.tenants by schema_name, find
@@ -286,8 +292,11 @@ export async function cleanupTestDb() {
     // find the existing System Administrator row, leaking duplicate
     // employees on every test file.
     const rootTenantCode = process.env.ROOT_TENANT_CODE || 'AXERRA';
+    // Preserve admin.tenants (root tenant UUID stability — see comment
+     // above) and admin.countries (reference data FK'd by persisted
+     // tenant schemas; truncating would orphan their country_code FKs).
     const adminTables = await db.manyOrNone(
-      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'admin' AND table_type = 'BASE TABLE' AND table_name != 'tenants'",
+      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'admin' AND table_type = 'BASE TABLE' AND table_name NOT IN ('tenants', 'countries')",
     );
     if (adminTables.length) {
       const tableList = adminTables.map((r) => `admin.${DB.pgp.as.name(r.table_name)}`).join(', ');

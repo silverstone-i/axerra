@@ -10,12 +10,14 @@ import PortalUsers from './models/PortalUsers.js';
 import PortalUserTenants from './models/PortalUserTenants.js';
 import ImpersonationLogs from './models/ImpersonationLogs.js';
 import MatchReviewLogs from './models/MatchReviewLogs.js';
+import Countries from './models/Countries.js';
 const repositories = {
   tenants: Tenants,
   portalUsers: PortalUsers,
   portalUserTenants: PortalUserTenants,
   impersonationLogs: ImpersonationLogs,
   matchReviewLogs: MatchReviewLogs,
+  countries: Countries,
 };
 
 export default repositories;

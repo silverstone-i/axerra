@@ -38,6 +38,12 @@ const addressesSchema = {
         references: { table: 'sources', columns: ['id'] },
         onDelete: 'CASCADE',
       },
+      {
+        type: 'ForeignKey',
+        columns: ['country_code'],
+        references: { table: 'admin.countries', columns: ['code'] },
+        onDelete: 'RESTRICT',
+      },
     ],
     indexes: [
       { type: 'Index', columns: ['tenant_id'] },
