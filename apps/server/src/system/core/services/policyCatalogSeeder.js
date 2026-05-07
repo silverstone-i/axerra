@@ -58,13 +58,10 @@ export const CATALOG_ENTRIES = [
   { module: 'core', router: 'contacts', action: null, label: 'Contacts', description: 'Miscellaneous contacts / payees', sort_order: 140, available_fields: ['name', 'code', 'is_active'] },
   { module: 'core', router: 'contacts', action: 'import', label: 'Import Contacts', description: 'Import contact records from spreadsheet', sort_order: 141, policy_required: false },
   { module: 'core', router: 'contacts', action: 'export', label: 'Export Contacts', description: 'Export contact records to spreadsheet', sort_order: 142 },
-  // sources, addresses, phone-numbers, tax-identifiers, emails:
+  // addresses, phone-numbers, tax-identifiers, emails:
   // import/export disabled at the router level (sub-records of parent
   // entities; importing standalone creates orphans). Catalog rows for
   // import/export intentionally absent.
-  { module: 'core', router: 'sources', action: null, label: 'Sources', description: 'Polymorphic source registry', sort_order: 150, policy_required: false, available_fields: ['table_id', 'source_type', 'label'] },
-  { module: 'core', router: 'sources', action: 'find_orphans', label: 'Preview Orphan Sources', description: 'List polymorphic sources rows whose owning entity has been hard-deleted', sort_order: 153 },
-  { module: 'core', router: 'sources', action: 'cleanup_orphans', label: 'Clean Up Orphan Sources', description: 'Hard-delete orphaned polymorphic sources rows in the caller tenant schema. Requires Preview Orphan Sources — the UI gates cleanup on a successful preview.', sort_order: 154 },
   { module: 'core', router: 'addresses', action: null, label: 'Addresses', description: 'Addresses linked to entities', sort_order: 160, policy_required: false, available_fields: ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'] },
   { module: 'core', router: 'phone-numbers', action: null, label: 'Phone Numbers', description: 'Phone numbers linked to entities', sort_order: 170, policy_required: false, available_fields: ['phone_type', 'phone_number', 'is_primary'] },
   { module: 'core', router: 'tax-identifiers', action: null, label: 'Tax Identifiers', description: 'Tax IDs linked to entities via sources', sort_order: 175, policy_required: false, available_fields: ['country_code', 'tax_type', 'tax_value'] },
