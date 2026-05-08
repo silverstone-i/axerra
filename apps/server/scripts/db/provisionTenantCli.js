@@ -3,7 +3,7 @@
  * @module server/scripts/db/provisionTenantCli
  *
  * Usage:
- *   cross-env NODE_ENV=development node apps/server/scripts/db/provisionTenantCli.js \
+ *   npx cross-env NODE_ENV=development node apps/server/scripts/db/provisionTenantCli.js \
  *     --tenant-code SRH \
  *     --company "Sterling Ridge Homes, LLC" \
  *     --schema-name srh

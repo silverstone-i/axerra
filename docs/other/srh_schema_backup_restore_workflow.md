@@ -20,7 +20,7 @@ For routine `policy_catalog` drift (new entries, label/description tweaks,
 required: run the reconciler instead.
 
 ```bash
-cross-env NODE_ENV=development node apps/server/scripts/db/reconcilePolicyCatalog.js
+npx cross-env NODE_ENV=development node apps/server/scripts/db/reconcilePolicyCatalog.js
 ```
 
 The reconciler diff/upserts `CATALOG_ENTRIES` (defined in
@@ -122,7 +122,7 @@ Drops the `srh_restore` staging schema.
 CLI script to provision any tenant from the command line.
 
 ```bash
-cross-env NODE_ENV=development node apps/server/scripts/db/provisionTenantCli.js \
+npx cross-env NODE_ENV=development node apps/server/scripts/db/provisionTenantCli.js \
   --tenant-code SRH \
   --company "Sterling Ridge Homes, LLC" \
   --schema-name srh \
@@ -139,16 +139,16 @@ tenant schemas. Stable row IDs, idempotent, safe to re-run.
 
 ```bash
 # All non-admin tenants in admin.tenants
-cross-env NODE_ENV=development node apps/server/scripts/db/reconcilePolicyCatalog.js
+npx cross-env NODE_ENV=development node apps/server/scripts/db/reconcilePolicyCatalog.js
 
 # Single schema (root flag derived from admin.tenants)
-cross-env NODE_ENV=development node apps/server/scripts/db/reconcilePolicyCatalog.js --schema srh
+npx cross-env NODE_ENV=development node apps/server/scripts/db/reconcilePolicyCatalog.js --schema srh
 
 # Override root flag for a not-yet-registered schema
-cross-env NODE_ENV=development node apps/server/scripts/db/reconcilePolicyCatalog.js --schema axerra --root
+npx cross-env NODE_ENV=development node apps/server/scripts/db/reconcilePolicyCatalog.js --schema axerra --root
 
 # Diff only, no writes
-cross-env NODE_ENV=development node apps/server/scripts/db/reconcilePolicyCatalog.js --dry-run
+npx cross-env NODE_ENV=development node apps/server/scripts/db/reconcilePolicyCatalog.js --dry-run
 ```
 
 Removed entries (rows in DB whose tuple no longer appears in `CATALOG_ENTRIES`)

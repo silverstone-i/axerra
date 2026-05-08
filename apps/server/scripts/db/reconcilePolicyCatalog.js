@@ -7,14 +7,14 @@
  *
  * Usage:
  *   # Reconcile a single schema; --root flag overrides admin.tenants lookup.
- *   cross-env NODE_ENV=development node apps/server/scripts/db/reconcilePolicyCatalog.js --schema srh
- *   cross-env NODE_ENV=development node apps/server/scripts/db/reconcilePolicyCatalog.js --schema axerra --root
+ *   npx cross-env NODE_ENV=development node apps/server/scripts/db/reconcilePolicyCatalog.js --schema srh
+ *   npx cross-env NODE_ENV=development node apps/server/scripts/db/reconcilePolicyCatalog.js --schema axerra --root
  *
  *   # Reconcile every non-admin tenant schema known to admin.tenants.
- *   cross-env NODE_ENV=development node apps/server/scripts/db/reconcilePolicyCatalog.js
+ *   npx cross-env NODE_ENV=development node apps/server/scripts/db/reconcilePolicyCatalog.js
  *
  *   # Show diffs without applying writes.
- *   cross-env NODE_ENV=development node apps/server/scripts/db/reconcilePolicyCatalog.js --dry-run
+ *   npx cross-env NODE_ENV=development node apps/server/scripts/db/reconcilePolicyCatalog.js --dry-run
  *
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
