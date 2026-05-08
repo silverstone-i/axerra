@@ -108,7 +108,7 @@ echo ""
 # ══════════════════════════════════════════════════════════════════
 echo "=== Step 4: Provision SRH tenant ==="
 cd "$SERV_DIR"
-npx cross-env NODE_ENV=development node "$SCRIPT_DIR/provisionTenantCli.js" \
+npx cross-env NODE_ENV=development node "$SERV_DIR/scripts/db/provisionTenantCli.js" \
   --tenant-code "$TENANT_CODE" \
   --company "$COMPANY" \
   --schema-name "$SOURCE_SCHEMA"
