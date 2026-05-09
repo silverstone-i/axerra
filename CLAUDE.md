@@ -18,13 +18,13 @@
   - Feature branches push directly to origin with no protection.
   - Merging into `main` requires a PR with passing Lint, Architecture Check,
     and Copilot review.
-  - `npm run pr` is the pre-PR gate: runs the full server suite, pushes the branch, then opens a PR via `gh pr create` (pass-through args supported). There is no pre-push hook — intermediate pushes don't run tests locally.
+  - Tests run automatically in CI on every PR to `main`, split into `test-fast` (unit + rbac, mocked) and `test-integration` (contract + integration, real Postgres + Redis service containers) jobs. There is no local pre-PR gate — push with `git push` and open the PR via `gh pr create` directly.
   - Releases: bump version on a feature branch, open PR, merge, then
     `git checkout main && git pull --ff-only origin main && git tag -a v<X.Y.Z> -m "Release v<X.Y.Z>" && git push origin v<X.Y.Z>`.
 
 ## Authorization for Destructive/Remote Actions
 
-- Do NOT run `npm run pr`, `git push`, `gh pr create`, or open PRs without explicit user authorization
+- Do NOT run `git push`, `gh pr create`, or open PRs without explicit user authorization
 - Commits are fine when requested; pushing/PR-opening requires confirmation
 
 ## Rebrand/Rename Refactors
