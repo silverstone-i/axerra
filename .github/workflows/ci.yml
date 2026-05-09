@@ -53,8 +53,8 @@ jobs:
           node-version-file: '.nvmrc'
           cache: 'npm'
       - run: npm ci
+      - run: npm install --no-save @rollup/rollup-linux-x64-gnu
       - run: npm -w apps/server run test:unit
-      - run: npm -w apps/server run test:contract
       - run: npm -w apps/server run test:rbac
 
   test-integration:
@@ -94,5 +94,6 @@ jobs:
           node-version-file: '.nvmrc'
           cache: 'npm'
       - run: npm ci
-      - run: npm -w apps/server run migrate:test
+      - run: npm install --no-save @rollup/rollup-linux-x64-gnu
+      - run: npm -w apps/server run test:contract
       - run: npm -w apps/server run test:integration

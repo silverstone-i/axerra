@@ -18,7 +18,7 @@
   - Feature branches push directly to origin with no protection.
   - Merging into `main` requires a PR with passing Lint, Architecture Check,
     and Copilot review.
-  - Tests run automatically in CI on every PR to `main`, split into `test-fast` (unit + contract + rbac, mocked) and `test-integration` (real Postgres + Redis service containers) jobs. There is no local pre-PR gate — push with `git push` and open the PR via `gh pr create` directly.
+  - Tests run automatically in CI on every PR to `main`, split into `test-fast` (unit + rbac, mocked) and `test-integration` (contract + integration, real Postgres + Redis service containers) jobs. There is no local pre-PR gate — push with `git push` and open the PR via `gh pr create` directly.
   - Releases: bump version on a feature branch, open PR, merge, then
     `git checkout main && git pull --ff-only origin main && git tag -a v<X.Y.Z> -m "Release v<X.Y.Z>" && git push origin v<X.Y.Z>`.
 
