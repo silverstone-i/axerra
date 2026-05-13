@@ -1,0 +1,200 @@
+/**
+ * @file App-user lifecycle service for tenant entities with portal access
+ * @module server/lib/employeeAppUserSync
+ *
+ * Centralises portal_users + portal_user_tenants cascade rules for entities
+ * that opt in to app access (employees, clients). Used by both controllers
+ * (single-row CRUD) and the flat-import reconciler. Functions are pure of
+ * req/res — callers pass plain arguments and a transaction handle.
+ *
+ * Naming note: the module is called `employeeAppUserSync` for historical
+ * reasons; the helpers are polymorphic and accept any entity_type that
+ * binds to portal_users (employee, client, vendor_contact).
+ *
+ * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ */
+
+import logger from './logger.js';
+
+/**
+ * Provision a portal_user + binding for an entity gaining app access.
+ * Skips when an active portal_user already owns this email (the caller's
+ * pre-validation should catch this case as a collision; this is a defensive
+ * fallback). Returns true on success, false on collision-skip.
+ *
+ * @param {Object} t           pg-promise transaction
+ * @param {string} entityType  'employee' | 'client' | 'vendor_contact'
+ * @param {string} entityId    primary key of the entity in its tenant table
+ * @param {string} email       login email to assign to portal_users
+ * @param {string} password    clear-text password (will be bcrypted) — supply random when caller doesn't have one
+ * @param {string} tenantId    binding tenant_id
+ * @param {string|null} userId caller user id for audit
+ * @param {string} [preHash]   pre-computed bcrypt hash; skips hashing when supplied
+ * @returns {Promise<boolean>} true on success, false on collision
+ */
+export async function provisionAppUser(t, entityType, entityId, email, password, tenantId, userId, preHash = null) {
+  const existing = await t.oneOrNone(
+    'SELECT id FROM admin.portal_users WHERE email = $1 AND deactivated_at IS NULL',
+    [email],
+  );
+  if (existing) return false;
+
+  let passwordHash;
+  if (preHash) {
+    passwordHash = preHash;
+  } else {
+    const bcrypt = await import('bcrypt');
+    const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
+    passwordHash = await bcrypt.default.hash(password, rounds);
+  }
+
+  const inserted = await t.one(
+    `INSERT INTO admin.portal_users (email, password_hash, status, created_by)
+     VALUES ($1, $2, 'invited', $3)
+     RETURNING id`,
+    [email, passwordHash, userId],
+  );
+  await t.none(
+    `INSERT INTO admin.portal_user_tenants
+       (portal_user_id, tenant_id, entity_type, entity_id, status, created_by)
+     VALUES ($1, $2, $3, $4, 'active', $5)`,
+    [inserted.id, tenantId, entityType, entityId, userId],
+  );
+  return true;
+}
+
+/**
+ * Restore an archived portal_user + binding for an entity that's coming
+ * back online (employee restore, is_app_user re-enabled). Restores the
+ * binding if one exists in archived state; updates the password/email on
+ * the way back. Returns true if a restore occurred, false if no prior
+ * binding exists.
+ *
+ * @param {Object} t           pg-promise transaction
+ * @param {string} entityType
+ * @param {string} entityId
+ * @param {string} tenantId
+ * @param {string|null} userId
+ * @param {string} [email]     when supplied, also updates the portal_user email
+ * @param {string} [preHash]   when supplied, also updates the password
+ */
+export async function restoreAppUserBinding(t, entityType, entityId, tenantId, userId, email = null, preHash = null) {
+  const binding = await t.oneOrNone(
+    `SELECT id, portal_user_id FROM admin.portal_user_tenants
+     WHERE entity_type = $1 AND entity_id = $2 AND tenant_id = $3
+     ORDER BY deactivated_at IS NULL DESC, created_at DESC LIMIT 1`,
+    [entityType, entityId, tenantId],
+  );
+  if (!binding) return false;
+
+  if (email && preHash) {
+    await t.none(
+      `UPDATE admin.portal_users
+       SET deactivated_at = NULL, status = 'invited', password_hash = $1, email = $2, updated_by = $3
+       WHERE id = $4`,
+      [preHash, email, userId, binding.portal_user_id],
+    );
+  } else if (email) {
+    await t.none(
+      `UPDATE admin.portal_users
+       SET deactivated_at = NULL, status = 'active', email = $1, updated_by = $2
+       WHERE id = $3`,
+      [email, userId, binding.portal_user_id],
+    );
+  } else {
+    await t.none(
+      `UPDATE admin.portal_users
+       SET deactivated_at = NULL, status = 'active', updated_by = $1
+       WHERE id = $2`,
+      [userId, binding.portal_user_id],
+    );
+  }
+  await t.none(
+    `UPDATE admin.portal_user_tenants
+     SET deactivated_at = NULL, status = 'active', updated_by = $1
+     WHERE id = $2`,
+    [userId, binding.id],
+  );
+  logger.info(`Restored portal_user ${binding.portal_user_id} + binding for ${entityType} ${entityId}`);
+  return true;
+}
+
+/**
+ * High-level: enable app access for an entity. Picks the right primitive
+ * based on any prior binding state.
+ *
+ *   no binding   → provision new portal_user + binding
+ *   archived     → restore portal_user + binding (and update email/password)
+ *   active       → no-op (already enabled)
+ *   email taken  → returns 'collision' without writing (caller surfaces error)
+ *
+ * @param {Object} t
+ * @param {string} entityType
+ * @param {string} entityId
+ * @param {string} email
+ * @param {string|null} password   clear-text; bcrypted internally when no preHash
+ * @param {string} tenantId
+ * @param {string|null} userId
+ * @param {Object} [opts]
+ * @param {string} [opts.preHash]  pre-computed bcrypt hash
+ * @returns {Promise<'provisioned'|'restored'|'already_active'|'collision'>}
+ */
+export async function enableAppUser(t, entityType, entityId, email, password, tenantId, userId, opts = {}) {
+  const { preHash = null } = opts;
+  const priorBinding = await t.oneOrNone(
+    `SELECT id, portal_user_id, deactivated_at FROM admin.portal_user_tenants
+     WHERE entity_type = $1 AND entity_id = $2 AND tenant_id = $3
+     ORDER BY deactivated_at IS NULL DESC, created_at DESC LIMIT 1`,
+    [entityType, entityId, tenantId],
+  );
+
+  if (priorBinding && !priorBinding.deactivated_at) return 'already_active';
+
+  if (priorBinding && priorBinding.deactivated_at) {
+    let hash = preHash;
+    if (!hash && password) {
+      const bcrypt = await import('bcrypt');
+      const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
+      hash = await bcrypt.default.hash(password, rounds);
+    }
+    await restoreAppUserBinding(t, entityType, entityId, tenantId, userId, email, hash);
+    return 'restored';
+  }
+
+  const provisioned = await provisionAppUser(t, entityType, entityId, email, password, tenantId, userId, preHash);
+  return provisioned ? 'provisioned' : 'collision';
+}
+
+/**
+ * Archive (soft-delete) the portal_user + binding linked to an entity.
+ * No-op when no active binding exists.
+ *
+ * @param {Object} t
+ * @param {string} entityType
+ * @param {string} entityId
+ * @param {string} tenantId
+ * @param {string|null} userId
+ */
+export async function archiveAppUser(t, entityType, entityId, tenantId, userId) {
+  const binding = await t.oneOrNone(
+    `SELECT id, portal_user_id FROM admin.portal_user_tenants
+     WHERE entity_type = $1 AND entity_id = $2 AND tenant_id = $3 AND deactivated_at IS NULL`,
+    [entityType, entityId, tenantId],
+  );
+  if (!binding) return false;
+
+  await t.none(
+    `UPDATE admin.portal_user_tenants
+     SET deactivated_at = NOW(), status = 'locked', updated_by = $1
+     WHERE id = $2`,
+    [userId, binding.id],
+  );
+  await t.none(
+    `UPDATE admin.portal_users
+     SET deactivated_at = NOW(), status = 'locked', updated_by = $1
+     WHERE id = $2`,
+    [userId, binding.portal_user_id],
+  );
+  logger.info(`Archived portal_user ${binding.portal_user_id} + binding for ${entityType} ${entityId}`);
+  return true;
+}

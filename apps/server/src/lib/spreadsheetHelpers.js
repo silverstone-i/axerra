@@ -12,6 +12,8 @@
 import { writeFileSync, readFileSync } from 'node:fs';
 import { allocateNumber, allocateNumbers } from '../system/core/services/numberingService.js';
 import { stripFormatting, formatByPattern, COUNTRIES, TAX_TYPES } from '@axerra/shared';
+import { syncLoginEmail } from './loginEmailSync.js';
+import { archiveAppUser, restoreAppUserBinding, enableAppUser } from './employeeAppUserSync.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -432,63 +434,108 @@ export async function validateImportGroups(groups, opts) {
  * @returns {Promise<Object[]>} Array of validation errors (empty = no collisions)
  */
 export async function checkPortalUserEmailCollisions(groups, opts) {
-  const { sheetName, entityType } = opts;
+  const { sheetName, entityType, ownEntities, tenantId } = opts;
   if (!groups?.length) return [];
 
   // vendor_contact bind-existing flow runs in the controller — don't pay
   // for a DB query whose result we'd discard.
   if (entityType === 'vendor_contact') return [];
 
-  // Collect login emails for *new* app-user parents only. Updates and
-  // non-app-users never provision a portal_user, so they can't collide.
+  const isAppUserFlag = (v) => v === true || v === 1 || (typeof v === 'string' && v.toLowerCase() === 'true');
+  const isLoginFlag = (v) => v === true || v === 1 || (typeof v === 'string' && v.toLowerCase() === 'true');
+  const hasOwnEntities = ownEntities && typeof ownEntities.get === 'function';
+
+  // Collect login emails for any group whose entity will end up an app user.
+  //
+  //   INSERT case: parent.id non-UUID (or UUID without a DB row when
+  //     ownEntities is provided), parent.is_app_user truthy → new portal_user
+  //     will be provisioned with this login email; check for collision.
+  //
+  //   UPDATE case (only when ownEntities is supplied): existing entity's
+  //     portal_user.email may sync to the new value. Check for collision but
+  //     exclude self.
+  //
+  // Legacy callers that don't pass ownEntities preserve the original behavior:
+  // skip UUID-id parents entirely (treated as round-trip updates).
   const loginEmailRows = [];
+  const updatingEntityIds = new Set();
   for (const group of groups) {
     const parent = group.parent || {};
-    // parent.id is a UUID → existing entity → row is an update → existing
-    // portal_user already owns this email; skip. Non-UUID id values are
-    // just spreadsheet linkage refs for new rows and don't disqualify.
-    if (isUuid(parent.id)) continue;
-    // is_app_user falsy → no portal_user will be provisioned; skip.
-    const isAppUser = parent.is_app_user === true || parent.is_app_user === 1 || (typeof parent.is_app_user === 'string' && parent.is_app_user.toLowerCase() === 'true');
-    if (!isAppUser) continue;
+    let existing = null;
+    if (hasOwnEntities) {
+      existing = ownEntities.get(parent.id) || null;
+    } else if (isUuid(parent.id)) {
+      // Legacy path: existing entity → updates are not checked here.
+      continue;
+    }
+
+    let willBeAppUser;
+    if (existing) {
+      const incoming = parent.is_app_user;
+      willBeAppUser = incoming === undefined || incoming === '' ? !!existing.is_app_user : isAppUserFlag(incoming);
+    } else {
+      willBeAppUser = isAppUserFlag(parent.is_app_user);
+    }
+    if (!willBeAppUser) continue;
+
+    if (existing) updatingEntityIds.add(existing.id);
 
     for (const child of group.children?.emails || []) {
       if (!child?.email) continue;
-      // is_login may arrive as boolean, the string 'true', or 1
-      const isLogin = child.is_login === true || child.is_login === 1 || (typeof child.is_login === 'string' && child.is_login.toLowerCase() === 'true');
-      if (!isLogin) continue;
-      // Only do the lookup for plausibly valid emails — invalid format is
-      // already flagged separately and would skew the IN-list.
+      if (!isLoginFlag(child.is_login)) continue;
       if (!EMAIL_RE.test(child.email)) continue;
       loginEmailRows.push({
         email: String(child.email).trim().toLowerCase(),
         row: child._rowNum || null,
+        ownEntityId: existing?.id || null,
       });
     }
   }
   if (!loginEmailRows.length) return [];
 
-  const uniqueEmails = [...new Set(loginEmailRows.map((r) => r.email))];
   const { db } = await getDb();
-  const existing = await db.manyOrNone(
-    `SELECT LOWER(email) AS email FROM admin.portal_users
+
+  // Resolve own portal_user_ids for entities being updated in this import,
+  // so the cross-tenant collision check can skip self-matches.
+  const selfPortalUserIds = new Set();
+  if (updatingEntityIds.size && tenantId) {
+    const rows = await db.manyOrNone(
+      `SELECT portal_user_id FROM admin.portal_user_tenants
+       WHERE entity_type = $1 AND tenant_id = $2 AND entity_id IN ($3:csv) AND deactivated_at IS NULL`,
+      [entityType, tenantId, [...updatingEntityIds]],
+    );
+    if (rows?.length) for (const r of rows) selfPortalUserIds.add(r.portal_user_id);
+  }
+
+  const uniqueEmails = [...new Set(loginEmailRows.map((r) => r.email))];
+  const existingPortalUsers = await db.manyOrNone(
+    `SELECT id, LOWER(email) AS email FROM admin.portal_users
      WHERE LOWER(email) = ANY($1::text[]) AND deactivated_at IS NULL`,
     [uniqueEmails],
   );
-  if (!existing.length) return [];
+  if (!existingPortalUsers?.length) return [];
 
-  const taken = new Set(existing.map((r) => r.email));
+  // Build a map of email → portal_user_ids that hold it.
+  const holdersByEmail = new Map();
+  for (const r of existingPortalUsers) {
+    if (!holdersByEmail.has(r.email)) holdersByEmail.set(r.email, new Set());
+    holdersByEmail.get(r.email).add(r.id);
+  }
+
   const errors = [];
-  for (const { email, row } of loginEmailRows) {
-    if (taken.has(email)) {
-      errors.push({
-        sheet: sheetName,
-        row,
-        column: 'email',
-        value: email,
-        message: `Login email ${email} is already in use by another portal user. Single-tenant entities cannot share login identity.`,
-      });
-    }
+  for (const { email, row, ownEntityId } of loginEmailRows) {
+    const holders = holdersByEmail.get(email);
+    if (!holders || !holders.size) continue;
+    const otherHolders = [...holders].filter((id) => !selfPortalUserIds.has(id));
+    if (!otherHolders.length) continue;
+    void ownEntityId;
+    errors.push({
+      sheet: sheetName,
+      row,
+      column: 'email',
+      value: email,
+      message: `Login email ${email} is already in use by another portal user. Single-tenant entities cannot share login identity.`,
+    });
   }
   return errors;
 }
@@ -1419,13 +1466,8 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
   }
   for (const e of validateChildEnums(groups, { sheetName, childEnums })) pushIssue(errors, e);
 
-  // Cross-tenant portal_user collision check (Part 2 of import dedup spec)
-  const provisionEntityType = config.appUserProvisioning?.entityType;
-  if (provisionEntityType === 'employee' || provisionEntityType === 'client') {
-    for (const e of await checkPortalUserEmailCollisions(groups, { sheetName, entityType: provisionEntityType })) {
-      pushIssue(errors, e);
-    }
-  }
+  // Cross-tenant portal_user collision check moved to after _resolveOwnEntities
+  // (below) so it can include update-case collisions and exclude self.
 
   // Validate no duplicate codes
   const codeCounts = new Map();
@@ -1539,6 +1581,91 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
     group._transformedParent = await _transformParent(group, callbackFn, tenantId, config, STRIP_COLS);
   }
 
+  // Login-email pre-checks: load existing email rows for any updating source.
+  // Used by L2 (can't unset is_login while app user) and L4 (final state can
+  // have at most one is_login=true row per source).
+  const emailsCfg = config.flat.children.find((c) => c.key === 'emails');
+  if (emailsCfg) {
+    const sourceIdsForCheck = groups.map((g) => g._ownSourceId).filter(Boolean);
+    const existingEmailsBySource = await _loadEmailsBySource(db, s, pgp, schema, emailsCfg, sourceIdsForCheck);
+
+    for (const group of groups) {
+      const incoming = group.children.emails || [];
+      if (!incoming.length && !group._ownEntity) continue;
+      const existingRows = group._ownSourceId ? existingEmailsBySource.get(group._ownSourceId) || [] : [];
+      const existingBySlot = new Map();
+      for (const ex of existingRows) {
+        const k = _computeSlotKey(ex, emailsCfg);
+        if (k != null) existingBySlot.set(k, ex);
+      }
+
+      // L2: incoming is_login: false on a row whose existing was is_login: true
+      // AND the entity remains an app user post-import → blocking error.
+      const postImportIsAppUser =
+        group._transformedParent && 'is_app_user' in group._transformedParent
+          ? !!group._transformedParent.is_app_user
+          : !!group._ownEntity?.is_app_user;
+
+      for (const child of incoming) {
+        const slot = _computeSlotKey(child, emailsCfg);
+        if (slot == null) continue;
+        const existing = existingBySlot.get(slot);
+        if (!existing || existing.is_login !== true) continue;
+        const incomingLogin = _truthyFlag(child.is_login);
+        if (incomingLogin) continue; // not unsetting
+        if (postImportIsAppUser) {
+          pushIssue(errors, {
+            sheet: sheetName,
+            row: child._rowNum || null,
+            column: 'is_login',
+            value: 'false',
+            message: 'Cannot remove the login flag while the entity is an active app user. Disable app access first.',
+          });
+        }
+      }
+
+      // L4: count final is_login: true rows per source after the file is applied.
+      // Start from existing rows, then apply incoming overrides (by slot) and inserts.
+      const finalLogin = new Map(); // slot → boolean
+      for (const ex of existingRows) {
+        const k = _computeSlotKey(ex, emailsCfg);
+        if (k != null) finalLogin.set(k, ex.is_login === true);
+      }
+      for (const child of incoming) {
+        const slot = _computeSlotKey(child, emailsCfg);
+        if (slot == null) continue;
+        finalLogin.set(slot, _truthyFlag(child.is_login));
+      }
+      const loginSlots = [...finalLogin.entries()].filter(([, v]) => v === true).map(([k]) => k);
+      if (loginSlots.length > 1) {
+        // Find the incoming row(s) that contributed to the over-count for row-keyed errors.
+        const incomingLoginRows = incoming.filter((c) => _truthyFlag(c.is_login));
+        const target = incomingLoginRows[incomingLoginRows.length - 1] || incomingLoginRows[0];
+        pushIssue(errors, {
+          sheet: sheetName,
+          row: target?._rowNum || null,
+          column: 'is_login',
+          value: 'true',
+          message: `Only one login email is allowed per entity. ${loginSlots.length} rows would end up with is_login = true (slots: ${loginSlots.join(', ')}).`,
+        });
+      }
+    }
+  }
+
+  // Cross-tenant portal_user collision check (insert + update cases). Runs
+  // after _resolveOwnEntities so it can exclude the entity's own portal_user.
+  const provisionEntityType = config.appUserProvisioning?.entityType;
+  if (provisionEntityType === 'employee' || provisionEntityType === 'client') {
+    for (const e of await checkPortalUserEmailCollisions(groups, {
+      sheetName,
+      entityType: provisionEntityType,
+      ownEntities,
+      tenantId,
+    })) {
+      pushIssue(errors, e);
+    }
+  }
+
   // Cross-source value collision pre-check (R8). Runs against db (not in tx yet).
   await _collectCrossSourceConflicts(db, s, pgp, schema, config.sourceType, groups, config.flat.children, sheetName, errors);
 
@@ -1579,9 +1706,15 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
       }
 
       // ── Phase 2: Run updates ───────────────────────────────────────────
+      const userId = sampleRow.created_by || null;
       for (const { transformed, isArchived, group } of toUpdate) {
         const { id } = transformed;
-        const changes = _diffParent(transformed, group._ownEntity);
+        const before = group._ownEntity;
+        const wasArchived = !!before.deactivated_at;
+        const wasAppUser = !!before.is_app_user;
+        const willBeAppUser = 'is_app_user' in transformed ? !!transformed.is_app_user : wasAppUser;
+
+        const changes = _diffParent(transformed, before);
         if (Object.keys(changes).length > 0) {
           await model.updateWhere([{ id }], changes, { includeDeactivated: true });
           updatedCount++;
@@ -1602,6 +1735,51 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
         const sourceId = group._ownSourceId;
         if (sourceId) {
           await _reconcileFlatChildren(t, s, schema, db, pgp, sourceId, group.children, config.flat.children, callbackFn, tenantId);
+        }
+
+        // ── Login email portal_users sync (L1) ───────────────────────────
+        // Find the live login email after reconcile and sync portal_users.
+        if (sourceId && config.appUserProvisioning && willBeAppUser && !isArchived) {
+          const loginRow = await t.oneOrNone(
+            `SELECT email FROM ${s}.emails WHERE source_id = $1 AND is_login = true AND deactivated_at IS NULL LIMIT 1`,
+            [sourceId],
+          );
+          if (loginRow?.email) {
+            await syncLoginEmail(t, schema, sourceId, loginRow.email, { tenantId, userId });
+          }
+        }
+
+        // ── Parent-state cascades to portal_users (L2b) ─────────────────
+        if (config.appUserProvisioning) {
+          const entityType = config.appUserProvisioning.entityType;
+
+          // Active → archived: lock the portal_user
+          if (!wasArchived && isArchived && wasAppUser) {
+            await archiveAppUser(t, entityType, id, tenantId, userId);
+          }
+
+          // Archived → active: restore the portal_user (if it was app user)
+          if (wasArchived && !isArchived && wasAppUser) {
+            await restoreAppUserBinding(t, entityType, id, tenantId, userId);
+          }
+
+          // is_app_user true → false (not via archive — handled above): archive portal_user
+          if (!isArchived && wasAppUser && !willBeAppUser) {
+            await archiveAppUser(t, entityType, id, tenantId, userId);
+          }
+
+          // is_app_user false → true: provision or restore portal_user
+          if (!isArchived && !wasAppUser && willBeAppUser) {
+            const loginRow = await t.oneOrNone(
+              `SELECT email FROM ${s}.emails WHERE source_id = $1 AND is_login = true AND deactivated_at IS NULL LIMIT 1`,
+              [sourceId],
+            );
+            if (loginRow?.email) {
+              const crypto = await import('node:crypto');
+              const password = crypto.randomBytes(12).toString('base64url');
+              await enableAppUser(t, entityType, id, loginRow.email, password, tenantId, userId);
+            }
+          }
         }
       }
 
@@ -1817,6 +1995,37 @@ async function _classifyForPreview(db, s, pgp, schema, groups, config, ownEntiti
   }
 
   return { inserts, updates, noops, omitted };
+}
+
+/**
+ * Coerce a spreadsheet boolean-ish cell value to a JS true/false. Accepts
+ * native booleans, the strings 'true' / 'false' (any case), and 1/0.
+ * @private
+ */
+function _truthyFlag(v) {
+  return v === true || v === 1 || (typeof v === 'string' && v.toLowerCase() === 'true');
+}
+
+/**
+ * Batch-load active email rows for the given source_ids and group them by
+ * source_id. Used by the email-specific pre-validation block.
+ * @private
+ */
+async function _loadEmailsBySource(db, s, pgp, schema, cfg, sourceIds) {
+  const out = new Map();
+  if (!sourceIds.length) return out;
+  const childModel = db(cfg.modelName, schema);
+  const tableName = childModel._schema?.table || cfg.modelName;
+  const tName = pgp.as.name(tableName);
+  const rows = await db.any(
+    `SELECT * FROM ${s}.${tName} WHERE source_id IN ($1:csv) AND deactivated_at IS NULL`,
+    [sourceIds],
+  );
+  for (const r of rows) {
+    if (!out.has(r.source_id)) out.set(r.source_id, []);
+    out.get(r.source_id).push(r);
+  }
+  return out;
 }
 
 /**
