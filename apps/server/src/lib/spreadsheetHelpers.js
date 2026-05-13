@@ -1521,13 +1521,22 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
     }
   }
 
-  // Resolve own source_ids for existing parents (UUID id matches DB row) so
-  // cross-source uniqueness checks correctly exclude self.
-  const ownSources = await _resolveOwnSourceIds(db, s, tbl, groups);
+  // Resolve full DB rows for existing parents. Used to (a) exclude self from
+  // cross-source uniqueness checks and (b) diff parent values for NO-OP detection.
+  const ownEntities = await _resolveOwnEntities(db, s, tbl, groups);
   for (const group of groups) {
-    if (isUuid(group.parent.id) && ownSources.has(group.parent.id)) {
-      group._ownSourceId = ownSources.get(group.parent.id);
+    if (isUuid(group.parent.id) && ownEntities.has(group.parent.id)) {
+      const row = ownEntities.get(group.parent.id);
+      group._ownEntity = row;
+      group._ownSourceId = row.source_id;
     }
+  }
+
+  // Transform each parent once (matches the write path's coerce/strip pipeline)
+  // so the classifier and writer share the same canonical incoming values.
+  const STRIP_COLS = ['status', 'deactivated_at', 'password'];
+  for (const group of groups) {
+    group._transformedParent = await _transformParent(group, callbackFn, tenantId, config, STRIP_COLS);
   }
 
   // Cross-source value collision pre-check (R8). Runs against db (not in tx yet).
@@ -1541,7 +1550,7 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
 
   // Preview short-circuit (R10). Classify what *would* happen without writing.
   if (previewOnly) {
-    const counts = await _classifyForPreview(db, s, tbl, pgp, schema, groups, config, ownSources);
+    const counts = await _classifyForPreview(db, s, pgp, schema, groups, config, ownEntities);
     return { preview: true, ...counts, errors: [] };
   }
 
@@ -1554,43 +1563,31 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
       model.tx = t;
 
       // ── Phase 1: Partition into updates vs inserts ──────────────────────
-      const uuidIds = groups.filter((g) => isUuid(g.parent.id)).map((g) => g.parent.id);
-      const existingEntities = new Map();
-      if (uuidIds.length) {
-        const existing = await t.any(`SELECT id, source_id FROM ${s}.${tbl} WHERE id IN ($1:csv)`, [uuidIds]);
-        for (const row of existing) existingEntities.set(row.id, row.source_id);
-      }
-
+      // Parents have already been transformed and diffed in pre-validation;
+      // group._transformedParent and group._ownEntity carry the canonical values.
       const toUpdate = [];
       const toInsert = [];
-      const stripCols = ['status', 'deactivated_at', 'password'];
 
       for (const group of groups) {
-        const { parent } = group;
-        const isArchived = String(parent.status).toLowerCase() === 'archived';
-        const password = parent.password || null;
-        const { _rowNum: _rn, ...entityData } = { ...parent };
-        for (const col of stripCols) delete entityData[col];
-
-        const transformed = callbackFn ? await callbackFn({ ...entityData }) : { ...entityData };
-        for (const col of stripCols) delete transformed[col];
-        delete transformed.tenant_code;
-        if (tenantId) transformed.tenant_id = tenantId;
-        coerceRow(transformed, config.boolCols, config.hasRoles);
-        // Normalize empty-string codes to null
-        if (typeof transformed.code === 'string' && !transformed.code.trim()) transformed.code = null;
-
-        if (existingEntities.has(parent.id)) {
-          toUpdate.push({ transformed, isArchived, group });
+        const isArchived = String(group.parent.status).toLowerCase() === 'archived';
+        const password = group.parent.password || null;
+        if (group._ownEntity) {
+          toUpdate.push({ transformed: group._transformedParent, isArchived, group });
         } else {
-          toInsert.push({ transformed, isArchived, group, ref: parent.id || null, password });
+          toInsert.push({ transformed: group._transformedParent, isArchived, group, ref: group.parent.id || null, password });
         }
       }
 
       // ── Phase 2: Run updates ───────────────────────────────────────────
       for (const { transformed, isArchived, group } of toUpdate) {
-        const { id, ...changes } = transformed;
-        await model.updateWhere([{ id }], changes, { includeDeactivated: true });
+        const { id } = transformed;
+        const changes = _diffParent(transformed, group._ownEntity);
+        if (Object.keys(changes).length > 0) {
+          await model.updateWhere([{ id }], changes, { includeDeactivated: true });
+          updatedCount++;
+        }
+        // Archive/restore via deactivated_at is conditional in SQL — no churn
+        // when the state already matches, so always safe to run.
         if (isArchived) {
           await t.none(`UPDATE ${s}.${tbl} SET deactivated_at = NOW() WHERE id = $1 AND deactivated_at IS NULL`, [
             id,
@@ -1600,10 +1597,9 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
             id,
           ]);
         }
-        updatedCount++;
 
-        // Upsert children for updated entity
-        const sourceId = existingEntities.get(id);
+        // Reconcile children for this entity (slot-keyed, NO-OPs preserved)
+        const sourceId = group._ownSourceId;
         if (sourceId) {
           await _reconcileFlatChildren(t, s, schema, db, pgp, sourceId, group.children, config.flat.children, callbackFn, tenantId);
         }
@@ -1739,19 +1735,23 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
  *
  * @private
  */
-async function _classifyForPreview(db, s, tbl, pgp, schema, groups, config, ownSources) {
+async function _classifyForPreview(db, s, pgp, schema, groups, config, ownEntities) {
   let inserts = 0;
   let updates = 0;
   let noops = 0;
   let omitted = 0;
 
-  // Parent-level classification
+  // Parent-level classification: existing parents diff against their DB row;
+  // unchanged parents count as NO-OPs, not updates.
   for (const group of groups) {
-    if (isUuid(group.parent.id) && ownSources.has(group.parent.id)) {
-      updates += 1;
-    } else {
+    const existing = isUuid(group.parent.id) ? ownEntities.get(group.parent.id) : null;
+    if (!existing) {
       inserts += 1;
+      continue;
     }
+    const changes = _diffParent(group._transformedParent, existing);
+    if (Object.keys(changes).length > 0) updates += 1;
+    else noops += 1;
   }
 
   // Per-child classification for groups that map to an existing source
@@ -1848,14 +1848,66 @@ function _normEq(a, b) {
 
 /**
  * Resolve existing parents (parent.id is a UUID present in the DB) to their
- * current source_id. Returns Map<parentId, sourceId>.
+ * full current DB row. Returns Map<parentId, row> where row includes source_id
+ * and every entity column — used both for cross-source self-exclusion and for
+ * parent-level NO-OP detection on re-imports.
  * @private
  */
-async function _resolveOwnSourceIds(db, s, tbl, groups) {
+async function _resolveOwnEntities(db, s, tbl, groups) {
   const uuidIds = groups.filter((g) => isUuid(g.parent.id)).map((g) => g.parent.id);
   if (!uuidIds.length) return new Map();
-  const rows = await db.any(`SELECT id, source_id FROM ${s}.${tbl} WHERE id IN ($1:csv)`, [uuidIds]);
-  return new Map(rows.map((r) => [r.id, r.source_id]));
+  const rows = await db.any(`SELECT * FROM ${s}.${tbl} WHERE id IN ($1:csv)`, [uuidIds]);
+  return new Map(rows.map((r) => [r.id, r]));
+}
+
+/**
+ * Order-insensitive array equality, used for text[] columns like `roles`.
+ * @private
+ */
+function _arrayEq(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b)) return false;
+  if (a.length !== b.length) return false;
+  const sa = [...a].map(String).sort();
+  const sb = [...b].map(String).sort();
+  return sa.every((v, i) => v === sb[i]);
+}
+
+/**
+ * Diff a transformed parent row against its current DB row. Returns an object
+ * of changed columns (subset of transformed) or an empty object when nothing
+ * differs. The `id`, `tenant_id`, and audit fields are not compared.
+ * @private
+ */
+function _diffParent(transformed, existing) {
+  const SKIP = new Set(['id', 'tenant_id']);
+  const changes = {};
+  for (const [col, val] of Object.entries(transformed)) {
+    if (SKIP.has(col)) continue;
+    const cur = existing[col];
+    if (Array.isArray(val) || Array.isArray(cur)) {
+      if (!_arrayEq(val, cur)) changes[col] = val;
+      continue;
+    }
+    if (!_normEq(val, cur)) changes[col] = val;
+  }
+  return changes;
+}
+
+/**
+ * Coerce + transform a parent row exactly the way the write path does. Result
+ * is the row that would be sent to model.updateWhere or model.bulkInsert.
+ * @private
+ */
+async function _transformParent(group, callbackFn, tenantId, config, stripCols) {
+  const { _rowNum: _rn, ...entityData } = { ...group.parent };
+  for (const col of stripCols) delete entityData[col];
+  const transformed = callbackFn ? await callbackFn({ ...entityData }) : { ...entityData };
+  for (const col of stripCols) delete transformed[col];
+  delete transformed.tenant_code;
+  if (tenantId) transformed.tenant_id = tenantId;
+  coerceRow(transformed, config.boolCols, config.hasRoles);
+  if (typeof transformed.code === 'string' && !transformed.code.trim()) transformed.code = null;
+  return transformed;
 }
 
 /**

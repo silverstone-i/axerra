@@ -152,7 +152,14 @@ describe('Flat employee import — per-row reconciliation', () => {
     expect(personalEmailIdBefore).toBeTruthy();
   });
 
-  test('no-change re-import preserves child ids (R3)', async () => {
+  test('no-change re-import preserves child ids AND parent updated_at (R3)', async () => {
+    // Snapshot parent + child updated_at before re-import.
+    const employeeBefore = await db.oneOrNone(`SELECT id, updated_at FROM frecon.employees WHERE id = $1`, [employeeId]);
+    const emailsBefore = await db.any(
+      `SELECT id, label, updated_at FROM frecon.emails WHERE source_id = $1 AND deactivated_at IS NULL ORDER BY label`,
+      [employeeSourceId],
+    );
+
     const buf = await buildFlat([
       parentRow({
         id: employeeId, code: 'FR-001', firstName: 'Frank', lastName: 'Reconciler',
@@ -164,15 +171,30 @@ describe('Flat employee import — per-row reconciliation', () => {
     ]);
     const res = await postImport(buf, cookies, 'nochange');
     expect(res.status).toBe(201);
+    // No-change re-import must report zero writes — the parent NO-OP detection
+    // and the slot-keyed child reconciler should both produce zero updates.
+    expect(res.body.inserted).toBe(0);
+    expect(res.body.updated).toBe(0);
 
+    // Child ids unchanged
     const active = await db.any(
-      `SELECT id, label FROM frecon.emails WHERE source_id = $1 AND deactivated_at IS NULL ORDER BY label`,
+      `SELECT id, label, updated_at FROM frecon.emails WHERE source_id = $1 AND deactivated_at IS NULL ORDER BY label`,
       [employeeSourceId],
     );
     expect(active.map((r) => r.id).sort()).toEqual([homeEmailIdBefore, personalEmailIdBefore].sort());
 
+    // No soft-deletes
     const archived = await db.any(`SELECT id FROM frecon.emails WHERE source_id = $1 AND deactivated_at IS NOT NULL`, [employeeSourceId]);
     expect(archived).toHaveLength(0);
+
+    // updated_at preserved on parent and every child row (no implicit writes)
+    const employeeAfter = await db.oneOrNone(`SELECT updated_at FROM frecon.employees WHERE id = $1`, [employeeId]);
+    expect(employeeAfter.updated_at.toISOString()).toBe(employeeBefore.updated_at.toISOString());
+
+    const beforeByLabel = new Map(emailsBefore.map((r) => [r.label, r.updated_at.toISOString()]));
+    for (const row of active) {
+      expect(row.updated_at.toISOString()).toBe(beforeByLabel.get(row.label));
+    }
   });
 
   test('edit one email + omit the other: updates in place, omitted row left alone (R4, R6)', async () => {
@@ -291,9 +313,9 @@ describe('Flat employee import — per-row reconciliation', () => {
     expect(typeof res.body.noops).toBe('number');
     expect(typeof res.body.omitted).toBe('number');
     expect(res.body.errors).toEqual([]);
-    // Parent counts as 1 update (existing); both child emails NOOP
-    expect(res.body.updates).toBe(1);
-    expect(res.body.noops).toBe(2);
+    // Parent unchanged → NO-OP (not a forced "update"). Both child emails also NO-OP.
+    expect(res.body.updates).toBe(0);
+    expect(res.body.noops).toBe(3);
     expect(res.body.inserts).toBe(0);
 
     // State unchanged after preview
