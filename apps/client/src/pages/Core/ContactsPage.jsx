@@ -276,6 +276,7 @@ export default function ContactsPage() {
       <ImportDialog
         open={importDialog.isOpen} title="Import Contacts" loading={importMut.isPending}
         errors={importErrors}
+        onPreview={(fd) => contactApi.importXls(fd, { preview: true })}
         onSubmit={handleImport}
         onCancel={() => { importDialog.close(); setImportErrors(null); }}
       />
