@@ -16,6 +16,26 @@ import { stripFormatting, formatByPattern, COUNTRIES, TAX_TYPES } from '@axerra/
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** Hard cap on collected validation/reconciliation issues per import. */
+export const MAX_IMPORT_ISSUES = 100;
+const ISSUE_LIMIT_MESSAGE = `Issue limit reached (${MAX_IMPORT_ISSUES}). Fix and re-import to see remaining problems.`;
+
+/**
+ * Append an issue to the array, capped at MAX_IMPORT_ISSUES. After the cap
+ * is hit, subsequent calls are no-ops; a single sentinel entry is appended once.
+ */
+export function pushIssue(errors, issue) {
+  if (!Array.isArray(errors)) return;
+  if (errors.length < MAX_IMPORT_ISSUES) {
+    errors.push(issue);
+    return;
+  }
+  if (!errors._limitFlagged) {
+    errors.push({ sheet: issue?.sheet ?? null, row: null, column: null, value: null, message: ISSUE_LIMIT_MESSAGE });
+    Object.defineProperty(errors, '_limitFlagged', { value: true, enumerable: false });
+  }
+}
+
 /** Columns stripped from every exported sheet (id is kept for upsert) */
 const INTERNAL_COLS = new Set(['tenant_id', 'source_id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'deactivated_at']);
 
@@ -1128,6 +1148,16 @@ export async function provisionAppUser(entityId, email, password, tenantId, crea
  * @property {string[]} flatCols  Column names in the flat sheet
  */
 
+/**
+ * Reconciliation metadata extensions on each FlatChildDescriptor:
+ *   slotKeyCols          - identifies the per-source slot (e.g. ['label'], ['phone_type'])
+ *   slotKeyLabel         - user-facing label for that slot in error messages
+ *   compareCols          - columns that count as "data changed → UPDATE"
+ *   crossSourceUniqCols  - columns subject to a cross-source partial unique index (or null)
+ *   crossSourceUniqWhere - (row) => boolean restricting which rows trigger the check (e.g. cell phones)
+ *   crossSourceUniqLabel - human label for cross-source conflict messages
+ */
+
 /** @type {FlatChildDescriptor} */
 export const FLAT_CHILD_EMAILS = {
   key: 'emails',
@@ -1136,6 +1166,11 @@ export const FLAT_CHILD_EMAILS = {
   extract: (r) => ({ email: r.email, label: r.email_label, is_primary: r.email_is_primary, is_login: r.email_is_login }),
   cols: ['email', 'label', 'is_primary', 'is_login'],
   flatCols: ['email', 'email_label', 'email_is_primary', 'email_is_login'],
+  slotKeyCols: ['label'],
+  slotKeyLabel: 'label',
+  compareCols: ['email', 'is_primary', 'is_login'],
+  crossSourceUniqCols: ['email'],
+  crossSourceUniqLabel: 'email',
 };
 
 /** @type {FlatChildDescriptor} — same as FLAT_CHILD_EMAILS but without is_login (for contacts) */
@@ -1146,6 +1181,11 @@ export const FLAT_CHILD_EMAILS_NO_LOGIN = {
   extract: (r) => ({ email: r.email, label: r.email_label, is_primary: r.email_is_primary }),
   cols: ['email', 'label', 'is_primary'],
   flatCols: ['email', 'email_label', 'email_is_primary'],
+  slotKeyCols: ['label'],
+  slotKeyLabel: 'label',
+  compareCols: ['email', 'is_primary'],
+  crossSourceUniqCols: ['email'],
+  crossSourceUniqLabel: 'email',
 };
 
 /** @type {FlatChildDescriptor} */
@@ -1161,6 +1201,12 @@ export const FLAT_CHILD_PHONES = {
   }),
   cols: ['country_code', 'phone_type', 'phone_number', 'is_primary'],
   flatCols: ['phone_country_code', 'phone_type', 'phone_number', 'phone_is_primary'],
+  slotKeyCols: ['phone_type'],
+  slotKeyLabel: 'phone_type',
+  compareCols: ['country_code', 'phone_number', 'is_primary'],
+  crossSourceUniqCols: ['country_code', 'phone_number'],
+  crossSourceUniqWhere: (r) => String(r.phone_type || '').toLowerCase() === 'cell',
+  crossSourceUniqLabel: 'cell phone number',
 };
 
 /** @type {FlatChildDescriptor} */
@@ -1189,6 +1235,10 @@ export const FLAT_CHILD_ADDRESSES = {
     'address_postal_code',
     'address_country_code',
   ],
+  slotKeyCols: ['label'],
+  slotKeyLabel: 'label',
+  compareCols: ['address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'],
+  crossSourceUniqCols: null,
 };
 
 /** @type {FlatChildDescriptor} */
@@ -1199,6 +1249,11 @@ export const FLAT_CHILD_TAX_IDS = {
   extract: (r) => ({ country_code: r.tax_country_code, tax_type: r.tax_type, tax_value: r.tax_value }),
   cols: ['country_code', 'tax_type', 'tax_value'],
   flatCols: ['tax_country_code', 'tax_type', 'tax_value'],
+  slotKeyCols: ['country_code', 'tax_type'],
+  slotKeyLabel: 'country_code+tax_type',
+  compareCols: ['tax_value'],
+  crossSourceUniqCols: ['country_code', 'tax_type', 'tax_value'],
+  crossSourceUniqLabel: 'tax identifier',
 };
 
 // EMAIL_RE moved to top of file (before validateImportGroups)
@@ -1291,9 +1346,12 @@ export async function exportFlatSourceEntity(model, filePath, where, joinType, o
  * @param {Object}   reader      WorkbookReader (already loaded)
  * @param {Function} callbackFn  Row transformer (tenant_code, created_by)
  * @param {SourceEntityConfig} config  Must include `flat` sub-object
- * @returns {Promise<{inserted: number, updated: number, appUserSkipped: number} | {errors: Array}>}
+ * @param {Object}   [options]
+ * @param {boolean}  [options.previewOnly=false] Skip write transaction; return a counts-only preview.
+ * @returns {Promise<{inserted: number, updated: number, appUserSkipped: number} | {preview: true, inserts: number, updates: number, noops: number, omitted: number, errors: Array} | {errors: Array}>}
  */
-export async function importFlatSourceEntity(model, reader, callbackFn, config) {
+export async function importFlatSourceEntity(model, reader, callbackFn, config, options = {}) {
+  const previewOnly = options.previewOnly === true;
   const { db, pgp } = await getDb();
   const schema = model._schema.dbSchema;
   const s = pgp.as.name(schema);
@@ -1325,7 +1383,7 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
 
   // Surface conflicting parent fields across rows in the same group
   for (const c of conflicts) {
-    errors.push({
+    pushIssue(errors, {
       sheet: sheetName,
       row: c.row,
       column: c.column,
@@ -1341,7 +1399,7 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
     for (const group of groups) {
       for (const child of group.children.emails || []) {
         if (child.email && !EMAIL_RE.test(child.email)) {
-          errors.push({ sheet: sheetName, row: child._rowNum || null, column: 'email', value: child.email, message: 'Invalid email format' });
+          pushIssue(errors, { sheet: sheetName, row: child._rowNum || null, column: 'email', value: child.email, message: 'Invalid email format' });
         }
       }
     }
@@ -1359,12 +1417,14 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
     }
     childEnums.push({ key: cfg.key, enumMap, flatColByCol });
   }
-  errors.push(...validateChildEnums(groups, { sheetName, childEnums }));
+  for (const e of validateChildEnums(groups, { sheetName, childEnums })) pushIssue(errors, e);
 
   // Cross-tenant portal_user collision check (Part 2 of import dedup spec)
   const provisionEntityType = config.appUserProvisioning?.entityType;
   if (provisionEntityType === 'employee' || provisionEntityType === 'client') {
-    errors.push(...(await checkPortalUserEmailCollisions(groups, { sheetName, entityType: provisionEntityType })));
+    for (const e of await checkPortalUserEmailCollisions(groups, { sheetName, entityType: provisionEntityType })) {
+      pushIssue(errors, e);
+    }
   }
 
   // Validate no duplicate codes
@@ -1374,7 +1434,7 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
     if (code) {
       const prev = codeCounts.get(code);
       if (prev) {
-        errors.push({
+        pushIssue(errors, {
           sheet: sheetName,
           row: group.parent._rowNum || null,
           column: 'code',
@@ -1392,7 +1452,7 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
   for (const group of groups) {
     for (const field of config.flat.nameFields) {
       if (!group.parent[field] || (typeof group.parent[field] === 'string' && !group.parent[field].trim())) {
-        errors.push({
+        pushIssue(errors, {
           sheet: sheetName,
           row: group.parent._rowNum || null,
           column: field,
@@ -1405,7 +1465,7 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
       .toLowerCase()
       .trim();
     if (!VALID_STATUSES.has(status)) {
-      errors.push({
+      pushIssue(errors, {
         sheet: sheetName,
         row: group.parent._rowNum || null,
         column: 'status',
@@ -1416,7 +1476,7 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
     if (config.codeRequired) {
       const code = typeof group.parent.code === 'string' ? group.parent.code.trim() : '';
       if (!code) {
-        errors.push({
+        pushIssue(errors, {
           sheet: sheetName,
           row: group.parent._rowNum || null,
           column: 'code',
@@ -1427,7 +1487,63 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
     }
   }
 
-  if (errors.length) return { errors };
+  // Per-child slot-key validation + intra-file duplicate slot check (R2, R7)
+  for (const group of groups) {
+    for (const cfg of config.flat.children) {
+      const rows = group.children[cfg.key] || [];
+      if (!rows.length || !cfg.slotKeyCols) continue;
+      const seen = new Map();
+      for (const row of rows) {
+        const slotKey = _computeSlotKey(row, cfg);
+        if (slotKey == null) {
+          pushIssue(errors, {
+            sheet: sheetName,
+            row: row._rowNum || null,
+            column: cfg.slotKeyLabel || cfg.slotKeyCols.join('+'),
+            value: '',
+            message: `${cfg.slotKeyLabel || 'slot key'} is required for ${cfg.key} rows`,
+          });
+          continue;
+        }
+        const prev = seen.get(slotKey);
+        if (prev) {
+          pushIssue(errors, {
+            sheet: sheetName,
+            row: row._rowNum || null,
+            column: cfg.slotKeyLabel || cfg.slotKeyCols.join('+'),
+            value: slotKey,
+            message: `Duplicate ${cfg.key} ${cfg.slotKeyLabel || 'slot'} "${slotKey}" — also appears on row ${prev}`,
+          });
+        } else {
+          seen.set(slotKey, row._rowNum || '?');
+        }
+      }
+    }
+  }
+
+  // Resolve own source_ids for existing parents (UUID id matches DB row) so
+  // cross-source uniqueness checks correctly exclude self.
+  const ownSources = await _resolveOwnSourceIds(db, s, tbl, groups);
+  for (const group of groups) {
+    if (isUuid(group.parent.id) && ownSources.has(group.parent.id)) {
+      group._ownSourceId = ownSources.get(group.parent.id);
+    }
+  }
+
+  // Cross-source value collision pre-check (R8). Runs against db (not in tx yet).
+  await _collectCrossSourceConflicts(db, s, pgp, schema, config.sourceType, groups, config.flat.children, sheetName, errors);
+
+  if (errors.length) {
+    return previewOnly
+      ? { preview: true, inserts: 0, updates: 0, noops: 0, omitted: 0, errors }
+      : { errors };
+  }
+
+  // Preview short-circuit (R10). Classify what *would* happen without writing.
+  if (previewOnly) {
+    const counts = await _classifyForPreview(db, s, tbl, pgp, schema, groups, config, ownSources);
+    return { preview: true, ...counts, errors: [] };
+  }
 
   let insertedCount = 0;
   let updatedCount = 0;
@@ -1489,7 +1605,7 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
         // Upsert children for updated entity
         const sourceId = existingEntities.get(id);
         if (sourceId) {
-          await _upsertFlatChildren(t, s, schema, db, pgp, sourceId, group.children, config.flat.children, callbackFn, tenantId);
+          await _reconcileFlatChildren(t, s, schema, db, pgp, sourceId, group.children, config.flat.children, callbackFn, tenantId);
         }
       }
 
@@ -1551,7 +1667,7 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
 
           // Insert children for new entity
           if (sourceId) {
-            await _upsertFlatChildren(t, s, schema, db, pgp, sourceId, toInsert[i].group.children, config.flat.children, callbackFn, tenantId);
+            await _reconcileFlatChildren(t, s, schema, db, pgp, sourceId, toInsert[i].group.children, config.flat.children, callbackFn, tenantId);
           }
         }
 
@@ -1612,10 +1728,220 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
 }
 
 /**
- * Upsert flat children: soft-delete existing, insert new from grouped child arrays.
+ * Classify what a real import would do, without writing. Returns aggregate
+ * counts for the preview step (R10): inserts, updates, no-ops, and omitted
+ * existing rows.
+ *
+ *   - inserts:  parent inserts + child rows that would be INSERTed
+ *   - updates:  parent updates + child rows that would be UPDATEd in place
+ *   - noops:    child rows where the slot exists and values match
+ *   - omitted:  existing active child rows whose slot is not in the file
+ *
  * @private
  */
-async function _upsertFlatChildren(t, s, schema, db, pgp, sourceId, children, childConfigs, callbackFn, tenantId) {
+async function _classifyForPreview(db, s, tbl, pgp, schema, groups, config, ownSources) {
+  let inserts = 0;
+  let updates = 0;
+  let noops = 0;
+  let omitted = 0;
+
+  // Parent-level classification
+  for (const group of groups) {
+    if (isUuid(group.parent.id) && ownSources.has(group.parent.id)) {
+      updates += 1;
+    } else {
+      inserts += 1;
+    }
+  }
+
+  // Per-child classification for groups that map to an existing source
+  for (const cfg of config.flat.children) {
+    const groupsWithChildren = groups.filter((g) => (g.children[cfg.key] || []).length > 0);
+    if (!groupsWithChildren.length) continue;
+
+    const existingSourceIds = groupsWithChildren
+      .map((g) => g._ownSourceId)
+      .filter((sid) => !!sid);
+
+    // Load existing children for known sources in one query
+    const existingBySource = new Map();
+    if (existingSourceIds.length) {
+      const childModel = db(cfg.modelName, schema);
+      const tableName = childModel._schema?.table || cfg.modelName;
+      const tName = pgp.as.name(tableName);
+      const rows = await db.any(
+        `SELECT * FROM ${s}.${tName} WHERE source_id IN ($1:csv) AND deactivated_at IS NULL`,
+        [existingSourceIds],
+      );
+      for (const r of rows) {
+        if (!existingBySource.has(r.source_id)) existingBySource.set(r.source_id, []);
+        existingBySource.get(r.source_id).push(r);
+      }
+    }
+
+    for (const group of groupsWithChildren) {
+      const incoming = group.children[cfg.key] || [];
+      const ownSource = group._ownSourceId;
+      const existing = ownSource ? (existingBySource.get(ownSource) || []) : [];
+      const existingBySlot = new Map();
+      for (const ex of existing) {
+        const k = _computeSlotKey(ex, cfg);
+        if (k != null) existingBySlot.set(k, ex);
+      }
+      const seenIncomingSlots = new Set();
+
+      for (const row of incoming) {
+        const slot = _computeSlotKey(row, cfg);
+        if (slot != null) seenIncomingSlots.add(slot);
+        const match = slot != null ? existingBySlot.get(slot) : null;
+        if (!match) {
+          inserts += 1;
+          continue;
+        }
+        let changed = false;
+        for (const col of (cfg.compareCols || [])) {
+          if (!_normEq(match[col], row[col])) {
+            changed = true;
+            break;
+          }
+        }
+        if (changed) updates += 1;
+        else noops += 1;
+      }
+
+      // Omitted: existing slots not present in incoming
+      for (const slot of existingBySlot.keys()) {
+        if (!seenIncomingSlots.has(slot)) omitted += 1;
+      }
+    }
+  }
+
+  return { inserts, updates, noops, omitted };
+}
+
+/**
+ * Compute the slot key for a child row using the descriptor's slotKeyCols.
+ * Returns a `|`-joined lowercased string, or null if any component is blank.
+ * @private
+ */
+function _computeSlotKey(row, cfg) {
+  if (!cfg.slotKeyCols || !cfg.slotKeyCols.length) return null;
+  const parts = cfg.slotKeyCols.map((c) => {
+    const v = row[c];
+    return v == null ? '' : String(v).trim();
+  });
+  if (parts.some((v) => v === '')) return null;
+  return parts.map((v) => v.toLowerCase()).join('|');
+}
+
+/**
+ * Normalized equality for comparing existing DB values to incoming row values.
+ * Treats null/undefined/empty-string as equal; case-insensitive for strings.
+ * @private
+ */
+function _normEq(a, b) {
+  const na = a == null ? '' : typeof a === 'string' ? a.trim() : a;
+  const nb = b == null ? '' : typeof b === 'string' ? b.trim() : b;
+  if (typeof na === 'string' && typeof nb === 'string') return na.toLowerCase() === nb.toLowerCase();
+  return na === nb;
+}
+
+/**
+ * Resolve existing parents (parent.id is a UUID present in the DB) to their
+ * current source_id. Returns Map<parentId, sourceId>.
+ * @private
+ */
+async function _resolveOwnSourceIds(db, s, tbl, groups) {
+  const uuidIds = groups.filter((g) => isUuid(g.parent.id)).map((g) => g.parent.id);
+  if (!uuidIds.length) return new Map();
+  const rows = await db.any(`SELECT id, source_id FROM ${s}.${tbl} WHERE id IN ($1:csv)`, [uuidIds]);
+  return new Map(rows.map((r) => [r.id, r.source_id]));
+}
+
+/**
+ * Pre-flight cross-source uniqueness check (R8). For each child type with
+ * `crossSourceUniqCols`, batch-query whether any incoming row's value already
+ * exists on a different source's active row. Emit blocking validation issues
+ * with type-only context ("already in use by another <sourceType>").
+ * @private
+ */
+async function _collectCrossSourceConflicts(db, s, pgp, schema, ownSourceType, groups, childConfigs, sheetName, errors) {
+  for (const cfg of childConfigs) {
+    if (!cfg.crossSourceUniqCols || !cfg.crossSourceUniqCols.length) continue;
+
+    const candidates = [];
+    for (const group of groups) {
+      const rows = group.children[cfg.key] || [];
+      for (const row of rows) {
+        if (cfg.crossSourceUniqWhere && !cfg.crossSourceUniqWhere(row)) continue;
+        const values = cfg.crossSourceUniqCols.map((c) => row[c]);
+        if (values.some((v) => v == null || String(v).trim() === '')) continue;
+        candidates.push({
+          row,
+          ownSourceId: group._ownSourceId || null,
+          values: values.map((v) => String(v).trim()),
+        });
+      }
+    }
+    if (!candidates.length) continue;
+
+    const childModel = db(cfg.modelName, schema);
+    const tableName = childModel._schema?.table || cfg.modelName;
+    const tName = pgp.as.name(tableName);
+    const tupleList = candidates
+      .map((c) => `(${c.values.map((v) => pgp.as.text(v)).join(', ')})`)
+      .join(', ');
+    // Look up which (cols-tuple) values are present on OTHER active rows. Get the
+    // source_type too so the error message can describe the owning entity type.
+    let sql = `
+      SELECT child.source_id, src.source_type, ${cfg.crossSourceUniqCols.map((c) => `child.${pgp.as.name(c)} AS ${pgp.as.name(c)}`).join(', ')}
+      FROM ${s}.${tName} child
+      JOIN ${s}.sources src ON src.id = child.source_id
+      WHERE (${cfg.crossSourceUniqCols.map((c) => `child.${pgp.as.name(c)}`).join(', ')}) IN (${tupleList})
+      AND child.deactivated_at IS NULL
+    `;
+    if (cfg.key === 'phones') sql += ` AND child.phone_type = 'cell'`;
+    const matches = await db.any(sql);
+    if (!matches.length) continue;
+
+    const matchBy = new Map();
+    for (const m of matches) {
+      const key = cfg.crossSourceUniqCols.map((c) => String(m[c]).trim().toLowerCase()).join('|');
+      if (!matchBy.has(key)) matchBy.set(key, []);
+      matchBy.get(key).push({ sourceId: m.source_id, sourceType: m.source_type });
+    }
+
+    for (const cand of candidates) {
+      const key = cand.values.map((v) => v.toLowerCase()).join('|');
+      const hits = matchBy.get(key);
+      if (!hits) continue;
+      const other = hits.find((h) => h.sourceId !== cand.ownSourceId);
+      if (!other) continue;
+      const isSameType = other.sourceType === ownSourceType;
+      const typeLabel = isSameType ? `another ${other.sourceType}` : `another record`;
+      pushIssue(errors, {
+        sheet: sheetName,
+        row: cand.row._rowNum || null,
+        column: cfg.crossSourceUniqCols.join('+'),
+        value: cand.values.join('|'),
+        message: `${cfg.crossSourceUniqLabel || cfg.key} "${cand.values.join('|')}" is already in use by ${typeLabel}`,
+      });
+    }
+  }
+}
+
+/**
+ * Reconcile children for one parent source_id by slot key (R3–R6).
+ *   - Slot in incoming + slot in DB + values equal → NO-OP.
+ *   - Slot in incoming + slot in DB + values differ → UPDATE in place; id preserved.
+ *   - Slot in incoming + no matching slot in DB → INSERT.
+ *   - Slot in DB + not in incoming → left alone. Never deleted by omission.
+ * Slot-key validity has already been enforced upstream (R2), so any blank-slot
+ * row is treated defensively as INSERT (the DB unique index would catch the
+ * resulting collision if it mattered).
+ * @private
+ */
+async function _reconcileFlatChildren(t, s, schema, db, pgp, sourceId, children, childConfigs, callbackFn, tenantId) {
   for (const cfg of childConfigs) {
     const childRows = children[cfg.key];
     if (!childRows || !childRows.length) continue;
@@ -1623,14 +1949,18 @@ async function _upsertFlatChildren(t, s, schema, db, pgp, sourceId, children, ch
     const childModel = db(cfg.modelName, schema);
     childModel.tx = t;
     const tableName = childModel._schema?.table || cfg.modelName;
+    const tName = pgp.as.name(tableName);
 
-    // Soft-delete existing children
-    await t.none(`UPDATE ${s}.${pgp.as.name(tableName)} SET deactivated_at = NOW() WHERE source_id = $1 AND deactivated_at IS NULL`, [
-      sourceId,
-    ]);
+    const existing = await t.any(`SELECT * FROM ${s}.${tName} WHERE source_id = $1 AND deactivated_at IS NULL`, [sourceId]);
+    const existingBySlot = new Map();
+    for (const ex of existing) {
+      const k = _computeSlotKey(ex, cfg);
+      if (k != null) existingBySlot.set(k, ex);
+    }
 
-    // Insert new children
     const toInsert = [];
+    const toUpdate = []; // [{ id, changes }]
+
     for (const row of childRows) {
       const { _rowNum: _, ...rest } = row;
       const base = { ...rest, source_id: sourceId };
@@ -1638,17 +1968,34 @@ async function _upsertFlatChildren(t, s, schema, db, pgp, sourceId, children, ch
       delete transformed.tenant_code;
       if (tenantId) transformed.tenant_id = tenantId;
       coerceChildRow(transformed, childModel);
-      // Default null values on notNull boolean columns to false (continuation rows leave them blank)
       for (const col of childModel._schema?.columns || []) {
         if (col.type === 'boolean' && col.notNull && transformed[col.name] == null) {
           transformed[col.name] = col.default ?? false;
         }
       }
-      toInsert.push(transformed);
+
+      const slot = _computeSlotKey(transformed, cfg);
+      const match = slot != null ? existingBySlot.get(slot) : null;
+
+      if (!match) {
+        toInsert.push(transformed);
+        continue;
+      }
+
+      const changes = {};
+      for (const col of (cfg.compareCols || [])) {
+        if (_normEq(match[col], transformed[col])) continue;
+        changes[col] = transformed[col];
+      }
+      if (Object.keys(changes).length === 0) continue; // NO-OP
+      toUpdate.push({ id: match.id, changes });
     }
 
     if (toInsert.length) {
       await childModel.bulkInsert(toInsert);
+    }
+    for (const u of toUpdate) {
+      await childModel.updateWhere([{ id: u.id }], u.changes);
     }
   }
 }

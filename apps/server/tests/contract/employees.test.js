@@ -147,26 +147,31 @@ describe('Employee CRUD — /api/core/v1/employees', () => {
     expect(restoreRes.status).toBe(200);
   });
 
-  // ── Multi-sheet xlsx import: app-user provisioning sources email from the Emails child sheet ──
-  // Regression test for issue #13: after email normalization the parent Employees sheet no longer
-  // carries an `email` column; the login email must come from the Emails child sheet.
+  // ── Flat xlsx import: app-user provisioning sources email from the child email columns ──
+  // Regression test for issue #13: the parent Employees sheet does not carry an `email`
+  // column; the login email comes from the child email columns of the flat format.
   async function buildEmployeeWorkbook({ ref, code, firstName, lastName, email }) {
     const { WorkbookBuilder, writeXlsx } = await import('@nap-sft/tablsx');
     const wb = WorkbookBuilder.create();
 
-    wb.sheet('Employees')
-      .setHeaders(['id', 'code', 'first_name', 'last_name', 'is_app_user', 'roles', 'status', 'password'])
-      .addRow([ref, code, firstName, lastName, true, '{admin}', 'active', 'XlsImport123!']);
-
-    const emailsSheet = wb.sheet('Emails').setHeaders(['employee_id', 'email', 'label', 'is_primary', 'is_login']);
-    if (email) emailsSheet.addRow([ref, email, 'work', true, true]);
-
-    wb.sheet('Phone Numbers').setHeaders(['employee_id', 'country_code', 'phone_type', 'phone_number', 'is_primary']);
-    wb.sheet('Addresses').setHeaders([
-      'employee_id', 'label', 'address_line_1', 'address_line_2', 'address_line_3',
-      'city', 'state_province', 'postal_code', 'country_code',
-    ]);
-    wb.sheet('Tax Identifiers').setHeaders(['employee_id', 'country_code', 'tax_type', 'tax_value']);
+    const headers = [
+      'id', 'code', 'first_name', 'last_name', 'position', 'department',
+      'is_app_user', 'is_primary_contact', 'is_billing_contact', 'roles', 'status', 'password',
+      'email', 'email_label', 'email_is_primary', 'email_is_login',
+      'phone_country_code', 'phone_type', 'phone_number', 'phone_is_primary',
+      'address_label', 'address_line_1', 'address_line_2', 'address_line_3',
+      'address_city', 'address_state_province', 'address_postal_code', 'address_country_code',
+      'tax_country_code', 'tax_type', 'tax_value',
+    ];
+    const row = [
+      ref, code, firstName, lastName, '', '',
+      true, false, false, '{admin}', 'active', 'XlsImport123!',
+      email || '', email ? 'work' : '', email ? true : '', email ? true : '',
+      '', '', '', '',
+      '', '', '', '', '', '', '', '',
+      '', '', '',
+    ];
+    wb.sheet('Employees').setHeaders(headers).addRow(row);
 
     return writeXlsx(wb.build());
   }
@@ -181,7 +186,7 @@ describe('Employee CRUD — /api/core/v1/employees', () => {
     }
   }
 
-  test('multi-sheet import sources login email from Emails child sheet (issue #13)', async () => {
+  test('flat import sources login email from child email columns (issue #13)', async () => {
     const buf = await buildEmployeeWorkbook({
       ref: 'EMP-XLS-1', code: 'AA001', firstName: 'Alice', lastName: 'Anderson', email: 'alice@etest.com',
     });
@@ -208,7 +213,7 @@ describe('Employee CRUD — /api/core/v1/employees', () => {
     expect(portalUser.status).toBe('invited');
   });
 
-  test('multi-sheet import without an Emails row skips provisioning and disables is_app_user', async () => {
+  test('flat import without an email cell skips provisioning and disables is_app_user', async () => {
     const buf = await buildEmployeeWorkbook({
       ref: 'EMP-XLS-2', code: 'CC001', firstName: 'Carol', lastName: 'Carter', email: null,
     });

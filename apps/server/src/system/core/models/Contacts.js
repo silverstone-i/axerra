@@ -13,7 +13,6 @@ import { readFileSync } from 'node:fs';
 import { TableModel } from 'pg-schemata';
 import contactsSchema from '../schemas/contactsSchema.js';
 import {
-  importSourceEntity,
   exportFlatSourceEntity,
   importFlatSourceEntity,
   isUuid,
@@ -73,20 +72,12 @@ export default class Contacts extends TableModel {
   }
 
   /**
-   * Import contacts from a spreadsheet.
-   * Auto-detects format:
-   *   - 1 sheet: new flat repeated-row format
-   *   - >1 sheet: legacy multi-sheet format (delegate to importSourceEntity)
+   * Import contacts from a single flat-format spreadsheet.
    */
-  async importFromSpreadsheet(filePath, _sheetIndex = 0, callbackFn = null, _returning = null) {
+  async importFromSpreadsheet(filePath, _sheetIndex = 0, callbackFn = null, _returning = null, options = {}) {
     const { WorkbookReader } = await import('@nap-sft/tablsx');
     const buffer = readFileSync(filePath);
     const reader = WorkbookReader.fromBuffer(buffer);
-
-    if (reader.sheetCount > 1) {
-      return importSourceEntity(this, filePath, _sheetIndex, callbackFn, CONFIG);
-    }
-
-    return importFlatSourceEntity(this, reader, callbackFn, CONFIG);
+    return importFlatSourceEntity(this, reader, callbackFn, CONFIG, options);
   }
 }

@@ -48,6 +48,7 @@ const addressesSchema = {
     indexes: [
       { type: 'Index', columns: ['tenant_id'] },
       { type: 'Index', columns: ['source_id'] },
+      { type: 'Index', columns: ['source_id', 'label'], unique: true, where: 'deactivated_at IS NULL AND label IS NOT NULL' },
     ],
   },
 };

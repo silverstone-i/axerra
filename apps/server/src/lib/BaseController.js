@@ -100,21 +100,27 @@ class BaseController extends ViewController {
   }
 
   /**
-   * POST /import-xls — import records from uploaded spreadsheet
+   * POST /import-xls — import records from uploaded spreadsheet.
+   * Pass `?preview=1` to run validation + classification only and receive a
+   * counts-only preview instead of writing.
    */
   async importXls(req, res) {
     const file = req.file;
     if (!file) return res.status(400).json({ error: 'No file uploaded' });
 
     const index = parseInt(req.body.index || '0', 10);
+    const previewOnly = req.query.preview === '1' || req.query.preview === 'true';
     try {
       const tenantCode = req.user?.tenant_code;
-      const result = await this.model(this.getSchema(req)).importFromSpreadsheet(file.path, index, (row) => ({
-        ...row,
-        tenant_code: tenantCode,
-        created_by: req.user?.id,
-      }));
-      if (result.errors) return res.status(422).json(result);
+      const result = await this.model(this.getSchema(req)).importFromSpreadsheet(
+        file.path,
+        index,
+        (row) => ({ ...row, tenant_code: tenantCode, created_by: req.user?.id }),
+        null,
+        { previewOnly },
+      );
+      if (result?.errors?.length) return res.status(422).json(result);
+      if (result?.preview) return res.status(200).json(result);
       res.status(201).json(result);
     } catch (err) {
       this.handleError(err, res, 'importing', this.errorLabel);
