@@ -115,7 +115,12 @@ class BaseController extends ViewController {
       const result = await this.model(this.getSchema(req)).importFromSpreadsheet(
         file.path,
         index,
-        (row) => ({ ...row, tenant_code: tenantCode, created_by: req.user?.id }),
+        (row) => ({
+          ...row,
+          tenant_code: tenantCode,
+          created_by: req.user?.id,
+          updated_by: req.user?.id,
+        }),
         null,
         { previewOnly },
       );

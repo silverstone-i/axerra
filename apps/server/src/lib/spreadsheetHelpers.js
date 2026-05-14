@@ -1652,6 +1652,48 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
     }
   }
 
+  // Role validation for any group whose entity will end up an app user.
+  // Empty roles[] OR unknown role codes are blocking errors — both controller
+  // and importer paths must reject before provisioning a portal_user that
+  // could log in but have no policies.
+  if (config.appUserProvisioning) {
+    // `roles` is softDelete: false — query all rows, no deactivated_at filter.
+    const validRows = await db.any(`SELECT code FROM ${s}.roles`);
+    const validCodes = new Set(validRows.map((r) => String(r.code).toLowerCase()));
+    for (const group of groups) {
+      const incoming = group._transformedParent || {};
+      const existing = group._ownEntity || null;
+      const willBeAppUser = 'is_app_user' in incoming ? !!incoming.is_app_user : !!existing?.is_app_user;
+      if (!willBeAppUser) continue;
+
+      const finalRoles = incoming.roles !== undefined ? incoming.roles : existing?.roles;
+      const arr = Array.isArray(finalRoles)
+        ? finalRoles.map((r) => (r == null ? '' : String(r).trim())).filter((r) => r !== '')
+        : [];
+
+      if (!arr.length) {
+        pushIssue(errors, {
+          sheet: sheetName,
+          row: group.parent._rowNum || null,
+          column: 'roles',
+          value: '',
+          message: 'Roles must be assigned before enabling app user access',
+        });
+        continue;
+      }
+      const invalid = arr.filter((r) => !validCodes.has(r.toLowerCase()));
+      if (invalid.length) {
+        pushIssue(errors, {
+          sheet: sheetName,
+          row: group.parent._rowNum || null,
+          column: 'roles',
+          value: invalid.join(','),
+          message: `Unknown role code${invalid.length > 1 ? 's' : ''}: ${invalid.join(', ')}`,
+        });
+      }
+    }
+  }
+
   // Cross-tenant portal_user collision check (insert + update cases). Runs
   // after _resolveOwnEntities so it can exclude the entity's own portal_user.
   const provisionEntityType = config.appUserProvisioning?.entityType;
@@ -1716,6 +1758,12 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
 
         const changes = _diffParent(transformed, before);
         if (Object.keys(changes).length > 0) {
+          // Stamp audit fields on every real write. We add them after the diff
+          // so they don't themselves trigger NO-OP-failing updates. pg-schemata's
+          // `updateWhere` does not auto-bump updated_at (unlike its singular
+          // `update`), so we must set it explicitly here.
+          if (userId) changes.updated_by = userId;
+          changes.updated_at = new Date();
           await model.updateWhere([{ id }], changes, { includeDeactivated: true });
           updatedCount++;
         }
@@ -1962,22 +2010,36 @@ async function _classifyForPreview(db, s, pgp, schema, groups, config, ownEntiti
       const ownSource = group._ownSourceId;
       const existing = ownSource ? (existingBySource.get(ownSource) || []) : [];
       const existingBySlot = new Map();
+      const existingByValue = new Map();
       for (const ex of existing) {
         const k = _computeSlotKey(ex, cfg);
         if (k != null) existingBySlot.set(k, ex);
+        const vk = _computeValueKey(ex, cfg);
+        if (vk != null) existingByValue.set(vk, ex);
       }
+      const claimedExistingIds = new Set();
       const seenIncomingSlots = new Set();
 
       for (const row of incoming) {
         const slot = _computeSlotKey(row, cfg);
         if (slot != null) seenIncomingSlots.add(slot);
-        const match = slot != null ? existingBySlot.get(slot) : null;
+        let match = slot != null ? existingBySlot.get(slot) : null;
+        if (!match) {
+          const vk = _computeValueKey(row, cfg);
+          if (vk != null) {
+            const candidate = existingByValue.get(vk);
+            if (candidate && !claimedExistingIds.has(candidate.id)) match = candidate;
+          }
+        }
         if (!match) {
           inserts += 1;
           continue;
         }
+        claimedExistingIds.add(match.id);
+        // Include slot key cols in the diff so a rename counts as UPDATE.
+        const diffCols = new Set([...(cfg.compareCols || []), ...(cfg.slotKeyCols || [])]);
         let changed = false;
-        for (const col of (cfg.compareCols || [])) {
+        for (const col of diffCols) {
           if (!_normEq(match[col], row[col])) {
             changed = true;
             break;
@@ -1987,9 +2049,13 @@ async function _classifyForPreview(db, s, pgp, schema, groups, config, ownEntiti
         else noops += 1;
       }
 
-      // Omitted: existing slots not present in incoming
-      for (const slot of existingBySlot.keys()) {
-        if (!seenIncomingSlots.has(slot)) omitted += 1;
+      // Omitted: existing rows whose slot wasn't named AND whose row id wasn't
+      // claimed by a value-key rename match.
+      for (const ex of existing) {
+        const slot = _computeSlotKey(ex, cfg);
+        if (slot != null && seenIncomingSlots.has(slot)) continue;
+        if (claimedExistingIds.has(ex.id)) continue;
+        omitted += 1;
       }
     }
   }
@@ -2026,6 +2092,29 @@ async function _loadEmailsBySource(db, s, pgp, schema, cfg, sourceIds) {
     out.get(r.source_id).push(r);
   }
   return out;
+}
+
+/**
+ * Compute the value key for a child row — based on the descriptor's
+ * crossSourceUniqCols, gated by an optional crossSourceUniqWhere predicate.
+ * Used by the reconciler to detect slot renames: when an incoming row's slot
+ * key doesn't match any existing slot but its value matches an existing row,
+ * treat the row as a rename of that existing row (UPDATE in place, preserving
+ * id and updating the slot label).
+ *
+ * Returns null when the descriptor has no value-uniqueness, when the row
+ * doesn't satisfy crossSourceUniqWhere, or when any value-key component is blank.
+ * @private
+ */
+function _computeValueKey(row, cfg) {
+  if (!cfg.crossSourceUniqCols || !cfg.crossSourceUniqCols.length) return null;
+  if (cfg.crossSourceUniqWhere && !cfg.crossSourceUniqWhere(row)) return null;
+  const parts = cfg.crossSourceUniqCols.map((c) => {
+    const v = row[c];
+    return v == null ? '' : String(v).trim();
+  });
+  if (parts.some((v) => v === '')) return null;
+  return parts.map((v) => v.toLowerCase()).join('|');
 }
 
 /**
@@ -2084,11 +2173,18 @@ function _arrayEq(a, b) {
 /**
  * Diff a transformed parent row against its current DB row. Returns an object
  * of changed columns (subset of transformed) or an empty object when nothing
- * differs. The `id`, `tenant_id`, and audit fields are not compared.
+ * differs.
+ *
+ * Skipped columns:
+ *   - `id`, `tenant_id`            — never updated through this path
+ *   - `created_at`, `created_by`   — set once at insert, must not be overwritten
+ *   - `updated_at`, `updated_by`   — managed separately by the writer; including
+ *     them in the diff would defeat NO-OP detection since the importing user
+ *     normally differs from the prior `updated_by`.
  * @private
  */
 function _diffParent(transformed, existing) {
-  const SKIP = new Set(['id', 'tenant_id']);
+  const SKIP = new Set(['id', 'tenant_id', 'created_at', 'created_by', 'updated_at', 'updated_by']);
   const changes = {};
   for (const [col, val] of Object.entries(transformed)) {
     if (SKIP.has(col)) continue;
@@ -2214,13 +2310,17 @@ async function _reconcileFlatChildren(t, s, schema, db, pgp, sourceId, children,
 
     const existing = await t.any(`SELECT * FROM ${s}.${tName} WHERE source_id = $1 AND deactivated_at IS NULL`, [sourceId]);
     const existingBySlot = new Map();
+    const existingByValue = new Map();
     for (const ex of existing) {
       const k = _computeSlotKey(ex, cfg);
       if (k != null) existingBySlot.set(k, ex);
+      const vk = _computeValueKey(ex, cfg);
+      if (vk != null) existingByValue.set(vk, ex);
     }
 
     const toInsert = [];
     const toUpdate = []; // [{ id, changes }]
+    const claimedExistingIds = new Set();
 
     for (const row of childRows) {
       const { _rowNum: _, ...rest } = row;
@@ -2235,20 +2335,38 @@ async function _reconcileFlatChildren(t, s, schema, db, pgp, sourceId, children,
         }
       }
 
+      // Match priority: 1) slot key. 2) value key (catches slot rename when
+      // the underlying value is unique-by-DB, e.g. an email's address or a
+      // cell phone number — keeps the same row id and just updates the slot).
       const slot = _computeSlotKey(transformed, cfg);
-      const match = slot != null ? existingBySlot.get(slot) : null;
+      let match = slot != null ? existingBySlot.get(slot) : null;
+      if (!match) {
+        const vk = _computeValueKey(transformed, cfg);
+        if (vk != null) {
+          const candidate = existingByValue.get(vk);
+          if (candidate && !claimedExistingIds.has(candidate.id)) match = candidate;
+        }
+      }
 
       if (!match) {
         toInsert.push(transformed);
         continue;
       }
+      claimedExistingIds.add(match.id);
 
+      // Diff against compareCols PLUS the slot key cols (so a slot rename
+      // detected via value-match actually updates the label/phone_type).
+      const diffCols = new Set([...(cfg.compareCols || []), ...(cfg.slotKeyCols || [])]);
       const changes = {};
-      for (const col of (cfg.compareCols || [])) {
+      for (const col of diffCols) {
         if (_normEq(match[col], transformed[col])) continue;
         changes[col] = transformed[col];
       }
       if (Object.keys(changes).length === 0) continue; // NO-OP
+      // Stamp audit fields on every real write. pg-schemata's `updateWhere`
+      // does not auto-bump updated_at, so set both explicitly.
+      if (transformed.updated_by) changes.updated_by = transformed.updated_by;
+      changes.updated_at = new Date();
       toUpdate.push({ id: match.id, changes });
     }
 

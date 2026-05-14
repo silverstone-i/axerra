@@ -123,8 +123,9 @@ export async function restoreAppUserBinding(t, entityType, entityId, tenantId, u
  * High-level: enable app access for an entity. Picks the right primitive
  * based on any prior binding state.
  *
- *   no binding   → provision new portal_user + binding
- *   archived     → restore portal_user + binding (and update email/password)
+ *   no binding   → provision new portal_user + binding (password required)
+ *   archived     → restore portal_user + binding; existing password_hash is
+ *                  preserved unless caller explicitly supplies opts.preHash
  *   active       → no-op (already enabled)
  *   email taken  → returns 'collision' without writing (caller surfaces error)
  *
@@ -132,11 +133,14 @@ export async function restoreAppUserBinding(t, entityType, entityId, tenantId, u
  * @param {string} entityType
  * @param {string} entityId
  * @param {string} email
- * @param {string|null} password   clear-text; bcrypted internally when no preHash
+ * @param {string|null} password   clear-text; used ONLY when provisioning a
+ *                                 brand-new portal_user. Ignored on restore —
+ *                                 supply opts.preHash explicitly to reset.
  * @param {string} tenantId
  * @param {string|null} userId
  * @param {Object} [opts]
- * @param {string} [opts.preHash]  pre-computed bcrypt hash
+ * @param {string} [opts.preHash]  pre-computed bcrypt hash. When set on a
+ *                                 restore, overwrites the existing password.
  * @returns {Promise<'provisioned'|'restored'|'already_active'|'collision'>}
  */
 export async function enableAppUser(t, entityType, entityId, email, password, tenantId, userId, opts = {}) {
@@ -151,13 +155,10 @@ export async function enableAppUser(t, entityType, entityId, email, password, te
   if (priorBinding && !priorBinding.deactivated_at) return 'already_active';
 
   if (priorBinding && priorBinding.deactivated_at) {
-    let hash = preHash;
-    if (!hash && password) {
-      const bcrypt = await import('bcrypt');
-      const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
-      hash = await bcrypt.default.hash(password, rounds);
-    }
-    await restoreAppUserBinding(t, entityType, entityId, tenantId, userId, email, hash);
+    // Restore archived binding. Pass preHash through unchanged — null means
+    // "preserve the existing password." Callers who want a true reset must
+    // supply preHash explicitly.
+    await restoreAppUserBinding(t, entityType, entityId, tenantId, userId, email, preHash);
     return 'restored';
   }
 

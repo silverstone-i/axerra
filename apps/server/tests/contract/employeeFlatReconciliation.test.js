@@ -208,10 +208,19 @@ describe('Flat employee import — per-row reconciliation', () => {
     const res = await postImport(buf, cookies, 'edit-omit');
     expect(res.status).toBe(201);
 
-    // home email: same id, new value
-    const home = await db.oneOrNone(`SELECT id, email FROM frecon.emails WHERE id = $1`, [homeEmailIdBefore]);
+    // home email: same id, new value, audit fields stamped to the importing user
+    const home = await db.oneOrNone(
+      `SELECT id, email, updated_by, updated_at, created_at FROM frecon.emails WHERE id = $1`,
+      [homeEmailIdBefore],
+    );
     expect(home).not.toBeNull();
     expect(home.email).toBe('frank.home-NEW@frecon.com');
+    expect(home.updated_by).not.toBeNull();
+    expect(home.updated_at.getTime()).toBeGreaterThan(home.created_at.getTime());
+
+    // Parent: should also be stamped if anything changed. For this test no
+    // parent column changed, so updated_by may stay null — only the child
+    // assertion is meaningful here.
 
     // personal email: untouched, still active under its original id
     const personal = await db.oneOrNone(
@@ -222,6 +231,7 @@ describe('Flat employee import — per-row reconciliation', () => {
     expect(personal.email).toBe('frank.personal@frecon.com');
     expect(personal.deactivated_at).toBeNull();
   });
+
 
   test('intra-file duplicate slot is a blocking error (R7)', async () => {
     const buf = await buildFlat([
@@ -344,5 +354,69 @@ describe('Flat employee import — per-row reconciliation', () => {
     const realRes = await postImport(buf, cookies, 'real-err');
     expect(realRes.status).toBe(422);
     expect(realRes.body.errors.length).toBeGreaterThan(0);
+  });
+
+  test('slot rename (label change with same email value) updates in place — no DB unique violation', async () => {
+    // 2c regression: changing an email row's label while keeping the value
+    // must update the existing row (label rename), not insert a duplicate.
+    // Before the value-match fallback, the importer tried INSERT and crashed
+    // with 23505 because (email) WHERE deactivated_at IS NULL is unique.
+
+    // Build a clean baseline: Frank's home email value as it currently is.
+    const home = await db.oneOrNone(
+      `SELECT id, email, label FROM frecon.emails WHERE id = $1`,
+      [homeEmailIdBefore],
+    );
+    expect(home).not.toBeNull();
+    const homeValue = home.email;
+
+    const buf = await buildFlat([
+      parentRow({
+        id: employeeId, code: 'FR-001', firstName: 'Frank', lastName: 'Reconciler',
+        extras: { email: homeValue, email_label: 'office', email_is_primary: true, email_is_login: false },
+      }),
+    ]);
+    const res = await postImport(buf, cookies, 'slot-rename');
+    expect(res.status).toBe(201);
+
+    const after = await db.oneOrNone(
+      `SELECT id, label, email FROM frecon.emails WHERE id = $1`,
+      [homeEmailIdBefore],
+    );
+    expect(after).not.toBeNull();
+    expect(after.label).toBe('office');
+    expect(after.email).toBe(homeValue);
+
+    // No new row was inserted for that source — original row id was reused.
+    const allEmails = await db.any(
+      `SELECT id, label FROM frecon.emails WHERE source_id = $1 AND deactivated_at IS NULL`,
+      [employeeSourceId],
+    );
+    const offices = allEmails.filter((r) => r.label === 'office');
+    expect(offices).toHaveLength(1);
+    expect(offices[0].id).toBe(homeEmailIdBefore);
+  });
+
+  test('parent field edit stamps updated_by on the parent row', async () => {
+    // Run last in this describe block: this test mutates Frank's parent
+    // fields and must not interfere with prior NO-OP / preview assertions.
+    const buf = await buildFlat([
+      parentRow({
+        id: employeeId, code: 'FR-001', firstName: 'Frank', lastName: 'Reconciler',
+        extras: { position: 'Engineer' },
+      }),
+    ]);
+    const res = await postImport(buf, cookies, 'parent-edit');
+    expect(res.status).toBe(201);
+    expect(res.body.updated).toBe(1);
+
+    const after = await db.oneOrNone(
+      `SELECT position, updated_by, updated_at, created_at FROM frecon.employees WHERE id = $1`,
+      [employeeId],
+    );
+    expect(after.position).toBe('Engineer');
+    expect(after.updated_by).not.toBeNull();
+    expect(after.updated_by).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(after.updated_at.getTime()).toBeGreaterThan(after.created_at.getTime());
   });
 });

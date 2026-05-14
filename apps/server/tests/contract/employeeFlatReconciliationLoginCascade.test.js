@@ -344,6 +344,84 @@ describe('Flat employee import — login + app-user cascade fixes', () => {
     expect(pu).not.toBeNull();
   });
 
+  test('controller restore preserves password — archive then re-enable via PUT does NOT reset password_hash', async () => {
+    // Same regression as the import path, but exercising the controller's
+    // #provisionAppUser restore branch directly.
+    const emp = await makeAppUserEmployee(cookies, {
+      code: 'PWCTL', firstName: 'Casey', lastName: 'Ctl', email: 'casey@fcas.com',
+      password: 'CaseyOriginalPass1!',
+    });
+
+    const before = await db.oneOrNone(
+      `SELECT password_hash FROM admin.portal_users WHERE email = $1`,
+      ['casey@fcas.com'],
+    );
+    expect(before?.password_hash).toBeTruthy();
+
+    // Archive then restore the employee via the API.
+    await request(app).delete(`/api/core/v1/employees/archive?id=${emp.id}`).set('Cookie', cookies).send({});
+    const restoreRes = await request(app).patch(`/api/core/v1/employees/restore?id=${emp.id}`).set('Cookie', cookies).send({});
+    expect([200, 201]).toContain(restoreRes.status);
+
+    // Now toggle is_app_user back on via PUT (no password supplied — the
+    // existing hash must be preserved).
+    const toggleRes = await request(app)
+      .put(`/api/core/v1/employees/update?id=${emp.id}`)
+      .set('Cookie', cookies)
+      .send({ is_app_user: true, roles: ['admin'] });
+    expect(toggleRes.status).toBe(200);
+
+    const after = await db.oneOrNone(
+      `SELECT password_hash, deactivated_at FROM admin.portal_users WHERE email = $1`,
+      ['casey@fcas.com'],
+    );
+    expect(after).not.toBeNull();
+    expect(after.deactivated_at).toBeNull();
+    expect(after.password_hash).toBe(before.password_hash);
+  });
+
+  test('L2b.restore preserves password — archive then re-enable via import does NOT reset password_hash', async () => {
+    // Regression: enableAppUser's archived-binding restore path used to
+    // auto-bcrypt a throwaway random password and overwrite portal_users.password_hash,
+    // silently invalidating the user's existing password.
+    const emp = await makeAppUserEmployee(cookies, {
+      code: 'PWPRES', firstName: 'Penny', lastName: 'PwPreserve', email: 'penny@fcas.com',
+      password: 'PennyOriginalPass1!',
+    });
+
+    // Capture the original password_hash.
+    const before = await db.oneOrNone(
+      `SELECT password_hash FROM admin.portal_users WHERE email = $1`,
+      ['penny@fcas.com'],
+    );
+    expect(before?.password_hash).toBeTruthy();
+
+    // Archive via the controller (cascades portal_user lock).
+    await request(app).delete(`/api/core/v1/employees/archive?id=${emp.id}`).set('Cookie', cookies).send({});
+
+    // Re-enable via import (status: active on an archived app-user employee).
+    const buf = await buildFlat([
+      row({
+        id: emp.id, code: 'PWPRES', firstName: 'Penny', lastName: 'PwPreserve',
+        extras: {
+          is_app_user: true, roles: '{admin}', status: 'active',
+          email: 'penny@fcas.com', email_label: 'work', email_is_primary: true, email_is_login: true,
+        },
+      }),
+    ]);
+    const res = await postImport(buf, cookies, 'pw-pres');
+    expect(res.status).toBe(201);
+
+    // Portal user is back online and the password_hash is byte-for-byte preserved.
+    const after = await db.oneOrNone(
+      `SELECT password_hash, status, deactivated_at FROM admin.portal_users WHERE email = $1`,
+      ['penny@fcas.com'],
+    );
+    expect(after).not.toBeNull();
+    expect(after.deactivated_at).toBeNull();
+    expect(after.password_hash).toBe(before.password_hash);
+  });
+
   test('L4.two-logins — two is_login: true rows for one source in the file returns 422', async () => {
     const emp = await makeAppUserEmployee(cookies, {
       code: 'L4TWO', firstName: 'Tara', lastName: 'TwoLogin', email: 'tara@fcas.com',
@@ -420,5 +498,59 @@ describe('Flat employee import — login + app-user cascade fixes', () => {
     // Smith was not created
     const smith = await db.oneOrNone(`SELECT id FROM fcas.employees WHERE code = 'C3SMI'`);
     expect(smith).toBeNull();
+  });
+
+  test('role validation — import rejects is_app_user employee with no roles', async () => {
+    const buf = await buildFlat([
+      row({
+        code: 'RNONE', firstName: 'Rita', lastName: 'NoRole',
+        extras: {
+          is_app_user: true, roles: '{}',
+          email: 'rita@fcas.com', email_label: 'work', email_is_primary: true, email_is_login: true,
+        },
+      }),
+    ]);
+    const res = await postImport(buf, cookies, 'rnone');
+    expect(res.status).toBe(422);
+    const err = res.body.errors.find((e) => /Roles must be assigned/i.test(e.message || ''));
+    expect(err).toBeDefined();
+
+    const rita = await db.oneOrNone(`SELECT id FROM fcas.employees WHERE code = 'RNONE'`);
+    expect(rita).toBeNull();
+  });
+
+  test('role validation — import rejects is_app_user employee with unknown role code', async () => {
+    const buf = await buildFlat([
+      row({
+        code: 'RBAD', firstName: 'Ruth', lastName: 'BadRole',
+        extras: {
+          is_app_user: true, roles: '{bogus}',
+          email: 'ruth@fcas.com', email_label: 'work', email_is_primary: true, email_is_login: true,
+        },
+      }),
+    ]);
+    const res = await postImport(buf, cookies, 'rbad');
+    expect(res.status).toBe(422);
+    const err = res.body.errors.find((e) => /Unknown role code/i.test(e.message || ''));
+    expect(err).toBeDefined();
+    expect(err.message).toMatch(/bogus/);
+
+    const ruth = await db.oneOrNone(`SELECT id FROM fcas.employees WHERE code = 'RBAD'`);
+    expect(ruth).toBeNull();
+  });
+
+  test('role validation — controller rejects is_app_user create with unknown role code', async () => {
+    const res = await request(app).post('/api/core/v1/employees').set('Cookie', cookies).send({
+      code: 'RCAPI', first_name: 'Rae', last_name: 'ApiBad',
+      email: 'rae@fcas.com',
+      is_app_user: true,
+      roles: ['bogus'],
+      password: 'EmpPass1!Pass',
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Unknown role code/i);
+
+    const rae = await db.oneOrNone(`SELECT id FROM fcas.employees WHERE code = 'RCAPI'`);
+    expect(rae).toBeNull();
   });
 });
