@@ -47,6 +47,7 @@ class VendorsController extends BaseController {
           source_type: 'vendor',
           label: vendor.name,
           created_by: req.body.created_by || null,
+          updated_by: req.body.created_by || null,
         });
 
         // 3. Link the source back to the vendor

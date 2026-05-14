@@ -900,6 +900,19 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
           return rest;
         });
 
+        // When tenant numbering is enabled for this entity type, strip any
+        // codes typed into the spreadsheet — the configured sequence is the
+        // single source of truth for bulk imports.
+        if (config.idType) {
+          const cfg = await t.oneOrNone(
+            `SELECT is_enabled FROM ${s}.tenant_numbering_config WHERE id_type = $1`,
+            [config.idType],
+          );
+          if (cfg?.is_enabled) {
+            for (const row of cleanInserts) row.code = null;
+          }
+        }
+
         // Clear codes that already exist to avoid unique constraint violations
         if (!config.codeRequired) {
           const insertCodes = cleanInserts.map((r) => r.code).filter(Boolean);
@@ -928,6 +941,7 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
           source_type: config.sourceType,
           label: config.buildLabel(rec),
           created_by: createdBy,
+          updated_by: createdBy,
         }));
 
         const sourceResults = await sourcesModel.bulkInsert(sourceRecords, ['id', 'table_id']);
@@ -1652,19 +1666,16 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
     }
   }
 
-  // Role validation for any group whose entity will end up an app user.
-  // Empty roles[] OR unknown role codes are blocking errors — both controller
-  // and importer paths must reject before provisioning a portal_user that
-  // could log in but have no policies.
-  if (config.appUserProvisioning) {
+  // Role validation. Empty roles[] OR unknown role codes are blocking errors
+  // for every employee/client parent — not just app users — so a roleless
+  // record cannot be created via import regardless of is_app_user state.
+  if (config.appUserProvisioning && config.hasRoles) {
     // `roles` is softDelete: false — query all rows, no deactivated_at filter.
     const validRows = await db.any(`SELECT code FROM ${s}.roles`);
     const validCodes = new Set(validRows.map((r) => String(r.code).toLowerCase()));
     for (const group of groups) {
       const incoming = group._transformedParent || {};
       const existing = group._ownEntity || null;
-      const willBeAppUser = 'is_app_user' in incoming ? !!incoming.is_app_user : !!existing?.is_app_user;
-      if (!willBeAppUser) continue;
 
       const finalRoles = incoming.roles !== undefined ? incoming.roles : existing?.roles;
       const arr = Array.isArray(finalRoles)
@@ -1749,6 +1760,16 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
 
       // ── Phase 2: Run updates ───────────────────────────────────────────
       const userId = sampleRow.created_by || null;
+      // Resolve numbering state once for the update phase too (same rule as
+      // inserts: when numbering is on, the sequence is authoritative).
+      let updateNumberingEnabled = false;
+      if (config.idType) {
+        const cfg = await t.oneOrNone(
+          `SELECT is_enabled FROM ${s}.tenant_numbering_config WHERE id_type = $1`,
+          [config.idType],
+        );
+        updateNumberingEnabled = !!cfg?.is_enabled;
+      }
       for (const { transformed, isArchived, group } of toUpdate) {
         const { id } = transformed;
         const before = group._ownEntity;
@@ -1757,6 +1778,10 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
         const willBeAppUser = 'is_app_user' in transformed ? !!transformed.is_app_user : wasAppUser;
 
         const changes = _diffParent(transformed, before);
+        // Numbering on → ignore any code change attempted via the import.
+        // Codes for existing rows are owned by the numbering allocator (set
+        // once, never rewritten through the import path).
+        if (updateNumberingEnabled && 'code' in changes) delete changes.code;
         if (Object.keys(changes).length > 0) {
           // Stamp audit fields on every real write. We add them after the diff
           // so they don't themselves trigger NO-OP-failing updates. pg-schemata's
@@ -1777,6 +1802,17 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
           await t.none(`UPDATE ${s}.${tbl} SET deactivated_at = NULL WHERE id = $1 AND deactivated_at IS NOT NULL`, [
             id,
           ]);
+        }
+
+        // If the entity has no code and the import didn't supply one, allocate
+        // from the tenant's numbering config. Mirrors the INSERT-path behavior
+        // so existing employees who predate the numbering rollout (or were
+        // imported before numbering was enabled) get codes on re-import.
+        if (config.idType && !before.code && !transformed.code) {
+          const numbering = await allocateNumber(schema, config.idType, null, new Date(), t);
+          if (numbering) {
+            await t.none(`UPDATE ${s}.${tbl} SET code = $1 WHERE id = $2`, [numbering.displayId, id]);
+          }
         }
 
         // Reconcile children for this entity (slot-keyed, NO-OPs preserved)
@@ -1831,15 +1867,31 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
         }
       }
 
+      // Determine whether tenant numbering is enabled for this entity type.
+      // When it is, the configured sequence is authoritative for bulk imports:
+      // any code typed into the spreadsheet is discarded and replaced with
+      // the next number from the allocator.
+      let numberingEnabled = false;
+      if (config.idType) {
+        const cfg = await t.oneOrNone(
+          `SELECT is_enabled FROM ${s}.tenant_numbering_config WHERE id_type = $1`,
+          [config.idType],
+        );
+        numberingEnabled = !!cfg?.is_enabled;
+      }
+
       // ── Phase 3: Run inserts ───────────────────────────────────────────
       if (toInsert.length) {
         const cleanInserts = toInsert.map(({ transformed }) => {
           const { id: _id, ...clean } = transformed;
           if (typeof clean.code === 'string' && !clean.code.trim()) clean.code = null;
+          // Numbering on → strip supplied codes so the allocator can fill them in.
+          if (numberingEnabled) clean.code = null;
           return clean;
         });
 
-        // Clear codes that already exist in the DB
+        // Clear codes that already exist in the DB (only relevant when the
+        // spreadsheet's codes survived the numbering-enabled strip above).
         if (!config.codeRequired) {
           const insertCodes = cleanInserts.map((r) => r.code).filter(Boolean);
           if (insertCodes.length) {
@@ -1866,6 +1918,7 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
           source_type: config.sourceType,
           label: config.buildLabel(rec),
           created_by: createdBy,
+          updated_by: createdBy,
         }));
         const sourceResults = await sourcesModel.bulkInsert(sourceRecords, ['id', 'table_id']);
         const sourceByParentId = new Map(sourceResults.map((sr) => [sr.table_id, sr.id]));

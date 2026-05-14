@@ -69,7 +69,7 @@ describe('Email CRUD — /api/core/v1/emails', () => {
     const empRes = await request(app)
       .post('/api/core/v1/employees')
       .set('Cookie', cookies)
-      .send({ first_name: 'Email', last_name: 'Tester', email: 'tester@emtest.com' });
+      .send({ first_name: 'Email', last_name: 'Tester', email: 'tester@emtest.com', roles: ['admin'] });
     employeeSourceId = empRes.body.source_id;
   }, 30000);
 

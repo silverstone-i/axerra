@@ -46,14 +46,13 @@ class EmployeesController extends BaseController {
       const suppliedEmail = req.body.email;
       delete req.body.email;
 
-      // Validate: roles must be non-empty AND every role code must exist in
-      // the tenant's roles table before is_app_user can be true.
-      if (req.body.is_app_user) {
-        const roleCheck = await validateEmployeeRoles(db, schema, req.body.roles);
-        if (!roleCheck.ok) return res.status(400).json({ error: roleCheck.error });
-        if (!suppliedEmail) {
-          return res.status(400).json({ error: 'Email is required to enable app user access' });
-        }
+      // Validate: every employee must be assigned at least one valid role.
+      // Stricter than app-user provisioning so a roleless employee can never
+      // exist regardless of is_app_user.
+      const roleCheck = await validateEmployeeRoles(db, schema, req.body.roles);
+      if (!roleCheck.ok) return res.status(400).json({ error: roleCheck.error });
+      if (req.body.is_app_user && !suppliedEmail) {
+        return res.status(400).json({ error: 'Email is required to enable app user access' });
       }
 
       // Extract password before insert — it's for portal_users, not the employees table
@@ -76,6 +75,7 @@ class EmployeesController extends BaseController {
           source_type: 'employee',
           label: `${employee.first_name} ${employee.last_name}`,
           created_by: req.body.created_by || null,
+          updated_by: req.body.created_by || null,
         });
 
         // 3. Link the source back to the employee
@@ -178,13 +178,14 @@ class EmployeesController extends BaseController {
       const needsProvisioning =
         isNowAppUser && (!wasAppUser || !(await findActiveBinding('employee', before.id, req.user?.tenant_id)));
 
-      if (needsProvisioning) {
-        const roles = req.body.roles || before.roles || [];
-        const roleCheck = await validateEmployeeRoles(db, schema, roles);
-        if (!roleCheck.ok) return res.status(400).json({ error: roleCheck.error });
-        if (!resolvedEmail) {
-          return res.status(400).json({ error: 'A login email is required to enable app user access' });
-        }
+      // Always validate roles on update — empty/unknown role codes are
+      // blocking regardless of is_app_user state, so a roleless employee
+      // can never exist.
+      const finalRoles = req.body.roles !== undefined ? req.body.roles : before.roles || [];
+      const roleCheck = await validateEmployeeRoles(db, schema, finalRoles);
+      if (!roleCheck.ok) return res.status(400).json({ error: roleCheck.error });
+      if (needsProvisioning && !resolvedEmail) {
+        return res.status(400).json({ error: 'A login email is required to enable app user access' });
       }
 
       // Apply the standard update

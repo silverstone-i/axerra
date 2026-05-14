@@ -76,6 +76,7 @@ class ClientsController extends BaseController {
           source_type: 'client',
           label: client.name,
           created_by: req.body.created_by || null,
+          updated_by: req.body.created_by || null,
         });
 
         // 3. Link the source back to the client

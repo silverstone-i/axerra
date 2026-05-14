@@ -42,6 +42,7 @@ class ContactsController extends BaseController {
           source_type: 'contact',
           label: contact.name,
           created_by: req.body.created_by || null,
+          updated_by: req.body.created_by || null,
         });
 
         await t.none(

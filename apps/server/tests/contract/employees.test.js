@@ -69,6 +69,7 @@ describe('Employee CRUD — /api/core/v1/employees', () => {
       position: 'Engineer',
       department: 'Engineering',
       email: 'jane@etest.com',
+      roles: ['admin'],
     });
 
     expect(res.status).toBe(201);

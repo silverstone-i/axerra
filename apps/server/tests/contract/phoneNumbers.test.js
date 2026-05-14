@@ -67,7 +67,7 @@ describe('Phone Number CRUD — /api/core/v1/phone-numbers', () => {
     const empRes = await request(app)
       .post('/api/core/v1/employees')
       .set('Cookie', cookies)
-      .send({ first_name: 'Phone', last_name: 'Tester', email: 'tester@phtest.com' });
+      .send({ first_name: 'Phone', last_name: 'Tester', email: 'tester@phtest.com', roles: ['admin'] });
     employeeSourceId = empRes.body.source_id;
   }, 30000);
 

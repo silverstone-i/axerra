@@ -40,6 +40,7 @@ class CompaniesController extends BaseController {
           source_type: 'company',
           label: company.name,
           created_by: req.body.created_by || null,
+          updated_by: req.body.created_by || null,
         });
 
         await t.none(

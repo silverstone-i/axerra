@@ -74,6 +74,7 @@ class VendorContactsController extends BaseController {
           source_type: 'vendor_contact',
           label: `${contact.first_name} ${contact.last_name}`,
           created_by: req.body.created_by || null,
+          updated_by: req.body.created_by || null,
         });
 
         // 3. Link the source back

@@ -96,7 +96,7 @@ function parentRow({ id = '', code = '', firstName = '', lastName = '', extras =
     is_app_user: isPrimary ? false : '',
     is_primary_contact: isPrimary ? false : '',
     is_billing_contact: isPrimary ? false : '',
-    roles: isPrimary ? '{}' : '',
+    roles: isPrimary ? '{admin}' : '',
     status: isPrimary ? 'active' : '',
     password: '',
     email: '', email_label: '', email_is_primary: '', email_is_login: '',
@@ -252,7 +252,7 @@ describe('Flat employee import — per-row reconciliation', () => {
   test('cross-source email collision is a blocking error with type-only context (R8)', async () => {
     // Create a second employee owning a distinct email
     const create = await request(app).post('/api/core/v1/employees').set('Cookie', cookies).send({
-      first_name: 'Gina', last_name: 'Garcia', code: 'FR-002',
+      first_name: 'Gina', last_name: 'Garcia', code: 'FR-002', roles: ['admin'],
     });
     expect(create.status).toBe(201);
     const ginaSourceId = create.body.source_id;
@@ -395,6 +395,96 @@ describe('Flat employee import — per-row reconciliation', () => {
     const offices = allEmails.filter((r) => r.label === 'office');
     expect(offices).toHaveLength(1);
     expect(offices[0].id).toBe(homeEmailIdBefore);
+  });
+
+  test('import auto-allocates employee code from numbering config when enabled', async () => {
+    // Enable employee numbering for FRECON.
+    const configRes = await request(app)
+      .get('/api/core/v1/numbering-config/where?id_type=employee')
+      .set('Cookie', cookies);
+    expect(configRes.status).toBe(200);
+    const empConfigId = configRes.body.records?.[0]?.id;
+    expect(empConfigId).toBeDefined();
+
+    const enableRes = await request(app)
+      .put(`/api/core/v1/numbering-config/update?id=${empConfigId}`)
+      .set('Cookie', cookies)
+      .send({ is_enabled: true });
+    expect(enableRes.status).toBe(200);
+
+    // Import a new employee with NO code — numbering should fill it in
+    // following the configured pattern (prefix 'EMP', padding 4).
+    const buf = await buildFlat([
+      parentRow({
+        firstName: 'Numbered', lastName: 'New',
+        extras: {},
+      }),
+    ]);
+    const res = await postImport(buf, cookies, 'numbering-new');
+    expect(res.status).toBe(201);
+
+    const emp = await db.oneOrNone(
+      `SELECT code FROM frecon.employees WHERE first_name = 'Numbered' AND last_name = 'New'`,
+    );
+    expect(emp).not.toBeNull();
+    expect(emp.code).toBeTruthy();
+    expect(emp.code).toMatch(/^EMP/);
+  });
+
+  test('import overrides spreadsheet-supplied code with numbering config when numbering is enabled', async () => {
+    // User scenario: numbering enabled (increment 10), spreadsheet contains
+    // hand-typed codes like EMP-9999. Expected: importer ignores the typed
+    // codes and follows the sequence allocator instead.
+    const configRes = await request(app)
+      .get('/api/core/v1/numbering-config/where?id_type=employee')
+      .set('Cookie', cookies);
+    const empConfigId = configRes.body.records?.[0]?.id;
+    await request(app)
+      .put(`/api/core/v1/numbering-config/update?id=${empConfigId}`)
+      .set('Cookie', cookies)
+      .send({ is_enabled: true, increment: 10 });
+
+    const buf = await buildFlat([
+      parentRow({
+        code: 'EMP-9999', firstName: 'TypedCode', lastName: 'Override',
+        extras: {},
+      }),
+    ]);
+    const res = await postImport(buf, cookies, 'override-supplied');
+    expect(res.status).toBe(201);
+
+    const emp = await db.oneOrNone(
+      `SELECT code FROM frecon.employees WHERE first_name = 'TypedCode' AND last_name = 'Override'`,
+    );
+    expect(emp).not.toBeNull();
+    expect(emp.code).toBeTruthy();
+    expect(emp.code).not.toBe('EMP-9999');
+    expect(emp.code).toMatch(/^EMP-\d{4}$/);
+  });
+
+  test('import allocates code for existing employee that has no code when numbering is enabled', async () => {
+    // Create an employee with code intentionally null (via direct DB write to
+    // bypass the controller's auto-allocation), then import a row that doesn't
+    // supply a code. The numbering allocator should fill it in on the update.
+    const codeless = await request(app).post('/api/core/v1/employees').set('Cookie', cookies).send({
+      first_name: 'Codeless', last_name: 'OnUpdate', roles: ['admin'],
+    });
+    expect(codeless.status).toBe(201);
+    // Force the code back to NULL so the import path's update branch is tested.
+    await db.none(`UPDATE frecon.employees SET code = NULL WHERE id = $1`, [codeless.body.id]);
+
+    const buf = await buildFlat([
+      parentRow({
+        id: codeless.body.id, firstName: 'Codeless', lastName: 'OnUpdate',
+        extras: {},
+      }),
+    ]);
+    const res = await postImport(buf, cookies, 'allocate-on-update');
+    expect(res.status).toBe(201);
+
+    const after = await db.oneOrNone(`SELECT code FROM frecon.employees WHERE id = $1`, [codeless.body.id]);
+    expect(after.code).toBeTruthy();
+    expect(after.code).toMatch(/^EMP/);
   });
 
   test('parent field edit stamps updated_by on the parent row', async () => {

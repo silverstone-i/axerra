@@ -85,7 +85,7 @@ function row({ id = '', code = '', firstName = '', lastName = '', extras = {} } 
     is_app_user: isPrimary ? false : '',
     is_primary_contact: isPrimary ? false : '',
     is_billing_contact: isPrimary ? false : '',
-    roles: isPrimary ? '{}' : '',
+    roles: isPrimary ? '{admin}' : '',
     status: isPrimary ? 'active' : '',
     password: '',
     email: '', email_label: '', email_is_primary: '', email_is_login: '',
@@ -315,7 +315,7 @@ describe('Flat employee import — login + app-user cascade fixes', () => {
   test('L2b.toggle-on — is_app_user false → true via UPDATE provisions portal_user', async () => {
     // Create a non-app-user employee with an email
     const create = await request(app).post('/api/core/v1/employees').set('Cookie', cookies).send({
-      code: 'L2BTON', first_name: 'Nora', last_name: 'NewLogin', email: 'nora@fcas.com',
+      code: 'L2BTON', first_name: 'Nora', last_name: 'NewLogin', email: 'nora@fcas.com', roles: ['admin'],
     });
     expect(create.status).toBe(201);
 
