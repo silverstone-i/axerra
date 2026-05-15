@@ -2,7 +2,7 @@
  * @file Contract tests for flat-format employee import per-row reconciliation
  * @module tests/contract/employeeFlatReconciliation
  *
- * Covers the rules from /Users/ian/.claude/plans/explain-why-when-updating-rustling-hellman.md:
+ * Behavior locked in:
  *   - No-change re-import preserves child ids (R3).
  *   - Editing one row's value updates in place; omitted rows are left alone (R4, R6).
  *   - Intra-file duplicate slot is a blocking error (R7).

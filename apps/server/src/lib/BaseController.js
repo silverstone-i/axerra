@@ -101,8 +101,12 @@ class BaseController extends ViewController {
 
   /**
    * POST /import-xls — import records from uploaded spreadsheet.
-   * Pass `?preview=1` to run validation + classification only and receive a
-   * counts-only preview instead of writing.
+   *
+   * Pass `?preview=1` to receive a counts-only preview instead of writing.
+   * NOTE: preview is only honored by importers whose model's
+   * `importFromSpreadsheet` implements the `previewOnly` option (currently
+   * the flat-format path used by employees, clients, contacts, companies).
+   * Legacy multi-sheet importers ignore the flag and still write.
    */
   async importXls(req, res) {
     const file = req.file;

@@ -106,7 +106,7 @@ export async function allocateNumber(schema, idType, scopeId = null, issuedAt = 
       // 4a. First allocation for this (idType, scope, period). Honor codes
       // already in the target table (typed manually, seeded, or imported)
       // by starting the sequence above the existing max.
-      const maxExisting = await _findMaxExistingSerial(tx, s, pgp, idType, config);
+      const maxExisting = await _findMaxExistingSerial(tx, s, pgp, idType, config, periodKey);
       serial = (maxExisting > 0 ? maxExisting : 0) + step;
       await tx.none(
         `INSERT INTO ${s}.tenant_number_sequence_state
@@ -175,7 +175,7 @@ export async function allocateNumbers(schema, idType, count, scopeId = null, iss
     if (!state) {
       // First allocation. Honor pre-existing codes (see allocateNumber for
       // the same reasoning).
-      const maxExisting = await _findMaxExistingSerial(tx, s, pgp, idType, config);
+      const maxExisting = await _findMaxExistingSerial(tx, s, pgp, idType, config, periodKey);
       startSerial = (maxExisting > 0 ? maxExisting : 0) + step;
       await tx.none(
         `INSERT INTO ${s}.tenant_number_sequence_state
@@ -216,18 +216,26 @@ const ID_TYPE_TABLE = {
 
 /**
  * Scan the target table for the highest serial number already present in the
- * `code` column matching the config's prefix/separator/suffix pattern. Used
- * when seeding a brand-new sequence_state row so manually-assigned codes
- * (e.g. tenant bootstrap data) don't collide with allocator output.
+ * `code` column for the current period. Used when seeding a brand-new
+ * sequence_state row so manually-assigned codes (e.g. tenant bootstrap data)
+ * don't collide with allocator output.
+ *
+ * When the config has a date mode, `buildDisplayId` emits codes of the form
+ * `<prefix><sep><periodKey><sep><digits><suffix>`. Only consider codes that
+ * match the current period — codes from other periods are irrelevant to the
+ * sequence we're seeding.
  *
  * Returns 0 if no existing matching codes are found.
  * @private
  */
-async function _findMaxExistingSerial(tx, s, pgp, idType, config) {
+async function _findMaxExistingSerial(tx, s, pgp, idType, config, periodKey) {
   const baseTable = ID_TYPE_TABLE[idType];
   if (!baseTable) return 0;
   const escape = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const pattern = `^${escape(config.prefix || '')}${escape(config.separator || '')}(\\d+)${escape(config.suffix || '')}$`;
+  const sep = escape(config.separator || '');
+  const hasDate = config.date_mode !== 'none' && periodKey && periodKey !== 'global';
+  const datePart = hasDate ? `${escape(periodKey)}${sep}` : '';
+  const pattern = `^${escape(config.prefix || '')}${sep}${datePart}(\\d+)${escape(config.suffix || '')}$`;
   const rows = await tx.manyOrNone(
     `SELECT code FROM ${s}.${pgp.as.name(baseTable)} WHERE code ~ $1`,
     [pattern],

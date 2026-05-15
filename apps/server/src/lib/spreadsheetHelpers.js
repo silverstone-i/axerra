@@ -495,7 +495,6 @@ export async function checkPortalUserEmailCollisions(groups, opts) {
       loginEmailRows.push({
         email: String(child.email).trim().toLowerCase(),
         row: child._rowNum || null,
-        ownEntityId: existing?.id || null,
       });
     }
   }
@@ -555,12 +554,11 @@ export async function checkPortalUserEmailCollisions(groups, opts) {
     holdersByEmail.get(r.email).add(r.id);
   }
 
-  for (const { email, row, ownEntityId } of loginEmailRows) {
+  for (const { email, row } of loginEmailRows) {
     const holders = holdersByEmail.get(email);
     if (!holders || !holders.size) continue;
     const otherHolders = [...holders].filter((id) => !selfPortalUserIds.has(id));
     if (!otherHolders.length) continue;
-    void ownEntityId;
     errors.push({
       sheet: sheetName,
       row,
@@ -1769,7 +1767,7 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
           row: group.parent._rowNum || null,
           column: 'roles',
           value: '',
-          message: 'Roles must be assigned before enabling app user access',
+          message: 'At least one role must be assigned',
         });
         continue;
       }
@@ -2013,10 +2011,20 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
         // from the tenant's numbering config. Mirrors the INSERT-path behavior
         // so existing employees who predate the numbering rollout (or were
         // imported before numbering was enabled) get codes on re-import.
+        // This is a real write — stamp audit fields and count it as an
+        // update so the preview/response numbers reflect it.
         if (config.idType && !before.code && !transformed.code) {
           const numbering = await allocateNumber(schema, config.idType, null, new Date(), t);
           if (numbering) {
-            await t.none(`UPDATE ${s}.${tbl} SET code = $1 WHERE id = $2`, [numbering.displayId, id]);
+            await t.none(
+              `UPDATE ${s}.${tbl} SET code = $1, updated_by = $2, updated_at = NOW() WHERE id = $3`,
+              [numbering.displayId, userId, id],
+            );
+            // Don't double-count when the parent already had other changes
+            // captured above; only increment when this is the only write.
+            if (!(Object.keys(changes).length > 0 || archiveChanged || passwordRotation)) {
+              updatedCount++;
+            }
           }
         }
 
@@ -2058,8 +2066,12 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
           }
 
           // is_app_user false → true: provision or restore portal_user.
-          // Prefer the password the user supplied in the spreadsheet; fall
-          // back to a random one only when the cell is blank.
+          // Honor the spreadsheet password for both branches:
+          //   - provision (no prior binding): pass clear password through;
+          //     enableAppUser → provisionAppUser bcrypts it.
+          //   - restore (archived prior binding): enableAppUser only honors a
+          //     pre-computed hash. Bcrypt up front and hand it through as
+          //     `preHash` so the supplied password actually takes effect.
           if (!isArchived && !wasAppUser && willBeAppUser) {
             const loginRow = await t.oneOrNone(
               `SELECT email FROM ${s}.emails WHERE source_id = $1 AND is_login = true AND deactivated_at IS NULL LIMIT 1`,
@@ -2070,7 +2082,13 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
                 ? String(group.parent.password)
                 : null;
               const password = suppliedPassword || (await import('node:crypto')).randomBytes(12).toString('base64url');
-              await enableAppUser(t, entityType, id, loginRow.email, password, tenantId, userId);
+              let preHash;
+              if (suppliedPassword) {
+                const bcrypt = (await import('bcrypt')).default;
+                const rounds = Number(process.env.BCRYPT_ROUNDS || 12);
+                preHash = await bcrypt.hash(suppliedPassword, rounds);
+              }
+              await enableAppUser(t, entityType, id, loginRow.email, password, tenantId, userId, { preHash });
             }
           }
 

@@ -2,7 +2,7 @@
  * @file Contract tests for L1/L2/L2b/C3 bypass-bug fixes in flat employee import
  * @module tests/contract/employeeFlatReconciliationLoginCascade
  *
- * Covers the rules from /Users/ian/.claude/plans/explain-why-when-updating-rustling-hellman.md:
+ * Behavior locked in:
  *   - L1.a — login email value change syncs to portal_users.
  *   - L1.b — login email value change to a portal_user in another tenant → 422.
  *   - L2   — cannot unset is_login on active app user via import → 422.
@@ -667,7 +667,7 @@ describe('Flat employee import — login + app-user cascade fixes', () => {
     ]);
     const res = await postImport(buf, cookies, 'rnone');
     expect(res.status).toBe(422);
-    const err = res.body.errors.find((e) => /Roles must be assigned/i.test(e.message || ''));
+    const err = res.body.errors.find((e) => /at least one role/i.test(e.message || ''));
     expect(err).toBeDefined();
 
     const rita = await db.oneOrNone(`SELECT id FROM fcas.employees WHERE code = 'RNONE'`);

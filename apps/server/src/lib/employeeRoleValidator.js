@@ -1,11 +1,11 @@
 /**
- * @file Validate role codes assigned to an app-user employee
+ * @file Validate role codes assigned to an employee/client
  * @module server/lib/employeeRoleValidator
  *
- * Ensures every role code on an employee (or client) about to gain app
- * access exists in the tenant's `roles` table and is active. Used by both
- * the controllers and the flat-import reconciler so the rule is enforced
- * everywhere a portal_user is provisioned.
+ * Ensures every role code on an employee (or client) exists in the tenant's
+ * `roles` table. Used by both the controllers and the flat-import reconciler
+ * so the rule is enforced everywhere a record is created or updated —
+ * regardless of `is_app_user` state, so a roleless record never exists.
  *
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
@@ -38,7 +38,7 @@ export async function validateEmployeeRoles(tOrDb, schema, roles) {
     return {
       ok: false,
       code: 'empty',
-      error: 'Roles must be assigned before enabling app user access',
+      error: 'At least one role must be assigned',
     };
   }
 

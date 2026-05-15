@@ -33,9 +33,11 @@ import logger from './logger.js';
  * @returns {Promise<boolean>} true on success, false on collision
  */
 export async function provisionAppUser(t, entityType, entityId, email, password, tenantId, userId, preHash = null) {
+  // Normalize email so case-only variants can't create two active portal_users.
+  const normEmail = email == null ? null : String(email).trim().toLowerCase();
   const existing = await t.oneOrNone(
-    'SELECT id FROM admin.portal_users WHERE email = $1 AND deactivated_at IS NULL',
-    [email],
+    'SELECT id FROM admin.portal_users WHERE LOWER(email) = $1 AND deactivated_at IS NULL',
+    [normEmail],
   );
   if (existing) return false;
 
@@ -52,7 +54,7 @@ export async function provisionAppUser(t, entityType, entityId, email, password,
     `INSERT INTO admin.portal_users (email, password_hash, status, created_by)
      VALUES ($1, $2, 'invited', $3)
      RETURNING id`,
-    [email, passwordHash, userId],
+    [normEmail, passwordHash, userId],
   );
   await t.none(
     `INSERT INTO admin.portal_user_tenants
@@ -87,19 +89,20 @@ export async function restoreAppUserBinding(t, entityType, entityId, tenantId, u
   );
   if (!binding) return false;
 
-  if (email && preHash) {
+  const normEmail = email == null ? null : String(email).trim().toLowerCase();
+  if (normEmail && preHash) {
     await t.none(
       `UPDATE admin.portal_users
        SET deactivated_at = NULL, status = 'invited', password_hash = $1, email = $2, updated_by = $3
        WHERE id = $4`,
-      [preHash, email, userId, binding.portal_user_id],
+      [preHash, normEmail, userId, binding.portal_user_id],
     );
-  } else if (email) {
+  } else if (normEmail) {
     await t.none(
       `UPDATE admin.portal_users
        SET deactivated_at = NULL, status = 'active', email = $1, updated_by = $2
        WHERE id = $3`,
-      [email, userId, binding.portal_user_id],
+      [normEmail, userId, binding.portal_user_id],
     );
   } else {
     await t.none(
