@@ -94,9 +94,14 @@ export default function ImportDialog({
   const showServerErrors = errors?.length > 0;
   const showPreviewErrors = previewErrors?.length > 0;
   const showPreviewCounts = stage === 'preview' && previewData && !showPreviewErrors;
-  const submitLabel = onPreview ? (stage === 'preview' && !showPreviewErrors ? 'Import' : 'Preview') : 'Import';
-  const submitHandler = onPreview ? (stage === 'preview' && !showPreviewErrors ? handleConfirm : handlePreview) : handleLegacySubmit;
-  const submitDisabled = !file || stage === 'previewing' || (onPreview && showPreviewErrors);
+  // When `onPreview` is supplied the button toggles between Preview (idle or
+  // when preview returned errors) and Import (preview-clean). Only disable
+  // for the Import action — leaving Preview re-clickable so the user can
+  // retry after a transient network error or after fixing the file.
+  const isConfirmAction = onPreview && stage === 'preview' && !showPreviewErrors;
+  const submitLabel = onPreview ? (isConfirmAction ? 'Import' : 'Preview') : 'Import';
+  const submitHandler = onPreview ? (isConfirmAction ? handleConfirm : handlePreview) : handleLegacySubmit;
+  const submitDisabled = !file || stage === 'previewing';
 
   return (
     <FormDialog
