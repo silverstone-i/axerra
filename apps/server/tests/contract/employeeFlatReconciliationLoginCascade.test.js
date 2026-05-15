@@ -243,8 +243,20 @@ describe('Flat employee import — login + app-user cascade fixes', () => {
         },
       }),
     ]);
+    // Preview must classify the archive transition as an update, not a NO-OP,
+    // even when no other parent column changed. (`status` is a synthetic
+    // spreadsheet column stripped before the field-diff.)
+    const preview = await postImport(buf, cookies, 'l2ba-preview', { preview: true });
+    expect(preview.status).toBe(200);
+    // The parent row's status active→archived must classify as an update,
+    // not a NO-OP. (`status` is a synthetic spreadsheet column stripped
+    // before the field-level diff.) Child email row is unchanged → counted
+    // as a NO-OP under the children, which is correct.
+    expect(preview.body.updates).toBeGreaterThanOrEqual(1);
+
     const res = await postImport(buf, cookies, 'l2ba');
     expect(res.status).toBe(201);
+    expect(res.body.updated).toBe(1);
 
     const pu = await db.oneOrNone(
       `SELECT pu.status, pu.deactivated_at FROM admin.portal_users pu
@@ -342,6 +354,140 @@ describe('Flat employee import — login + app-user cascade fixes', () => {
 
     const pu = await db.oneOrNone(`SELECT id, status FROM admin.portal_users WHERE email = $1 AND deactivated_at IS NULL`, ['nora@fcas.com']);
     expect(pu).not.toBeNull();
+  });
+
+  test('L2b.toggle-on with password — import-supplied password is honored on toggle-on', async () => {
+    // Create a non-app-user employee with an email
+    const create = await request(app).post('/api/core/v1/employees').set('Cookie', cookies).send({
+      code: 'L2BPW', first_name: 'Pat', last_name: 'PwToggle', email: 'pat@fcas.com', roles: ['admin'],
+    });
+    expect(create.status).toBe(201);
+
+    // Flip the login flag on the existing 'work' email row
+    const emails = await db.any(`SELECT id FROM fcas.emails WHERE email = $1`, ['pat@fcas.com']);
+    await db.none(`UPDATE fcas.emails SET is_login = true WHERE id = $1`, [emails[0].id]);
+
+    // Import an UPDATE that flips is_app_user on AND supplies a password.
+    const buf = await buildFlat([
+      row({
+        id: create.body.id, code: 'L2BPW', firstName: 'Pat', lastName: 'PwToggle',
+        extras: {
+          is_app_user: true, roles: '{admin}', password: 'PatSuppliedPass1!',
+          email: 'pat@fcas.com', email_label: 'work', email_is_primary: true, email_is_login: true,
+        },
+      }),
+    ]);
+    const res = await postImport(buf, cookies, 'l2bpw');
+    expect(res.status).toBe(201);
+
+    // The portal_user must accept the supplied password.
+    const bcrypt = (await import('bcrypt')).default;
+    const pu = await db.oneOrNone(
+      `SELECT password_hash FROM admin.portal_users WHERE email = $1 AND deactivated_at IS NULL`,
+      ['pat@fcas.com'],
+    );
+    expect(pu).not.toBeNull();
+    expect(await bcrypt.compare('PatSuppliedPass1!', pu.password_hash)).toBe(true);
+  });
+
+  test('password rotation — import supplies new password for already-active app user', async () => {
+    // Provision an app-user employee with an initial password.
+    const emp = await makeAppUserEmployee(cookies, {
+      code: 'PWROT', firstName: 'Rosa', lastName: 'Rotate', email: 'rosa@fcas.com',
+      password: 'RosaOriginal1!',
+    });
+
+    const bcrypt = (await import('bcrypt')).default;
+    const before = await db.oneOrNone(
+      `SELECT password_hash FROM admin.portal_users WHERE email = $1 AND deactivated_at IS NULL`,
+      ['rosa@fcas.com'],
+    );
+    expect(await bcrypt.compare('RosaOriginal1!', before.password_hash)).toBe(true);
+
+    // Re-import the same employee (already an app user) with a different password.
+    const buf = await buildFlat([
+      row({
+        id: emp.id, code: 'PWROT', firstName: 'Rosa', lastName: 'Rotate',
+        extras: {
+          is_app_user: true, roles: '{admin}', password: 'RosaRotated2!',
+          email: 'rosa@fcas.com', email_label: 'work', email_is_primary: true, email_is_login: true,
+        },
+      }),
+    ]);
+    const res = await postImport(buf, cookies, 'pwrot');
+    expect(res.status).toBe(201);
+
+    const after = await db.oneOrNone(
+      `SELECT password_hash FROM admin.portal_users WHERE email = $1 AND deactivated_at IS NULL`,
+      ['rosa@fcas.com'],
+    );
+    expect(await bcrypt.compare('RosaRotated2!', after.password_hash)).toBe(true);
+    expect(await bcrypt.compare('RosaOriginal1!', after.password_hash)).toBe(false);
+  });
+
+  test('password preserved on no-change re-import — blank password column does NOT reset password_hash', async () => {
+    // Provision an app-user employee with an initial password.
+    const emp = await makeAppUserEmployee(cookies, {
+      code: 'PWKEEP', firstName: 'Kira', lastName: 'Keep', email: 'kira@fcas.com',
+      password: 'KiraKeep1!',
+    });
+
+    const before = await db.oneOrNone(
+      `SELECT password_hash FROM admin.portal_users WHERE email = $1`,
+      ['kira@fcas.com'],
+    );
+
+    // Re-import with password column blank — must not touch password_hash.
+    const buf = await buildFlat([
+      row({
+        id: emp.id, code: 'PWKEEP', firstName: 'Kira', lastName: 'Keep',
+        extras: {
+          is_app_user: true, roles: '{admin}',
+          email: 'kira@fcas.com', email_label: 'work', email_is_primary: true, email_is_login: true,
+        },
+      }),
+    ]);
+    const res = await postImport(buf, cookies, 'pwkeep');
+    expect(res.status).toBe(201);
+
+    const after = await db.oneOrNone(
+      `SELECT password_hash FROM admin.portal_users WHERE email = $1`,
+      ['kira@fcas.com'],
+    );
+    expect(after.password_hash).toBe(before.password_hash);
+  });
+
+  test('contradiction — password supplied with is_app_user=false is a blocking error', async () => {
+    // Existing app-user employee; spreadsheet says is_app_user=false AND
+    // supplies a password. Importer must refuse rather than silently demote
+    // and drop the password.
+    const emp = await makeAppUserEmployee(cookies, {
+      code: 'PWCON', firstName: 'Connie', lastName: 'Conflict', email: 'connie@fcas.com',
+      password: 'ConnieOriginal1!',
+    });
+
+    const buf = await buildFlat([
+      row({
+        id: emp.id, code: 'PWCON', firstName: 'Connie', lastName: 'Conflict',
+        extras: {
+          is_app_user: false, roles: '{admin}', password: 'NewPw2!',
+          email: 'connie@fcas.com', email_label: 'work', email_is_primary: true, email_is_login: true,
+        },
+      }),
+    ]);
+    const res = await postImport(buf, cookies, 'pwcon');
+    expect(res.status).toBe(422);
+    const err = res.body.errors.find((e) => /password cannot be supplied while is_app_user is false/i.test(e.message || ''));
+    expect(err).toBeDefined();
+
+    // Nothing changed: still active, password_hash still matches original.
+    const bcrypt = (await import('bcrypt')).default;
+    const after = await db.oneOrNone(
+      `SELECT password_hash, deactivated_at FROM admin.portal_users WHERE email = $1`,
+      ['connie@fcas.com'],
+    );
+    expect(after.deactivated_at).toBeNull();
+    expect(await bcrypt.compare('ConnieOriginal1!', after.password_hash)).toBe(true);
   });
 
   test('controller restore preserves password — archive then re-enable via PUT does NOT reset password_hash', async () => {
@@ -552,5 +698,111 @@ describe('Flat employee import — login + app-user cascade fixes', () => {
 
     const rae = await db.oneOrNone(`SELECT id FROM fcas.employees WHERE code = 'RCAPI'`);
     expect(rae).toBeNull();
+  });
+
+  // ─── Section 8: provisioning app users via the INSERT path ─────────────
+  //
+  // 4/5/6 exercise UPDATE branches (login-email mechanics, archive cascade,
+  // existing-app-user toggles). These tests cover the brand-new path: a
+  // file row with no id, is_app_user=true, password + login email supplied.
+
+  test('8a — single new app user with password is provisioned via import', async () => {
+    const buf = await buildFlat([
+      row({
+        code: 'P8A', firstName: 'Pat', lastName: 'EightA',
+        extras: {
+          is_app_user: true, roles: '{admin}', password: 'PatEightA1!',
+          email: 'pat.8a@fcas.com', email_label: 'work', email_is_primary: true, email_is_login: true,
+        },
+      }),
+    ]);
+    const res = await postImport(buf, cookies, '8a');
+    expect(res.status).toBe(201);
+
+    const emp = await db.oneOrNone(`SELECT id, is_app_user FROM fcas.employees WHERE code = 'P8A'`);
+    expect(emp).not.toBeNull();
+    expect(emp.is_app_user).toBe(true);
+
+    const pu = await db.oneOrNone(
+      `SELECT id, status, password_hash FROM admin.portal_users WHERE email = $1 AND deactivated_at IS NULL`,
+      ['pat.8a@fcas.com'],
+    );
+    expect(pu).not.toBeNull();
+    expect(pu.status).toBe('invited');
+
+    const bcrypt = (await import('bcrypt')).default;
+    expect(await bcrypt.compare('PatEightA1!', pu.password_hash)).toBe(true);
+
+    const binding = await db.oneOrNone(
+      `SELECT * FROM admin.portal_user_tenants
+       WHERE portal_user_id = $1 AND entity_type = 'employee' AND entity_id = $2
+       AND deactivated_at IS NULL`,
+      [pu.id, emp.id],
+    );
+    expect(binding).not.toBeNull();
+    expect(binding.status).toBe('active');
+  });
+
+  test('8b — bulk provision is transactional: one bad row rolls back all', async () => {
+    const buf = await buildFlat([
+      row({
+        code: 'P8B1', firstName: 'BulkOne', lastName: 'EightB',
+        extras: {
+          is_app_user: true, roles: '{admin}', password: 'BulkOne1!',
+          email: 'bulk.one@fcas.com', email_label: 'work', email_is_primary: true, email_is_login: true,
+        },
+      }),
+      row({
+        code: 'P8B2', firstName: 'BulkTwo', lastName: 'EightB',
+        extras: {
+          // Bogus role on row 2 — must reject the whole import.
+          is_app_user: true, roles: '{nonexistent_role}', password: 'BulkTwo1!',
+          email: 'bulk.two@fcas.com', email_label: 'work', email_is_primary: true, email_is_login: true,
+        },
+      }),
+      row({
+        code: 'P8B3', firstName: 'BulkThree', lastName: 'EightB',
+        extras: {
+          is_app_user: true, roles: '{admin}', password: 'BulkThree1!',
+          email: 'bulk.three@fcas.com', email_label: 'work', email_is_primary: true, email_is_login: true,
+        },
+      }),
+    ]);
+    const res = await postImport(buf, cookies, '8b');
+    expect(res.status).toBe(422);
+    expect(res.body.errors.some((e) => /unknown role/i.test(e.message || ''))).toBe(true);
+
+    // None of the three rows landed.
+    const created = await db.any(`SELECT code FROM fcas.employees WHERE code IN ('P8B1','P8B2','P8B3')`);
+    expect(created).toEqual([]);
+    const pus = await db.any(
+      `SELECT email FROM admin.portal_users WHERE email IN ('bulk.one@fcas.com','bulk.two@fcas.com','bulk.three@fcas.com')`,
+    );
+    expect(pus).toEqual([]);
+  });
+
+  test('8c — is_app_user=true with no login email is a blocking error', async () => {
+    // Row has is_app_user=true, valid role, valid password, but the email
+    // row's is_login flag is false (no login email anywhere).
+    const buf = await buildFlat([
+      row({
+        code: 'P8C', firstName: 'Cara', lastName: 'EightC',
+        extras: {
+          is_app_user: true, roles: '{admin}', password: 'CaraEightC1!',
+          email: 'cara.8c@fcas.com', email_label: 'work', email_is_primary: true, email_is_login: false,
+        },
+      }),
+    ]);
+    const res = await postImport(buf, cookies, '8c');
+    expect(res.status).toBe(422);
+    expect(
+      res.body.errors.some((e) => /login email is required/i.test(e.message || '')),
+    ).toBe(true);
+
+    // Nothing landed.
+    const emp = await db.oneOrNone(`SELECT id FROM fcas.employees WHERE code = 'P8C'`);
+    expect(emp).toBeNull();
+    const pu = await db.oneOrNone(`SELECT id FROM admin.portal_users WHERE email = 'cara.8c@fcas.com'`);
+    expect(pu).toBeNull();
   });
 });

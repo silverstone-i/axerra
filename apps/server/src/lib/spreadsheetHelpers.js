@@ -193,8 +193,16 @@ export function parseSheet(reader, sheetIndex) {
  */
 export function coerceRow(row, boolCols, hasRoles) {
   for (const col of boolCols) {
-    if (col in row && typeof row[col] === 'string') {
-      row[col] = row[col].toLowerCase() === 'true';
+    if (!(col in row)) continue;
+    const v = row[col];
+    if (typeof v === 'string') {
+      row[col] = v.toLowerCase() === 'true';
+    } else if (v == null) {
+      // Blank cells in boolean columns are interpreted as `false`. Schemas
+      // mark these columns notNull with default false, so a null/undefined
+      // value would otherwise reach the DB and trip a 23502 with no row
+      // context the user can act on.
+      row[col] = false;
     }
   }
   if (hasRoles) {
@@ -1581,11 +1589,31 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
   // cross-source uniqueness checks and (b) diff parent values for NO-OP detection.
   const ownEntities = await _resolveOwnEntities(db, s, tbl, groups);
   for (const group of groups) {
-    if (isUuid(group.parent.id) && ownEntities.has(group.parent.id)) {
-      const row = ownEntities.get(group.parent.id);
-      group._ownEntity = row;
-      group._ownSourceId = row.source_id;
+    const row = _lookupOwnEntity(ownEntities, group.parent);
+    if (!row) continue;
+
+    // Mismatch guard: if id AND code both supplied and resolve to different
+    // DB rows, that's a user error — refuse to silently pick one.
+    if (isUuid(group.parent.id) && typeof group.parent.code === 'string' && group.parent.code.trim()) {
+      const byId = ownEntities.get(group.parent.id) || null;
+      const byCode = ownEntities.get(`code:${group.parent.code.trim()}`) || null;
+      if (byId && byCode && byId.id !== byCode.id) {
+        pushIssue(errors, {
+          sheet: sheetName,
+          row: group.parent._rowNum || null,
+          column: 'id+code',
+          value: `${group.parent.id}|${group.parent.code}`,
+          message: `Row has id and code that refer to different ${config.entityLabel || 'records'}`,
+        });
+        continue;
+      }
     }
+
+    // Round-trip an id-less import row by stamping the resolved id so the
+    // writer's update branch ($1=parent.id) finds the right row.
+    group.parent.id = row.id;
+    group._ownEntity = row;
+    group._ownSourceId = row.source_id;
   }
 
   // Transform each parent once (matches the write path's coerce/strip pipeline)
@@ -1666,6 +1694,35 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
     }
   }
 
+  // Required-field pre-validation with row context. PG's 23502 (not-null)
+  // would catch missing text fields too, but inside a bulkInsert PG can't
+  // tell us which row in the batch failed — the user sees a generic
+  // "required field cannot be empty" with no row number. Catch it up front
+  // by walking the model's notNull columns that have no default.
+  const requiredCols = (model._schema?.columns || [])
+    .filter((c) => c.notNull && c.default == null && !c.immutable)
+    .filter((c) => c.type !== 'boolean' && c.type !== 'uuid')
+    .filter((c) => !['created_at', 'updated_at', 'deactivated_at'].includes(c.name))
+    .map((c) => c.name);
+  if (requiredCols.length) {
+    for (const group of groups) {
+      // Only check INSERTs — for UPDATEs the column is preserved from the DB row.
+      if (group._ownEntity) continue;
+      for (const col of requiredCols) {
+        const v = group.parent[col];
+        if (v == null || (typeof v === 'string' && v.trim() === '')) {
+          pushIssue(errors, {
+            sheet: sheetName,
+            row: group.parent._rowNum || null,
+            column: col,
+            value: '',
+            message: `${col.replace(/_/g, ' ')} is required`,
+          });
+        }
+      }
+    }
+  }
+
   // Role validation. Empty roles[] OR unknown role codes are blocking errors
   // for every employee/client parent — not just app users — so a roleless
   // record cannot be created via import regardless of is_app_user state.
@@ -1700,6 +1757,55 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
           column: 'roles',
           value: invalid.join(','),
           message: `Unknown role code${invalid.length > 1 ? 's' : ''}: ${invalid.join(', ')}`,
+        });
+      }
+    }
+  }
+
+  // Password vs is_app_user consistency. A `password` cell is only meaningful
+  // when the row ends up an app user — supplying one while the final state is
+  // is_app_user=false (either explicitly or by demoting an existing app user)
+  // is contradictory and would silently drop the password. Block it.
+  if (config.appUserProvisioning) {
+    for (const group of groups) {
+      const supplied = group.parent.password && String(group.parent.password).trim();
+      if (!supplied) continue;
+      const incoming = group._transformedParent || {};
+      const existing = group._ownEntity || null;
+      const willBeAppUser = 'is_app_user' in incoming
+        ? !!incoming.is_app_user
+        : !!existing?.is_app_user;
+      if (!willBeAppUser) {
+        pushIssue(errors, {
+          sheet: sheetName,
+          row: group.parent._rowNum || null,
+          column: 'password',
+          value: '***',
+          message:
+            'A password cannot be supplied while is_app_user is false. Set is_app_user to true to enable app access, or clear the password column.',
+        });
+      }
+    }
+  }
+
+  // is_app_user=true on an INSERT row requires an explicit login email. The
+  // writer used to silently fall back to the primary (or any active) email
+  // when no row was marked is_login=true; that was a footgun. Block it here
+  // so the user has to declare intent in the spreadsheet.
+  if (config.appUserProvisioning) {
+    for (const group of groups) {
+      if (group._ownEntity) continue;                  // INSERT only
+      const incoming = group._transformedParent || {};
+      if (!incoming.is_app_user) continue;
+      const emails = group.children?.emails || [];
+      const hasLogin = emails.some((e) => _truthyFlag(e.is_login) && e.email && String(e.email).trim());
+      if (!hasLogin) {
+        pushIssue(errors, {
+          sheet: sheetName,
+          row: group.parent._rowNum || null,
+          column: 'email_is_login',
+          value: '',
+          message: 'A login email is required to enable app user access. Mark one email row with is_login = true.',
         });
       }
     }
@@ -1782,7 +1888,12 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
         // Codes for existing rows are owned by the numbering allocator (set
         // once, never rewritten through the import path).
         if (updateNumberingEnabled && 'code' in changes) delete changes.code;
-        if (Object.keys(changes).length > 0) {
+        // Archive/restore transition: `status` is stripped from the transformed
+        // parent so it never appears in `changes`. Detect the flip explicitly
+        // so the count + audit-field stamping fires even when no other column
+        // changed (e.g. a re-import that only flips status active→archived).
+        const archiveChanged = isArchived !== wasArchived;
+        if (Object.keys(changes).length > 0 || archiveChanged) {
           // Stamp audit fields on every real write. We add them after the diff
           // so they don't themselves trigger NO-OP-failing updates. pg-schemata's
           // `updateWhere` does not auto-bump updated_at (unlike its singular
@@ -1852,16 +1963,43 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
             await archiveAppUser(t, entityType, id, tenantId, userId);
           }
 
-          // is_app_user false → true: provision or restore portal_user
+          // is_app_user false → true: provision or restore portal_user.
+          // Prefer the password the user supplied in the spreadsheet; fall
+          // back to a random one only when the cell is blank.
           if (!isArchived && !wasAppUser && willBeAppUser) {
             const loginRow = await t.oneOrNone(
               `SELECT email FROM ${s}.emails WHERE source_id = $1 AND is_login = true AND deactivated_at IS NULL LIMIT 1`,
               [sourceId],
             );
             if (loginRow?.email) {
-              const crypto = await import('node:crypto');
-              const password = crypto.randomBytes(12).toString('base64url');
+              const suppliedPassword = group.parent.password && String(group.parent.password).trim()
+                ? String(group.parent.password)
+                : null;
+              const password = suppliedPassword || (await import('node:crypto')).randomBytes(12).toString('base64url');
               await enableAppUser(t, entityType, id, loginRow.email, password, tenantId, userId);
+            }
+          }
+
+          // Already-app-user + password supplied in spreadsheet: reset the
+          // portal_user's password_hash. Lets admins rotate a password through
+          // the import path without going to the auth UI.
+          if (!isArchived && wasAppUser && willBeAppUser) {
+            const suppliedPassword = group.parent.password && String(group.parent.password).trim()
+              ? String(group.parent.password)
+              : null;
+            if (suppliedPassword) {
+              const bcrypt = (await import('bcrypt')).default;
+              const rounds = Number(process.env.BCRYPT_ROUNDS || 12);
+              const passwordHash = await bcrypt.hash(suppliedPassword, rounds);
+              await t.none(
+                `UPDATE admin.portal_users pu
+                 SET password_hash = $1, updated_by = $2, updated_at = NOW()
+                 FROM admin.portal_user_tenants b
+                 WHERE pu.id = b.portal_user_id
+                   AND b.entity_type = $3 AND b.entity_id = $4 AND b.tenant_id = $5
+                   AND b.deactivated_at IS NULL AND pu.deactivated_at IS NULL`,
+                [passwordHash, userId, entityType, id, tenantId],
+              );
             }
           }
         }
@@ -2029,7 +2167,13 @@ async function _classifyForPreview(db, s, pgp, schema, groups, config, ownEntiti
       continue;
     }
     const changes = _diffParent(group._transformedParent, existing);
-    if (Object.keys(changes).length > 0) updates += 1;
+    // Archive/restore transition: `status` is stripped from _transformedParent
+    // (it's a synthetic spreadsheet column) so _diffParent can't see it. Detect
+    // the state change explicitly so the preview counts it as an update.
+    const willBeArchived = String(group.parent.status || '').toLowerCase() === 'archived';
+    const wasArchived = !!existing.deactivated_at;
+    const archiveChanged = willBeArchived !== wasArchived;
+    if (Object.keys(changes).length > 0 || archiveChanged) updates += 1;
     else noops += 1;
   }
 
@@ -2205,10 +2349,54 @@ function _normEq(a, b) {
  * @private
  */
 async function _resolveOwnEntities(db, s, tbl, groups) {
+  // Match by `id` first (the round-trip path). For rows whose id is blank or
+  // doesn't resolve in the DB (e.g. tenant was re-bootstrapped after export
+  // and the id has rotated), fall back to matching by `code`. The resulting
+  // map is keyed by both `id` and `code` so callers can look up either way.
+  const map = new Map();
+
   const uuidIds = groups.filter((g) => isUuid(g.parent.id)).map((g) => g.parent.id);
-  if (!uuidIds.length) return new Map();
-  const rows = await db.any(`SELECT * FROM ${s}.${tbl} WHERE id IN ($1:csv)`, [uuidIds]);
-  return new Map(rows.map((r) => [r.id, r]));
+  if (uuidIds.length) {
+    const rows = await db.any(`SELECT * FROM ${s}.${tbl} WHERE id IN ($1:csv)`, [uuidIds]);
+    for (const r of rows) {
+      map.set(r.id, r);
+      if (r.code) map.set(`code:${String(r.code).trim()}`, r);
+    }
+  }
+
+  // Identify groups whose id didn't resolve but carry a code we can use.
+  const fallbackCodes = [];
+  for (const g of groups) {
+    const idResolved = isUuid(g.parent.id) && map.has(g.parent.id);
+    if (idResolved) continue;
+    const code = typeof g.parent.code === 'string' ? g.parent.code.trim() : '';
+    if (code && !map.has(`code:${code}`)) fallbackCodes.push(code);
+  }
+  if (fallbackCodes.length) {
+    const rows = await db.any(
+      `SELECT * FROM ${s}.${tbl} WHERE code IN ($1:csv) AND deactivated_at IS NULL`,
+      [fallbackCodes],
+    );
+    for (const r of rows) {
+      map.set(`code:${String(r.code).trim()}`, r);
+      // Don't overwrite an existing id key (it was set by the id path above).
+      if (!map.has(r.id)) map.set(r.id, r);
+    }
+  }
+  return map;
+}
+
+/**
+ * Look up the resolved DB row for a parent group using id first, then code.
+ * @private
+ */
+function _lookupOwnEntity(ownEntities, parent) {
+  if (parent && isUuid(parent.id) && ownEntities.has(parent.id)) {
+    return ownEntities.get(parent.id);
+  }
+  const code = typeof parent?.code === 'string' ? parent.code.trim() : '';
+  if (code && ownEntities.has(`code:${code}`)) return ownEntities.get(`code:${code}`);
+  return null;
 }
 
 /**

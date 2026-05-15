@@ -214,24 +214,19 @@ describe('Employee CRUD — /api/core/v1/employees', () => {
     expect(portalUser.status).toBe('invited');
   });
 
-  test('flat import without an email cell skips provisioning and disables is_app_user', async () => {
+  test('flat import with is_app_user=true and no login email is a blocking error', async () => {
+    // Previously the importer silently coerced is_app_user to false. That
+    // was a footgun — it created an employee record but no portal_user, with
+    // no signal to the importer. Now blocked at pre-validation.
     const buf = await buildEmployeeWorkbook({
       ref: 'EMP-XLS-2', code: 'CC001', firstName: 'Carol', lastName: 'Carter', email: null,
     });
     const res = await postImport(buf, 'no-email');
 
-    expect(res.status).toBe(201);
-    expect(res.body.inserted).toBe(1);
-    expect(res.body.appUserSkipped).toBe(1);
+    expect(res.status).toBe(422);
+    expect(res.body.errors.some((e) => /login email is required/i.test(e.message || ''))).toBe(true);
 
-    const employee = await db.oneOrNone(`SELECT id, is_app_user FROM etest.employees WHERE code = 'CC001'`);
-    expect(employee).not.toBeNull();
-    expect(employee.is_app_user).toBe(false);
-
-    const binding = await db.oneOrNone(
-      `SELECT id FROM admin.portal_user_tenants WHERE entity_type = 'employee' AND entity_id = $1 AND deactivated_at IS NULL`,
-      [employee.id],
-    );
-    expect(binding).toBeNull();
+    const employee = await db.oneOrNone(`SELECT id FROM etest.employees WHERE code = 'CC001'`);
+    expect(employee).toBeNull();
   });
 });
