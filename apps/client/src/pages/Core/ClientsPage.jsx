@@ -334,6 +334,7 @@ export default function ClientsPage() {
       <ImportDialog
         open={importDialog.isOpen} title="Import Clients" loading={importMut.isPending}
         errors={importErrors}
+        onPreview={(fd) => clientApi.importXls(fd, { preview: true })}
         onSubmit={handleImport}
         onCancel={() => { importDialog.close(); setImportErrors(null); }}
       />

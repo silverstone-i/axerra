@@ -63,18 +63,24 @@ async function buildEmployeeWorkbook({ ref, code, firstName, lastName, email }) 
   const { WorkbookBuilder, writeXlsx } = await import('@nap-sft/tablsx');
   const wb = WorkbookBuilder.create();
 
-  wb.sheet('Employees')
-    .setHeaders(['id', 'code', 'first_name', 'last_name', 'is_app_user', 'roles', 'status', 'password'])
-    .addRow([ref, code, firstName, lastName, true, '{admin}', 'active', 'XlsImport123!']);
-
-  wb.sheet('Emails').setHeaders(['employee_id', 'email', 'label', 'is_primary', 'is_login']).addRow([ref, email, 'work', true, true]);
-
-  wb.sheet('Phone Numbers').setHeaders(['employee_id', 'country_code', 'phone_type', 'phone_number', 'is_primary']);
-  wb.sheet('Addresses').setHeaders([
-    'employee_id', 'label', 'address_line_1', 'address_line_2', 'address_line_3',
-    'city', 'state_province', 'postal_code', 'country_code',
-  ]);
-  wb.sheet('Tax Identifiers').setHeaders(['employee_id', 'country_code', 'tax_type', 'tax_value']);
+  const headers = [
+    'id', 'code', 'first_name', 'last_name', 'position', 'department',
+    'is_app_user', 'is_primary_contact', 'is_billing_contact', 'roles', 'status', 'password',
+    'email', 'email_label', 'email_is_primary', 'email_is_login',
+    'phone_country_code', 'phone_type', 'phone_number', 'phone_is_primary',
+    'address_label', 'address_line_1', 'address_line_2', 'address_line_3',
+    'address_city', 'address_state_province', 'address_postal_code', 'address_country_code',
+    'tax_country_code', 'tax_type', 'tax_value',
+  ];
+  const row = [
+    ref, code, firstName, lastName, '', '',
+    true, false, false, '{admin}', 'active', 'XlsImport123!',
+    email, 'work', true, true,
+    '', '', '', '',
+    '', '', '', '', '', '', '', '',
+    '', '', '',
+  ];
+  wb.sheet('Employees').setHeaders(headers).addRow(row);
 
   return writeXlsx(wb.build());
 }

@@ -69,7 +69,7 @@ describe('Email CRUD — /api/core/v1/emails', () => {
     const empRes = await request(app)
       .post('/api/core/v1/employees')
       .set('Cookie', cookies)
-      .send({ first_name: 'Email', last_name: 'Tester', email: 'tester@emtest.com' });
+      .send({ first_name: 'Email', last_name: 'Tester', email: 'tester@emtest.com', roles: ['admin'] });
     employeeSourceId = empRes.body.source_id;
   }, 30000);
 
@@ -77,7 +77,7 @@ describe('Email CRUD — /api/core/v1/emails', () => {
     const res = await request(app)
       .post('/api/core/v1/emails')
       .set('Cookie', cookies)
-      .send({ source_id: employeeSourceId, email: 'work@emtest.com', label: 'work', is_primary: false });
+      .send({ source_id: employeeSourceId, email: 'work@emtest.com', label: 'home', is_primary: false });
 
     expect(res.status).toBe(201);
     expect(res.body.email).toBe('work@emtest.com');
@@ -171,7 +171,7 @@ describe('Email CRUD — /api/core/v1/emails', () => {
     const first = await request(app)
       .post('/api/core/v1/emails')
       .set('Cookie', cookies)
-      .send({ source_id: employeeSourceId, email: 'primary-a@emtest.com', label: 'work', is_primary: true });
+      .send({ source_id: employeeSourceId, email: 'primary-a@emtest.com', label: 'office', is_primary: true });
     expect(first.status).toBe(201);
     expect(first.body.is_primary).toBe(true);
 

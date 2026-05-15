@@ -257,6 +257,7 @@ export default function CompaniesPage() {
       <ImportDialog
         open={importDialog.isOpen} title="Import Companies" loading={importMut.isPending}
         errors={importErrors}
+        onPreview={(fd) => companyApi.importXls(fd, { preview: true })}
         onSubmit={handleImport}
         onCancel={() => { importDialog.close(); setImportErrors(null); }}
       />

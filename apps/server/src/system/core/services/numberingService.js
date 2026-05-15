@@ -103,8 +103,11 @@ export async function allocateNumber(schema, idType, scopeId = null, issuedAt = 
     const step = config.increment || 1;
     let serial;
     if (!state) {
-      // 4a. Insert new row — first serial equals the increment value
-      serial = step;
+      // 4a. First allocation for this (idType, scope, period). Honor codes
+      // already in the target table (typed manually, seeded, or imported)
+      // by starting the sequence above the existing max.
+      const maxExisting = await _findMaxExistingSerial(tx, s, pgp, idType, config, periodKey);
+      serial = (maxExisting > 0 ? maxExisting : 0) + step;
       await tx.none(
         `INSERT INTO ${s}.tenant_number_sequence_state
          (tenant_id, id_type, scope_id, period_key, last_serial)
@@ -170,13 +173,15 @@ export async function allocateNumbers(schema, idType, count, scopeId = null, iss
     const step = config.increment || 1;
     let startSerial;
     if (!state) {
-      // New period — first serial equals increment, last_serial = increment * count
-      startSerial = step;
+      // First allocation. Honor pre-existing codes (see allocateNumber for
+      // the same reasoning).
+      const maxExisting = await _findMaxExistingSerial(tx, s, pgp, idType, config, periodKey);
+      startSerial = (maxExisting > 0 ? maxExisting : 0) + step;
       await tx.none(
         `INSERT INTO ${s}.tenant_number_sequence_state
          (tenant_id, id_type, scope_id, period_key, last_serial)
          VALUES ($1, $2, $3, $4, $5)`,
-        [config.tenant_id, idType, effectiveScopeId, periodKey, step * count],
+        [config.tenant_id, idType, effectiveScopeId, periodKey, startSerial + step * (count - 1)],
       );
     } else {
       // Existing period — advance by increment * count
@@ -208,6 +213,52 @@ const ID_TYPE_TABLE = {
   client: 'clients',
   contact: 'contacts',
 };
+
+/**
+ * Scan the target table for the highest serial number already present in the
+ * `code` column for the current period. Used when seeding a brand-new
+ * sequence_state row so manually-assigned codes (e.g. tenant bootstrap data)
+ * don't collide with allocator output.
+ *
+ * When the config has a date mode, `buildDisplayId` emits codes of the form
+ * `<prefix><sep><periodKey><sep><digits><suffix>`. Only consider codes that
+ * match the current period — codes from other periods are irrelevant to the
+ * sequence we're seeding.
+ *
+ * Returns 0 if no existing matching codes are found.
+ * @private
+ */
+async function _findMaxExistingSerial(tx, s, pgp, idType, config, periodKey) {
+  const baseTable = ID_TYPE_TABLE[idType];
+  if (!baseTable) return 0;
+  const escape = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const sep = escape(config.separator || '');
+  const hasDate = config.date_mode !== 'none' && periodKey && periodKey !== 'global';
+  // Mirror buildDisplayId's filter(Boolean).join(sep) so configs with an
+  // empty prefix (or no date part / no suffix) still match. Inserting `sep`
+  // unconditionally between parts produced a regex that couldn't match
+  // codes lacking a leading prefix.
+  const parts = [
+    config.prefix ? escape(config.prefix) : '',
+    hasDate ? escape(periodKey) : '',
+    '(\\d+)',
+    config.suffix ? escape(config.suffix) : '',
+  ].filter(Boolean);
+  const pattern = `^${parts.join(sep)}$`;
+  const rows = await tx.manyOrNone(
+    `SELECT code FROM ${s}.${pgp.as.name(baseTable)} WHERE code ~ $1`,
+    [pattern],
+  );
+  let max = 0;
+  const re = new RegExp(pattern);
+  for (const r of rows) {
+    const m = String(r.code).match(re);
+    if (!m) continue;
+    const n = parseInt(m[1], 10);
+    if (Number.isFinite(n) && n > max) max = n;
+  }
+  return max;
+}
 
 /**
  * Backfill codes for existing records that have code IS NULL when numbering

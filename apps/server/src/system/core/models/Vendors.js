@@ -560,6 +560,7 @@ export default class Vendors extends TableModel {
           source_type: CONFIG.sourceType,
           label: CONFIG.buildLabel(rec),
           created_by: createdBy,
+          updated_by: createdBy,
         }));
         const sourceResults = await sourcesModel.bulkInsert(sourceRecords, ['id', 'table_id']);
         const sourceByParentId = new Map(sourceResults.map((sr) => [sr.table_id, sr.id]));
@@ -696,6 +697,7 @@ export default class Vendors extends TableModel {
           source_type: CONTACT_CONFIG.sourceType,
           label: CONTACT_CONFIG.buildLabel(rec),
           created_by: createdBy,
+          updated_by: createdBy,
         }));
         const sourceResults = await sourcesModel.bulkInsert(sourceRecords, ['id', 'table_id']);
         const sourceByParentId = new Map(sourceResults.map((sr) => [sr.table_id, sr.id]));
@@ -1031,6 +1033,7 @@ export default class Vendors extends TableModel {
           source_type: CONTACT_CONFIG.sourceType,
           label: CONTACT_CONFIG.buildLabel(rec),
           created_by: createdBy,
+          updated_by: createdBy,
         }));
 
         const sourceResults = await sourcesModel.bulkInsert(sourceRecords, ['id', 'table_id']);

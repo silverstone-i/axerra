@@ -351,6 +351,7 @@ export default function EmployeesPage() {
       <ImportDialog
         open={importDialog.isOpen} title="Import Employees" loading={importMut.isPending}
         errors={importErrors}
+        onPreview={(fd) => employeeApi.importXls(fd, { preview: true })}
         onSubmit={handleImport}
         onCancel={() => { importDialog.close(); setImportErrors(null); }}
       />

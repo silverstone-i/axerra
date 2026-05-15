@@ -12,9 +12,31 @@
 import { writeFileSync, readFileSync } from 'node:fs';
 import { allocateNumber, allocateNumbers } from '../system/core/services/numberingService.js';
 import { stripFormatting, formatByPattern, COUNTRIES, TAX_TYPES } from '@axerra/shared';
+import { syncLoginEmail } from './loginEmailSync.js';
+import { archiveAppUser, restoreAppUserBinding, enableAppUser } from './employeeAppUserSync.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Hard cap on collected validation/reconciliation issues per import. */
+export const MAX_IMPORT_ISSUES = 100;
+const ISSUE_LIMIT_MESSAGE = `Issue limit reached (${MAX_IMPORT_ISSUES}). Fix and re-import to see remaining problems.`;
+
+/**
+ * Append an issue to the array, capped at MAX_IMPORT_ISSUES. After the cap
+ * is hit, subsequent calls are no-ops; a single sentinel entry is appended once.
+ */
+export function pushIssue(errors, issue) {
+  if (!Array.isArray(errors)) return;
+  if (errors.length < MAX_IMPORT_ISSUES) {
+    errors.push(issue);
+    return;
+  }
+  if (!errors._limitFlagged) {
+    errors.push({ sheet: issue?.sheet ?? null, row: null, column: null, value: null, message: ISSUE_LIMIT_MESSAGE });
+    Object.defineProperty(errors, '_limitFlagged', { value: true, enumerable: false });
+  }
+}
 
 /** Columns stripped from every exported sheet (id is kept for upsert) */
 const INTERNAL_COLS = new Set(['tenant_id', 'source_id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'deactivated_at']);
@@ -171,8 +193,16 @@ export function parseSheet(reader, sheetIndex) {
  */
 export function coerceRow(row, boolCols, hasRoles) {
   for (const col of boolCols) {
-    if (col in row && typeof row[col] === 'string') {
-      row[col] = row[col].toLowerCase() === 'true';
+    if (!(col in row)) continue;
+    const v = row[col];
+    if (typeof v === 'string') {
+      row[col] = v.toLowerCase() === 'true';
+    } else if (v == null) {
+      // Blank cells in boolean columns are interpreted as `false`. Schemas
+      // mark these columns notNull with default false, so a null/undefined
+      // value would otherwise reach the DB and trip a 23502 with no row
+      // context the user can act on.
+      row[col] = false;
     }
   }
   if (hasRoles) {
@@ -412,33 +442,55 @@ export async function validateImportGroups(groups, opts) {
  * @returns {Promise<Object[]>} Array of validation errors (empty = no collisions)
  */
 export async function checkPortalUserEmailCollisions(groups, opts) {
-  const { sheetName, entityType } = opts;
+  const { sheetName, entityType, ownEntities, tenantId } = opts;
   if (!groups?.length) return [];
 
   // vendor_contact bind-existing flow runs in the controller — don't pay
   // for a DB query whose result we'd discard.
   if (entityType === 'vendor_contact') return [];
 
-  // Collect login emails for *new* app-user parents only. Updates and
-  // non-app-users never provision a portal_user, so they can't collide.
+  const isAppUserFlag = (v) => v === true || v === 1 || (typeof v === 'string' && v.toLowerCase() === 'true');
+  const isLoginFlag = (v) => v === true || v === 1 || (typeof v === 'string' && v.toLowerCase() === 'true');
+  const hasOwnEntities = ownEntities && typeof ownEntities.get === 'function';
+
+  // Collect login emails for any group whose entity will end up an app user.
+  //
+  //   INSERT case: parent.id non-UUID (or UUID without a DB row when
+  //     ownEntities is provided), parent.is_app_user truthy → new portal_user
+  //     will be provisioned with this login email; check for collision.
+  //
+  //   UPDATE case (only when ownEntities is supplied): existing entity's
+  //     portal_user.email may sync to the new value. Check for collision but
+  //     exclude self.
+  //
+  // Legacy callers that don't pass ownEntities preserve the original behavior:
+  // skip UUID-id parents entirely (treated as round-trip updates).
   const loginEmailRows = [];
+  const updatingEntityIds = new Set();
   for (const group of groups) {
     const parent = group.parent || {};
-    // parent.id is a UUID → existing entity → row is an update → existing
-    // portal_user already owns this email; skip. Non-UUID id values are
-    // just spreadsheet linkage refs for new rows and don't disqualify.
-    if (isUuid(parent.id)) continue;
-    // is_app_user falsy → no portal_user will be provisioned; skip.
-    const isAppUser = parent.is_app_user === true || parent.is_app_user === 1 || (typeof parent.is_app_user === 'string' && parent.is_app_user.toLowerCase() === 'true');
-    if (!isAppUser) continue;
+    let existing = null;
+    if (hasOwnEntities) {
+      existing = ownEntities.get(parent.id) || null;
+    } else if (isUuid(parent.id)) {
+      // Legacy path: existing entity → updates are not checked here.
+      continue;
+    }
+
+    let willBeAppUser;
+    if (existing) {
+      const incoming = parent.is_app_user;
+      willBeAppUser = incoming === undefined || incoming === '' ? !!existing.is_app_user : isAppUserFlag(incoming);
+    } else {
+      willBeAppUser = isAppUserFlag(parent.is_app_user);
+    }
+    if (!willBeAppUser) continue;
+
+    if (existing) updatingEntityIds.add(existing.id);
 
     for (const child of group.children?.emails || []) {
       if (!child?.email) continue;
-      // is_login may arrive as boolean, the string 'true', or 1
-      const isLogin = child.is_login === true || child.is_login === 1 || (typeof child.is_login === 'string' && child.is_login.toLowerCase() === 'true');
-      if (!isLogin) continue;
-      // Only do the lookup for plausibly valid emails — invalid format is
-      // already flagged separately and would skew the IN-list.
+      if (!isLoginFlag(child.is_login)) continue;
       if (!EMAIL_RE.test(child.email)) continue;
       loginEmailRows.push({
         email: String(child.email).trim().toLowerCase(),
@@ -448,27 +500,72 @@ export async function checkPortalUserEmailCollisions(groups, opts) {
   }
   if (!loginEmailRows.length) return [];
 
-  const uniqueEmails = [...new Set(loginEmailRows.map((r) => r.email))];
   const { db } = await getDb();
-  const existing = await db.manyOrNone(
-    `SELECT LOWER(email) AS email FROM admin.portal_users
+
+  // Resolve own portal_user_ids for entities being updated in this import,
+  // so the cross-tenant collision check can skip self-matches.
+  const selfPortalUserIds = new Set();
+  if (updatingEntityIds.size && tenantId) {
+    const rows = await db.manyOrNone(
+      `SELECT portal_user_id FROM admin.portal_user_tenants
+       WHERE entity_type = $1 AND tenant_id = $2 AND entity_id IN ($3:csv) AND deactivated_at IS NULL`,
+      [entityType, tenantId, [...updatingEntityIds]],
+    );
+    if (rows?.length) for (const r of rows) selfPortalUserIds.add(r.portal_user_id);
+  }
+
+  const errors = [];
+
+  // Intra-file collision: two or more rows in the same file claim the same
+  // login email. Caught here rather than in the DB pass because both rows
+  // would be "new" or not-yet-bound and the cross-tenant check can't see
+  // them. Emit an error keyed to each offending row so the user can fix all
+  // collisions in one pass.
+  const rowsByEmail = new Map();
+  for (const lr of loginEmailRows) {
+    if (!rowsByEmail.has(lr.email)) rowsByEmail.set(lr.email, []);
+    rowsByEmail.get(lr.email).push(lr);
+  }
+  for (const [email, dupes] of rowsByEmail) {
+    if (dupes.length < 2) continue;
+    for (const lr of dupes) {
+      errors.push({
+        sheet: sheetName,
+        row: lr.row,
+        column: 'email',
+        value: email,
+        message: `Login email ${email} appears on multiple rows in this file. Each app-user employee must have a unique login email.`,
+      });
+    }
+  }
+
+  const uniqueEmails = [...new Set(loginEmailRows.map((r) => r.email))];
+  const existingPortalUsers = await db.manyOrNone(
+    `SELECT id, LOWER(email) AS email FROM admin.portal_users
      WHERE LOWER(email) = ANY($1::text[]) AND deactivated_at IS NULL`,
     [uniqueEmails],
   );
-  if (!existing.length) return [];
+  if (!existingPortalUsers?.length) return errors;
 
-  const taken = new Set(existing.map((r) => r.email));
-  const errors = [];
+  // Build a map of email → portal_user_ids that hold it.
+  const holdersByEmail = new Map();
+  for (const r of existingPortalUsers) {
+    if (!holdersByEmail.has(r.email)) holdersByEmail.set(r.email, new Set());
+    holdersByEmail.get(r.email).add(r.id);
+  }
+
   for (const { email, row } of loginEmailRows) {
-    if (taken.has(email)) {
-      errors.push({
-        sheet: sheetName,
-        row,
-        column: 'email',
-        value: email,
-        message: `Login email ${email} is already in use by another portal user. Single-tenant entities cannot share login identity.`,
-      });
-    }
+    const holders = holdersByEmail.get(email);
+    if (!holders || !holders.size) continue;
+    const otherHolders = [...holders].filter((id) => !selfPortalUserIds.has(id));
+    if (!otherHolders.length) continue;
+    errors.push({
+      sheet: sheetName,
+      row,
+      column: 'email',
+      value: email,
+      message: `Login email ${email} is already in use by another portal user. Single-tenant entities cannot share login identity.`,
+    });
   }
   return errors;
 }
@@ -833,6 +930,19 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
           return rest;
         });
 
+        // When tenant numbering is enabled for this entity type, strip any
+        // codes typed into the spreadsheet — the configured sequence is the
+        // single source of truth for bulk imports.
+        if (config.idType) {
+          const cfg = await t.oneOrNone(
+            `SELECT is_enabled FROM ${s}.tenant_numbering_config WHERE id_type = $1`,
+            [config.idType],
+          );
+          if (cfg?.is_enabled) {
+            for (const row of cleanInserts) row.code = null;
+          }
+        }
+
         // Clear codes that already exist to avoid unique constraint violations
         if (!config.codeRequired) {
           const insertCodes = cleanInserts.map((r) => r.code).filter(Boolean);
@@ -861,6 +971,7 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
           source_type: config.sourceType,
           label: config.buildLabel(rec),
           created_by: createdBy,
+          updated_by: createdBy,
         }));
 
         const sourceResults = await sourcesModel.bulkInsert(sourceRecords, ['id', 'table_id']);
@@ -1128,6 +1239,16 @@ export async function provisionAppUser(entityId, email, password, tenantId, crea
  * @property {string[]} flatCols  Column names in the flat sheet
  */
 
+/**
+ * Reconciliation metadata extensions on each FlatChildDescriptor:
+ *   slotKeyCols          - identifies the per-source slot (e.g. ['label'], ['phone_type'])
+ *   slotKeyLabel         - user-facing label for that slot in error messages
+ *   compareCols          - columns that count as "data changed → UPDATE"
+ *   crossSourceUniqCols  - columns subject to a cross-source partial unique index (or null)
+ *   crossSourceUniqWhere - (row) => boolean restricting which rows trigger the check (e.g. cell phones)
+ *   crossSourceUniqLabel - human label for cross-source conflict messages
+ */
+
 /** @type {FlatChildDescriptor} */
 export const FLAT_CHILD_EMAILS = {
   key: 'emails',
@@ -1136,6 +1257,11 @@ export const FLAT_CHILD_EMAILS = {
   extract: (r) => ({ email: r.email, label: r.email_label, is_primary: r.email_is_primary, is_login: r.email_is_login }),
   cols: ['email', 'label', 'is_primary', 'is_login'],
   flatCols: ['email', 'email_label', 'email_is_primary', 'email_is_login'],
+  slotKeyCols: ['label'],
+  slotKeyLabel: 'label',
+  compareCols: ['email', 'is_primary', 'is_login'],
+  crossSourceUniqCols: ['email'],
+  crossSourceUniqLabel: 'email',
 };
 
 /** @type {FlatChildDescriptor} — same as FLAT_CHILD_EMAILS but without is_login (for contacts) */
@@ -1146,6 +1272,11 @@ export const FLAT_CHILD_EMAILS_NO_LOGIN = {
   extract: (r) => ({ email: r.email, label: r.email_label, is_primary: r.email_is_primary }),
   cols: ['email', 'label', 'is_primary'],
   flatCols: ['email', 'email_label', 'email_is_primary'],
+  slotKeyCols: ['label'],
+  slotKeyLabel: 'label',
+  compareCols: ['email', 'is_primary'],
+  crossSourceUniqCols: ['email'],
+  crossSourceUniqLabel: 'email',
 };
 
 /** @type {FlatChildDescriptor} */
@@ -1161,6 +1292,12 @@ export const FLAT_CHILD_PHONES = {
   }),
   cols: ['country_code', 'phone_type', 'phone_number', 'is_primary'],
   flatCols: ['phone_country_code', 'phone_type', 'phone_number', 'phone_is_primary'],
+  slotKeyCols: ['phone_type'],
+  slotKeyLabel: 'phone_type',
+  compareCols: ['country_code', 'phone_number', 'is_primary'],
+  crossSourceUniqCols: ['country_code', 'phone_number'],
+  crossSourceUniqWhere: (r) => String(r.phone_type || '').toLowerCase() === 'cell',
+  crossSourceUniqLabel: 'cell phone number',
 };
 
 /** @type {FlatChildDescriptor} */
@@ -1189,6 +1326,10 @@ export const FLAT_CHILD_ADDRESSES = {
     'address_postal_code',
     'address_country_code',
   ],
+  slotKeyCols: ['label'],
+  slotKeyLabel: 'label',
+  compareCols: ['address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'],
+  crossSourceUniqCols: null,
 };
 
 /** @type {FlatChildDescriptor} */
@@ -1199,6 +1340,11 @@ export const FLAT_CHILD_TAX_IDS = {
   extract: (r) => ({ country_code: r.tax_country_code, tax_type: r.tax_type, tax_value: r.tax_value }),
   cols: ['country_code', 'tax_type', 'tax_value'],
   flatCols: ['tax_country_code', 'tax_type', 'tax_value'],
+  slotKeyCols: ['country_code', 'tax_type'],
+  slotKeyLabel: 'country_code+tax_type',
+  compareCols: ['tax_value'],
+  crossSourceUniqCols: ['country_code', 'tax_type', 'tax_value'],
+  crossSourceUniqLabel: 'tax identifier',
 };
 
 // EMAIL_RE moved to top of file (before validateImportGroups)
@@ -1291,9 +1437,12 @@ export async function exportFlatSourceEntity(model, filePath, where, joinType, o
  * @param {Object}   reader      WorkbookReader (already loaded)
  * @param {Function} callbackFn  Row transformer (tenant_code, created_by)
  * @param {SourceEntityConfig} config  Must include `flat` sub-object
- * @returns {Promise<{inserted: number, updated: number, appUserSkipped: number} | {errors: Array}>}
+ * @param {Object}   [options]
+ * @param {boolean}  [options.previewOnly=false] Skip write transaction; return a counts-only preview.
+ * @returns {Promise<{inserted: number, updated: number, appUserSkipped: number} | {preview: true, inserts: number, updates: number, noops: number, omitted: number, errors: Array} | {errors: Array}>}
  */
-export async function importFlatSourceEntity(model, reader, callbackFn, config) {
+export async function importFlatSourceEntity(model, reader, callbackFn, config, options = {}) {
+  const previewOnly = options.previewOnly === true;
   const { db, pgp } = await getDb();
   const schema = model._schema.dbSchema;
   const s = pgp.as.name(schema);
@@ -1325,7 +1474,7 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
 
   // Surface conflicting parent fields across rows in the same group
   for (const c of conflicts) {
-    errors.push({
+    pushIssue(errors, {
       sheet: sheetName,
       row: c.row,
       column: c.column,
@@ -1341,7 +1490,7 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
     for (const group of groups) {
       for (const child of group.children.emails || []) {
         if (child.email && !EMAIL_RE.test(child.email)) {
-          errors.push({ sheet: sheetName, row: child._rowNum || null, column: 'email', value: child.email, message: 'Invalid email format' });
+          pushIssue(errors, { sheet: sheetName, row: child._rowNum || null, column: 'email', value: child.email, message: 'Invalid email format' });
         }
       }
     }
@@ -1359,13 +1508,10 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
     }
     childEnums.push({ key: cfg.key, enumMap, flatColByCol });
   }
-  errors.push(...validateChildEnums(groups, { sheetName, childEnums }));
+  for (const e of validateChildEnums(groups, { sheetName, childEnums })) pushIssue(errors, e);
 
-  // Cross-tenant portal_user collision check (Part 2 of import dedup spec)
-  const provisionEntityType = config.appUserProvisioning?.entityType;
-  if (provisionEntityType === 'employee' || provisionEntityType === 'client') {
-    errors.push(...(await checkPortalUserEmailCollisions(groups, { sheetName, entityType: provisionEntityType })));
-  }
+  // Cross-tenant portal_user collision check moved to after _resolveOwnEntities
+  // (below) so it can include update-case collisions and exclude self.
 
   // Validate no duplicate codes
   const codeCounts = new Map();
@@ -1374,7 +1520,7 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
     if (code) {
       const prev = codeCounts.get(code);
       if (prev) {
-        errors.push({
+        pushIssue(errors, {
           sheet: sheetName,
           row: group.parent._rowNum || null,
           column: 'code',
@@ -1392,7 +1538,7 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
   for (const group of groups) {
     for (const field of config.flat.nameFields) {
       if (!group.parent[field] || (typeof group.parent[field] === 'string' && !group.parent[field].trim())) {
-        errors.push({
+        pushIssue(errors, {
           sheet: sheetName,
           row: group.parent._rowNum || null,
           column: field,
@@ -1405,7 +1551,7 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
       .toLowerCase()
       .trim();
     if (!VALID_STATUSES.has(status)) {
-      errors.push({
+      pushIssue(errors, {
         sheet: sheetName,
         row: group.parent._rowNum || null,
         column: 'status',
@@ -1416,7 +1562,7 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
     if (config.codeRequired) {
       const code = typeof group.parent.code === 'string' ? group.parent.code.trim() : '';
       if (!code) {
-        errors.push({
+        pushIssue(errors, {
           sheet: sheetName,
           row: group.parent._rowNum || null,
           column: 'code',
@@ -1427,7 +1573,358 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
     }
   }
 
-  if (errors.length) return { errors };
+  // Per-child slot-key validation + intra-file duplicate slot check (R2, R7)
+  for (const group of groups) {
+    for (const cfg of config.flat.children) {
+      const rows = group.children[cfg.key] || [];
+      if (!rows.length || !cfg.slotKeyCols) continue;
+      const seen = new Map();
+      for (const row of rows) {
+        const slotKey = _computeSlotKey(row, cfg);
+        if (slotKey == null) {
+          pushIssue(errors, {
+            sheet: sheetName,
+            row: row._rowNum || null,
+            column: cfg.slotKeyLabel || cfg.slotKeyCols.join('+'),
+            value: '',
+            message: `${cfg.slotKeyLabel || 'slot key'} is required for ${cfg.key} rows`,
+          });
+          continue;
+        }
+        const prev = seen.get(slotKey);
+        if (prev) {
+          pushIssue(errors, {
+            sheet: sheetName,
+            row: row._rowNum || null,
+            column: cfg.slotKeyLabel || cfg.slotKeyCols.join('+'),
+            value: slotKey,
+            message: `Duplicate ${cfg.key} ${cfg.slotKeyLabel || 'slot'} "${slotKey}" — also appears on row ${prev}`,
+          });
+        } else {
+          seen.set(slotKey, row._rowNum || '?');
+        }
+      }
+    }
+  }
+
+  // Resolve full DB rows for existing parents. Used to (a) exclude self from
+  // cross-source uniqueness checks and (b) diff parent values for NO-OP detection.
+  const ownEntities = await _resolveOwnEntities(db, s, tbl, groups);
+  for (const group of groups) {
+    const row = _lookupOwnEntity(ownEntities, group.parent);
+    if (!row) continue;
+
+    // Mismatch guard: if id AND code both supplied and resolve to different
+    // DB rows, that's a user error — refuse to silently pick one.
+    if (isUuid(group.parent.id) && typeof group.parent.code === 'string' && group.parent.code.trim()) {
+      const byId = ownEntities.get(group.parent.id) || null;
+      const byCode = ownEntities.get(`code:${group.parent.code.trim()}`) || null;
+      if (byId && byCode && byId.id !== byCode.id) {
+        pushIssue(errors, {
+          sheet: sheetName,
+          row: group.parent._rowNum || null,
+          column: 'id+code',
+          value: `${group.parent.id}|${group.parent.code}`,
+          message: `Row has id and code that refer to different ${config.entityLabel || 'records'}`,
+        });
+        continue;
+      }
+    }
+
+    // Round-trip an id-less import row by stamping the resolved id so the
+    // writer's update branch ($1=parent.id) finds the right row.
+    group.parent.id = row.id;
+    group._ownEntity = row;
+    group._ownSourceId = row.source_id;
+  }
+
+  // Transform each parent once (matches the write path's coerce/strip pipeline)
+  // so the classifier and writer share the same canonical incoming values.
+  const STRIP_COLS = ['status', 'deactivated_at', 'password'];
+  for (const group of groups) {
+    group._transformedParent = await _transformParent(group, callbackFn, tenantId, config, STRIP_COLS);
+  }
+
+  // Login-email pre-checks: load existing email rows for any updating source.
+  // Used by L2 (can't unset is_login while app user) and L4 (final state can
+  // have at most one is_login=true row per source).
+  const emailsCfg = config.flat.children.find((c) => c.key === 'emails');
+  if (emailsCfg) {
+    const sourceIdsForCheck = groups.map((g) => g._ownSourceId).filter(Boolean);
+    const existingEmailsBySource = await _loadEmailsBySource(db, s, pgp, schema, emailsCfg, sourceIdsForCheck);
+
+    for (const group of groups) {
+      const incoming = group.children.emails || [];
+      if (!incoming.length && !group._ownEntity) continue;
+      const existingRows = group._ownSourceId ? existingEmailsBySource.get(group._ownSourceId) || [] : [];
+      const existingBySlot = new Map();
+      for (const ex of existingRows) {
+        const k = _computeSlotKey(ex, emailsCfg);
+        if (k != null) existingBySlot.set(k, ex);
+      }
+
+      // L2: incoming is_login: false on a row whose existing was is_login: true
+      // AND the entity remains an app user post-import → blocking error.
+      const postImportIsAppUser =
+        group._transformedParent && 'is_app_user' in group._transformedParent
+          ? !!group._transformedParent.is_app_user
+          : !!group._ownEntity?.is_app_user;
+
+      for (const child of incoming) {
+        const slot = _computeSlotKey(child, emailsCfg);
+        if (slot == null) continue;
+        const existing = existingBySlot.get(slot);
+        if (!existing || existing.is_login !== true) continue;
+        const incomingLogin = _truthyFlag(child.is_login);
+        if (incomingLogin) continue; // not unsetting
+        if (postImportIsAppUser) {
+          pushIssue(errors, {
+            sheet: sheetName,
+            row: child._rowNum || null,
+            column: 'is_login',
+            value: 'false',
+            message: 'Cannot remove the login flag while the entity is an active app user. Disable app access first.',
+          });
+        }
+      }
+
+      // L4: count final is_login: true rows per source after the file is applied.
+      // Start from existing rows, then apply incoming overrides (by slot) and inserts.
+      const finalLogin = new Map(); // slot → boolean
+      for (const ex of existingRows) {
+        const k = _computeSlotKey(ex, emailsCfg);
+        if (k != null) finalLogin.set(k, ex.is_login === true);
+      }
+      for (const child of incoming) {
+        const slot = _computeSlotKey(child, emailsCfg);
+        if (slot == null) continue;
+        finalLogin.set(slot, _truthyFlag(child.is_login));
+      }
+      const loginSlots = [...finalLogin.entries()].filter(([, v]) => v === true).map(([k]) => k);
+      if (loginSlots.length > 1) {
+        // Find the incoming row(s) that contributed to the over-count for row-keyed errors.
+        const incomingLoginRows = incoming.filter((c) => _truthyFlag(c.is_login));
+        const target = incomingLoginRows[incomingLoginRows.length - 1] || incomingLoginRows[0];
+        pushIssue(errors, {
+          sheet: sheetName,
+          row: target?._rowNum || null,
+          column: 'is_login',
+          value: 'true',
+          message: `Only one login email is allowed per entity. ${loginSlots.length} rows would end up with is_login = true (slots: ${loginSlots.join(', ')}).`,
+        });
+      }
+    }
+  }
+
+  // Required-field pre-validation with row context. PG's 23502 (not-null)
+  // would catch missing text fields too, but inside a bulkInsert PG can't
+  // tell us which row in the batch failed — the user sees a generic
+  // "required field cannot be empty" with no row number. Catch it up front
+  // by walking the model's notNull columns that have no default.
+  const requiredCols = (model._schema?.columns || [])
+    .filter((c) => c.notNull && c.default == null && !c.immutable)
+    .filter((c) => c.type !== 'boolean' && c.type !== 'uuid')
+    .filter((c) => !['created_at', 'updated_at', 'deactivated_at'].includes(c.name))
+    .map((c) => c.name);
+  if (requiredCols.length) {
+    for (const group of groups) {
+      // Only check INSERTs — for UPDATEs the column is preserved from the DB row.
+      if (group._ownEntity) continue;
+      for (const col of requiredCols) {
+        const v = group.parent[col];
+        if (v == null || (typeof v === 'string' && v.trim() === '')) {
+          pushIssue(errors, {
+            sheet: sheetName,
+            row: group.parent._rowNum || null,
+            column: col,
+            value: '',
+            message: `${col.replace(/_/g, ' ')} is required`,
+          });
+        }
+      }
+    }
+  }
+
+  // Role validation. Empty roles[] OR unknown role codes are blocking errors
+  // for every employee/client parent — not just app users — so a roleless
+  // record cannot be created via import regardless of is_app_user state.
+  if (config.appUserProvisioning && config.hasRoles) {
+    // `roles` is softDelete: false — query all rows, no deactivated_at filter.
+    const validRows = await db.any(`SELECT code FROM ${s}.roles`);
+    const validCodes = new Set(validRows.map((r) => String(r.code).toLowerCase()));
+    for (const group of groups) {
+      const incoming = group._transformedParent || {};
+      const existing = group._ownEntity || null;
+
+      const finalRoles = incoming.roles !== undefined ? incoming.roles : existing?.roles;
+      const arr = Array.isArray(finalRoles)
+        ? finalRoles.map((r) => (r == null ? '' : String(r).trim())).filter((r) => r !== '')
+        : [];
+
+      if (!arr.length) {
+        pushIssue(errors, {
+          sheet: sheetName,
+          row: group.parent._rowNum || null,
+          column: 'roles',
+          value: '',
+          message: 'At least one role must be assigned',
+        });
+        continue;
+      }
+      const invalid = arr.filter((r) => !validCodes.has(r.toLowerCase()));
+      if (invalid.length) {
+        pushIssue(errors, {
+          sheet: sheetName,
+          row: group.parent._rowNum || null,
+          column: 'roles',
+          value: invalid.join(','),
+          message: `Unknown role code${invalid.length > 1 ? 's' : ''}: ${invalid.join(', ')}`,
+        });
+      }
+    }
+  }
+
+  // Password vs is_app_user consistency. A `password` cell is only meaningful
+  // when the row ends up an app user — supplying one while the final state is
+  // is_app_user=false (either explicitly or by demoting an existing app user)
+  // is contradictory and would silently drop the password. Block it.
+  if (config.appUserProvisioning) {
+    for (const group of groups) {
+      const supplied = group.parent.password && String(group.parent.password).trim();
+      if (!supplied) continue;
+      const incoming = group._transformedParent || {};
+      const existing = group._ownEntity || null;
+      const willBeAppUser = 'is_app_user' in incoming
+        ? !!incoming.is_app_user
+        : !!existing?.is_app_user;
+      if (!willBeAppUser) {
+        pushIssue(errors, {
+          sheet: sheetName,
+          row: group.parent._rowNum || null,
+          column: 'password',
+          value: '***',
+          message:
+            'A password cannot be supplied while is_app_user is false. Set is_app_user to true to enable app access, or clear the password column.',
+        });
+      }
+    }
+  }
+
+  // is_app_user=true on an INSERT row requires an explicit login email. The
+  // writer used to silently fall back to the primary (or any active) email
+  // when no row was marked is_login=true; that was a footgun. Block it here
+  // so the user has to declare intent in the spreadsheet.
+  if (config.appUserProvisioning) {
+    for (const group of groups) {
+      if (group._ownEntity) continue;                  // INSERT only
+      const incoming = group._transformedParent || {};
+      if (!incoming.is_app_user) continue;
+      const emails = group.children?.emails || [];
+      const hasLogin = emails.some((e) => _truthyFlag(e.is_login) && e.email && String(e.email).trim());
+      if (!hasLogin) {
+        pushIssue(errors, {
+          sheet: sheetName,
+          row: group.parent._rowNum || null,
+          column: 'email_is_login',
+          value: '',
+          message: 'A login email is required to enable app user access. Mark one email row with is_login = true.',
+        });
+      }
+    }
+  }
+
+  // Provisioning a new portal_user requires a password. Without one the writer
+  // would generate a random hash nobody can sign in with (silent footgun). Block
+  // when:
+  //   - INSERT + is_app_user=true + password blank, OR
+  //   - UPDATE toggling is_app_user false→true with no archived prior binding
+  //     to restore, + password blank.
+  if (config.appUserProvisioning) {
+    const entityType = config.appUserProvisioning.entityType;
+    // Build the set of entity_ids whose prior binding exists (archived OR
+    // active) — those entities can restore without a password.
+    const toggleOnIds = [];
+    for (const group of groups) {
+      if (!group._ownEntity) continue;
+      const incoming = group._transformedParent || {};
+      const willBeAppUser = 'is_app_user' in incoming ? !!incoming.is_app_user : !!group._ownEntity.is_app_user;
+      if (willBeAppUser && !group._ownEntity.is_app_user) toggleOnIds.push(group._ownEntity.id);
+    }
+    let restorableSet = new Set();
+    if (toggleOnIds.length && tenantId) {
+      const rows = await db.manyOrNone(
+        `SELECT entity_id FROM admin.portal_user_tenants
+         WHERE entity_type = $1 AND tenant_id = $2 AND entity_id IN ($3:csv)`,
+        [entityType, tenantId, toggleOnIds],
+      );
+      restorableSet = new Set((rows || []).map((r) => r.entity_id));
+    }
+
+    for (const group of groups) {
+      const incoming = group._transformedParent || {};
+      const existing = group._ownEntity || null;
+      const willBeAppUser = 'is_app_user' in incoming ? !!incoming.is_app_user : !!existing?.is_app_user;
+      if (!willBeAppUser) continue;
+
+      const passwordSupplied = !!(group.parent.password && String(group.parent.password).trim());
+      if (passwordSupplied) continue;
+
+      // INSERT path → always require a password.
+      if (!existing) {
+        pushIssue(errors, {
+          sheet: sheetName,
+          row: group.parent._rowNum || null,
+          column: 'password',
+          value: '',
+          message: 'A password is required to provision a new app user.',
+        });
+        continue;
+      }
+
+      // UPDATE path: only require a password when toggling on with no prior
+      // binding (no portal_user to restore). Already-active app users and
+      // archived-binding restores are both fine with a blank cell.
+      const wasAppUser = !!existing.is_app_user;
+      if (!wasAppUser && !restorableSet.has(existing.id)) {
+        pushIssue(errors, {
+          sheet: sheetName,
+          row: group.parent._rowNum || null,
+          column: 'password',
+          value: '',
+          message: 'A password is required to enable app user access.',
+        });
+      }
+    }
+  }
+
+  // Cross-tenant portal_user collision check (insert + update cases). Runs
+  // after _resolveOwnEntities so it can exclude the entity's own portal_user.
+  const provisionEntityType = config.appUserProvisioning?.entityType;
+  if (provisionEntityType === 'employee' || provisionEntityType === 'client') {
+    for (const e of await checkPortalUserEmailCollisions(groups, {
+      sheetName,
+      entityType: provisionEntityType,
+      ownEntities,
+      tenantId,
+    })) {
+      pushIssue(errors, e);
+    }
+  }
+
+  // Cross-source value collision pre-check (R8). Runs against db (not in tx yet).
+  await _collectCrossSourceConflicts(db, s, pgp, schema, config.sourceType, groups, config.flat.children, sheetName, errors);
+
+  if (errors.length) {
+    return previewOnly
+      ? { preview: true, inserts: 0, updates: 0, noops: 0, omitted: 0, errors }
+      : { errors };
+  }
+
+  // Preview short-circuit (R10). Classify what *would* happen without writing.
+  if (previewOnly) {
+    const counts = await _classifyForPreview(db, s, pgp, schema, groups, config, ownEntities);
+    return { preview: true, ...counts, errors: [] };
+  }
 
   let insertedCount = 0;
   let updatedCount = 0;
@@ -1438,43 +1935,68 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
       model.tx = t;
 
       // ── Phase 1: Partition into updates vs inserts ──────────────────────
-      const uuidIds = groups.filter((g) => isUuid(g.parent.id)).map((g) => g.parent.id);
-      const existingEntities = new Map();
-      if (uuidIds.length) {
-        const existing = await t.any(`SELECT id, source_id FROM ${s}.${tbl} WHERE id IN ($1:csv)`, [uuidIds]);
-        for (const row of existing) existingEntities.set(row.id, row.source_id);
-      }
-
+      // Parents have already been transformed and diffed in pre-validation;
+      // group._transformedParent and group._ownEntity carry the canonical values.
       const toUpdate = [];
       const toInsert = [];
-      const stripCols = ['status', 'deactivated_at', 'password'];
 
       for (const group of groups) {
-        const { parent } = group;
-        const isArchived = String(parent.status).toLowerCase() === 'archived';
-        const password = parent.password || null;
-        const { _rowNum: _rn, ...entityData } = { ...parent };
-        for (const col of stripCols) delete entityData[col];
-
-        const transformed = callbackFn ? await callbackFn({ ...entityData }) : { ...entityData };
-        for (const col of stripCols) delete transformed[col];
-        delete transformed.tenant_code;
-        if (tenantId) transformed.tenant_id = tenantId;
-        coerceRow(transformed, config.boolCols, config.hasRoles);
-        // Normalize empty-string codes to null
-        if (typeof transformed.code === 'string' && !transformed.code.trim()) transformed.code = null;
-
-        if (existingEntities.has(parent.id)) {
-          toUpdate.push({ transformed, isArchived, group });
+        const isArchived = String(group.parent.status).toLowerCase() === 'archived';
+        const password = group.parent.password || null;
+        if (group._ownEntity) {
+          toUpdate.push({ transformed: group._transformedParent, isArchived, group });
         } else {
-          toInsert.push({ transformed, isArchived, group, ref: parent.id || null, password });
+          toInsert.push({ transformed: group._transformedParent, isArchived, group, ref: group.parent.id || null, password });
         }
       }
 
       // ── Phase 2: Run updates ───────────────────────────────────────────
+      const userId = sampleRow.created_by || null;
+      // Resolve numbering state once for the update phase too (same rule as
+      // inserts: when numbering is on, the sequence is authoritative).
+      let updateNumberingEnabled = false;
+      if (config.idType) {
+        const cfg = await t.oneOrNone(
+          `SELECT is_enabled FROM ${s}.tenant_numbering_config WHERE id_type = $1`,
+          [config.idType],
+        );
+        updateNumberingEnabled = !!cfg?.is_enabled;
+      }
       for (const { transformed, isArchived, group } of toUpdate) {
-        const { id, ...changes } = transformed;
-        await model.updateWhere([{ id }], changes, { includeDeactivated: true });
+        const { id } = transformed;
+        const before = group._ownEntity;
+        const wasArchived = !!before.deactivated_at;
+        const wasAppUser = !!before.is_app_user;
+        const willBeAppUser = 'is_app_user' in transformed ? !!transformed.is_app_user : wasAppUser;
+
+        const changes = _diffParent(transformed, before);
+        // Numbering on → ignore any code change attempted via the import.
+        // Codes for existing rows are owned by the numbering allocator (set
+        // once, never rewritten through the import path).
+        if (updateNumberingEnabled && 'code' in changes) delete changes.code;
+        // Archive/restore transition: `status` is stripped from the transformed
+        // parent so it never appears in `changes`. Detect the flip explicitly
+        // so the count + audit-field stamping fires even when no other column
+        // changed (e.g. a re-import that only flips status active→archived).
+        const archiveChanged = isArchived !== wasArchived;
+        // Password rotation on an active app user has the same shape — the
+        // password column is stripped from `changes` but the writer rotates
+        // the portal_user's hash below. Count it as an update.
+        const passwordSupplied =
+          !!(group.parent.password && String(group.parent.password).trim());
+        const passwordRotation = passwordSupplied && !isArchived && wasAppUser && willBeAppUser;
+        if (Object.keys(changes).length > 0 || archiveChanged || passwordRotation) {
+          // Stamp audit fields on every real write. We add them after the diff
+          // so they don't themselves trigger NO-OP-failing updates. pg-schemata's
+          // `updateWhere` does not auto-bump updated_at (unlike its singular
+          // `update`), so we must set it explicitly here.
+          if (userId) changes.updated_by = userId;
+          changes.updated_at = new Date();
+          await model.updateWhere([{ id }], changes, { includeDeactivated: true });
+          updatedCount++;
+        }
+        // Archive/restore via deactivated_at is conditional in SQL — no churn
+        // when the state already matches, so always safe to run.
         if (isArchived) {
           await t.none(`UPDATE ${s}.${tbl} SET deactivated_at = NOW() WHERE id = $1 AND deactivated_at IS NULL`, [
             id,
@@ -1484,13 +2006,128 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
             id,
           ]);
         }
-        updatedCount++;
 
-        // Upsert children for updated entity
-        const sourceId = existingEntities.get(id);
-        if (sourceId) {
-          await _upsertFlatChildren(t, s, schema, db, pgp, sourceId, group.children, config.flat.children, callbackFn, tenantId);
+        // If the entity has no code and the import didn't supply one, allocate
+        // from the tenant's numbering config. Mirrors the INSERT-path behavior
+        // so existing employees who predate the numbering rollout (or were
+        // imported before numbering was enabled) get codes on re-import.
+        // This is a real write — stamp audit fields and count it as an
+        // update so the preview/response numbers reflect it.
+        if (config.idType && !before.code && !transformed.code) {
+          const numbering = await allocateNumber(schema, config.idType, null, new Date(), t);
+          if (numbering) {
+            await t.none(
+              `UPDATE ${s}.${tbl} SET code = $1, updated_by = $2, updated_at = NOW() WHERE id = $3`,
+              [numbering.displayId, userId, id],
+            );
+            // Don't double-count when the parent already had other changes
+            // captured above; only increment when this is the only write.
+            if (!(Object.keys(changes).length > 0 || archiveChanged || passwordRotation)) {
+              updatedCount++;
+            }
+          }
         }
+
+        // Reconcile children for this entity (slot-keyed, NO-OPs preserved)
+        const sourceId = group._ownSourceId;
+        if (sourceId) {
+          await _reconcileFlatChildren(t, s, schema, db, pgp, sourceId, group.children, config.flat.children, callbackFn, tenantId);
+        }
+
+        // ── Login email portal_users sync (L1) ───────────────────────────
+        // Find the live login email after reconcile and sync portal_users.
+        if (sourceId && config.appUserProvisioning && willBeAppUser && !isArchived) {
+          const loginRow = await t.oneOrNone(
+            `SELECT email FROM ${s}.emails WHERE source_id = $1 AND is_login = true AND deactivated_at IS NULL LIMIT 1`,
+            [sourceId],
+          );
+          if (loginRow?.email) {
+            await syncLoginEmail(t, schema, sourceId, loginRow.email, { tenantId, userId });
+          }
+        }
+
+        // ── Parent-state cascades to portal_users (L2b) ─────────────────
+        if (config.appUserProvisioning) {
+          const entityType = config.appUserProvisioning.entityType;
+
+          // Active → archived: lock the portal_user
+          if (!wasArchived && isArchived && wasAppUser) {
+            await archiveAppUser(t, entityType, id, tenantId, userId);
+          }
+
+          // Archived → active: restore the portal_user (if it was app user)
+          if (wasArchived && !isArchived && wasAppUser) {
+            await restoreAppUserBinding(t, entityType, id, tenantId, userId);
+          }
+
+          // is_app_user true → false (not via archive — handled above): archive portal_user
+          if (!isArchived && wasAppUser && !willBeAppUser) {
+            await archiveAppUser(t, entityType, id, tenantId, userId);
+          }
+
+          // is_app_user false → true: provision or restore portal_user.
+          // Honor the spreadsheet password for both branches:
+          //   - provision (no prior binding): pass clear password through;
+          //     enableAppUser → provisionAppUser bcrypts it.
+          //   - restore (archived prior binding): enableAppUser only honors a
+          //     pre-computed hash. Bcrypt up front and hand it through as
+          //     `preHash` so the supplied password actually takes effect.
+          if (!isArchived && !wasAppUser && willBeAppUser) {
+            const loginRow = await t.oneOrNone(
+              `SELECT email FROM ${s}.emails WHERE source_id = $1 AND is_login = true AND deactivated_at IS NULL LIMIT 1`,
+              [sourceId],
+            );
+            if (loginRow?.email) {
+              const suppliedPassword = group.parent.password && String(group.parent.password).trim()
+                ? String(group.parent.password)
+                : null;
+              const password = suppliedPassword || (await import('node:crypto')).randomBytes(12).toString('base64url');
+              let preHash;
+              if (suppliedPassword) {
+                const bcrypt = (await import('bcrypt')).default;
+                const rounds = Number(process.env.BCRYPT_ROUNDS || 12);
+                preHash = await bcrypt.hash(suppliedPassword, rounds);
+              }
+              await enableAppUser(t, entityType, id, loginRow.email, password, tenantId, userId, { preHash });
+            }
+          }
+
+          // Already-app-user + password supplied in spreadsheet: reset the
+          // portal_user's password_hash. Lets admins rotate a password through
+          // the import path without going to the auth UI.
+          if (!isArchived && wasAppUser && willBeAppUser) {
+            const suppliedPassword = group.parent.password && String(group.parent.password).trim()
+              ? String(group.parent.password)
+              : null;
+            if (suppliedPassword) {
+              const bcrypt = (await import('bcrypt')).default;
+              const rounds = Number(process.env.BCRYPT_ROUNDS || 12);
+              const passwordHash = await bcrypt.hash(suppliedPassword, rounds);
+              await t.none(
+                `UPDATE admin.portal_users pu
+                 SET password_hash = $1, updated_by = $2, updated_at = NOW()
+                 FROM admin.portal_user_tenants b
+                 WHERE pu.id = b.portal_user_id
+                   AND b.entity_type = $3 AND b.entity_id = $4 AND b.tenant_id = $5
+                   AND b.deactivated_at IS NULL AND pu.deactivated_at IS NULL`,
+                [passwordHash, userId, entityType, id, tenantId],
+              );
+            }
+          }
+        }
+      }
+
+      // Determine whether tenant numbering is enabled for this entity type.
+      // When it is, the configured sequence is authoritative for bulk imports:
+      // any code typed into the spreadsheet is discarded and replaced with
+      // the next number from the allocator.
+      let numberingEnabled = false;
+      if (config.idType) {
+        const cfg = await t.oneOrNone(
+          `SELECT is_enabled FROM ${s}.tenant_numbering_config WHERE id_type = $1`,
+          [config.idType],
+        );
+        numberingEnabled = !!cfg?.is_enabled;
       }
 
       // ── Phase 3: Run inserts ───────────────────────────────────────────
@@ -1498,10 +2135,13 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
         const cleanInserts = toInsert.map(({ transformed }) => {
           const { id: _id, ...clean } = transformed;
           if (typeof clean.code === 'string' && !clean.code.trim()) clean.code = null;
+          // Numbering on → strip supplied codes so the allocator can fill them in.
+          if (numberingEnabled) clean.code = null;
           return clean;
         });
 
-        // Clear codes that already exist in the DB
+        // Clear codes that already exist in the DB (only relevant when the
+        // spreadsheet's codes survived the numbering-enabled strip above).
         if (!config.codeRequired) {
           const insertCodes = cleanInserts.map((r) => r.code).filter(Boolean);
           if (insertCodes.length) {
@@ -1528,6 +2168,7 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
           source_type: config.sourceType,
           label: config.buildLabel(rec),
           created_by: createdBy,
+          updated_by: createdBy,
         }));
         const sourceResults = await sourcesModel.bulkInsert(sourceRecords, ['id', 'table_id']);
         const sourceByParentId = new Map(sourceResults.map((sr) => [sr.table_id, sr.id]));
@@ -1551,7 +2192,7 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
 
           // Insert children for new entity
           if (sourceId) {
-            await _upsertFlatChildren(t, s, schema, db, pgp, sourceId, toInsert[i].group.children, config.flat.children, callbackFn, tenantId);
+            await _reconcileFlatChildren(t, s, schema, db, pgp, sourceId, toInsert[i].group.children, config.flat.children, callbackFn, tenantId);
           }
         }
 
@@ -1612,10 +2253,415 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config) 
 }
 
 /**
- * Upsert flat children: soft-delete existing, insert new from grouped child arrays.
+ * Classify what a real import would do, without writing. Returns aggregate
+ * counts for the preview step (R10): inserts, updates, no-ops, and omitted
+ * existing rows.
+ *
+ *   - inserts:  parent inserts + child rows that would be INSERTed
+ *   - updates:  parent updates + child rows that would be UPDATEd in place
+ *   - noops:    child rows where the slot exists and values match
+ *   - omitted:  existing active child rows whose slot is not in the file
+ *
  * @private
  */
-async function _upsertFlatChildren(t, s, schema, db, pgp, sourceId, children, childConfigs, callbackFn, tenantId) {
+async function _classifyForPreview(db, s, pgp, schema, groups, config, ownEntities) {
+  let inserts = 0;
+  let updates = 0;
+  let noops = 0;
+  let omitted = 0;
+
+  // Parent-level classification: existing parents diff against their DB row;
+  // unchanged parents count as NO-OPs, not updates.
+  for (const group of groups) {
+    const existing = isUuid(group.parent.id) ? ownEntities.get(group.parent.id) : null;
+    if (!existing) {
+      inserts += 1;
+      continue;
+    }
+    const changes = _diffParent(group._transformedParent, existing);
+    // Archive/restore transition: `status` is stripped from _transformedParent
+    // (it's a synthetic spreadsheet column) so _diffParent can't see it. Detect
+    // the state change explicitly so the preview counts it as an update.
+    const willBeArchived = String(group.parent.status || '').toLowerCase() === 'archived';
+    const wasArchived = !!existing.deactivated_at;
+    const archiveChanged = willBeArchived !== wasArchived;
+    // Password rotation: `password` is stripped from _transformedParent. The
+    // writer rotates the portal_user's password_hash for an active app user
+    // when this cell is non-blank — count that as an update too.
+    const passwordSupplied =
+      !!(group.parent.password && String(group.parent.password).trim());
+    const willBeAppUser =
+      'is_app_user' in (group._transformedParent || {})
+        ? !!group._transformedParent.is_app_user
+        : !!existing.is_app_user;
+    const passwordRotation = passwordSupplied && !willBeArchived && existing.is_app_user && willBeAppUser;
+    if (Object.keys(changes).length > 0 || archiveChanged || passwordRotation) updates += 1;
+    else noops += 1;
+  }
+
+  // Per-child classification for groups that map to an existing source
+  for (const cfg of config.flat.children) {
+    const groupsWithChildren = groups.filter((g) => (g.children[cfg.key] || []).length > 0);
+    if (!groupsWithChildren.length) continue;
+
+    const existingSourceIds = groupsWithChildren
+      .map((g) => g._ownSourceId)
+      .filter((sid) => !!sid);
+
+    // Load existing children for known sources in one query
+    const existingBySource = new Map();
+    if (existingSourceIds.length) {
+      const childModel = db(cfg.modelName, schema);
+      const tableName = childModel._schema?.table || cfg.modelName;
+      const tName = pgp.as.name(tableName);
+      const rows = await db.any(
+        `SELECT * FROM ${s}.${tName} WHERE source_id IN ($1:csv) AND deactivated_at IS NULL`,
+        [existingSourceIds],
+      );
+      for (const r of rows) {
+        if (!existingBySource.has(r.source_id)) existingBySource.set(r.source_id, []);
+        existingBySource.get(r.source_id).push(r);
+      }
+    }
+
+    for (const group of groupsWithChildren) {
+      const incoming = group.children[cfg.key] || [];
+      const ownSource = group._ownSourceId;
+      const existing = ownSource ? (existingBySource.get(ownSource) || []) : [];
+      const existingBySlot = new Map();
+      const existingByValue = new Map();
+      for (const ex of existing) {
+        const k = _computeSlotKey(ex, cfg);
+        if (k != null) existingBySlot.set(k, ex);
+        const vk = _computeValueKey(ex, cfg);
+        if (vk != null) existingByValue.set(vk, ex);
+      }
+      const claimedExistingIds = new Set();
+      const seenIncomingSlots = new Set();
+
+      for (const row of incoming) {
+        const slot = _computeSlotKey(row, cfg);
+        if (slot != null) seenIncomingSlots.add(slot);
+        let match = slot != null ? existingBySlot.get(slot) : null;
+        if (!match) {
+          const vk = _computeValueKey(row, cfg);
+          if (vk != null) {
+            const candidate = existingByValue.get(vk);
+            if (candidate && !claimedExistingIds.has(candidate.id)) match = candidate;
+          }
+        }
+        if (!match) {
+          inserts += 1;
+          continue;
+        }
+        claimedExistingIds.add(match.id);
+        // Include slot key cols in the diff so a rename counts as UPDATE.
+        const diffCols = new Set([...(cfg.compareCols || []), ...(cfg.slotKeyCols || [])]);
+        let changed = false;
+        for (const col of diffCols) {
+          if (!_normEq(match[col], row[col])) {
+            changed = true;
+            break;
+          }
+        }
+        if (changed) updates += 1;
+        else noops += 1;
+      }
+
+      // Omitted: existing rows whose slot wasn't named AND whose row id wasn't
+      // claimed by a value-key rename match.
+      for (const ex of existing) {
+        const slot = _computeSlotKey(ex, cfg);
+        if (slot != null && seenIncomingSlots.has(slot)) continue;
+        if (claimedExistingIds.has(ex.id)) continue;
+        omitted += 1;
+      }
+    }
+  }
+
+  return { inserts, updates, noops, omitted };
+}
+
+/**
+ * Coerce a spreadsheet boolean-ish cell value to a JS true/false. Accepts
+ * native booleans, the strings 'true' / 'false' (any case), and 1/0.
+ * @private
+ */
+function _truthyFlag(v) {
+  return v === true || v === 1 || (typeof v === 'string' && v.toLowerCase() === 'true');
+}
+
+/**
+ * Batch-load active email rows for the given source_ids and group them by
+ * source_id. Used by the email-specific pre-validation block.
+ * @private
+ */
+async function _loadEmailsBySource(db, s, pgp, schema, cfg, sourceIds) {
+  const out = new Map();
+  if (!sourceIds.length) return out;
+  const childModel = db(cfg.modelName, schema);
+  const tableName = childModel._schema?.table || cfg.modelName;
+  const tName = pgp.as.name(tableName);
+  const rows = await db.any(
+    `SELECT * FROM ${s}.${tName} WHERE source_id IN ($1:csv) AND deactivated_at IS NULL`,
+    [sourceIds],
+  );
+  for (const r of rows) {
+    if (!out.has(r.source_id)) out.set(r.source_id, []);
+    out.get(r.source_id).push(r);
+  }
+  return out;
+}
+
+/**
+ * Compute the value key for a child row — based on the descriptor's
+ * crossSourceUniqCols, gated by an optional crossSourceUniqWhere predicate.
+ * Used by the reconciler to detect slot renames: when an incoming row's slot
+ * key doesn't match any existing slot but its value matches an existing row,
+ * treat the row as a rename of that existing row (UPDATE in place, preserving
+ * id and updating the slot label).
+ *
+ * Returns null when the descriptor has no value-uniqueness, when the row
+ * doesn't satisfy crossSourceUniqWhere, or when any value-key component is blank.
+ * @private
+ */
+function _computeValueKey(row, cfg) {
+  if (!cfg.crossSourceUniqCols || !cfg.crossSourceUniqCols.length) return null;
+  if (cfg.crossSourceUniqWhere && !cfg.crossSourceUniqWhere(row)) return null;
+  const parts = cfg.crossSourceUniqCols.map((c) => {
+    const v = row[c];
+    return v == null ? '' : String(v).trim();
+  });
+  if (parts.some((v) => v === '')) return null;
+  return parts.map((v) => v.toLowerCase()).join('|');
+}
+
+/**
+ * Compute the slot key for a child row using the descriptor's slotKeyCols.
+ * Returns a `|`-joined lowercased string, or null if any component is blank.
+ * @private
+ */
+function _computeSlotKey(row, cfg) {
+  if (!cfg.slotKeyCols || !cfg.slotKeyCols.length) return null;
+  const parts = cfg.slotKeyCols.map((c) => {
+    const v = row[c];
+    return v == null ? '' : String(v).trim();
+  });
+  if (parts.some((v) => v === '')) return null;
+  return parts.map((v) => v.toLowerCase()).join('|');
+}
+
+/**
+ * Normalized equality for comparing existing DB values to incoming row values.
+ * Treats null/undefined/empty-string as equal; case-insensitive for strings.
+ * @private
+ */
+function _normEq(a, b) {
+  const na = a == null ? '' : typeof a === 'string' ? a.trim() : a;
+  const nb = b == null ? '' : typeof b === 'string' ? b.trim() : b;
+  if (typeof na === 'string' && typeof nb === 'string') return na.toLowerCase() === nb.toLowerCase();
+  return na === nb;
+}
+
+/**
+ * Resolve existing parents (parent.id is a UUID present in the DB) to their
+ * full current DB row. Returns Map<parentId, row> where row includes source_id
+ * and every entity column — used both for cross-source self-exclusion and for
+ * parent-level NO-OP detection on re-imports.
+ * @private
+ */
+async function _resolveOwnEntities(db, s, tbl, groups) {
+  // Match by `id` first (the round-trip path). For rows whose id is blank or
+  // doesn't resolve in the DB (e.g. tenant was re-bootstrapped after export
+  // and the id has rotated), fall back to matching by `code`. The resulting
+  // map is keyed by both `id` and `code` so callers can look up either way.
+  const map = new Map();
+
+  const uuidIds = groups.filter((g) => isUuid(g.parent.id)).map((g) => g.parent.id);
+  if (uuidIds.length) {
+    const rows = await db.any(`SELECT * FROM ${s}.${tbl} WHERE id IN ($1:csv)`, [uuidIds]);
+    for (const r of rows) {
+      map.set(r.id, r);
+      if (r.code) map.set(`code:${String(r.code).trim()}`, r);
+    }
+  }
+
+  // Identify groups whose id didn't resolve but carry a code we can use.
+  const fallbackCodes = [];
+  for (const g of groups) {
+    const idResolved = isUuid(g.parent.id) && map.has(g.parent.id);
+    if (idResolved) continue;
+    const code = typeof g.parent.code === 'string' ? g.parent.code.trim() : '';
+    if (code && !map.has(`code:${code}`)) fallbackCodes.push(code);
+  }
+  if (fallbackCodes.length) {
+    const rows = await db.any(
+      `SELECT * FROM ${s}.${tbl} WHERE code IN ($1:csv) AND deactivated_at IS NULL`,
+      [fallbackCodes],
+    );
+    for (const r of rows) {
+      map.set(`code:${String(r.code).trim()}`, r);
+      // Don't overwrite an existing id key (it was set by the id path above).
+      if (!map.has(r.id)) map.set(r.id, r);
+    }
+  }
+  return map;
+}
+
+/**
+ * Look up the resolved DB row for a parent group using id first, then code.
+ * @private
+ */
+function _lookupOwnEntity(ownEntities, parent) {
+  if (parent && isUuid(parent.id) && ownEntities.has(parent.id)) {
+    return ownEntities.get(parent.id);
+  }
+  const code = typeof parent?.code === 'string' ? parent.code.trim() : '';
+  if (code && ownEntities.has(`code:${code}`)) return ownEntities.get(`code:${code}`);
+  return null;
+}
+
+/**
+ * Order-insensitive array equality, used for text[] columns like `roles`.
+ * @private
+ */
+function _arrayEq(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b)) return false;
+  if (a.length !== b.length) return false;
+  const sa = [...a].map(String).sort();
+  const sb = [...b].map(String).sort();
+  return sa.every((v, i) => v === sb[i]);
+}
+
+/**
+ * Diff a transformed parent row against its current DB row. Returns an object
+ * of changed columns (subset of transformed) or an empty object when nothing
+ * differs.
+ *
+ * Skipped columns:
+ *   - `id`, `tenant_id`            — never updated through this path
+ *   - `created_at`, `created_by`   — set once at insert, must not be overwritten
+ *   - `updated_at`, `updated_by`   — managed separately by the writer; including
+ *     them in the diff would defeat NO-OP detection since the importing user
+ *     normally differs from the prior `updated_by`.
+ * @private
+ */
+function _diffParent(transformed, existing) {
+  const SKIP = new Set(['id', 'tenant_id', 'created_at', 'created_by', 'updated_at', 'updated_by']);
+  const changes = {};
+  for (const [col, val] of Object.entries(transformed)) {
+    if (SKIP.has(col)) continue;
+    const cur = existing[col];
+    if (Array.isArray(val) || Array.isArray(cur)) {
+      if (!_arrayEq(val, cur)) changes[col] = val;
+      continue;
+    }
+    if (!_normEq(val, cur)) changes[col] = val;
+  }
+  return changes;
+}
+
+/**
+ * Coerce + transform a parent row exactly the way the write path does. Result
+ * is the row that would be sent to model.updateWhere or model.bulkInsert.
+ * @private
+ */
+async function _transformParent(group, callbackFn, tenantId, config, stripCols) {
+  const { _rowNum: _rn, ...entityData } = { ...group.parent };
+  for (const col of stripCols) delete entityData[col];
+  const transformed = callbackFn ? await callbackFn({ ...entityData }) : { ...entityData };
+  for (const col of stripCols) delete transformed[col];
+  delete transformed.tenant_code;
+  if (tenantId) transformed.tenant_id = tenantId;
+  coerceRow(transformed, config.boolCols, config.hasRoles);
+  if (typeof transformed.code === 'string' && !transformed.code.trim()) transformed.code = null;
+  return transformed;
+}
+
+/**
+ * Pre-flight cross-source uniqueness check (R8). For each child type with
+ * `crossSourceUniqCols`, batch-query whether any incoming row's value already
+ * exists on a different source's active row. Emit blocking validation issues
+ * with type-only context ("already in use by another <sourceType>").
+ * @private
+ */
+async function _collectCrossSourceConflicts(db, s, pgp, schema, ownSourceType, groups, childConfigs, sheetName, errors) {
+  for (const cfg of childConfigs) {
+    if (!cfg.crossSourceUniqCols || !cfg.crossSourceUniqCols.length) continue;
+
+    const candidates = [];
+    for (const group of groups) {
+      const rows = group.children[cfg.key] || [];
+      for (const row of rows) {
+        if (cfg.crossSourceUniqWhere && !cfg.crossSourceUniqWhere(row)) continue;
+        const values = cfg.crossSourceUniqCols.map((c) => row[c]);
+        if (values.some((v) => v == null || String(v).trim() === '')) continue;
+        candidates.push({
+          row,
+          ownSourceId: group._ownSourceId || null,
+          values: values.map((v) => String(v).trim()),
+        });
+      }
+    }
+    if (!candidates.length) continue;
+
+    const childModel = db(cfg.modelName, schema);
+    const tableName = childModel._schema?.table || cfg.modelName;
+    const tName = pgp.as.name(tableName);
+    const tupleList = candidates
+      .map((c) => `(${c.values.map((v) => pgp.as.text(v)).join(', ')})`)
+      .join(', ');
+    // Look up which (cols-tuple) values are present on OTHER active rows. Get the
+    // source_type too so the error message can describe the owning entity type.
+    let sql = `
+      SELECT child.source_id, src.source_type, ${cfg.crossSourceUniqCols.map((c) => `child.${pgp.as.name(c)} AS ${pgp.as.name(c)}`).join(', ')}
+      FROM ${s}.${tName} child
+      JOIN ${s}.sources src ON src.id = child.source_id
+      WHERE (${cfg.crossSourceUniqCols.map((c) => `child.${pgp.as.name(c)}`).join(', ')}) IN (${tupleList})
+      AND child.deactivated_at IS NULL
+    `;
+    if (cfg.key === 'phones') sql += ` AND child.phone_type = 'cell'`;
+    const matches = await db.any(sql);
+    if (!matches.length) continue;
+
+    const matchBy = new Map();
+    for (const m of matches) {
+      const key = cfg.crossSourceUniqCols.map((c) => String(m[c]).trim().toLowerCase()).join('|');
+      if (!matchBy.has(key)) matchBy.set(key, []);
+      matchBy.get(key).push({ sourceId: m.source_id, sourceType: m.source_type });
+    }
+
+    for (const cand of candidates) {
+      const key = cand.values.map((v) => v.toLowerCase()).join('|');
+      const hits = matchBy.get(key);
+      if (!hits) continue;
+      const other = hits.find((h) => h.sourceId !== cand.ownSourceId);
+      if (!other) continue;
+      const isSameType = other.sourceType === ownSourceType;
+      const typeLabel = isSameType ? `another ${other.sourceType}` : `another record`;
+      pushIssue(errors, {
+        sheet: sheetName,
+        row: cand.row._rowNum || null,
+        column: cfg.crossSourceUniqCols.join('+'),
+        value: cand.values.join('|'),
+        message: `${cfg.crossSourceUniqLabel || cfg.key} "${cand.values.join('|')}" is already in use by ${typeLabel}`,
+      });
+    }
+  }
+}
+
+/**
+ * Reconcile children for one parent source_id by slot key (R3–R6).
+ *   - Slot in incoming + slot in DB + values equal → NO-OP.
+ *   - Slot in incoming + slot in DB + values differ → UPDATE in place; id preserved.
+ *   - Slot in incoming + no matching slot in DB → INSERT.
+ *   - Slot in DB + not in incoming → left alone. Never deleted by omission.
+ * Slot-key validity has already been enforced upstream (R2), so any blank-slot
+ * row is treated defensively as INSERT (the DB unique index would catch the
+ * resulting collision if it mattered).
+ * @private
+ */
+async function _reconcileFlatChildren(t, s, schema, db, pgp, sourceId, children, childConfigs, callbackFn, tenantId) {
   for (const cfg of childConfigs) {
     const childRows = children[cfg.key];
     if (!childRows || !childRows.length) continue;
@@ -1623,14 +2669,22 @@ async function _upsertFlatChildren(t, s, schema, db, pgp, sourceId, children, ch
     const childModel = db(cfg.modelName, schema);
     childModel.tx = t;
     const tableName = childModel._schema?.table || cfg.modelName;
+    const tName = pgp.as.name(tableName);
 
-    // Soft-delete existing children
-    await t.none(`UPDATE ${s}.${pgp.as.name(tableName)} SET deactivated_at = NOW() WHERE source_id = $1 AND deactivated_at IS NULL`, [
-      sourceId,
-    ]);
+    const existing = await t.any(`SELECT * FROM ${s}.${tName} WHERE source_id = $1 AND deactivated_at IS NULL`, [sourceId]);
+    const existingBySlot = new Map();
+    const existingByValue = new Map();
+    for (const ex of existing) {
+      const k = _computeSlotKey(ex, cfg);
+      if (k != null) existingBySlot.set(k, ex);
+      const vk = _computeValueKey(ex, cfg);
+      if (vk != null) existingByValue.set(vk, ex);
+    }
 
-    // Insert new children
     const toInsert = [];
+    const toUpdate = []; // [{ id, changes }]
+    const claimedExistingIds = new Set();
+
     for (const row of childRows) {
       const { _rowNum: _, ...rest } = row;
       const base = { ...rest, source_id: sourceId };
@@ -1638,17 +2692,52 @@ async function _upsertFlatChildren(t, s, schema, db, pgp, sourceId, children, ch
       delete transformed.tenant_code;
       if (tenantId) transformed.tenant_id = tenantId;
       coerceChildRow(transformed, childModel);
-      // Default null values on notNull boolean columns to false (continuation rows leave them blank)
       for (const col of childModel._schema?.columns || []) {
         if (col.type === 'boolean' && col.notNull && transformed[col.name] == null) {
           transformed[col.name] = col.default ?? false;
         }
       }
-      toInsert.push(transformed);
+
+      // Match priority: 1) slot key. 2) value key (catches slot rename when
+      // the underlying value is unique-by-DB, e.g. an email's address or a
+      // cell phone number — keeps the same row id and just updates the slot).
+      const slot = _computeSlotKey(transformed, cfg);
+      let match = slot != null ? existingBySlot.get(slot) : null;
+      if (!match) {
+        const vk = _computeValueKey(transformed, cfg);
+        if (vk != null) {
+          const candidate = existingByValue.get(vk);
+          if (candidate && !claimedExistingIds.has(candidate.id)) match = candidate;
+        }
+      }
+
+      if (!match) {
+        toInsert.push(transformed);
+        continue;
+      }
+      claimedExistingIds.add(match.id);
+
+      // Diff against compareCols PLUS the slot key cols (so a slot rename
+      // detected via value-match actually updates the label/phone_type).
+      const diffCols = new Set([...(cfg.compareCols || []), ...(cfg.slotKeyCols || [])]);
+      const changes = {};
+      for (const col of diffCols) {
+        if (_normEq(match[col], transformed[col])) continue;
+        changes[col] = transformed[col];
+      }
+      if (Object.keys(changes).length === 0) continue; // NO-OP
+      // Stamp audit fields on every real write. pg-schemata's `updateWhere`
+      // does not auto-bump updated_at, so set both explicitly.
+      if (transformed.updated_by) changes.updated_by = transformed.updated_by;
+      changes.updated_at = new Date();
+      toUpdate.push({ id: match.id, changes });
     }
 
     if (toInsert.length) {
       await childModel.bulkInsert(toInsert);
+    }
+    for (const u of toUpdate) {
+      await childModel.updateWhere([{ id: u.id }], u.changes);
     }
   }
 }

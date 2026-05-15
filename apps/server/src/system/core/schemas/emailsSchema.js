@@ -42,6 +42,7 @@ const emailsSchema = {
       { type: 'Index', columns: ['email'], unique: true, where: 'deactivated_at IS NULL' },
       { type: 'Index', columns: ['source_id'], unique: true, where: 'is_login = true AND deactivated_at IS NULL' },
       { type: 'Index', columns: ['source_id'], unique: true, where: 'is_primary = true AND deactivated_at IS NULL' },
+      { type: 'Index', columns: ['source_id', 'label'], unique: true, where: 'deactivated_at IS NULL AND label IS NOT NULL' },
     ],
   },
 };

@@ -241,6 +241,7 @@ describe('Employee auto-numbering — backfill on enable', () => {
         first_name: 'Bob',
         last_name: 'Smith',
         email: 'bob@numco.com',
+        roles: ['admin'],
       });
 
     expect(res.status).toBe(201);
@@ -257,6 +258,7 @@ describe('Employee auto-numbering — backfill on enable', () => {
         last_name: 'Jones',
         email: 'alice@numco.com',
         code: 'CUSTOM01',
+        roles: ['admin'],
       });
 
     expect(res.status).toBe(201);

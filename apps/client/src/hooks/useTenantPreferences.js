@@ -7,14 +7,17 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { tenantPreferencesApi } from '../services/tenantPreferencesApi.js';
+import { useAuth } from '../contexts/AuthContext.jsx';
 
 export const TENANT_PREFS_KEY = ['tenant-preferences'];
 
-/** Fetch tenant preferences (single row). */
+/** Fetch tenant preferences (single row). Gated on an authenticated session. */
 export function useTenantPreferences() {
+  const { user } = useAuth();
   return useQuery({
     queryKey: TENANT_PREFS_KEY,
     queryFn: () => tenantPreferencesApi.list({ limit: 1 }),
+    enabled: !!user,
   });
 }
 

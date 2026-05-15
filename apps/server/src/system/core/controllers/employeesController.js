@@ -16,6 +16,7 @@ import db, { pgp } from '../../../db/db.js';
 import { allocateNumber } from '../services/numberingService.js';
 import { invalidateByEntity } from '../../../services/permCacheInvalidator.js';
 import { findActiveBinding, findAnyBinding } from '../../auth/services/index.js';
+import { validateEmployeeRoles } from '../../../lib/employeeRoleValidator.js';
 import logger from '../../../lib/logger.js';
 
 class EmployeesController extends BaseController {
@@ -45,15 +46,13 @@ class EmployeesController extends BaseController {
       const suppliedEmail = req.body.email;
       delete req.body.email;
 
-      // Validate: roles must be non-empty before is_app_user can be true
-      if (req.body.is_app_user) {
-        const roles = req.body.roles || [];
-        if (!roles.length) {
-          return res.status(400).json({ error: 'Roles must be assigned before enabling app user access' });
-        }
-        if (!suppliedEmail) {
-          return res.status(400).json({ error: 'Email is required to enable app user access' });
-        }
+      // Validate: every employee must be assigned at least one valid role.
+      // Stricter than app-user provisioning so a roleless employee can never
+      // exist regardless of is_app_user.
+      const roleCheck = await validateEmployeeRoles(db, schema, req.body.roles);
+      if (!roleCheck.ok) return res.status(400).json({ error: roleCheck.error });
+      if (req.body.is_app_user && !suppliedEmail) {
+        return res.status(400).json({ error: 'Email is required to enable app user access' });
       }
 
       // Extract password before insert — it's for portal_users, not the employees table
@@ -76,6 +75,7 @@ class EmployeesController extends BaseController {
           source_type: 'employee',
           label: `${employee.first_name} ${employee.last_name}`,
           created_by: req.body.created_by || null,
+          updated_by: req.body.created_by || null,
         });
 
         // 3. Link the source back to the employee
@@ -178,14 +178,14 @@ class EmployeesController extends BaseController {
       const needsProvisioning =
         isNowAppUser && (!wasAppUser || !(await findActiveBinding('employee', before.id, req.user?.tenant_id)));
 
-      if (needsProvisioning) {
-        const roles = req.body.roles || before.roles || [];
-        if (!roles.length) {
-          return res.status(400).json({ error: 'Roles must be assigned before enabling app user access' });
-        }
-        if (!resolvedEmail) {
-          return res.status(400).json({ error: 'A login email is required to enable app user access' });
-        }
+      // Always validate roles on update — empty/unknown role codes are
+      // blocking regardless of is_app_user state, so a roleless employee
+      // can never exist.
+      const finalRoles = req.body.roles !== undefined ? req.body.roles : before.roles || [];
+      const roleCheck = await validateEmployeeRoles(db, schema, finalRoles);
+      if (!roleCheck.ok) return res.status(400).json({ error: roleCheck.error });
+      if (needsProvisioning && !resolvedEmail) {
+        return res.status(400).json({ error: 'A login email is required to enable app user access' });
       }
 
       // Apply the standard update
@@ -395,24 +395,38 @@ class EmployeesController extends BaseController {
       }
     }
 
-    const clearPassword = suppliedPassword || crypto.randomBytes(12).toString('base64url');
-    const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
-    const passwordHash = await bcrypt.hash(clearPassword, rounds);
     const updatedBy = req.user?.id || null;
 
-    // Look for any prior binding for this employee in this tenant (active or archived)
+    // Look for any prior binding for this employee in this tenant (active or archived).
     const priorBinding = await findAnyBinding('employee', employee.id, tenantId);
 
     if (priorBinding) {
-      // Restore both portal_users and the binding to keep them in sync
+      // Restore the existing portal_user + binding. The existing password_hash
+      // is preserved unless the caller explicitly supplies a new password —
+      // re-enabling app access (or restoring an archived employee) must not
+      // silently invalidate the user's existing credentials.
+      let newPasswordHash = null;
+      if (suppliedPassword) {
+        const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
+        newPasswordHash = await bcrypt.hash(suppliedPassword, rounds);
+      }
       await db.tx(async (t) => {
-        await t.none(
-          `UPDATE admin.portal_users
-           SET deactivated_at = NULL, status = 'invited',
-               password_hash = $1, email = $2, updated_by = $3
-           WHERE id = $4`,
-          [passwordHash, loginEmail, updatedBy, priorBinding.portal_user_id],
-        );
+        if (newPasswordHash) {
+          await t.none(
+            `UPDATE admin.portal_users
+             SET deactivated_at = NULL, status = 'invited',
+                 password_hash = $1, email = $2, updated_by = $3
+             WHERE id = $4`,
+            [newPasswordHash, loginEmail, updatedBy, priorBinding.portal_user_id],
+          );
+        } else {
+          await t.none(
+            `UPDATE admin.portal_users
+             SET deactivated_at = NULL, status = 'active', email = $1, updated_by = $2
+             WHERE id = $3`,
+            [loginEmail, updatedBy, priorBinding.portal_user_id],
+          );
+        }
         await t.none(
           `UPDATE admin.portal_user_tenants
            SET deactivated_at = NULL, status = 'active', updated_by = $1
@@ -424,7 +438,13 @@ class EmployeesController extends BaseController {
       return priorBinding.portal_user_id;
     }
 
-    // Create a new portal_users + binding pair
+    // No prior binding — provision a brand-new portal_user. A password is
+    // required; generate a random one if none was supplied (admin must use
+    // the password-reset flow to deliver credentials).
+    const clearPassword = suppliedPassword || crypto.randomBytes(12).toString('base64url');
+    const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
+    const passwordHash = await bcrypt.hash(clearPassword, rounds);
+
     const portalUserId = await db.tx(async (t) => {
       const user = await t.one(
         `INSERT INTO admin.portal_users (email, password_hash, status, created_by)

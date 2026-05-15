@@ -194,7 +194,7 @@ describe('Partial unique indexes — emails / tax_identifiers / phone_numbers', 
     ).rejects.toMatchObject({ code: '23502' });
   });
 
-  test('tax_identifiers: same source may hold multiple values for the same country/type', async () => {
+  test('tax_identifiers: one row per (source, country_code, tax_type) — second active insert is rejected', async () => {
     const src = await makeSource(schema, tenantId, 'TaxSrcMultiVAT');
 
     await db.none(
@@ -203,12 +203,13 @@ describe('Partial unique indexes — emails / tax_identifiers / phone_numbers', 
       [tenantId, src.id],
     );
 
+    // Second active row with the same (source_id, country_code, tax_type) violates the partial unique index.
     await expect(
       db.none(
         `INSERT INTO ${DB.pgp.as.name(schema)}.tax_identifiers (tenant_id, source_id, country_code, tax_type, tax_value)
          VALUES ($1, $2, 'GB', 'VAT', 'GB987654321')`,
         [tenantId, src.id],
       ),
-    ).resolves.toBeNull();
+    ).rejects.toMatchObject({ code: '23505' });
   });
 });
