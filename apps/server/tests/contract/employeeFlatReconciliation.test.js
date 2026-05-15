@@ -487,6 +487,119 @@ describe('Flat employee import — per-row reconciliation', () => {
     expect(after.code).toMatch(/^EMP/);
   });
 
+  test('2e — add a new child row to an existing employee (append continuation)', async () => {
+    // Frank still has personal email; add a new "office" address as a
+    // continuation row. Existing children stay untouched; one new INSERT.
+    const buf = await buildFlat([
+      parentRow({
+        id: employeeId, code: 'FR-001', firstName: 'Frank', lastName: 'Reconciler',
+        extras: {
+          email: 'frank.home-NEW@frecon.com', email_label: 'home',
+          email_is_primary: true, email_is_login: false,
+        },
+      }),
+      parentRow({
+        extras: {
+          address_label: 'office', address_line_1: '123 Office Way',
+          address_city: 'Portland', address_state_province: 'OR',
+          address_postal_code: '97201', address_country_code: 'US',
+        },
+      }),
+    ]);
+    const res = await postImport(buf, cookies, 'add-child');
+    expect(res.status).toBe(201);
+
+    const addresses = await db.any(
+      `SELECT label FROM frecon.addresses WHERE source_id = $1 AND deactivated_at IS NULL ORDER BY label`,
+      [employeeSourceId],
+    );
+    expect(addresses.map((a) => a.label)).toContain('office');
+  });
+
+  test('6a — blank slot key (email_label missing) is a blocking error', async () => {
+    const buf = await buildFlat([
+      parentRow({
+        id: '', code: 'FR-6A', firstName: 'Sixa', lastName: 'Slot',
+        extras: { email: 'sixa@frecon.com', email_label: '', email_is_primary: true, email_is_login: false },
+      }),
+    ]);
+    const res = await postImport(buf, cookies, '6a');
+    expect(res.status).toBe(422);
+    expect(res.body.errors.some((e) => /label is required/i.test(e.message || ''))).toBe(true);
+
+    const emp = await db.oneOrNone(`SELECT id FROM frecon.employees WHERE code = 'FR-6A'`);
+    expect(emp).toBeNull();
+  });
+
+  test('6b — invalid email format is a blocking error', async () => {
+    const buf = await buildFlat([
+      parentRow({
+        id: '', code: 'FR-6B', firstName: 'Sixb', lastName: 'BadEmail',
+        extras: { email: 'not-an-email', email_label: 'work', email_is_primary: true, email_is_login: false },
+      }),
+    ]);
+    const res = await postImport(buf, cookies, '6b');
+    expect(res.status).toBe(422);
+    expect(res.body.errors.some((e) => /invalid email format/i.test(e.message || ''))).toBe(true);
+
+    const emp = await db.oneOrNone(`SELECT id FROM frecon.employees WHERE code = 'FR-6B'`);
+    expect(emp).toBeNull();
+  });
+
+  test('6c — required name field missing is a blocking error with row context', async () => {
+    const buf = await buildFlat([
+      parentRow({
+        id: '', code: 'FR-6C', firstName: '', lastName: 'NoFirst',
+      }),
+    ]);
+    const res = await postImport(buf, cookies, '6c');
+    expect(res.status).toBe(422);
+    const err = res.body.errors.find((e) => /first name is required/i.test(e.message || ''));
+    expect(err).toBeDefined();
+    expect(err.row).toBeTruthy();    // row-keyed, not generic
+
+    const emp = await db.oneOrNone(`SELECT id FROM frecon.employees WHERE code = 'FR-6C'`);
+    expect(emp).toBeNull();
+  });
+
+  test('7a — mixed file: insert + update + unchanged in one import', async () => {
+    // Frank gets a field edit; bring in a brand-new employee in the same file;
+    // a second existing employee unchanged. Verify preview classifies all three
+    // distinctly and the writer honors the mix.
+    const newCode = `MIX-${Date.now()}`;
+    const buf = await buildFlat([
+      // Frank — UPDATE (different department)
+      parentRow({
+        id: employeeId, code: 'FR-001', firstName: 'Frank', lastName: 'Reconciler',
+        extras: { position: 'Engineer', department: 'Platform' },
+      }),
+      // Gina — UNCHANGED (created in the cross-source test earlier)
+      parentRow({ firstName: 'Gina', lastName: 'Garcia', code: 'FR-002' }),
+      // Brand-new employee — INSERT
+      parentRow({
+        id: '', code: newCode, firstName: 'Maya', lastName: 'Mixed',
+        extras: { roles: '{admin}' },
+      }),
+    ]);
+
+    const preview = await postImport(buf, cookies, '7a-preview', { preview: true });
+    expect(preview.status).toBe(200);
+    expect(preview.body.inserts).toBeGreaterThanOrEqual(1);
+    expect(preview.body.updates).toBeGreaterThanOrEqual(1);
+
+    const res = await postImport(buf, cookies, '7a');
+    expect(res.status).toBe(201);
+
+    // Numbering may be enabled by earlier tests; query by name instead of
+    // the supplied code (which the allocator can override).
+    const maya = await db.oneOrNone(
+      `SELECT id FROM frecon.employees WHERE first_name = 'Maya' AND last_name = 'Mixed'`,
+    );
+    expect(maya).not.toBeNull();
+    const frank = await db.oneOrNone(`SELECT department FROM frecon.employees WHERE id = $1`, [employeeId]);
+    expect(frank.department).toBe('Platform');
+  });
+
   test('parent field edit stamps updated_by on the parent row', async () => {
     // Run last in this describe block: this test mutates Frank's parent
     // fields and must not interfere with prior NO-OP / preview assertions.

@@ -515,13 +515,38 @@ export async function checkPortalUserEmailCollisions(groups, opts) {
     if (rows?.length) for (const r of rows) selfPortalUserIds.add(r.portal_user_id);
   }
 
+  const errors = [];
+
+  // Intra-file collision: two or more rows in the same file claim the same
+  // login email. Caught here rather than in the DB pass because both rows
+  // would be "new" or not-yet-bound and the cross-tenant check can't see
+  // them. Emit an error keyed to each offending row so the user can fix all
+  // collisions in one pass.
+  const rowsByEmail = new Map();
+  for (const lr of loginEmailRows) {
+    if (!rowsByEmail.has(lr.email)) rowsByEmail.set(lr.email, []);
+    rowsByEmail.get(lr.email).push(lr);
+  }
+  for (const [email, dupes] of rowsByEmail) {
+    if (dupes.length < 2) continue;
+    for (const lr of dupes) {
+      errors.push({
+        sheet: sheetName,
+        row: lr.row,
+        column: 'email',
+        value: email,
+        message: `Login email ${email} appears on multiple rows in this file. Each app-user employee must have a unique login email.`,
+      });
+    }
+  }
+
   const uniqueEmails = [...new Set(loginEmailRows.map((r) => r.email))];
   const existingPortalUsers = await db.manyOrNone(
     `SELECT id, LOWER(email) AS email FROM admin.portal_users
      WHERE LOWER(email) = ANY($1::text[]) AND deactivated_at IS NULL`,
     [uniqueEmails],
   );
-  if (!existingPortalUsers?.length) return [];
+  if (!existingPortalUsers?.length) return errors;
 
   // Build a map of email → portal_user_ids that hold it.
   const holdersByEmail = new Map();
@@ -530,7 +555,6 @@ export async function checkPortalUserEmailCollisions(groups, opts) {
     holdersByEmail.get(r.email).add(r.id);
   }
 
-  const errors = [];
   for (const { email, row, ownEntityId } of loginEmailRows) {
     const holders = holdersByEmail.get(email);
     if (!holders || !holders.size) continue;
@@ -1811,6 +1835,70 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
     }
   }
 
+  // Provisioning a new portal_user requires a password. Without one the writer
+  // would generate a random hash nobody can sign in with (silent footgun). Block
+  // when:
+  //   - INSERT + is_app_user=true + password blank, OR
+  //   - UPDATE toggling is_app_user false→true with no archived prior binding
+  //     to restore, + password blank.
+  if (config.appUserProvisioning) {
+    const entityType = config.appUserProvisioning.entityType;
+    // Build the set of entity_ids whose prior binding exists (archived OR
+    // active) — those entities can restore without a password.
+    const toggleOnIds = [];
+    for (const group of groups) {
+      if (!group._ownEntity) continue;
+      const incoming = group._transformedParent || {};
+      const willBeAppUser = 'is_app_user' in incoming ? !!incoming.is_app_user : !!group._ownEntity.is_app_user;
+      if (willBeAppUser && !group._ownEntity.is_app_user) toggleOnIds.push(group._ownEntity.id);
+    }
+    let restorableSet = new Set();
+    if (toggleOnIds.length && tenantId) {
+      const rows = await db.manyOrNone(
+        `SELECT entity_id FROM admin.portal_user_tenants
+         WHERE entity_type = $1 AND tenant_id = $2 AND entity_id IN ($3:csv)`,
+        [entityType, tenantId, toggleOnIds],
+      );
+      restorableSet = new Set((rows || []).map((r) => r.entity_id));
+    }
+
+    for (const group of groups) {
+      const incoming = group._transformedParent || {};
+      const existing = group._ownEntity || null;
+      const willBeAppUser = 'is_app_user' in incoming ? !!incoming.is_app_user : !!existing?.is_app_user;
+      if (!willBeAppUser) continue;
+
+      const passwordSupplied = !!(group.parent.password && String(group.parent.password).trim());
+      if (passwordSupplied) continue;
+
+      // INSERT path → always require a password.
+      if (!existing) {
+        pushIssue(errors, {
+          sheet: sheetName,
+          row: group.parent._rowNum || null,
+          column: 'password',
+          value: '',
+          message: 'A password is required to provision a new app user.',
+        });
+        continue;
+      }
+
+      // UPDATE path: only require a password when toggling on with no prior
+      // binding (no portal_user to restore). Already-active app users and
+      // archived-binding restores are both fine with a blank cell.
+      const wasAppUser = !!existing.is_app_user;
+      if (!wasAppUser && !restorableSet.has(existing.id)) {
+        pushIssue(errors, {
+          sheet: sheetName,
+          row: group.parent._rowNum || null,
+          column: 'password',
+          value: '',
+          message: 'A password is required to enable app user access.',
+        });
+      }
+    }
+  }
+
   // Cross-tenant portal_user collision check (insert + update cases). Runs
   // after _resolveOwnEntities so it can exclude the entity's own portal_user.
   const provisionEntityType = config.appUserProvisioning?.entityType;
@@ -1893,7 +1981,13 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
         // so the count + audit-field stamping fires even when no other column
         // changed (e.g. a re-import that only flips status active→archived).
         const archiveChanged = isArchived !== wasArchived;
-        if (Object.keys(changes).length > 0 || archiveChanged) {
+        // Password rotation on an active app user has the same shape — the
+        // password column is stripped from `changes` but the writer rotates
+        // the portal_user's hash below. Count it as an update.
+        const passwordSupplied =
+          !!(group.parent.password && String(group.parent.password).trim());
+        const passwordRotation = passwordSupplied && !isArchived && wasAppUser && willBeAppUser;
+        if (Object.keys(changes).length > 0 || archiveChanged || passwordRotation) {
           // Stamp audit fields on every real write. We add them after the diff
           // so they don't themselves trigger NO-OP-failing updates. pg-schemata's
           // `updateWhere` does not auto-bump updated_at (unlike its singular
@@ -2173,7 +2267,17 @@ async function _classifyForPreview(db, s, pgp, schema, groups, config, ownEntiti
     const willBeArchived = String(group.parent.status || '').toLowerCase() === 'archived';
     const wasArchived = !!existing.deactivated_at;
     const archiveChanged = willBeArchived !== wasArchived;
-    if (Object.keys(changes).length > 0 || archiveChanged) updates += 1;
+    // Password rotation: `password` is stripped from _transformedParent. The
+    // writer rotates the portal_user's password_hash for an active app user
+    // when this cell is non-blank — count that as an update too.
+    const passwordSupplied =
+      !!(group.parent.password && String(group.parent.password).trim());
+    const willBeAppUser =
+      'is_app_user' in (group._transformedParent || {})
+        ? !!group._transformedParent.is_app_user
+        : !!existing.is_app_user;
+    const passwordRotation = passwordSupplied && !willBeArchived && existing.is_app_user && willBeAppUser;
+    if (Object.keys(changes).length > 0 || archiveChanged || passwordRotation) updates += 1;
     else noops += 1;
   }
 
