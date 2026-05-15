@@ -68,7 +68,7 @@ export async function syncLoginEmail(tOrDb, schema, sourceId, email, opts) {
   // case-sensitive unique index on admin.portal_users.email.
   const normEmail = email == null ? null : String(email).trim().toLowerCase();
   await tOrDb.none(
-    `UPDATE admin.portal_users SET email = $1, updated_by = $2
+    `UPDATE admin.portal_users SET email = $1, updated_by = $2, updated_at = NOW()
      WHERE id = $3 AND deactivated_at IS NULL`,
     [normEmail, userId, binding.portal_user_id],
   );

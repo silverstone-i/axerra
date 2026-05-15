@@ -51,15 +51,15 @@ export async function provisionAppUser(t, entityType, entityId, email, password,
   }
 
   const inserted = await t.one(
-    `INSERT INTO admin.portal_users (email, password_hash, status, created_by)
-     VALUES ($1, $2, 'invited', $3)
+    `INSERT INTO admin.portal_users (email, password_hash, status, created_by, updated_by)
+     VALUES ($1, $2, 'invited', $3, $3)
      RETURNING id`,
     [normEmail, passwordHash, userId],
   );
   await t.none(
     `INSERT INTO admin.portal_user_tenants
-       (portal_user_id, tenant_id, entity_type, entity_id, status, created_by)
-     VALUES ($1, $2, $3, $4, 'active', $5)`,
+       (portal_user_id, tenant_id, entity_type, entity_id, status, created_by, updated_by)
+     VALUES ($1, $2, $3, $4, 'active', $5, $5)`,
     [inserted.id, tenantId, entityType, entityId, userId],
   );
   return true;
@@ -93,28 +93,31 @@ export async function restoreAppUserBinding(t, entityType, entityId, tenantId, u
   if (normEmail && preHash) {
     await t.none(
       `UPDATE admin.portal_users
-       SET deactivated_at = NULL, status = 'invited', password_hash = $1, email = $2, updated_by = $3
+       SET deactivated_at = NULL, status = 'invited', password_hash = $1, email = $2,
+           updated_by = $3, updated_at = NOW()
        WHERE id = $4`,
       [preHash, normEmail, userId, binding.portal_user_id],
     );
   } else if (normEmail) {
     await t.none(
       `UPDATE admin.portal_users
-       SET deactivated_at = NULL, status = 'active', email = $1, updated_by = $2
+       SET deactivated_at = NULL, status = 'active', email = $1,
+           updated_by = $2, updated_at = NOW()
        WHERE id = $3`,
       [normEmail, userId, binding.portal_user_id],
     );
   } else {
     await t.none(
       `UPDATE admin.portal_users
-       SET deactivated_at = NULL, status = 'active', updated_by = $1
+       SET deactivated_at = NULL, status = 'active',
+           updated_by = $1, updated_at = NOW()
        WHERE id = $2`,
       [userId, binding.portal_user_id],
     );
   }
   await t.none(
     `UPDATE admin.portal_user_tenants
-     SET deactivated_at = NULL, status = 'active', updated_by = $1
+     SET deactivated_at = NULL, status = 'active', updated_by = $1, updated_at = NOW()
      WHERE id = $2`,
     [userId, binding.id],
   );
@@ -189,13 +192,13 @@ export async function archiveAppUser(t, entityType, entityId, tenantId, userId) 
 
   await t.none(
     `UPDATE admin.portal_user_tenants
-     SET deactivated_at = NOW(), status = 'locked', updated_by = $1
+     SET deactivated_at = NOW(), status = 'locked', updated_by = $1, updated_at = NOW()
      WHERE id = $2`,
     [userId, binding.id],
   );
   await t.none(
     `UPDATE admin.portal_users
-     SET deactivated_at = NOW(), status = 'locked', updated_by = $1
+     SET deactivated_at = NOW(), status = 'locked', updated_by = $1, updated_at = NOW()
      WHERE id = $2`,
     [userId, binding.portal_user_id],
   );

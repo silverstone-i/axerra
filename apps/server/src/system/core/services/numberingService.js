@@ -234,8 +234,17 @@ async function _findMaxExistingSerial(tx, s, pgp, idType, config, periodKey) {
   const escape = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const sep = escape(config.separator || '');
   const hasDate = config.date_mode !== 'none' && periodKey && periodKey !== 'global';
-  const datePart = hasDate ? `${escape(periodKey)}${sep}` : '';
-  const pattern = `^${escape(config.prefix || '')}${sep}${datePart}(\\d+)${escape(config.suffix || '')}$`;
+  // Mirror buildDisplayId's filter(Boolean).join(sep) so configs with an
+  // empty prefix (or no date part / no suffix) still match. Inserting `sep`
+  // unconditionally between parts produced a regex that couldn't match
+  // codes lacking a leading prefix.
+  const parts = [
+    config.prefix ? escape(config.prefix) : '',
+    hasDate ? escape(periodKey) : '',
+    '(\\d+)',
+    config.suffix ? escape(config.suffix) : '',
+  ].filter(Boolean);
+  const pattern = `^${parts.join(sep)}$`;
   const rows = await tx.manyOrNone(
     `SELECT code FROM ${s}.${pgp.as.name(baseTable)} WHERE code ~ $1`,
     [pattern],
