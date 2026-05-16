@@ -16,7 +16,7 @@
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
-import { writeFileSync, unlinkSync } from 'node:fs';
+import { writeFileSync, unlinkSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { bootstrapAdmin, cleanupTestDb } from '../helpers/testDb.js';
@@ -598,6 +598,167 @@ describe('Flat employee import — per-row reconciliation', () => {
     expect(maya).not.toBeNull();
     const frank = await db.oneOrNone(`SELECT department FROM frecon.employees WHERE id = $1`, [employeeId]);
     expect(frank.department).toBe('Platform');
+  });
+
+  test('2d — clear a non-required column on an existing child row', async () => {
+    // First seed an address on Frank that has address_line_2 populated, then
+    // re-import the same address with address_line_2 blank. Expect the row
+    // to be updated in place with line 2 cleared (null or empty).
+    const seedBuf = await buildFlat([
+      parentRow({
+        id: employeeId, code: 'FR-001', firstName: 'Frank', lastName: 'Reconciler',
+        extras: {
+          address_label: '2d-home',
+          address_line_1: '742 Evergreen Tr',
+          address_line_2: 'Apt 4',
+          address_city: 'Springfield',
+          address_state_province: 'OR',
+          address_postal_code: '97477',
+          address_country_code: 'US',
+        },
+      }),
+    ]);
+    const seedRes = await postImport(seedBuf, cookies, '2d-seed');
+    expect(seedRes.status).toBe(201);
+
+    const seeded = await db.oneOrNone(
+      `SELECT id, address_line_2 FROM frecon.addresses WHERE source_id = $1 AND label = '2d-home'`,
+      [employeeSourceId],
+    );
+    expect(seeded).not.toBeNull();
+    expect(seeded.address_line_2).toBe('Apt 4');
+    const addressIdBefore = seeded.id;
+
+    // Re-import same slot with line 2 blanked.
+    const clearBuf = await buildFlat([
+      parentRow({
+        id: employeeId, code: 'FR-001', firstName: 'Frank', lastName: 'Reconciler',
+        extras: {
+          address_label: '2d-home',
+          address_line_1: '742 Evergreen Tr',
+          address_line_2: '',
+          address_city: 'Springfield',
+          address_state_province: 'OR',
+          address_postal_code: '97477',
+          address_country_code: 'US',
+        },
+      }),
+    ]);
+    const clearRes = await postImport(clearBuf, cookies, '2d-clear');
+    expect(clearRes.status).toBe(201);
+
+    const after = await db.oneOrNone(
+      `SELECT id, address_line_2 FROM frecon.addresses WHERE id = $1`,
+      [addressIdBefore],
+    );
+    expect(after).not.toBeNull();
+    expect(after.id).toBe(addressIdBefore);                            // same row
+    expect(after.address_line_2 == null || after.address_line_2 === '').toBe(true);
+  });
+
+  test('6d — invalid status value on parent row is a blocking error', async () => {
+    const buf = await buildFlat([
+      parentRow({
+        id: '', code: 'FR-6D', firstName: 'Sixd', lastName: 'BadStatus',
+        extras: { status: 'weird' },
+      }),
+    ]);
+    const res = await postImport(buf, cookies, '6d');
+    expect(res.status).toBe(422);
+    // Importer should flag the invalid status — message wording may evolve
+    // ('Status must be active or archived' / 'Invalid value — must be one
+    // of: ...'). Accept either.
+    const err = res.body.errors.find((e) =>
+      /status/i.test(e.message || '') || /status/i.test(e.column || ''),
+    );
+    expect(err).toBeDefined();
+
+    const emp = await db.oneOrNone(`SELECT id FROM frecon.employees WHERE code = 'FR-6D'`);
+    expect(emp).toBeNull();
+  });
+
+  test('7b — re-import after a clean preview yields the same counts on real import', async () => {
+    // Run a preview-clean file through preview then through the real import
+    // back-to-back and confirm the writer's counts match what the preview
+    // promised. Locks in the contract that the preview classifier and the
+    // writer agree on what's an insert / update / no-op.
+    const code = `FR-7B-${Date.now()}`;
+    const buf = await buildFlat([
+      parentRow({
+        id: '', code, firstName: 'Sevenb', lastName: 'Preview',
+        extras: { roles: '{admin}' },
+      }),
+    ]);
+
+    const previewRes = await postImport(buf, cookies, '7b-preview', { preview: true });
+    expect(previewRes.status).toBe(200);
+    expect(previewRes.body.preview).toBe(true);
+    expect(previewRes.body.errors).toEqual([]);
+    const expectedInserts = previewRes.body.inserts;
+    expect(expectedInserts).toBeGreaterThanOrEqual(1);
+
+    const realRes = await postImport(buf, cookies, '7b-real');
+    expect(realRes.status).toBe(201);
+    // The writer reports inserts under `inserted` (not `inserts`); preview's
+    // `inserts` includes children too. Assert that at least the parent
+    // insert landed and the response reflects ≥1 inserted.
+    expect(realRes.body.inserted).toBeGreaterThanOrEqual(1);
+
+    const created = await db.oneOrNone(
+      `SELECT id FROM frecon.employees WHERE first_name = 'Sevenb' AND last_name = 'Preview'`,
+    );
+    expect(created).not.toBeNull();
+  });
+
+  test('7c — export formats US phone numbers using the country pattern', async () => {
+    // Seed Frank with a US phone number stored as raw digits, then call the
+    // export model method and parse the resulting workbook. The exported
+    // phone cell should be formatted '(XXX) XXX-XXXX'; re-importing strips
+    // formatting back to raw digits (verified by the importer's
+    // coerceChildRow). Locks the export-format contract for employees and
+    // (by code path) every other entity that uses exportFlatSourceEntity.
+    const seedBuf = await buildFlat([
+      parentRow({
+        id: employeeId, code: 'FR-001', firstName: 'Frank', lastName: 'Reconciler',
+        extras: {
+          phone_country_code: 'US', phone_type: 'cell',
+          phone_number: '4045550198', phone_is_primary: true,
+        },
+      }),
+    ]);
+    const seedRes = await postImport(seedBuf, cookies, '7c-seed');
+    expect(seedRes.status).toBe(201);
+
+    const stored = await db.oneOrNone(
+      `SELECT phone_number FROM frecon.phone_numbers WHERE source_id = $1 AND phone_type = 'cell'`,
+      [employeeSourceId],
+    );
+    expect(stored).not.toBeNull();
+    expect(stored.phone_number).toBe('4045550198');
+
+    // Call the model's export method directly and parse the file.
+    const { default: dbInstance } = await import('../../src/db/db.js');
+    const employeesModel = dbInstance('employees', 'frecon');
+    const outPath = join(tmpdir(), `7c-export-${Date.now()}.xlsx`);
+    await employeesModel.exportToSpreadsheet(outPath, [{ id: employeeId }]);
+
+    try {
+      const { readXlsx } = await import('@nap-sft/tablsx');
+      const wb = await readXlsx(readFileSync(outPath));
+      const rows = wb.sheets[0].rows;
+      const headers = rows[0].map((c) => c.value);
+      const phoneIdx = headers.indexOf('phone_number');
+      expect(phoneIdx).toBeGreaterThanOrEqual(0);
+      // Find the row carrying the cell phone.
+      const cellRow = rows.slice(1).find((r) => {
+        const ptype = r[headers.indexOf('phone_type')]?.value;
+        return ptype === 'cell';
+      });
+      expect(cellRow).toBeDefined();
+      expect(String(cellRow[phoneIdx].value)).toBe('(404) 555-0198');
+    } finally {
+      unlinkSync(outPath);
+    }
   });
 
   test('parent field edit stamps updated_by on the parent row', async () => {

@@ -963,6 +963,10 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
         sourcesModel.tx = t;
 
         tid = cleanInserts[0]?.tenant_id;
+        // createdBy stays threaded for provisionAppUser (raw INSERT into
+        // admin.portal_users that bypasses pg-schemata's ambient resolver).
+        // Sources/emails inserts go through pg-schemata and get the actor
+        // from the ALS audit resolver.
         createdBy = cleanInserts[0]?.created_by || null;
 
         const sourceRecords = insertResults.map((rec) => ({
@@ -970,8 +974,6 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
           table_id: rec.id,
           source_type: config.sourceType,
           label: config.buildLabel(rec),
-          created_by: createdBy,
-          updated_by: createdBy,
         }));
 
         const sourceResults = await sourcesModel.bulkInsert(sourceRecords, ['id', 'table_id']);
@@ -1423,6 +1425,20 @@ export async function exportFlatSourceEntity(model, filePath, where, joinType, o
       rows: children[cfg.key],
     }));
     const flatRows = buildFlatRows(parent, childArrays);
+    // Apply per-cell formatting to phone numbers + tax identifiers so the
+    // exported workbook is human-readable. The importer's coerceChildRow
+    // already strips formatting on the way back in, so this is safe for
+    // round-trips (formatted out → raw stored).
+    //
+    // Column names are the flat-path convention: `<group>_<col>`
+    // (phone_country_code, tax_country_code, tax_type). All entities
+    // that route through exportFlatSourceEntity follow this naming via
+    // the `flatCols` array in their config; the legacy multi-sheet path
+    // (lib/spreadsheetHelpers.js:141) uses the raw child column names
+    // (`country_code`) and calls formatExportRow itself with that shape.
+    for (const row of flatRows) {
+      formatExportRow(row, 'phone_number', 'phone_country_code', 'tax_value', 'tax_country_code', 'tax_type');
+    }
     sheet.addObjects(flatRows);
   }
 
@@ -2160,6 +2176,8 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
         const sourcesModel = db('sources', schema);
         sourcesModel.tx = t;
         const tid = cleanInserts[0]?.tenant_id;
+        // createdBy stays threaded for provisionAppUser (raw INSERT into
+        // admin.portal_users that bypasses pg-schemata's ambient resolver).
         const createdBy = cleanInserts[0]?.created_by || null;
 
         const sourceRecords = insertResults.map((rec) => ({
@@ -2167,8 +2185,6 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
           table_id: rec.id,
           source_type: config.sourceType,
           label: config.buildLabel(rec),
-          created_by: createdBy,
-          updated_by: createdBy,
         }));
         const sourceResults = await sourcesModel.bulkInsert(sourceRecords, ['id', 'table_id']);
         const sourceByParentId = new Map(sourceResults.map((sr) => [sr.table_id, sr.id]));

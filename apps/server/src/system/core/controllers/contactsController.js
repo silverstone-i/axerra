@@ -41,13 +41,11 @@ class ContactsController extends BaseController {
           table_id: contact.id,
           source_type: 'contact',
           label: contact.name,
-          created_by: req.body.created_by || null,
-          updated_by: req.body.created_by || null,
         });
 
         await t.none(
           `UPDATE ${s}.contacts SET source_id = $1, updated_by = $2 WHERE id = $3`,
-          [source.id, req.body.created_by || null, contact.id],
+          [source.id, req.user?.id ?? null, contact.id],
         );
         contact.source_id = source.id;
 

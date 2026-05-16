@@ -25,9 +25,19 @@ console.log(`  Test mode: ${testFlag}`);
 console.log(`  Dry run: ${dryRun}`);
 console.log(`  Schemas: ${schemaList.length > 0 ? schemaList.join(', ') : 'none (supply schema names to migrate)'}`);
 
+// Wrap migration work in the request-context ALS so any pg-schemata write
+// resolves to a null actor (no logged-in user during a migration). Without
+// this the resolver still returns null, so the wrapper is purely defensive
+// — it lets nested code re-enter the context with a known actor if needed.
 (async () => {
   try {
-    await migrateTenants({ schemaList, testFlag, dryRun });
+    const { registerAuditResolver } = await import('../src/lib/registerAuditResolver.js');
+    const { runWithContext } = await import('../src/lib/requestContext.js');
+    registerAuditResolver();
+    await runWithContext(
+      { userId: null, schema: null, tenantId: null, tenantCode: null },
+      () => migrateTenants({ schemaList, testFlag, dryRun }),
+    );
   } catch (err) {
     console.error(err);
     process.exit(1);
