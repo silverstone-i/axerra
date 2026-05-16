@@ -891,4 +891,52 @@ describe('Flat employee import — login + app-user cascade fixes', () => {
     const pu = await db.oneOrNone(`SELECT id FROM admin.portal_users WHERE email = 'dupe.8f@fcas.com'`);
     expect(pu).toBeNull();
   });
+
+  test('8g — new app-user row with login email already on a portal_user in another tenant returns 422', async () => {
+    // Provision a second tenant with its own admin. Then attempt to import
+    // an app-user employee into the FCAS tenant whose login email matches
+    // the OTHER tenant's admin email. The cross-tenant collision check
+    // (checkPortalUserEmailCollisions) must fire on the INSERT path and
+    // reject before writing.
+    const rootCookies = await request(app)
+      .post('/api/auth/login')
+      .send({ email: ROOT_EMAIL, password: ROOT_PASSWORD })
+      .then((r) => r.headers['set-cookie']);
+    await provisionTenant(rootCookies, 'F8G', 'crosstenant.8g@example.com');
+
+    // Confirm the colliding portal_user exists in the OTHER tenant.
+    const otherTenantAdmin = await db.oneOrNone(
+      `SELECT id FROM admin.portal_users WHERE LOWER(email) = $1`,
+      ['crosstenant.8g@example.com'],
+    );
+    expect(otherTenantAdmin).not.toBeNull();
+
+    // Now try to import a new app-user into FCAS using that email.
+    const buf = await buildFlat([
+      row({
+        code: 'P8G', firstName: 'CrossTenant', lastName: 'Eight8G',
+        extras: {
+          is_app_user: true, roles: '{admin}', password: 'CrossTenant8G1!',
+          email: 'crosstenant.8g@example.com',
+          email_label: 'work', email_is_primary: true, email_is_login: true,
+        },
+      }),
+    ]);
+    const res = await postImport(buf, cookies, '8g');
+    expect(res.status).toBe(422);
+    const collision = res.body.errors.find((e) =>
+      /already in use by another portal user/i.test(e.message || ''),
+    );
+    expect(collision).toBeDefined();
+
+    // Nothing written to FCAS.
+    const emp = await db.oneOrNone(`SELECT id FROM fcas.employees WHERE code = 'P8G'`);
+    expect(emp).toBeNull();
+    // The original portal_user in the other tenant is untouched.
+    const stillThere = await db.oneOrNone(
+      `SELECT id FROM admin.portal_users WHERE id = $1 AND deactivated_at IS NULL`,
+      [otherTenantAdmin.id],
+    );
+    expect(stillThere).not.toBeNull();
+  });
 });
