@@ -963,6 +963,10 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
         sourcesModel.tx = t;
 
         tid = cleanInserts[0]?.tenant_id;
+        // createdBy stays threaded for provisionAppUser (raw INSERT into
+        // admin.portal_users that bypasses pg-schemata's ambient resolver).
+        // Sources/emails inserts go through pg-schemata and get the actor
+        // from the ALS audit resolver.
         createdBy = cleanInserts[0]?.created_by || null;
 
         const sourceRecords = insertResults.map((rec) => ({
@@ -970,8 +974,6 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
           table_id: rec.id,
           source_type: config.sourceType,
           label: config.buildLabel(rec),
-          created_by: createdBy,
-          updated_by: createdBy,
         }));
 
         const sourceResults = await sourcesModel.bulkInsert(sourceRecords, ['id', 'table_id']);
@@ -2160,6 +2162,8 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
         const sourcesModel = db('sources', schema);
         sourcesModel.tx = t;
         const tid = cleanInserts[0]?.tenant_id;
+        // createdBy stays threaded for provisionAppUser (raw INSERT into
+        // admin.portal_users that bypasses pg-schemata's ambient resolver).
         const createdBy = cleanInserts[0]?.created_by || null;
 
         const sourceRecords = insertResults.map((rec) => ({
@@ -2167,8 +2171,6 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
           table_id: rec.id,
           source_type: config.sourceType,
           label: config.buildLabel(rec),
-          created_by: createdBy,
-          updated_by: createdBy,
         }));
         const sourceResults = await sourcesModel.bulkInsert(sourceRecords, ['id', 'table_id']);
         const sourceByParentId = new Map(sourceResults.map((sr) => [sr.table_id, sr.id]));

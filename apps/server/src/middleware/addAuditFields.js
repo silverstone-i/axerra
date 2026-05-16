@@ -1,12 +1,13 @@
 /**
- * @file Audit field middleware — injects created_by/updated_by from req.user
+ * @file Tenant context middleware — injects tenant_code / tenant_id from req.user
  * @module server/middleware/addAuditFields
  *
- * POST: injects created_by, tenant_code from req.user
- * PUT/PATCH/DELETE: injects updated_by (updated_at is managed by pg-schemata)
+ * POST only: injects tenant_code and tenant_id from the authenticated user.
+ * Audit columns (created_by / updated_by) are now filled by pg-schemata's
+ * ambient resolver (see lib/registerAuditResolver.js + middleware/auditContext.js),
+ * so they are no longer threaded through req.body.
  *
- * Note: created_by/updated_by are uuid values (req.user.id) per pg-schemata
- * audit field config with userFields.type: 'uuid'.
+ * Still acts as the guard that rejects mutation routes with no user context.
  *
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
@@ -16,11 +17,10 @@ export function addAuditFields(req, res, next) {
   if (!userId) return res.status(400).json({ message: 'Missing user context for audit fields.' });
 
   const path = req.originalUrl || '';
-  let tenantCode = req.user?.tenant_code;
+  const tenantCode = req.user?.tenant_code;
 
   // For tenant creation and user registration, do NOT inject tenant_code —
-  // these controllers explicitly handle tenant_code from req.body. Only audit
-  // fields (created_by) should be injected.
+  // these controllers explicitly handle tenant_code from req.body.
   const isTenantCreate = /\/tenants\/?$/.test(path) && req.method === 'POST';
   const isUserRegister = path.includes('portal-users/register');
   const skipTenantCode = isTenantCreate || isUserRegister;
@@ -33,10 +33,6 @@ export function addAuditFields(req, res, next) {
     if (req.method === 'POST') {
       if (tenantCode && !skipTenantCode) record.tenant_code = tenantCode;
       if (tenantId && !skipTenantCode && !record.tenant_id) record.tenant_id = tenantId;
-      record.created_by = userId;
-    }
-    if (req.method === 'PUT' || req.method === 'PATCH' || req.method === 'DELETE') {
-      record.updated_by = userId;
     }
   };
 

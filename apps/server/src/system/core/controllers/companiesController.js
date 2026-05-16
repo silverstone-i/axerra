@@ -39,13 +39,11 @@ class CompaniesController extends BaseController {
           table_id: company.id,
           source_type: 'company',
           label: company.name,
-          created_by: req.body.created_by || null,
-          updated_by: req.body.created_by || null,
         });
 
         await t.none(
           `UPDATE ${s}.companies SET source_id = $1, updated_by = $2 WHERE id = $3`,
-          [source.id, req.body.created_by || null, company.id],
+          [source.id, req.user?.id ?? null, company.id],
         );
 
         return { ...company, source_id: source.id };

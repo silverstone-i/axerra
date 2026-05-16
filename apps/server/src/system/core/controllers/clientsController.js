@@ -75,14 +75,12 @@ class ClientsController extends BaseController {
           table_id: client.id,
           source_type: 'client',
           label: client.name,
-          created_by: req.body.created_by || null,
-          updated_by: req.body.created_by || null,
         });
 
         // 3. Link the source back to the client
         await t.none(`UPDATE ${s}.clients SET source_id = $1, updated_by = $2 WHERE id = $3`, [
           source.id,
-          req.body.created_by || null,
+          req.user?.id ?? null,
           client.id,
         ]);
 
@@ -106,7 +104,6 @@ class ClientsController extends BaseController {
             label: 'work',
             is_primary: true,
             is_login: !!req.body.is_app_user,
-            created_by: req.body.created_by || null,
           });
         }
 

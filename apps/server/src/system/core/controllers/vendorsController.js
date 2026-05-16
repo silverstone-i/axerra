@@ -46,14 +46,12 @@ class VendorsController extends BaseController {
           table_id: vendor.id,
           source_type: 'vendor',
           label: vendor.name,
-          created_by: req.body.created_by || null,
-          updated_by: req.body.created_by || null,
         });
 
         // 3. Link the source back to the vendor
         await t.none(
           `UPDATE ${s}.vendors SET source_id = $1, updated_by = $2 WHERE id = $3`,
-          [source.id, req.body.created_by || null, vendor.id],
+          [source.id, req.user?.id ?? null, vendor.id],
         );
 
         // 4. Auto-assign code via numbering service (if enabled and code not provided)

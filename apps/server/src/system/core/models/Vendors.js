@@ -552,15 +552,12 @@ export default class Vendors extends TableModel {
         const sourcesModel = db('sources', schema);
         sourcesModel.tx = t;
         const tid = cleanInserts[0]?.tenant_id;
-        const createdBy = cleanInserts[0]?.created_by || null;
 
         const sourceRecords = insertResults.map((rec) => ({
           tenant_id: tid,
           table_id: rec.id,
           source_type: CONFIG.sourceType,
           label: CONFIG.buildLabel(rec),
-          created_by: createdBy,
-          updated_by: createdBy,
         }));
         const sourceResults = await sourcesModel.bulkInsert(sourceRecords, ['id', 'table_id']);
         const sourceByParentId = new Map(sourceResults.map((sr) => [sr.table_id, sr.id]));
@@ -689,6 +686,8 @@ export default class Vendors extends TableModel {
         const sourcesModel = db('sources', schema);
         sourcesModel.tx = t;
         const tid = cleanInserts[0]?.tenant_id;
+        // createdBy stays for provisionAppUser below — raw INSERT into
+        // admin.portal_users bypasses pg-schemata's audit resolver.
         const createdBy = cleanInserts[0]?.created_by || null;
 
         const sourceRecords = insertResults.map((rec) => ({
@@ -696,8 +695,6 @@ export default class Vendors extends TableModel {
           table_id: rec.id,
           source_type: CONTACT_CONFIG.sourceType,
           label: CONTACT_CONFIG.buildLabel(rec),
-          created_by: createdBy,
-          updated_by: createdBy,
         }));
         const sourceResults = await sourcesModel.bulkInsert(sourceRecords, ['id', 'table_id']);
         const sourceByParentId = new Map(sourceResults.map((sr) => [sr.table_id, sr.id]));
@@ -1025,6 +1022,8 @@ export default class Vendors extends TableModel {
         sourcesModel.tx = t;
 
         tid = cleanInserts[0]?.tenant_id;
+        // createdBy stays for provisionAppUser below — raw INSERT into
+        // admin.portal_users bypasses pg-schemata's audit resolver.
         createdBy = cleanInserts[0]?.created_by || null;
 
         const sourceRecords = insertResults.map((rec) => ({
@@ -1032,8 +1031,6 @@ export default class Vendors extends TableModel {
           table_id: rec.id,
           source_type: CONTACT_CONFIG.sourceType,
           label: CONTACT_CONFIG.buildLabel(rec),
-          created_by: createdBy,
-          updated_by: createdBy,
         }));
 
         const sourceResults = await sourcesModel.bulkInsert(sourceRecords, ['id', 'table_id']);

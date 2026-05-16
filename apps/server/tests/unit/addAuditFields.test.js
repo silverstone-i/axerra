@@ -2,6 +2,10 @@
  * @file Unit tests for addAuditFields middleware
  * @module tests/unit/addAuditFields
  *
+ * Post-ALS, the middleware only injects tenant_code / tenant_id from req.user
+ * and guards against missing user context. created_by / updated_by are filled
+ * by pg-schemata's ambient audit resolver (see lib/registerAuditResolver.js).
+ *
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
@@ -25,7 +29,7 @@ describe('addAuditFields', () => {
     return res;
   }
 
-  it('injects created_by on POST', () => {
+  it('injects tenant_code on POST and does not set created_by', () => {
     const req = {
       method: 'POST',
       user: { id: 'uuid-123', tenant_code: 'axerra' },
@@ -37,12 +41,27 @@ describe('addAuditFields', () => {
 
     addAuditFields(req, res, next);
 
-    expect(req.body.created_by).toBe('uuid-123');
     expect(req.body.tenant_code).toBe('axerra');
+    expect(req.body.created_by).toBeUndefined();
     expect(next).toHaveBeenCalledOnce();
   });
 
-  it('injects updated_by on PUT', () => {
+  it('injects tenant_id on POST when present on req.user', () => {
+    const req = {
+      method: 'POST',
+      user: { id: 'uuid-123', tenant_code: 'axerra', tenant_id: 'tid-1' },
+      body: { name: 'test' },
+      originalUrl: '/api/core/v1/roles',
+    };
+    const res = makeRes();
+    const next = vi.fn();
+
+    addAuditFields(req, res, next);
+
+    expect(req.body.tenant_id).toBe('tid-1');
+  });
+
+  it('does not touch req.body on PUT (audit fields handled by resolver)', () => {
     const req = {
       method: 'PUT',
       user: { id: 'uuid-456', tenant_code: 'axerra' },
@@ -54,12 +73,12 @@ describe('addAuditFields', () => {
 
     addAuditFields(req, res, next);
 
-    expect(req.body.updated_by).toBe('uuid-456');
+    expect(req.body.updated_by).toBeUndefined();
     expect(req.body.created_by).toBeUndefined();
     expect(next).toHaveBeenCalledOnce();
   });
 
-  it('injects updated_by on DELETE', () => {
+  it('does not touch req.body on DELETE', () => {
     const req = {
       method: 'DELETE',
       user: { id: 'uuid-789', tenant_code: 'axerra' },
@@ -71,11 +90,11 @@ describe('addAuditFields', () => {
 
     addAuditFields(req, res, next);
 
-    expect(req.body.updated_by).toBe('uuid-789');
+    expect(req.body.updated_by).toBeUndefined();
     expect(next).toHaveBeenCalledOnce();
   });
 
-  it('handles array bodies for bulk operations', () => {
+  it('injects tenant_code on each element of array bodies (bulk POST)', () => {
     const req = {
       method: 'POST',
       user: { id: 'uuid-bulk', tenant_code: 'acme' },
@@ -87,9 +106,9 @@ describe('addAuditFields', () => {
 
     addAuditFields(req, res, next);
 
-    expect(req.body[0].created_by).toBe('uuid-bulk');
-    expect(req.body[1].created_by).toBe('uuid-bulk');
     expect(req.body[0].tenant_code).toBe('acme');
+    expect(req.body[1].tenant_code).toBe('acme');
+    expect(req.body[0].created_by).toBeUndefined();
     expect(next).toHaveBeenCalledOnce();
   });
 
@@ -104,7 +123,7 @@ describe('addAuditFields', () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it('uses body tenant_code for tenant creation path', () => {
+  it('preserves caller-supplied tenant_code on tenant creation path', () => {
     const req = {
       method: 'POST',
       user: { id: 'uuid-123', tenant_code: 'axerra' },
@@ -117,6 +136,6 @@ describe('addAuditFields', () => {
     addAuditFields(req, res, next);
 
     expect(req.body.tenant_code).toBe('acme');
-    expect(req.body.created_by).toBe('uuid-123');
+    expect(req.body.created_by).toBeUndefined();
   });
 });
