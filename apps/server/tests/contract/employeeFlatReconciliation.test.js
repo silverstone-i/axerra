@@ -16,7 +16,7 @@
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
-import { writeFileSync, unlinkSync } from 'node:fs';
+import { writeFileSync, unlinkSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { bootstrapAdmin, cleanupTestDb } from '../helpers/testDb.js';
@@ -708,6 +708,57 @@ describe('Flat employee import — per-row reconciliation', () => {
       `SELECT id FROM frecon.employees WHERE first_name = 'Sevenb' AND last_name = 'Preview'`,
     );
     expect(created).not.toBeNull();
+  });
+
+  test('7c — export formats US phone numbers using the country pattern', async () => {
+    // Seed Frank with a US phone number stored as raw digits, then call the
+    // export model method and parse the resulting workbook. The exported
+    // phone cell should be formatted '(XXX) XXX-XXXX'; re-importing strips
+    // formatting back to raw digits (verified by the importer's
+    // coerceChildRow). Locks the export-format contract for employees and
+    // (by code path) every other entity that uses exportFlatSourceEntity.
+    const seedBuf = await buildFlat([
+      parentRow({
+        id: employeeId, code: 'FR-001', firstName: 'Frank', lastName: 'Reconciler',
+        extras: {
+          phone_country_code: 'US', phone_type: 'cell',
+          phone_number: '4045550198', phone_is_primary: true,
+        },
+      }),
+    ]);
+    const seedRes = await postImport(seedBuf, cookies, '7c-seed');
+    expect(seedRes.status).toBe(201);
+
+    const stored = await db.oneOrNone(
+      `SELECT phone_number FROM frecon.phone_numbers WHERE source_id = $1 AND phone_type = 'cell'`,
+      [employeeSourceId],
+    );
+    expect(stored).not.toBeNull();
+    expect(stored.phone_number).toBe('4045550198');
+
+    // Call the model's export method directly and parse the file.
+    const { default: dbInstance } = await import('../../src/db/db.js');
+    const employeesModel = dbInstance('employees', 'frecon');
+    const outPath = join(tmpdir(), `7c-export-${Date.now()}.xlsx`);
+    await employeesModel.exportToSpreadsheet(outPath, [{ id: employeeId }]);
+
+    try {
+      const { readXlsx } = await import('@nap-sft/tablsx');
+      const wb = await readXlsx(readFileSync(outPath));
+      const rows = wb.sheets[0].rows;
+      const headers = rows[0].map((c) => c.value);
+      const phoneIdx = headers.indexOf('phone_number');
+      expect(phoneIdx).toBeGreaterThanOrEqual(0);
+      // Find the row carrying the cell phone.
+      const cellRow = rows.slice(1).find((r) => {
+        const ptype = r[headers.indexOf('phone_type')]?.value;
+        return ptype === 'cell';
+      });
+      expect(cellRow).toBeDefined();
+      expect(String(cellRow[phoneIdx].value)).toBe('(404) 555-0198');
+    } finally {
+      unlinkSync(outPath);
+    }
   });
 
   test('parent field edit stamps updated_by on the parent row', async () => {

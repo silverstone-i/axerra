@@ -1425,6 +1425,13 @@ export async function exportFlatSourceEntity(model, filePath, where, joinType, o
       rows: children[cfg.key],
     }));
     const flatRows = buildFlatRows(parent, childArrays);
+    // Apply per-cell formatting to phone numbers + tax identifiers so the
+    // exported workbook is human-readable. The importer's coerceChildRow
+    // already strips formatting on the way back in, so this is safe for
+    // round-trips (formatted out → raw stored).
+    for (const row of flatRows) {
+      formatExportRow(row, 'phone_number', 'phone_country_code', 'tax_value', 'tax_country_code', 'tax_type');
+    }
     sheet.addObjects(flatRows);
   }
 
