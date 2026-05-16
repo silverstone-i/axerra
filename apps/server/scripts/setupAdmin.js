@@ -171,9 +171,19 @@ const { registerAuditResolver } = await import('../src/lib/registerAuditResolver
 const { runWithContext } = await import('../src/lib/requestContext.js');
 registerAuditResolver();
 
-runWithContext({ userId: null, schema: 'admin', tenantId: null, tenantCode: 'AXERRA' }, () =>
-  main().catch((err) => {
-    console.error('Admin setup failed:', err);
-    process.exit(1);
+runWithContext(
+  {
+    userId: null,
+    schema: 'admin',
+    tenantId: null,
+    // Read from env so this stays aligned with whatever the rest of the
+    // codebase resolves as the root tenant code (authRedis uses the same
+    // env). Falls back to null when unset rather than guessing a literal.
+    tenantCode: process.env.ROOT_TENANT_CODE || null,
+  },
+  () =>
+    main().catch((err) => {
+      console.error('Admin setup failed:', err);
+      process.exit(1);
   }),
 );

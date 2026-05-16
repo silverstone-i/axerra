@@ -18,11 +18,13 @@
 import { requestContext } from '../lib/requestContext.js';
 
 export function auditContext(req, _res, next) {
+  // schema_name is already lowercased at the tenant-provisioning layer
+  // (tenantSetup.js), so use it as-is. tenant_code preserves its original
+  // (often upper) casing and needs the lower-case normalization.
   const store = {
     userId: req.user?.id ?? null,
     tenantId: req.user?.tenant_id ?? null,
-    schema:
-      req.user?.schema_name?.toLowerCase?.() ?? req.user?.tenant_code?.toLowerCase?.() ?? null,
+    schema: req.user?.schema_name ?? req.user?.tenant_code?.toLowerCase?.() ?? null,
     tenantCode: req.user?.tenant_code ?? null,
   };
   requestContext.run(store, () => next());

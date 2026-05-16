@@ -1429,6 +1429,13 @@ export async function exportFlatSourceEntity(model, filePath, where, joinType, o
     // exported workbook is human-readable. The importer's coerceChildRow
     // already strips formatting on the way back in, so this is safe for
     // round-trips (formatted out → raw stored).
+    //
+    // Column names are the flat-path convention: `<group>_<col>`
+    // (phone_country_code, tax_country_code, tax_type). All entities
+    // that route through exportFlatSourceEntity follow this naming via
+    // the `flatCols` array in their config; the legacy multi-sheet path
+    // (lib/spreadsheetHelpers.js:141) uses the raw child column names
+    // (`country_code`) and calls formatExportRow itself with that shape.
     for (const row of flatRows) {
       formatExportRow(row, 'phone_number', 'phone_country_code', 'tax_value', 'tax_country_code', 'tax_type');
     }

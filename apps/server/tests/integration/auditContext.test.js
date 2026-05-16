@@ -17,7 +17,11 @@
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { bootstrapAdmin, cleanupTestDb } from '../helpers/testDb.js';
-import { currentUserId } from '../../src/lib/requestContext.js';
+import { currentUserId, runWithContext } from '../../src/lib/requestContext.js';
+// Model factory (default export of db.js). The file-scoped `db` from
+// bootstrapAdmin() is the pg-promise database object for raw queries;
+// `modelFactory(modelName, schema)` returns a pg-schemata TableModel.
+import modelFactory from '../../src/db/db.js';
 
 const ROOT_EMAIL = process.env.ROOT_EMAIL;
 const ROOT_PASSWORD = process.env.ROOT_PASSWORD;
@@ -110,19 +114,20 @@ describe('auditContext middleware + pg-schemata resolver', () => {
     expect(emp.created_by).toBe(adminUserId);
   });
 
-  test('resolver fills created_by/updated_by on pg-schemata insert when DTO omits them', async () => {
+  test('resolver fills created_by AND updated_by on pg-schemata insert when DTO omits them', async () => {
     // Direct pg-schemata exercise: open a runWithContext block carrying a
     // fixed actor, call `model.insert()` with a DTO that does NOT include
-    // created_by/updated_by, and confirm the resolver filled both. This is
+    // created_by/updated_by, and confirm the resolver filled BOTH. This is
     // the strongest proof that the ALS-to-pg-schemata wiring works — no
     // controller, no req-body threading, just the ambient channel.
-    const { default: dbHandle } = await import('../../src/db/db.js');
-    const { runWithContext } = await import('../../src/lib/requestContext.js');
-
-    const sourcesModel = dbHandle('sources', 'actx');
+    //
+    // pg-schemata >= 1.3.3 mirrors created_by → updated_by on insert
+    // (TableModel.js:132-133), so a single resolver call covers both
+    // audit columns. This test asserts that behavior end-to-end.
+    const sourcesModel = modelFactory('sources', 'actx');
     const PROBE_ACTOR = adminUserId;
 
-    const tenantRow = await dbHandle.one(`SELECT id FROM admin.tenants WHERE tenant_code = 'ACTX'`);
+    const tenantRow = await db.one(`SELECT id FROM admin.tenants WHERE tenant_code = 'ACTX'`);
     let row;
     await runWithContext({ userId: PROBE_ACTOR, schema: 'actx' }, async () => {
       row = await sourcesModel.insert({
@@ -133,17 +138,13 @@ describe('auditContext middleware + pg-schemata resolver', () => {
         table_id: tenantRow.id,
         source_type: 'employee',
         label: 'als-probe',
-        // intentionally omit created_by / updated_by — the resolver must fill them
+        // intentionally omit created_by / updated_by — the resolver must fill both
       });
     });
 
     expect(row).toBeDefined();
     expect(row.created_by).toBe(PROBE_ACTOR);
-    // Once pg-schemata 1.3.x releases the insert/bulkInsert audit mirror
-    // (PR #8 against pg-schemata), updated_by will also land here. Until
-    // then this assertion may stay null and the test treats that as
-    // expected — only the resolver-filled created_by is verified.
-    // expect(row.updated_by).toBe(PROBE_ACTOR);
+    expect(row.updated_by).toBe(PROBE_ACTOR);
   });
 
   test('concurrent requests from different sessions do not cross-contaminate', async () => {

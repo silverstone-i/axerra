@@ -9,6 +9,12 @@
  *
  * Still acts as the guard that rejects mutation routes with no user context.
  *
+ * NOTE: the file and exported function are still named `addAuditFields`
+ * for historical reasons — many routers wire it in by name. The audit-
+ * injection responsibility has moved to the ALS resolver; this module now
+ * only carries the tenant-context injection. Rename is a follow-up that
+ * has to update every router import.
+ *
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
