@@ -162,7 +162,18 @@ async function main() {
   await db.$pool.end();
 }
 
-main().catch((err) => {
-  console.error('Admin setup failed:', err);
-  process.exit(1);
-});
+// Wrap the entry in the request-context ALS so any pg-schemata write inside
+// `main()` resolves to a known actor (null at boot — there's no logged-in
+// user). Without this wrapper the audit resolver still returns null, so this
+// is purely defensive: it lets nested code call `runWithContext` again with
+// a resolved actor (e.g. the root admin id) once one is known.
+const { registerAuditResolver } = await import('../src/lib/registerAuditResolver.js');
+const { runWithContext } = await import('../src/lib/requestContext.js');
+registerAuditResolver();
+
+runWithContext({ userId: null, schema: 'admin', tenantId: null, tenantCode: 'AXERRA' }, () =>
+  main().catch((err) => {
+    console.error('Admin setup failed:', err);
+    process.exit(1);
+  }),
+);

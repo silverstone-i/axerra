@@ -10,8 +10,15 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
 import { authRedis } from './middleware/authRedis.js';
+import { auditContext } from './middleware/auditContext.js';
+import { registerAuditResolver } from './lib/registerAuditResolver.js';
 import apiRoutes from './apiRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
+
+// Wire pg-schemata's audit-actor resolver to the ambient request context.
+// Registered once at module load so both the runtime server (server.js) and
+// the contract-test harness (which imports app.js directly) pick it up.
+registerAuditResolver();
 
 const app = express();
 
@@ -40,6 +47,11 @@ app.get('/api/health', (_req, res) => {
 
 // Auth middleware — JWT verify, tenant resolution (bypasses login/refresh/logout)
 app.use('/api', authRedis());
+
+// Ambient request context — populates AsyncLocalStorage with userId / schema /
+// tenantId so pg-schemata's audit resolver and downstream helpers can read
+// them without controllers threading the actor explicitly.
+app.use('/api', auditContext);
 
 // API routes
 app.use('/api', apiRoutes);
