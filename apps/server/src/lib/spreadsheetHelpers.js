@@ -239,10 +239,10 @@ export function coerceChildRow(row, model) {
     }
     // Blank spreadsheet cells arrive as `''`. For non-text columns
     // (date / uuid / numeric / boolean / timestamp / etc.) pg rejects `''`
-    // as a literal — coerce to null and let the booleans branch above
-    // backfill the schema default on the next pass. Text-shaped columns
-    // (varchar / char / text) keep `''` to preserve the empty-vs-null
-    // distinction some callers rely on.
+    // as a literal — coerce blanks here: booleans land on the schema
+    // default (mirrors the null-branch above), every other non-text type
+    // lands on null. Text-shaped columns (varchar / char / text) keep `''`
+    // so callers that distinguish empty-string from null still can.
     if (val === '' && !/^(varchar|char|text)/i.test(col.type)) {
       row[col.name] = col.type === 'boolean' ? (col.default ?? false) : null;
       continue;
@@ -794,13 +794,25 @@ export async function exportSourceEntity(model, filePath, where, joinType, optio
  * Activities, Categories, Projects, ChangeOrders, etc.):
  *
  *   - Sheet 0 only; one row per record.
- *   - Row classification is a two-stage lookup: (1) UUID `id` matched against
- *     the DB, then (2) the entity's single-column natural unique key (e.g.
- *     `label` for PaymentTerms, `code` for ChartOfAccounts) as a fallback.
- *     Either match resolves to an update path against the existing row;
- *     rows that miss both lookups insert. So a workbook with non-UUID ids
- *     (hand-edited, or ghost UUIDs from a different env) still round-trips
- *     idempotently by natural key.
+ *   - Row classification is a two-stage lookup: (1) UUID `id` matched
+ *     against the DB, then (2) the entity's single-column natural unique
+ *     key as a fallback when the schema declares a single-column
+ *     `constraints.unique` entry — e.g. PaymentTerms (`label`),
+ *     ChartOfAccounts (`code`), CatalogSkus (`catalog_sku`), Categories
+ *     (`code`), Projects (`project_code`). Either lookup match resolves
+ *     to an update path against the existing row; rows that miss both
+ *     lookups insert.
+ *
+ *     **Coverage caveat:** transactional entities without a single-column
+ *     unique constraint (JournalEntries, ApInvoices, ArInvoices, Payments,
+ *     Receipts, ApCreditMemos, Deliverables, Budgets, ActualCosts,
+ *     ChangeOrders) have no natural key to fall back to. For those,
+ *     idempotent round-trip works only via a stable UUID `id` in the
+ *     workbook — a ghost UUID (or a missing/blank id) classifies as an
+ *     insert, which then succeeds (no unique constraint to conflict with)
+ *     and produces a duplicate row. Either rely on the exporter's real
+ *     UUIDs round-tripping, or add a unique constraint to the schema
+ *     before treating those imports as idempotent.
  *   - For matched rows, the writer diffs the transformed row against the
  *     existing DB row via `diffParent(..., { caseSensitive: true })`. No
  *     diff and no archive transition → noop (no write). Otherwise → update,
@@ -2924,6 +2936,10 @@ function _arrayEq(a, b) {
  *   - `updated_at`, `updated_by`   — managed separately by the writer; including
  *     them in the diff would defeat NO-OP detection since the importing user
  *     normally differs from the prior `updated_by`.
+ *   - `deactivated_at`             — archive transitions are driven by the
+ *     importer's explicit `status` parse, not by diffing the timestamp.
+ *     Including it would refresh the original archive timestamp on every
+ *     re-import of an already-archived row.
  * @private
  */
 function _diffParent(transformed, existing, { caseSensitive = false } = {}) {
