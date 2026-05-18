@@ -265,7 +265,15 @@ export default function VendorsPage() {
     setImportErrors(null);
     try {
       const result = await importMut.mutateAsync(formData);
-      toast(`Imported ${result.inserted} records`);
+      const vIns = result.inserted || 0;
+      const vUpd = result.updated || 0;
+      const cIns = result.contactsInserted || 0;
+      const cUpd = result.contactsUpdated || 0;
+      const allZero = !vIns && !vUpd && !cIns && !cUpd;
+      const message = allZero
+        ? 'Import complete — no changes'
+        : `Vendors: ${vIns} new, ${vUpd} updated • Contacts: ${cIns} new, ${cUpd} updated`;
+      toast(message);
       importDialog.close();
     } catch (err) {
       const validationErrors = err.payload?.errors;
@@ -475,6 +483,7 @@ export default function VendorsPage() {
         title="Import Vendors"
         loading={importMut.isPending}
         errors={importErrors}
+        onPreview={(fd) => vendorApi.importCombinedXls(fd, { preview: true })}
         onSubmit={handleImport}
         onCancel={() => { importDialog.close(); setImportErrors(null); }}
       />

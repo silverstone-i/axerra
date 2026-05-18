@@ -17,6 +17,7 @@ import { useState, useCallback, useEffect } from 'react';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
 import Stack from '@mui/material/Stack';
+import Divider from '@mui/material/Divider';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -26,6 +27,20 @@ import TableRow from '@mui/material/TableRow';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import FormDialog from './FormDialog.jsx';
 import SecondaryButton from './SecondaryButton.jsx';
+
+function PreviewBucket({ label, counts }) {
+  return (
+    <Stack spacing={0.25}>
+      <Typography variant="body2" sx={{ fontWeight: 600 }}>{label}</Typography>
+      <Typography variant="body2">New rows: <strong>{counts.inserts}</strong></Typography>
+      <Typography variant="body2">Updates in place: <strong>{counts.updates}</strong></Typography>
+      <Typography variant="body2">Unchanged: <strong>{counts.noops}</strong></Typography>
+      {typeof counts.omitted === 'number' && (
+        <Typography variant="body2">Existing rows not in file (left unchanged): <strong>{counts.omitted}</strong></Typography>
+      )}
+    </Stack>
+  );
+}
 
 export default function ImportDialog({
   open,
@@ -128,12 +143,24 @@ export default function ImportDialog({
           <Typography variant="subtitle2" gutterBottom>
             Preview — review before importing:
           </Typography>
-          <Stack spacing={0.5}>
-            <Typography variant="body2">New rows: <strong>{previewData.inserts}</strong></Typography>
-            <Typography variant="body2">Updates in place: <strong>{previewData.updates}</strong></Typography>
-            <Typography variant="body2">Unchanged: <strong>{previewData.noops}</strong></Typography>
-            <Typography variant="body2">Existing rows not in file (left unchanged): <strong>{previewData.omitted}</strong></Typography>
-          </Stack>
+          {previewData.vendors && previewData.contacts ? (
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              spacing={{ xs: 1.5, sm: 4 }}
+              divider={<Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />}
+              sx={{ alignItems: 'flex-start' }}
+            >
+              <PreviewBucket label="Vendors" counts={previewData.vendors} />
+              <PreviewBucket label="Vendor Contacts" counts={previewData.contacts} />
+            </Stack>
+          ) : (
+            <Stack spacing={0.5}>
+              <Typography variant="body2">New rows: <strong>{previewData.inserts}</strong></Typography>
+              <Typography variant="body2">Updates in place: <strong>{previewData.updates}</strong></Typography>
+              <Typography variant="body2">Unchanged: <strong>{previewData.noops}</strong></Typography>
+              <Typography variant="body2">Existing rows not in file (left unchanged): <strong>{previewData.omitted}</strong></Typography>
+            </Stack>
+          )}
         </Alert>
       )}
 

@@ -16,7 +16,6 @@ import vendorsSchema from '../schemas/vendorsSchema.js';
 import {
   exportSourceEntity,
   importSourceEntity,
-  importChildSheet,
   parseSheet,
   isUuid,
   coerceRow,
@@ -30,6 +29,7 @@ import {
   validateChildEnums,
   getEnumColumns,
   parseDbImportError,
+  diffParent,
   PHONE_HEADERS,
   ADDRESS_HEADERS,
   TAX_ID_HEADERS,
@@ -179,6 +179,43 @@ async function getDb() {
 /** Map child model name → group key produced by groupFlatRows extractors */
 const _childKeyForModel = (model) =>
   model === 'phoneNumbers' ? 'phones' : model === 'taxIdentifiers' ? 'taxIds' : model;
+
+/**
+ * Normalize a child column value for set-comparison. Conflates null /
+ * undefined / empty-string, trims strings, and coerces literal `'true'` /
+ * `'false'` strings to booleans so the comparison survives the round-trip
+ * through tablsx (which can hand back booleans as strings) and pg-schemata
+ * coercion. Case is preserved — case-sensitive fields like `address_line_1`,
+ * `city`, and `label` must surface case-only edits as real changes.
+ */
+function _normChildVal(v) {
+  if (v === true) return true;
+  if (v === false) return false;
+  if (v == null) return null;
+  if (typeof v === 'string') {
+    const t = v.trim();
+    if (t === '') return null;
+    if (/^true$/i.test(t)) return true;
+    if (/^false$/i.test(t)) return false;
+    return t;
+  }
+  return v;
+}
+
+/**
+ * Order-insensitive set equality between two child collections, comparing
+ * only the columns in `cols`. Used by `_upsertFlatChildren` to skip the
+ * wholesale soft-delete + re-insert when the file's child set matches the
+ * DB's current active set.
+ */
+function _sameChildSet(incoming, existing, cols) {
+  if (incoming.length !== existing.length) return false;
+  const fp = (row) => cols.map((c) => JSON.stringify(_normChildVal(row[c]))).join('|');
+  const a = incoming.map(fp).sort();
+  const b = existing.map(fp).sort();
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
 
 /**
  * Build childEnums config (key + enumMap + flatColByCol) for validateChildEnums
@@ -338,28 +375,41 @@ export default class Vendors extends TableModel {
 
   /**
    * Import from a combined workbook (vendors + vendor_contacts).
-   * Auto-detects format:
-   *   - <= 2 sheets: new flat repeated-row format
-   *   - 3-5 sheets: legacy vendor-only (5-sheet)
-   *   - >= 6 sheets: legacy combined multi-sheet format
+   *
+   * Only the flat 2-sheet shape is supported (Vendors sheet + Vendor Contacts
+   * sheet — the shape `exportCombinedSpreadsheet` produces). The pre-2025
+   * legacy multi-sheet formats (5-sheet vendor-only, 6+-sheet combined) were
+   * removed when the preview path landed.
+   *
+   * Pass `{ previewOnly: true }` to receive a classification payload without
+   * writes: `{ preview: true, vendors: {inserts, updates, noops, omitted},
+   * contacts: {...}, errors: [] }`.
    */
-  async importCombinedSpreadsheet(filePath, _sheetIndex = 0, callbackFn = null) {
+  async importCombinedSpreadsheet(filePath, callbackFn = null, { previewOnly = false } = {}) {
     const { WorkbookReader } = await import('@nap-sft/tablsx');
     const buffer = readFileSync(filePath);
     const reader = WorkbookReader.fromBuffer(buffer);
 
-    if (reader.sheetCount <= 2) {
-      return this._importFlatCombined(reader, callbackFn);
+    if (reader.sheetCount > 2) {
+      return {
+        errors: [
+          {
+            sheet: reader.sheetNames?.[0] || 'Vendors',
+            row: 0,
+            column: '',
+            value: '',
+            message: 'Workbook must be in the flat 2-sheet format (Vendors + Vendor Contacts).',
+          },
+        ],
+      };
     }
-    if (reader.sheetCount < 6) {
-      return importSourceEntity(this, filePath, _sheetIndex, callbackFn, CONFIG);
-    }
-    return this._importLegacyCombined(reader, filePath, _sheetIndex, callbackFn);
+
+    return this._importFlatCombined(reader, callbackFn, { previewOnly });
   }
 
   // ── Flat import (2-sheet repeated-row format) ─────────────────────────────
 
-  async _importFlatCombined(reader, callbackFn) {
+  async _importFlatCombined(reader, callbackFn, { previewOnly = false } = {}) {
     const { db, pgp } = await getDb();
     const schema = this._schema.dbSchema;
     const s = pgp.as.name(schema);
@@ -414,6 +464,11 @@ export default class Vendors extends TableModel {
       } else if (!isUuid(val)) {
         g.parent.payment_term_id = ptIdByLabel.get(String(val).trim()) || null;
       }
+      // Normalize blank code to null. The vendors table has a unique
+      // (tenant_id, code) constraint; two rows with code='' collide on
+      // insert. Numbering allocation runs after bulkInsert, so blanks
+      // must arrive as null for it to fill them in.
+      if (typeof g.parent.code === 'string' && !g.parent.code.trim()) g.parent.code = null;
     }
 
     // Parse contacts before the transaction so we can validate everything upfront
@@ -454,7 +509,30 @@ export default class Vendors extends TableModel {
       })),
       ...validateChildEnums(contactGroups, { sheetName: contactSheetName, childEnums: contactChildEnums }),
     ];
-    if (errors.length) return { errors };
+    if (errors.length) {
+      return previewOnly
+        ? {
+            preview: true,
+            vendors: { inserts: 0, updates: 0, noops: 0, omitted: 0 },
+            contacts: { inserts: 0, updates: 0, noops: 0, omitted: 0 },
+            errors,
+          }
+        : { errors };
+    }
+
+    if (previewOnly) {
+      const buckets = await this._classifyCombinedForPreview({
+        db,
+        s,
+        schema,
+        pgp,
+        vendorGroups,
+        contactGroups,
+        callbackFn,
+        tenantId,
+      });
+      return { preview: true, vendors: buckets.vendors, contacts: buckets.contacts, errors: [] };
+    }
 
     let insertedCount = 0;
     let updatedCount = 0;
@@ -475,12 +553,14 @@ export default class Vendors extends TableModel {
       const uuidIds = vendorGroups.filter((g) => isUuid(g.parent.id)).map((g) => g.parent.id);
       const existingVendors = new Map();
       if (uuidIds.length) {
+        // Pull full rows so the per-row diff can skip noop updates and keep
+        // the preview's "0 writes" promise.
         const existing = await t.any(
-          `SELECT id, source_id FROM ${s}.vendors WHERE id IN ($1:csv)`,
+          `SELECT * FROM ${s}.vendors WHERE id IN ($1:csv)`,
           [uuidIds],
         );
         for (const row of existing) {
-          existingVendors.set(row.id, row.source_id);
+          existingVendors.set(row.id, row);
         }
       }
 
@@ -504,24 +584,39 @@ export default class Vendors extends TableModel {
         }
       }
 
-      // Run updates
+      // Run updates — skip rows whose transformed values match the DB. This
+      // keeps the preview's "0 writes" promise honest and avoids churning
+      // `updated_at` / `updated_by` on every existing vendor on a re-import.
       for (const { transformed, isArchived, group } of toUpdate) {
         const { id, ...changes } = transformed;
-        await this.updateWhere([{ id }], changes, { includeDeactivated: true });
-        if (isArchived) {
-          await t.none(`UPDATE ${s}.vendors SET deactivated_at = NOW() WHERE id = $1 AND deactivated_at IS NULL`, [id]);
-        } else {
-          await t.none(`UPDATE ${s}.vendors SET deactivated_at = NULL WHERE id = $1 AND deactivated_at IS NOT NULL`, [id]);
-        }
-        vendorRefToId.set(id, id);
-        vendorIdToSourceId.set(id, existingVendors.get(id));
-        updatedCount++;
+        const existing = existingVendors.get(id);
+        const parentDiff = diffParent(transformed, existing, { caseSensitive: true });
+        const wasArchived = !!existing.deactivated_at;
+        const archiveChanged = wasArchived !== isArchived;
+        const parentChanged = Object.keys(parentDiff).length > 0 || archiveChanged;
 
-        // Upsert children for updated vendor
-        const sourceId = existingVendors.get(id);
-        if (sourceId) {
-          await this._upsertFlatChildren(t, s, schema, db, pgp, sourceId, group.children, VENDOR_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
+        if (parentChanged) {
+          await this.updateWhere([{ id }], changes, { includeDeactivated: true });
+          if (isArchived) {
+            await t.none(`UPDATE ${s}.vendors SET deactivated_at = NOW() WHERE id = $1 AND deactivated_at IS NULL`, [id]);
+          } else {
+            await t.none(`UPDATE ${s}.vendors SET deactivated_at = NULL WHERE id = $1 AND deactivated_at IS NOT NULL`, [id]);
+          }
         }
+
+        // Always populate the ref maps so cross-sheet contact resolution and
+        // child upsert use the correct source_id, even when the parent itself
+        // wasn't written.
+        vendorRefToId.set(id, id);
+        vendorIdToSourceId.set(id, existing.source_id);
+
+        // Child wholesale-replace also counts as an update: the count must
+        // reflect every DB write, not just parent-field changes.
+        let childReplaced = false;
+        if (existing.source_id) {
+          childReplaced = await this._upsertFlatChildren(t, s, schema, db, pgp, existing.source_id, group.children, VENDOR_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
+        }
+        if (parentChanged || childReplaced) updatedCount++;
       }
 
       _tVendorUpdates = Date.now();
@@ -620,10 +715,10 @@ export default class Vendors extends TableModel {
       const existingContacts = new Map();
       if (contactUuidIds.length) {
         const existing = await t.any(
-          `SELECT id, source_id FROM ${s}.vendor_contacts WHERE id IN ($1:csv)`,
+          `SELECT * FROM ${s}.vendor_contacts WHERE id IN ($1:csv)`,
           [contactUuidIds],
         );
-        for (const row of existing) existingContacts.set(row.id, row.source_id);
+        for (const row of existing) existingContacts.set(row.id, row);
       }
 
       const contactToUpdate = [];
@@ -656,21 +751,33 @@ export default class Vendors extends TableModel {
         }
       }
 
-      // Run contact updates
+      // Run contact updates — same noop-skip semantics as vendors. The
+      // writer doesn't reparent contacts via import (vendor_id is excluded
+      // from the update DTO), so vendor_id is also excluded from the diff
+      // to avoid false-positive updates when only the cross-sheet ref differs.
       for (const { transformed, isArchived, group } of contactToUpdate) {
+        const existing = existingContacts.get(transformed.id);
         const { id, vendor_id: _vid, ...changes } = transformed;
-        await contactModel.updateWhere([{ id }], changes, { includeDeactivated: true });
-        if (isArchived) {
-          await t.none(`UPDATE ${s}.vendor_contacts SET deactivated_at = NOW() WHERE id = $1 AND deactivated_at IS NULL`, [id]);
-        } else {
-          await t.none(`UPDATE ${s}.vendor_contacts SET deactivated_at = NULL WHERE id = $1 AND deactivated_at IS NOT NULL`, [id]);
-        }
-        contactsUpdated++;
+        const { vendor_id: _diffVid, ...transformedForDiff } = transformed;
+        const parentDiff = diffParent(transformedForDiff, existing, { caseSensitive: true });
+        const wasArchived = !!existing.deactivated_at;
+        const archiveChanged = wasArchived !== isArchived;
+        const parentChanged = Object.keys(parentDiff).length > 0 || archiveChanged;
 
-        const sourceId = existingContacts.get(id);
-        if (sourceId) {
-          await this._upsertFlatChildren(t, s, schema, db, pgp, sourceId, group.children, CONTACT_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
+        if (parentChanged) {
+          await contactModel.updateWhere([{ id }], changes, { includeDeactivated: true });
+          if (isArchived) {
+            await t.none(`UPDATE ${s}.vendor_contacts SET deactivated_at = NOW() WHERE id = $1 AND deactivated_at IS NULL`, [id]);
+          } else {
+            await t.none(`UPDATE ${s}.vendor_contacts SET deactivated_at = NULL WHERE id = $1 AND deactivated_at IS NOT NULL`, [id]);
+          }
         }
+
+        let childReplaced = false;
+        if (existing.source_id) {
+          childReplaced = await this._upsertFlatChildren(t, s, schema, db, pgp, existing.source_id, group.children, CONTACT_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
+        }
+        if (parentChanged || childReplaced) contactsUpdated++;
       }
 
       // Run contact inserts
@@ -796,9 +903,75 @@ export default class Vendors extends TableModel {
   }
 
   /**
-   * Upsert flat children: soft-delete existing, insert new from grouped child arrays.
+   * Transform the file's child rows for a single cfg into the same shape
+   * `bulkInsert` would persist. Shared by the commit (`_upsertFlatChildren`)
+   * and the preview classifier (`_anyChildrenDiffer`) so both sides compare
+   * the exact same values.
+   */
+  async _transformFlatChildSet(cfg, fileRows, sourceId, childModel, callbackFn, tenantId) {
+    const out = [];
+    for (const row of fileRows) {
+      const { _rowNum: _, ...rest } = row;
+      const base = { ...rest, source_id: sourceId };
+      const transformed = callbackFn ? await callbackFn(base) : base;
+      delete transformed.tenant_code;
+      if (tenantId) transformed.tenant_id = tenantId;
+      coerceChildRow(transformed, childModel);
+      out.push(transformed);
+    }
+    // Enforce single is_primary per source (partial unique index).
+    if (out.length > 1) {
+      let seenPrimary = false;
+      for (const r of out) {
+        if (r.is_primary) {
+          if (seenPrimary) r.is_primary = false;
+          else seenPrimary = true;
+        }
+      }
+    }
+    return out;
+  }
+
+  /**
+   * No-write check: would `_upsertFlatChildren` replace any of this parent's
+   * child sets? Iterates the cfgs the same way, transforms the file rows,
+   * loads the DB's current active set, and returns true on the first cfg
+   * whose set differs. Used by the preview classifier to keep preview /
+   * commit aligned on child-only changes, and (indirectly) by the commit
+   * path's updated-count accounting via `_upsertFlatChildren`'s return.
+   */
+  async _anyChildrenDiffer({ t, db, s, schema, pgp, sourceId, fileChildren, childConfig, callbackFn, tenantId }) {
+    const handle = t || db;
+    for (const cfg of childConfig) {
+      const key = cfg.model === 'phoneNumbers' ? 'phones' : cfg.model === 'taxIdentifiers' ? 'taxIds' : cfg.model;
+      const rawRows = fileChildren?.[key];
+      if (!rawRows || !rawRows.length) continue;
+
+      const childModel = db(cfg.model, schema);
+      if (t) childModel.tx = t;
+      const tableName = childModel._schema?.table || cfg.model;
+      const tName = pgp.as.name(tableName);
+
+      const toInsert = await this._transformFlatChildSet(cfg, rawRows, sourceId, childModel, callbackFn, tenantId);
+      const existing = await handle.any(
+        `SELECT * FROM ${s}.${tName} WHERE source_id = $1 AND deactivated_at IS NULL`,
+        [sourceId],
+      );
+      if (!_sameChildSet(toInsert, existing, cfg.cols)) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Upsert flat children for an updated parent: per cfg, skip the wholesale
+   * soft-delete + bulk-insert when the file's set matches the DB's current
+   * active set on `cfg.cols` so child rows don't get recycled on a no-op
+   * re-import. Returns `true` when at least one cfg was actually replaced —
+   * the parent loops use that to count child-only changes as updates so the
+   * commit's `updated` / `contactsUpdated` counters reflect every DB write.
    */
   async _upsertFlatChildren(t, s, schema, db, pgp, sourceId, children, childConfig, callbackFn, tenantId) {
+    let anyReplaced = false;
     for (const cfg of childConfig) {
       const key = cfg.model === 'phoneNumbers' ? 'phones' : cfg.model === 'taxIdentifiers' ? 'taxIds' : cfg.model;
       const childRows = children[key];
@@ -807,40 +980,25 @@ export default class Vendors extends TableModel {
       const childModel = db(cfg.model, schema);
       childModel.tx = t;
       const tableName = childModel._schema?.table || cfg.model;
+      const tName = pgp.as.name(tableName);
 
-      // Soft-delete existing children
-      await t.none(
-        `UPDATE ${s}.${pgp.as.name(tableName)} SET deactivated_at = NOW() WHERE source_id = $1 AND deactivated_at IS NULL`,
+      const toInsert = await this._transformFlatChildSet(cfg, childRows, sourceId, childModel, callbackFn, tenantId);
+      const existing = await t.any(
+        `SELECT * FROM ${s}.${tName} WHERE source_id = $1 AND deactivated_at IS NULL`,
         [sourceId],
       );
+      if (_sameChildSet(toInsert, existing, cfg.cols)) continue;
 
-      // Insert new children
-      const toInsert = [];
-      for (const row of childRows) {
-        const { _rowNum: _, ...rest } = row;
-        const base = { ...rest, source_id: sourceId };
-        const transformed = callbackFn ? await callbackFn(base) : base;
-        delete transformed.tenant_code;
-        if (tenantId) transformed.tenant_id = tenantId;
-        coerceChildRow(transformed, childModel);
-        toInsert.push(transformed);
-      }
-
-      // Enforce single is_primary per source (partial unique index)
-      if (toInsert.length > 1) {
-        let seenPrimary = false;
-        for (const r of toInsert) {
-          if (r.is_primary) {
-            if (seenPrimary) r.is_primary = false;
-            else seenPrimary = true;
-          }
-        }
-      }
-
+      await t.none(
+        `UPDATE ${s}.${tName} SET deactivated_at = NOW() WHERE source_id = $1 AND deactivated_at IS NULL`,
+        [sourceId],
+      );
       if (toInsert.length) {
         await childModel.bulkInsert(toInsert);
       }
+      anyReplaced = true;
     }
+    return anyReplaced;
   }
 
   /**
@@ -923,222 +1081,104 @@ export default class Vendors extends TableModel {
     }
   }
 
-  // ── Legacy multi-sheet import (backward compatibility) ────────────────────
+  // ── Preview classifier (no writes) ────────────────────────────────────────
 
-  async _importLegacyCombined(reader, filePath, _sheetIndex, callbackFn) {
-    const { db, pgp } = await getDb();
-    const schema = this._schema.dbSchema;
-    const s = pgp.as.name(schema);
+  /**
+   * Classify what `_importFlatCombined` would do without touching the DB.
+   * Returns parent-level counts for vendors and contacts. Parents with no
+   * field-level diff but whose child set differs from the DB count as
+   * updates (not noops) to mirror what `_upsertFlatChildren` would do on
+   * commit — preview must not promise "no changes" when a child wholesale
+   * replace is about to fire.
+   */
+  async _classifyCombinedForPreview({ db, s, schema, pgp, vendorGroups, contactGroups, callbackFn, tenantId }) {
+    const stripContactCols = ['status', 'deactivated_at', 'password'];
 
-    // Phase 1: Import vendors + vendor children using standard import
-    const vendorResult = await importSourceEntity(this, filePath, _sheetIndex, callbackFn, CONFIG);
+    const vendors = { inserts: 0, updates: 0, noops: 0, omitted: 0 };
+    const contacts = { inserts: 0, updates: 0, noops: 0, omitted: 0 };
 
-    // Phase 2: Import vendor contacts from sheet 5
-    const contactRows = parseSheet(reader, 5);
-    if (!contactRows.length) return { ...vendorResult, contactsInserted: 0, contactsUpdated: 0 };
-
-    let contactsInserted = 0;
-    let contactsUpdated = 0;
-    const contactRefToSourceId = new Map();
-
-    let tenantId;
-    const sampleRow = callbackFn ? await callbackFn({}) : {};
-    if (sampleRow.tenant_code) {
-      const tenantRec = await db.oneOrNone(
-        'SELECT id FROM admin.tenants WHERE tenant_code = $1 AND deactivated_at IS NULL',
-        [sampleRow.tenant_code.toUpperCase()],
-      );
-      tenantId = tenantRec?.id;
+    // Vendors ─────────────────────────────────────────────────────────────
+    const vendorUuidIds = vendorGroups.filter((g) => isUuid(g.parent.id)).map((g) => g.parent.id);
+    const existingVendors = new Map();
+    if (vendorUuidIds.length) {
+      const rows = await db.any(`SELECT * FROM ${s}.vendors WHERE id IN ($1:csv)`, [vendorUuidIds]);
+      for (const row of rows) existingVendors.set(row.id, row);
     }
 
-    const stripCols = ['status', 'deactivated_at', 'password'];
-
-    try {
-    await db.tx(async (t) => {
-      const contactModel = db('vendorContacts', schema);
-      contactModel.tx = t;
-
-      const uuidIds = contactRows.filter((r) => isUuid(r.id)).map((r) => r.id);
-      const existingSet = new Set();
-      if (uuidIds.length) {
-        const existing = await t.any(
-          `SELECT id, source_id FROM ${s}.vendor_contacts WHERE id IN ($1:csv)`,
-          [uuidIds],
-        );
-        for (const row of existing) {
-          existingSet.add(row.id);
-          contactRefToSourceId.set(row.id, row.source_id);
-        }
+    for (const group of vendorGroups) {
+      const existing = existingVendors.get(group.parent.id);
+      if (!existing) {
+        vendors.inserts += 1;
+        continue;
       }
-
-      const toUpdate = [];
-      const toInsert = [];
-      for (const row of contactRows) {
-        const isArchived = String(row.status).toLowerCase() === 'archived';
-        const password = row.password || null;
-        for (const col of stripCols) delete row[col];
-
-        const transformed = callbackFn ? await callbackFn({ ...row }) : { ...row };
-        for (const col of stripCols) delete transformed[col];
-        delete transformed.tenant_code;
-        if (tenantId) transformed.tenant_id = tenantId;
-        coerceRow(transformed, CONTACT_CONFIG.boolCols, CONTACT_CONFIG.hasRoles);
-
-        if (existingSet.has(row.id)) {
-          transformed._archive = isArchived;
-          toUpdate.push(transformed);
-        } else {
-          transformed._ref = row.id || null;
-          transformed._archive = isArchived;
-          transformed._password = password;
-          delete transformed.id;
-          toInsert.push(transformed);
-        }
-      }
-
-      for (const row of toUpdate) {
-        const { id, vendor_id: _vid, tenant_code: _tc, _archive, ...changes } = row;
-        await contactModel.updateWhere([{ id }], changes, { includeDeactivated: true });
-        if (_archive) {
-          await t.none(`UPDATE ${s}.vendor_contacts SET deactivated_at = NOW() WHERE id = $1 AND deactivated_at IS NULL`, [id]);
-        } else {
-          await t.none(`UPDATE ${s}.vendor_contacts SET deactivated_at = NULL WHERE id = $1 AND deactivated_at IS NOT NULL`, [id]);
-        }
-        contactsUpdated++;
-      }
-
-      let insertResults = [];
-      let sourceByParentId = new Map();
-      let tid;
-      let createdBy;
-
-      if (toInsert.length) {
-        const cleanInserts = toInsert.map(({ _ref, _archive, _password, tenant_code: _tc, ...rest }) => rest);
-
-        insertResults = await contactModel.bulkInsert(cleanInserts, CONTACT_CONFIG.returningCols);
-        contactsInserted = insertResults.length;
-
-        const sourcesModel = db('sources', schema);
-        sourcesModel.tx = t;
-
-        tid = cleanInserts[0]?.tenant_id;
-        // createdBy stays for provisionAppUser below — raw INSERT into
-        // admin.portal_users bypasses pg-schemata's audit resolver.
-        createdBy = cleanInserts[0]?.created_by || null;
-
-        const sourceRecords = insertResults.map((rec) => ({
-          tenant_id: tid,
-          table_id: rec.id,
-          source_type: CONTACT_CONFIG.sourceType,
-          label: CONTACT_CONFIG.buildLabel(rec),
-        }));
-
-        const sourceResults = await sourcesModel.bulkInsert(sourceRecords, ['id', 'table_id']);
-        sourceByParentId = new Map(sourceResults.map((sr) => [sr.table_id, sr.id]));
-
-        // ── Batch: link source_id for contacts ─────────────────────
-        const contactSourceLinks = insertResults
-          .map((rec) => ({ id: rec.id, source_id: sourceByParentId.get(rec.id) }))
-          .filter((r) => r.source_id);
-        if (contactSourceLinks.length) {
-          const vals = contactSourceLinks.map((r) => pgp.as.format('($1::uuid, $2::uuid)', [r.id, r.source_id])).join(', ');
-          await t.none(`UPDATE ${s}.vendor_contacts AS v SET source_id = vals.source_id FROM (VALUES ${vals}) AS vals(id, source_id) WHERE v.id = vals.id`);
-        }
-
-        // Build ref map (JS only)
-        for (let i = 0; i < insertResults.length; i++) {
-          const ref = toInsert[i]._ref;
-          const sourceId = sourceByParentId.get(insertResults[i].id);
-          if (ref && sourceId) contactRefToSourceId.set(ref, sourceId);
-        }
-
-        // ── Batch: archive inserted contacts ───────────────────────
-        const contactArchiveIds = insertResults.filter((_, i) => toInsert[i]._archive).map((r) => r.id);
-        if (contactArchiveIds.length) {
-          await t.none(`UPDATE ${s}.vendor_contacts SET deactivated_at = NOW() WHERE id IN ($1:csv)`, [contactArchiveIds]);
-        }
-      }
-
-      for (let ci = 0; ci < CONTACT_CONFIG.childSheets.length; ci++) {
-        const sheetIdx = 6 + ci;
-        if (reader.sheetCount > sheetIdx) {
-          await importChildSheet(reader, sheetIdx, contactRefToSourceId, CONTACT_CONFIG.childSheets[ci].modelName, schema, CONTACT_CONFIG.linkColName, callbackFn, tenantId, t);
-        }
-      }
-
-      if (CONTACT_CONFIG.appUserProvisioning && insertResults.length) {
-        const crypto = await import('node:crypto');
-
-        // Identify app-user contacts and their source_ids
-        const appUserCandidates = [];
-        for (let i = 0; i < insertResults.length; i++) {
-          if (!toInsert[i].is_app_user) continue;
-          const sourceId = sourceByParentId.get(insertResults[i].id);
-          if (!sourceId) continue;
-          appUserCandidates.push({ index: i, sourceId });
-        }
-
-        if (appUserCandidates.length) {
-          // Batch email lookup
-          const candidateSourceIds = appUserCandidates.map((c) => c.sourceId);
-          const emailRows = await t.any(
-            `SELECT DISTINCT ON (source_id) source_id, email
-             FROM ${s}.emails
-             WHERE source_id IN ($1:csv) AND deactivated_at IS NULL
-             ORDER BY source_id, is_login DESC, is_primary DESC, created_at`,
-            [candidateSourceIds],
-          );
-          const emailBySourceId = new Map(emailRows.map((r) => [r.source_id, r.email]));
-
-          // Build password list and pre-hash in parallel
-          const toProvision = [];
-          for (const { index, sourceId } of appUserCandidates) {
-            const email = emailBySourceId.get(sourceId);
-            if (!email) {
-              await t.none(`UPDATE ${s}.vendor_contacts SET is_app_user = false WHERE id = $1`, [insertResults[index].id]);
-              continue;
-            }
-            const clearPassword = toInsert[index]._password || crypto.randomBytes(12).toString('base64url');
-            toProvision.push({ index, email, clearPassword });
-          }
-
-          if (toProvision.length) {
-            const hashMap = await batchHashPasswords(toProvision.map((p) => ({ index: p.index, password: p.clearPassword })));
-            const entityType = CONTACT_CONFIG.appUserProvisioning.entityType;
-
-            for (const { index, email } of toProvision) {
-              const existing = await t.oneOrNone(
-                'SELECT id FROM admin.portal_users WHERE email = $1 AND deactivated_at IS NULL',
-                [email],
-              );
-              if (existing) continue;
-              const inserted = await t.one(
-                `INSERT INTO admin.portal_users (email, password_hash, status, created_by)
-                 VALUES ($1, $2, 'invited', $3)
-                 RETURNING id`,
-                [email, hashMap.get(index), createdBy],
-              );
-              await t.none(
-                `INSERT INTO admin.portal_user_tenants
-                   (portal_user_id, tenant_id, entity_type, entity_id, status, created_by)
-                 VALUES ($1, $2, $3, $4, 'active', $5)`,
-                [inserted.id, tid, entityType, insertResults[index].id, createdBy],
-              );
-            }
-          }
-        }
-      }
-    });
-    } catch (err) {
-      const dataErrors = parseDbImportError(err);
-      if (dataErrors) return { errors: dataErrors };
-      throw err;
+      const willBeArchived = String(group.parent.status || '').toLowerCase() === 'archived';
+      const wasArchived = !!existing.deactivated_at;
+      const { _rowNum: _rn, ...vendorData } = { ...group.parent };
+      delete vendorData.status;
+      const transformed = callbackFn ? await callbackFn({ ...vendorData }) : { ...vendorData };
+      delete transformed.tenant_code;
+      if (tenantId) transformed.tenant_id = tenantId;
+      const changes = diffParent(transformed, existing, { caseSensitive: true });
+      const parentChanged = Object.keys(changes).length > 0 || willBeArchived !== wasArchived;
+      const childrenDiffer = existing.source_id
+        ? await this._anyChildrenDiffer({
+            db, s, schema, pgp,
+            sourceId: existing.source_id,
+            fileChildren: group.children,
+            childConfig: VENDOR_CHILD_ARRAYS_CONFIG,
+            callbackFn,
+            tenantId,
+          })
+        : false;
+      if (parentChanged || childrenDiffer) vendors.updates += 1;
+      else vendors.noops += 1;
     }
 
-    return {
-      ...vendorResult,
-      contactsInserted,
-      contactsUpdated,
-    };
+    // Contacts ────────────────────────────────────────────────────────────
+    const contactUuidIds = contactGroups.filter((g) => isUuid(g.parent.id)).map((g) => g.parent.id);
+    const existingContacts = new Map();
+    if (contactUuidIds.length) {
+      const rows = await db.any(`SELECT * FROM ${s}.vendor_contacts WHERE id IN ($1:csv)`, [contactUuidIds]);
+      for (const row of rows) existingContacts.set(row.id, row);
+    }
+
+    for (const group of contactGroups) {
+      const existing = existingContacts.get(group.parent.id);
+      if (!existing) {
+        contacts.inserts += 1;
+        continue;
+      }
+      const willBeArchived = String(group.parent.status || '').toLowerCase() === 'archived';
+      const wasArchived = !!existing.deactivated_at;
+      const { _rowNum: _crn, ...contactData } = { ...group.parent };
+      for (const col of stripContactCols) delete contactData[col];
+      const transformed = callbackFn ? await callbackFn({ ...contactData }) : { ...contactData };
+      for (const col of stripContactCols) delete transformed[col];
+      delete transformed.tenant_code;
+      if (tenantId) transformed.tenant_id = tenantId;
+      coerceRow(transformed, CONTACT_CONFIG.boolCols, CONTACT_CONFIG.hasRoles);
+      // vendor_id refs pointing at to-be-inserted vendors aren't resolvable
+      // yet — skip the column for the diff (the commit-side resolution map
+      // is built during writes). If a stable UUID is provided it'll be diffed
+      // normally.
+      if (transformed.vendor_id && !isUuid(transformed.vendor_id)) delete transformed.vendor_id;
+      const changes = diffParent(transformed, existing, { caseSensitive: true });
+      const parentChanged = Object.keys(changes).length > 0 || willBeArchived !== wasArchived;
+      const childrenDiffer = existing.source_id
+        ? await this._anyChildrenDiffer({
+            db, s, schema, pgp,
+            sourceId: existing.source_id,
+            fileChildren: group.children,
+            childConfig: CONTACT_CHILD_ARRAYS_CONFIG,
+            callbackFn,
+            tenantId,
+          })
+        : false;
+      if (parentChanged || childrenDiffer) contacts.updates += 1;
+      else contacts.noops += 1;
+    }
+
+    return { vendors, contacts };
   }
+
 }

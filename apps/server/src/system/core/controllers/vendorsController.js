@@ -97,23 +97,31 @@ class VendorsController extends BaseController {
   }
 
   /**
-   * POST /import-combined-xls — import vendors + vendor contacts from a combined workbook.
-   * Auto-detects format: 10-sheet combined or legacy 5-sheet vendor-only.
+   * POST /import-combined-xls — import vendors + vendor contacts from the
+   * flat 2-sheet workbook (Vendors sheet + Vendor Contacts sheet).
+   *
+   * Pass `?preview=1` to receive a counts-only classification (vendors +
+   * contacts buckets) without any DB writes.
    */
   async importCombinedXls(req, res) {
     const file = req.file;
     if (!file) return res.status(400).json({ error: 'No file uploaded' });
 
     const tenantCode = req.user?.tenant_code;
-    const index = Number(req.body?.sheetIndex ?? 0);
+    const previewOnly = req.query.preview === '1' || req.query.preview === 'true';
 
     try {
-      const result = await this.model(this.getSchema(req)).importCombinedSpreadsheet(file.path, index, (row) => ({
-        ...row,
-        tenant_code: tenantCode,
-        created_by: req.user?.id || null,
-      }));
-      if (result.errors) return res.status(422).json(result);
+      const result = await this.model(this.getSchema(req)).importCombinedSpreadsheet(
+        file.path,
+        (row) => ({
+          ...row,
+          tenant_code: tenantCode,
+          created_by: req.user?.id || null,
+        }),
+        { previewOnly },
+      );
+      if (result?.errors?.length) return res.status(422).json(result);
+      if (result?.preview) return res.status(200).json(result);
       res.json(result);
     } catch (err) {
       this.handleError(err, res, 'importing', this.errorLabel);
