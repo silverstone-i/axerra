@@ -238,19 +238,18 @@ export default function ManageTenantsPage() {
     setImportErrors(null);
     try {
       const result = await importMut.mutateAsync(formData);
-      const parts = [];
-      if (result.inserted) parts.push(`${result.inserted} created`);
-      if (result.updated) parts.push(`${result.updated} updated`);
-      toast(parts.join(', ') || 'Import complete');
+      const ins = result?.inserted ?? 0;
+      const upd = result?.updated ?? 0;
+      toast(ins + upd === 0 ? 'Import complete — no changes' : `Tenants: ${ins} new, ${upd} updated`);
       importDialog.close();
     } catch (err) {
       const validationErrors = err.payload?.errors;
       if (validationErrors?.length) {
         setImportErrors(validationErrors.map((e) => ({
-          sheet: e.sheet || 'tenants',
-          row: e.row,
-          column: e.tenant_code ? 'tenant_code' : '',
-          value: e.tenant_code || '',
+          sheet: e.sheet || 'Tenants',
+          row: e.row ?? null,
+          column: e.column || '',
+          value: e.value ?? '',
           message: e.message,
         })));
       } else {
@@ -526,6 +525,7 @@ export default function ManageTenantsPage() {
         title="Import Tenants"
         loading={importMut.isPending}
         errors={importErrors}
+        onPreview={(fd) => tenantApi.importXls(fd, { preview: true })}
         onSubmit={handleImport}
         onCancel={() => { importDialog.close(); setImportErrors(null); }}
       />

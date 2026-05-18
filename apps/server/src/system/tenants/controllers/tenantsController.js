@@ -54,16 +54,26 @@ class TenantsController extends BaseController {
    *
    * Overrides BaseController.importXls to pass only created_by in the callback
    * (each row carries its own tenant_code, unlike tenant-scoped entities).
+   *
+   * Pass `?preview=1` to receive a classification + validation payload without
+   * any DB writes.
    */
   async importXls(req, res) {
     const file = req.file;
     if (!file) return res.status(400).json({ error: 'No file uploaded' });
 
+    const previewOnly = req.query.preview === '1' || req.query.preview === 'true';
+
     try {
       const result = await this.model('admin').importFromSpreadsheet(
-        file.path, 0, (row) => ({ ...row, created_by: req.user?.id }),
+        file.path,
+        0,
+        (row) => ({ ...row, created_by: req.user?.id }),
+        null,
+        { previewOnly },
       );
       if (result.errors?.length) return res.status(422).json(result);
+      if (result.preview) return res.status(200).json(result);
       res.status(201).json(result);
     } catch (err) {
       this.handleError(err, res, 'importing', this.errorLabel);
