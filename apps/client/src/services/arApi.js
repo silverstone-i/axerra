@@ -26,7 +26,8 @@ export const arInvoiceApi = {
   archive: (filterParams) => client.del(`${INVOICES}/archive${qs(filterParams)}`, {}),
   restore: (filterParams) => client.patch(`${INVOICES}/restore${qs(filterParams)}`, {}),
   approve: (filterParams) => client.put(`${INVOICES}/approve${qs(filterParams)}`, {}),
-  importXls: (formData) => client.post(`${INVOICES}/import-xls`, formData),
+  importXls: (formData, { preview = false } = {}) =>
+    client.post(`${INVOICES}/import-xls${preview ? '?preview=1' : ''}`, formData),
   exportXls: (body = {}) => client.post(`${INVOICES}/export-xls`, body, { responseType: 'blob' }),
 };
 
@@ -52,6 +53,7 @@ export const receiptApi = {
   update: (filterParams, changes) => client.put(`${RECEIPTS}/update${qs(filterParams)}`, changes),
   archive: (filterParams) => client.del(`${RECEIPTS}/archive${qs(filterParams)}`, {}),
   restore: (filterParams) => client.patch(`${RECEIPTS}/restore${qs(filterParams)}`, {}),
-  importXls: (formData) => client.post(`${RECEIPTS}/import-xls`, formData),
+  importXls: (formData, { preview = false } = {}) =>
+    client.post(`${RECEIPTS}/import-xls${preview ? '?preview=1' : ''}`, formData),
   exportXls: (body = {}) => client.post(`${RECEIPTS}/export-xls`, body, { responseType: 'blob' }),
 };

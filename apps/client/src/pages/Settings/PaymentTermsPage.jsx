@@ -106,7 +106,9 @@ export default function PaymentTermsPage() {
       }
       importDialog.close();
       setImportErrors(null);
-      toast(`Imported ${(result?.inserted ?? 0) + (result?.updated ?? 0)} payment term(s)`);
+      const ins = result?.inserted ?? 0;
+      const upd = result?.updated ?? 0;
+      toast(ins + upd === 0 ? 'Import complete — no changes' : `Payment Terms: ${ins} new, ${upd} updated`);
     } catch (err) {
       const payload = err?.payload;
       if (payload?.errors) {
@@ -339,6 +341,7 @@ export default function PaymentTermsPage() {
         title="Import Payment Terms"
         loading={importMut.isPending}
         errors={importErrors}
+        onPreview={(fd) => paymentTermApi.importXls(fd, { preview: true })}
         onSubmit={handleImport}
         onCancel={() => { importDialog.close(); setImportErrors(null); }}
       />

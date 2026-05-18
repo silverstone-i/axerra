@@ -150,7 +150,9 @@ export default function CatalogPage() {
   const handleImport = useCallback(async (formData) => {
     try {
       const result = await importMut.mutateAsync(formData);
-      toast(`Imported ${result.inserted} records`);
+      const ins = result?.inserted ?? 0;
+      const upd = result?.updated ?? 0;
+      toast(ins + upd === 0 ? 'Import complete — no changes' : `Catalog SKUs: ${ins} new, ${upd} updated`);
       importDialog.close();
     } catch (err) {
       toast(errMsg(err), 'error');
@@ -300,7 +302,7 @@ export default function CatalogPage() {
         </Box>
       </FormDialog>
 
-      <ImportDialog open={importDialog.isOpen} title="Import Catalog SKUs" loading={importMut.isPending} onSubmit={handleImport} onCancel={importDialog.close} />
+      <ImportDialog open={importDialog.isOpen} title="Import Catalog SKUs" loading={importMut.isPending} onPreview={(fd) => catalogSkuApi.importXls(fd, { preview: true })} onSubmit={handleImport} onCancel={importDialog.close} />
 
       <ConfirmDialog {...archiveConfirmProps} />
       <ConfirmDialog {...restoreConfirmProps} />

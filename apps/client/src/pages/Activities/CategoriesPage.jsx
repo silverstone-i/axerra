@@ -137,7 +137,9 @@ export default function CategoriesPage() {
   const handleImport = useCallback(async (formData) => {
     try {
       const result = await importMut.mutateAsync(formData);
-      toast(`Imported ${result.inserted} records`);
+      const ins = result?.inserted ?? 0;
+      const upd = result?.updated ?? 0;
+      toast(ins + upd === 0 ? 'Import complete — no changes' : `Categories: ${ins} new, ${upd} updated`);
       importDialog.close();
     } catch (err) {
       toast(errMsg(err), 'error');
@@ -282,6 +284,7 @@ export default function CategoriesPage() {
         open={importDialog.isOpen}
         title="Import Categories"
         loading={importMut.isPending}
+        onPreview={(fd) => categoryApi.importXls(fd, { preview: true })}
         onSubmit={handleImport}
         onCancel={importDialog.close}
       />
