@@ -2578,6 +2578,14 @@ function _diffParent(transformed, existing) {
 }
 
 /**
+ * Public re-export of the parent-row diff used by flat-import preview paths.
+ * Returns the subset of `transformed` whose values differ from `existing`,
+ * ignoring id / tenant_id / audit columns. Used by Vendors._importFlatCombined
+ * to classify per-parent insert / update / noop without writing.
+ */
+export const diffParent = _diffParent;
+
+/**
  * Coerce + transform a parent row exactly the way the write path does. Result
  * is the row that would be sent to model.updateWhere or model.bulkInsert.
  * @private
