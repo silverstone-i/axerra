@@ -340,6 +340,79 @@ describe('PaymentTerms import — simple-table shim', () => {
     expect(after.n).toBe(0);
   });
 
+  test('re-importing an already-archived row preserves the original deactivated_at', async () => {
+    // Seed: archive 'Net 60' via import.
+    const net60Before = await db.one(`SELECT id FROM ptimp.payment_terms WHERE label = 'Net 60'`);
+    await postImport(
+      await buildWorkbook([
+        blank({ id: net60Before.id, label: 'Net 60', term: 60, units: 'days', is_active: true, status: 'archived' }),
+      ]),
+      cookies,
+      'archive-seed',
+    );
+    const archivedAt = await db.one(
+      `SELECT deactivated_at FROM ptimp.payment_terms WHERE id = $1`,
+      [net60Before.id],
+    );
+    expect(archivedAt.deactivated_at).not.toBeNull();
+    const originalDeactivatedAt = archivedAt.deactivated_at;
+
+    // Re-import same archived row → must NOT refresh the archive timestamp.
+    const buf = await buildWorkbook([
+      blank({ id: net60Before.id, label: 'Net 60', term: 60, units: 'days', is_active: true, status: 'archived' }),
+    ]);
+
+    const preview = await postImport(buf, cookies, 'archive-noop-preview', { preview: true });
+    expect(preview.status).toBe(200);
+    expect(preview.body).toMatchObject({ inserts: 0, updates: 0, noops: 1 });
+
+    const commit = await postImport(buf, cookies, 'archive-noop-commit');
+    expect(commit.status).toBe(201);
+    expect(commit.body).toMatchObject({ inserted: 0, updated: 0 });
+
+    const after = await db.one(
+      `SELECT deactivated_at FROM ptimp.payment_terms WHERE id = $1`,
+      [net60Before.id],
+    );
+    expect(after.deactivated_at.toISOString()).toBe(originalDeactivatedAt.toISOString());
+
+    // Restore for downstream tests.
+    await postImport(
+      await buildWorkbook([
+        blank({ id: net60Before.id, label: 'Net 60', term: 60, units: 'days', is_active: true, status: 'active' }),
+      ]),
+      cookies,
+      'archive-restore',
+    );
+  });
+
+  test('duplicate UUID id within the file is surfaced as a preview error and blocks commit', async () => {
+    const net60 = await db.one(`SELECT id FROM ptimp.payment_terms WHERE label = 'Net 60'`);
+
+    // Two rows with the same id pointing at Net 60, but different labels.
+    // Without the duplicate-id check both would classify as updates against
+    // the same DB row and apply silently (last-write-wins). Should now error.
+    const buf = await buildWorkbook([
+      blank({ id: net60.id, label: 'Net 60 First Write', term: 60, units: 'days', is_active: true, status: 'active' }),
+      blank({ id: net60.id, label: 'Net 60 Second Write', term: 60, units: 'days', is_active: true, status: 'active' }),
+    ]);
+
+    const preview = await postImport(buf, cookies, 'dup-id-preview', { preview: true });
+    expect(preview.status).toBe(422);
+    expect(preview.body.errors.length).toBeGreaterThanOrEqual(1);
+    expect(preview.body.errors.some((e) => e.column === 'id' && /Duplicate id/.test(e.message))).toBe(true);
+
+    const commit = await postImport(buf, cookies, 'dup-id-commit');
+    expect(commit.status).toBe(422);
+
+    // Neither write landed.
+    const after = await db.one(
+      `SELECT label FROM ptimp.payment_terms WHERE id = $1`,
+      [net60.id],
+    );
+    expect(after.label).toBe('Net 60');
+  });
+
   test('case-only edit on a parent varchar field counts as a real change', async () => {
     const net30 = await db.one(`SELECT id, label FROM ptimp.payment_terms WHERE label = 'Net 30'`);
     const recased = net30.label.toUpperCase();

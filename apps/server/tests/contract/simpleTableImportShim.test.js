@@ -196,6 +196,92 @@ describe('Simple-table shim — ChartOfAccounts', () => {
     expect(row.deactivated_at).toBeNull();
   });
 
+  test('sparse update via partial-headers workbook — only the listed columns are touched', async () => {
+    // Seed an account with bank metadata populated.
+    const SEED_HEADERS = ['id', 'code', 'name', 'type', 'is_active', 'cash_basis', 'bank_account_number', 'routing_number', 'bank_name', 'status'];
+    const seedBlank = (extras = {}) => Object.fromEntries(SEED_HEADERS.map((h) => [h, extras[h] ?? '']));
+    const seedBuf = await (async () => {
+      const { WorkbookBuilder, writeXlsx } = await import('@nap-sft/tablsx');
+      const wb = WorkbookBuilder.create();
+      wb.sheet('Chart of Accounts').setHeaders(SEED_HEADERS).addObjects([
+        seedBlank({ code: '1500', name: 'Operating Bank', type: 'asset', is_active: true, cash_basis: true, bank_name: 'Big Bank', routing_number: '123456789', status: 'active' }),
+      ]);
+      return writeXlsx(wb.build());
+    })();
+    expect((await postImport(seedBuf, cookies, 'sparse-seed')).status).toBe(201);
+
+    const seeded = await db.one(
+      `SELECT id, name, bank_name, routing_number FROM coashm.chart_of_accounts WHERE code = '1500'`,
+    );
+
+    // Re-import with a NARROW header list — only id + name. The other
+    // columns aren't in the workbook at all, so they never enter `merged`
+    // and can't appear in the diff. Diff-as-DTO update touches only `name`.
+    // (Blank-cell-vs-null is a separate concern; this test proves the
+    // headers-omitted protection.)
+    const PARTIAL_HEADERS = ['id', 'name'];
+    const partialBuf = await (async () => {
+      const { WorkbookBuilder, writeXlsx } = await import('@nap-sft/tablsx');
+      const wb = WorkbookBuilder.create();
+      wb.sheet('Chart of Accounts').setHeaders(PARTIAL_HEADERS).addObjects([
+        { id: seeded.id, name: 'Operating Bank Account' },
+      ]);
+      return writeXlsx(wb.build());
+    })();
+
+    const commit = await postImport(partialBuf, cookies, 'sparse-commit');
+    if (commit.status !== 201) throw new Error(`sparse commit ${commit.status}: ${JSON.stringify(commit.body)}`);
+    expect(commit.body.updated).toBe(1);
+
+    const after = await db.one(
+      `SELECT name, bank_name, routing_number, type, is_active, cash_basis FROM coashm.chart_of_accounts WHERE id = $1`,
+      [seeded.id],
+    );
+    expect(after.name).toBe('Operating Bank Account');
+    expect(after.bank_name).toBe('Big Bank');         // ← preserved (col not in headers)
+    expect(after.routing_number).toBe('123456789');   // ← preserved
+    expect(after.type).toBe('asset');                 // ← preserved
+    expect(after.is_active).toBe(true);               // ← preserved
+    expect(after.cash_basis).toBe(true);              // ← preserved
+  });
+
+  test('blank cell in a nullable non-text column coerces to null on insert (deliverables date)', async () => {
+    // Deliverables has nullable `start_date` / `end_date` columns. A blank
+    // spreadsheet cell arrives as `''` from tablsx; without coerceChildRow
+    // mapping '' → null for non-text types, Postgres would reject `''` as
+    // an invalid date literal at insert time.
+    const HEADERS_D = ['id', 'name', 'description', 'status', 'start_date', 'end_date'];
+    const blankD = (extras = {}) => Object.fromEntries(HEADERS_D.map((h) => [h, extras[h] ?? '']));
+    const buf = await (async () => {
+      const { WorkbookBuilder, writeXlsx } = await import('@nap-sft/tablsx');
+      const wb = WorkbookBuilder.create();
+      wb.sheet('Deliverables').setHeaders(HEADERS_D).addObjects([
+        blankD({ name: 'Blank Date Insert', status: 'pending' }),
+      ]);
+      return writeXlsx(wb.build());
+    })();
+
+    const postD = async (b, label) => {
+      const tmpPath = join(tmpdir(), `dblank-${label}-${Date.now()}.xlsx`);
+      writeFileSync(tmpPath, b);
+      try {
+        return await request(app).post('/api/activities/v1/deliverables/import-xls').set('Cookie', cookies).attach('file', tmpPath);
+      } finally {
+        unlinkSync(tmpPath);
+      }
+    };
+
+    const commit = await postD(buf, 'blank-date');
+    if (commit.status !== 201) throw new Error(`blank-date commit ${commit.status}: ${JSON.stringify(commit.body)}`);
+    expect(commit.body.inserted).toBe(1);
+
+    const row = await db.one(
+      `SELECT name, start_date, end_date FROM coashm.deliverables WHERE name = 'Blank Date Insert'`,
+    );
+    expect(row.start_date).toBeNull();
+    expect(row.end_date).toBeNull();
+  });
+
   test('rename via the same id classifies as update + persists the new name', async () => {
     const cash = await db.one(`SELECT id, name FROM coashm.chart_of_accounts WHERE code = '1000'`);
     expect(cash.name).toBe('Cash');

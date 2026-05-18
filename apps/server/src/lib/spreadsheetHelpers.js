@@ -237,6 +237,16 @@ export function coerceChildRow(row, model) {
       if (col.type === 'boolean') row[col.name] = col.default ?? false;
       continue;
     }
+    // Blank spreadsheet cells arrive as `''`. For non-text columns
+    // (date / uuid / numeric / boolean / timestamp / etc.) pg rejects `''`
+    // as a literal — coerce to null and let the booleans branch above
+    // backfill the schema default on the next pass. Text-shaped columns
+    // (varchar / char / text) keep `''` to preserve the empty-vs-null
+    // distinction some callers rely on.
+    if (val === '' && !/^(varchar|char|text)/i.test(col.type)) {
+      row[col.name] = col.type === 'boolean' ? (col.default ?? false) : null;
+      continue;
+    }
     // varchar/char/text columns: coerce numbers to strings
     if (/^(varchar|char|text)/i.test(col.type) && typeof val === 'number') {
       row[col.name] = String(val);
@@ -844,12 +854,15 @@ export async function importSimpleTable(model, filePath, callbackFn, { previewOn
   // Transform every row up front so both preview and commit see the same
   // post-coercion shape. Carry `_rowNum` + the row's intended archive state
   // alongside the merged row so we can attribute errors and detect archive
-  // transitions later.
+  // transitions later. NB: `deactivated_at` is NOT set in this loop — it's
+  // applied per-row at commit time, only when an actual archive transition
+  // is detected against the existing DB row. That preserves the original
+  // archive timestamp on a re-import of an already-archived row.
   const prepared = [];
   for (const raw of rows) {
     const { _rowNum, ...rest } = raw;
     let row = rest;
-    let archiveTarget; // undefined → leave deactivated_at alone
+    let archiveTarget; // undefined → no archive intent expressed in the file
     if (!hasStatusColumn) {
       const { status, ...withoutStatus } = row;
       row = withoutStatus;
@@ -863,8 +876,13 @@ export async function importSimpleTable(model, filePath, callbackFn, { previewOn
     const merged = callbackFn ? await callbackFn(row) : row;
     delete merged.tenant_code;
     if (tenantId) merged.tenant_id = tenantId;
-    if (archiveTarget === true) merged.deactivated_at = new Date();
-    else if (archiveTarget === false) merged.deactivated_at = null;
+    // Drop the stale-on-update audit columns now so they never participate
+    // in the diff (and never land in the insert/update DTO either).
+    delete merged.created_at;
+    delete merged.updated_at;
+    delete merged.updated_by;
+    // `deactivated_at` is decided per-row at commit time.
+    delete merged.deactivated_at;
     prepared.push({ rowNum: _rowNum || null, merged, archiveTarget });
   }
 
@@ -913,12 +931,16 @@ export async function importSimpleTable(model, filePath, callbackFn, { previewOn
     }
   }
 
-  // Intra-file duplicate natural-key detection. Two rows with the same
-  // natural-key value would both classify as inserts (or one insert + one
-  // update against the same DB row); commit would fire the first insert
-  // then 422 on the second with a unique-constraint error. Catch it here
-  // so preview surfaces the duplicate up front instead of green-lighting
-  // a commit that will partially fail.
+  // Intra-file duplicate detection — natural-key AND UUID. Two rows with
+  // the same key (either kind) are blocking errors: the commit would either
+  // 422 on a unique-constraint violation (natural-key duplicate going to
+  // insert) or silently apply two updates against the same DB row with the
+  // later row winning (UUID duplicate). Surfacing them in preview lets the
+  // user fix the workbook before any writes.
+  //
+  // Errors flow through `pushIssue` so a workbook with thousands of
+  // duplicates can't build an unbounded error array (cap at MAX_IMPORT_ISSUES
+  // with a single sentinel entry once exceeded).
   const validationErrors = [];
   if (naturalKey) {
     const seenAt = new Map(); // value -> first rowNum
@@ -926,7 +948,7 @@ export async function importSimpleTable(model, filePath, callbackFn, { previewOn
       const nkVal = p.merged[naturalKey];
       if (nkVal == null || nkVal === '') continue;
       if (seenAt.has(nkVal)) {
-        validationErrors.push({
+        pushIssue(validationErrors, {
           sheet: sheetName,
           row: p.rowNum,
           column: naturalKey,
@@ -938,11 +960,32 @@ export async function importSimpleTable(model, filePath, callbackFn, { previewOn
       }
     }
   }
+  {
+    const seenIdAt = new Map(); // UUID id -> first rowNum
+    for (const p of prepared) {
+      const idVal = p.merged.id;
+      if (!isUuid(idVal)) continue;
+      if (seenIdAt.has(idVal)) {
+        pushIssue(validationErrors, {
+          sheet: sheetName,
+          row: p.rowNum,
+          column: 'id',
+          value: idVal,
+          message: `Duplicate id '${idVal}' in file (also at row ${seenIdAt.get(idVal)})`,
+        });
+      } else {
+        seenIdAt.set(idVal, p.rowNum);
+      }
+    }
+  }
 
   // Classification pass. Two lookups per row: UUID first (authoritative when
   // present), then natural key as a fallback. Rows that match by natural key
   // have their merged.id rewritten to the existing UUID so the commit path
-  // uses updateWhere instead of insert.
+  // uses updateWhere instead of insert. We also capture `diff` and `existing`
+  // on each classified entry so commit can write only the changed columns
+  // (instead of every imported cell, which would clobber unrelated DB values
+  // with blanks).
   let inserts = 0;
   let updates = 0;
   let noops = 0;
@@ -959,7 +1002,7 @@ export async function importSimpleTable(model, filePath, callbackFn, { previewOn
     }
     if (!existing) {
       inserts += 1;
-      classified.push({ ...p, action: 'insert' });
+      classified.push({ ...p, existing: null, diff: null, action: 'insert' });
       continue;
     }
     const wasArchived = !!existing.deactivated_at;
@@ -968,10 +1011,10 @@ export async function importSimpleTable(model, filePath, callbackFn, { previewOn
     const diff = diffParent(p.merged, existing, { caseSensitive: true });
     if (Object.keys(diff).length > 0 || archiveChanged) {
       updates += 1;
-      classified.push({ ...p, action: 'update' });
+      classified.push({ ...p, existing, diff, action: 'update' });
     } else {
       noops += 1;
-      classified.push({ ...p, action: 'noop' });
+      classified.push({ ...p, existing, diff, action: 'noop' });
     }
   }
 
@@ -983,7 +1026,17 @@ export async function importSimpleTable(model, filePath, callbackFn, { previewOn
   // commit doesn't half-apply a workbook the preview already flagged.
   if (validationErrors.length) return { errors: validationErrors };
 
-  // Commit pass. Per-row try/catch so a single bad row doesn't abort the import.
+  // Commit pass. Per-row try/catch collects errors without aborting on the
+  // first failure, so a response can surface multiple issues in one pass.
+  //
+  // Atomicity caveat: pg-schemata's `insert` and `updateWhere` use
+  // `this.db.*` directly rather than honoring `this.tx`, so wrapping this
+  // loop in `db.tx` would be a no-op — writes from earlier rows would
+  // already be committed by the time a later row hits a constraint
+  // violation. Pre-validation (intra-file duplicate-key check above) is
+  // the primary atomicity guard for now. True atomic commit would require
+  // either patching pg-schemata or rewriting this pass against raw
+  // `t.result(...)` queries; tracked as a follow-up.
   const errors = [];
   let inserted = 0;
   let updated = 0;
@@ -991,35 +1044,33 @@ export async function importSimpleTable(model, filePath, callbackFn, { previewOn
     if (c.action === 'noop') continue;
     try {
       if (c.action === 'update') {
-        // Strip immutable + audit-create columns so an import never overwrites
-        // a row's `created_by` / `created_at` (BaseController.importXls injects
-        // a fresh `created_by` on every row, and the exported workbook may
-        // carry the original audit fields too — neither should be re-written
-        // on an update). `updated_at` is left to pg-schemata's writer to
-        // manage; `updated_by` flows from the ALS audit resolver, not the row.
-        const {
-          id,
-          tenant_id: _tid,
-          created_by: _cb,
-          created_at: _ca,
-          updated_at: _ua,
-          updated_by: _ub,
-          ...changes
-        } = c.merged;
-        await model.updateWhere([{ id }], changes, { includeDeactivated: true });
+        // Write only the computed diff. Blank cells in the workbook that
+        // match the existing DB value never appear in the diff, so they
+        // can't clobber non-null DB columns the user didn't intend to
+        // touch. Apply the archive transition explicitly when the row's
+        // status flipped.
+        const changes = { ...c.diff };
+        const wasArchived = !!c.existing.deactivated_at;
+        const willBeArchived = c.archiveTarget === undefined ? wasArchived : !!c.archiveTarget;
+        if (willBeArchived !== wasArchived) {
+          changes.deactivated_at = willBeArchived ? new Date() : null;
+        }
+        if (Object.keys(changes).length === 0) continue; // safety: nothing to write
+        await model.updateWhere([{ id: c.existing.id }], changes, { includeDeactivated: true });
         updated++;
       } else {
         const insertRow = { ...c.merged };
         delete insertRow.id;
+        if (c.archiveTarget === true) insertRow.deactivated_at = new Date();
         await model.insert(insertRow);
         inserted++;
       }
     } catch (err) {
       const parsed = parseDbImportError(err);
       if (parsed) {
-        for (const e of parsed) errors.push({ ...e, sheet: sheetName, row: c.rowNum });
+        for (const e of parsed) pushIssue(errors, { ...e, sheet: sheetName, row: c.rowNum });
       } else {
-        errors.push({ sheet: sheetName, row: c.rowNum, column: null, value: null, message: err.message });
+        pushIssue(errors, { sheet: sheetName, row: c.rowNum, column: null, value: null, message: err.message });
       }
     }
   }
@@ -2817,7 +2868,11 @@ function _arrayEq(a, b) {
  * @private
  */
 function _diffParent(transformed, existing, { caseSensitive = false } = {}) {
-  const SKIP = new Set(['id', 'tenant_id', 'created_at', 'created_by', 'updated_at', 'updated_by']);
+  // `deactivated_at` is treated as audit metadata too: archive transitions
+  // are driven by the importer's explicit `status` parse, not by diffing
+  // the timestamp. Including it in the diff would refresh the original
+  // archive timestamp on every re-import of an already-archived row.
+  const SKIP = new Set(['id', 'tenant_id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'deactivated_at']);
   const changes = {};
   const eq = caseSensitive ? _strictEq : _normEq;
   for (const [col, val] of Object.entries(transformed)) {
