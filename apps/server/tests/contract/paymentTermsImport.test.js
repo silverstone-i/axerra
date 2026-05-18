@@ -273,6 +273,73 @@ describe('PaymentTerms import — simple-table shim', () => {
     expect(ghostsAfter).toHaveLength(0);
   });
 
+  test('update does not overwrite created_by — audit-create columns are stripped from the changes', async () => {
+    // BaseController.importXls injects the importing user's id into every
+    // row's `created_by`. Without stripping it from the update DTO, every
+    // commit-side update would silently re-write the row's `created_by`
+    // to the importer, losing the original creator's audit trail. Verify
+    // a real update (term bump) leaves `created_by` and `created_at`
+    // untouched. We bump `term` (not `label`) so subsequent tests in the
+    // describe block can still find rows by their original labels.
+    const net30 = await db.one(
+      `SELECT id, label, term, created_by, created_at FROM ptimp.payment_terms WHERE label = 'Net 30'`,
+    );
+    const originalCreatedBy = net30.created_by;
+    const originalCreatedAt = net30.created_at;
+    const bumpedTerm = net30.term + 1;
+
+    const buf = await buildWorkbook([
+      blank({ id: net30.id, label: 'Net 30', term: bumpedTerm, units: 'days', is_active: true, status: 'active' }),
+    ]);
+
+    const commit = await postImport(buf, cookies, 'audit-preserve');
+    expect(commit.status).toBe(201);
+    expect(commit.body.updated).toBe(1);
+
+    const after = await db.one(
+      `SELECT label, term, created_by, created_at FROM ptimp.payment_terms WHERE id = $1`,
+      [net30.id],
+    );
+    expect(after.label).toBe('Net 30');
+    expect(after.term).toBe(bumpedTerm);
+    expect(after.created_by).toEqual(originalCreatedBy);
+    expect(after.created_at.toISOString()).toBe(originalCreatedAt.toISOString());
+  });
+
+  test('duplicate label within the file is surfaced as a preview error and blocks commit', async () => {
+    // The shim's intra-file duplicate-key detector catches two rows with
+    // the same natural key (label) up front, instead of letting the commit
+    // half-succeed and 422 on the unique constraint mid-way through.
+    const buf = await buildWorkbook([
+      blank({ label: 'Net 90', term: 90, units: 'days', is_active: true, status: 'active' }),
+      blank({ label: 'Net 90', term: 90, units: 'days', is_active: true, status: 'active' }),
+    ]);
+
+    // BaseController.importXls maps `result.errors.length > 0` to a 422
+    // (matches the flat single-entity preview-with-errors behavior).
+    const preview = await postImport(buf, cookies, 'dup-preview', { preview: true });
+    expect(preview.status).toBe(422);
+    expect(preview.body.preview).toBe(true);
+    expect(preview.body.errors.length).toBe(1);
+    expect(preview.body.errors[0]).toMatchObject({
+      column: 'label',
+      value: 'Net 90',
+      message: expect.stringContaining("Duplicate label 'Net 90'"),
+    });
+
+    const commit = await postImport(buf, cookies, 'dup-commit');
+    expect(commit.status).toBe(422);
+    expect(commit.body.errors.length).toBe(1);
+    expect(commit.body.errors[0].column).toBe('label');
+
+    // Neither duplicate landed in the DB — the validation gate fired before
+    // any writes.
+    const after = await db.one(
+      `SELECT count(*)::int AS n FROM ptimp.payment_terms WHERE label = 'Net 90'`,
+    );
+    expect(after.n).toBe(0);
+  });
+
   test('case-only edit on a parent varchar field counts as a real change', async () => {
     const net30 = await db.one(`SELECT id, label FROM ptimp.payment_terms WHERE label = 'Net 30'`);
     const recased = net30.label.toUpperCase();

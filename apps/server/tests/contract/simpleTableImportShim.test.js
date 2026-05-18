@@ -149,6 +149,53 @@ describe('Simple-table shim — ChartOfAccounts', () => {
     expect(commitRes.body).toMatchObject({ inserted: 0, updated: 0 });
   });
 
+  test('status column on entities that have a real status column flows through (deliverables)', async () => {
+    // Deliverables has a real workflow status column
+    // (pending -> released -> finished -> canceled). The shim must NOT treat
+    // the spreadsheet's `status` cell as synthetic archive metadata for
+    // these entities — it must let the value flow through to the DB.
+    // Without the schema-aware check the import would silently drop the
+    // 'released' value and use the column default 'pending'.
+    // Only include required + non-date columns. Empty-string date cells
+    // would fail Postgres DTO validation on the date type.
+    const HEADERS_D = ['id', 'name', 'description', 'status'];
+    const blankD = (extras = {}) => Object.fromEntries(HEADERS_D.map((h) => [h, extras[h] ?? '']));
+    const buildD = async (rows) => {
+      const { WorkbookBuilder, writeXlsx } = await import('@nap-sft/tablsx');
+      const wb = WorkbookBuilder.create();
+      wb.sheet('Deliverables').setHeaders(HEADERS_D).addObjects(rows);
+      return writeXlsx(wb.build());
+    };
+    const postD = async (buf, label, opts = {}) => {
+      const tmpPath = join(tmpdir(), `del-${label}-${Date.now()}.xlsx`);
+      writeFileSync(tmpPath, buf);
+      const url = `/api/activities/v1/deliverables/import-xls${opts.preview ? '?preview=1' : ''}`;
+      try {
+        return await request(app).post(url).set('Cookie', cookies).attach('file', tmpPath);
+      } finally {
+        unlinkSync(tmpPath);
+      }
+    };
+
+    const buf = await buildD([
+      blankD({ name: 'Foundation Pour', description: 'Pad ready', status: 'released' }),
+    ]);
+
+    const commit = await postD(buf, 'status-passthrough');
+    if (commit.status !== 201) {
+      throw new Error(`deliverables commit returned ${commit.status}: ${JSON.stringify(commit.body)}`);
+    }
+    expect(commit.body.inserted).toBe(1);
+
+    const row = await db.one(
+      `SELECT name, status, deactivated_at FROM coashm.deliverables WHERE name = 'Foundation Pour'`,
+    );
+    expect(row.status).toBe('released');
+    // And the row was NOT archived — `released` is not 'archived', so the
+    // synthetic archive parser must not have fired.
+    expect(row.deactivated_at).toBeNull();
+  });
+
   test('rename via the same id classifies as update + persists the new name', async () => {
     const cash = await db.one(`SELECT id, name FROM coashm.chart_of_accounts WHERE code = '1000'`);
     expect(cash.name).toBe('Cash');

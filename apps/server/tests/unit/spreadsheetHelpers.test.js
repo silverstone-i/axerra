@@ -21,6 +21,7 @@ const {
   parseSheet,
   validateImportGroups,
   checkPortalUserEmailCollisions,
+  diffParent,
 } = await import('../../src/lib/spreadsheetHelpers.js');
 
 describe('getEnumColumns', () => {
@@ -408,5 +409,42 @@ describe('checkPortalUserEmailCollisions', () => {
     const errs = await checkPortalUserEmailCollisions(groups, { sheetName: 'X', entityType: 'client' });
     expect(errs).toEqual([]);
     expect(dbMock.manyOrNone).not.toHaveBeenCalled();
+  });
+});
+
+describe('diffParent { caseSensitive: true } numeric equivalence', () => {
+  // pg-promise returns `numeric(p,s)` and `bigint` columns as strings, but
+  // spreadsheet cells deserialise as JS numbers. Without numeric-aware
+  // equality the simple-table importer would classify every round-trip of
+  // a row with a numeric column (total_amount, contract_amount, etc.) as
+  // an update, even when the value is unchanged.
+  it('treats a JS number equal to its pg numeric-string form as no diff', () => {
+    const transformed = { total_amount: 100.5, label: 'Acme' };
+    const existing = { total_amount: '100.50', label: 'Acme' };
+    expect(diffParent(transformed, existing, { caseSensitive: true })).toEqual({});
+  });
+
+  it('treats integer-as-string from pg as equal to JS number', () => {
+    const transformed = { term: 30 };
+    const existing = { term: '30' };
+    expect(diffParent(transformed, existing, { caseSensitive: true })).toEqual({});
+  });
+
+  it('still reports a real numeric change as a diff', () => {
+    const transformed = { total_amount: 100.5 };
+    const existing = { total_amount: '99.99' };
+    expect(diffParent(transformed, existing, { caseSensitive: true })).toEqual({ total_amount: 100.5 });
+  });
+
+  it('does not coerce a non-numeric string to match a number', () => {
+    const transformed = { code: '1000' };
+    const existing = { code: 'abc' };
+    expect(diffParent(transformed, existing, { caseSensitive: true })).toEqual({ code: '1000' });
+  });
+
+  it('preserves case-sensitive string comparison alongside the numeric fix', () => {
+    const transformed = { label: 'Acme' };
+    const existing = { label: 'ACME' };
+    expect(diffParent(transformed, existing, { caseSensitive: true })).toEqual({ label: 'Acme' });
   });
 });

@@ -832,20 +832,34 @@ export async function importSimpleTable(model, filePath, callbackFn, { previewOn
     tenantId = tenantRec?.id ?? null;
   }
 
+  // When the schema has its own `status` column (e.g. journal_entries
+  // 'posted', ap_invoices 'paid', projects 'in_progress'), the spreadsheet's
+  // status cell is a real business value that must flow through to the DB
+  // — destructuring it out as synthetic archive metadata would silently
+  // corrupt workflow state. Only entities WITHOUT a real status column
+  // (PaymentTerms, ChartOfAccounts, etc.) treat the column as the
+  // export-side archived/active marker.
+  const hasStatusColumn = (model._schema?.columns || []).some((c) => c.name === 'status');
+
   // Transform every row up front so both preview and commit see the same
   // post-coercion shape. Carry `_rowNum` + the row's intended archive state
   // alongside the merged row so we can attribute errors and detect archive
   // transitions later.
   const prepared = [];
   for (const raw of rows) {
-    const { _rowNum, status, ...row } = raw;
-    coerceChildRow(row, model);
+    const { _rowNum, ...rest } = raw;
+    let row = rest;
     let archiveTarget; // undefined → leave deactivated_at alone
-    if (typeof status === 'string') {
-      const s = status.toLowerCase().trim();
-      if (s === 'archived') archiveTarget = true;
-      else if (s === 'active') archiveTarget = false;
+    if (!hasStatusColumn) {
+      const { status, ...withoutStatus } = row;
+      row = withoutStatus;
+      if (typeof status === 'string') {
+        const s = status.toLowerCase().trim();
+        if (s === 'archived') archiveTarget = true;
+        else if (s === 'active') archiveTarget = false;
+      }
     }
+    coerceChildRow(row, model);
     const merged = callbackFn ? await callbackFn(row) : row;
     delete merged.tenant_code;
     if (tenantId) merged.tenant_id = tenantId;
@@ -899,6 +913,32 @@ export async function importSimpleTable(model, filePath, callbackFn, { previewOn
     }
   }
 
+  // Intra-file duplicate natural-key detection. Two rows with the same
+  // natural-key value would both classify as inserts (or one insert + one
+  // update against the same DB row); commit would fire the first insert
+  // then 422 on the second with a unique-constraint error. Catch it here
+  // so preview surfaces the duplicate up front instead of green-lighting
+  // a commit that will partially fail.
+  const validationErrors = [];
+  if (naturalKey) {
+    const seenAt = new Map(); // value -> first rowNum
+    for (const p of prepared) {
+      const nkVal = p.merged[naturalKey];
+      if (nkVal == null || nkVal === '') continue;
+      if (seenAt.has(nkVal)) {
+        validationErrors.push({
+          sheet: sheetName,
+          row: p.rowNum,
+          column: naturalKey,
+          value: nkVal,
+          message: `Duplicate ${naturalKey} '${nkVal}' in file (also at row ${seenAt.get(nkVal)})`,
+        });
+      } else {
+        seenAt.set(nkVal, p.rowNum);
+      }
+    }
+  }
+
   // Classification pass. Two lookups per row: UUID first (authoritative when
   // present), then natural key as a fallback. Rows that match by natural key
   // have their merged.id rewritten to the existing UUID so the commit path
@@ -936,8 +976,12 @@ export async function importSimpleTable(model, filePath, callbackFn, { previewOn
   }
 
   if (previewOnly) {
-    return { preview: true, inserts, updates, noops, omitted: 0, errors: [] };
+    return { preview: true, inserts, updates, noops, omitted: 0, errors: validationErrors };
   }
+
+  // Validation errors are blocking — surface them before any writes so the
+  // commit doesn't half-apply a workbook the preview already flagged.
+  if (validationErrors.length) return { errors: validationErrors };
 
   // Commit pass. Per-row try/catch so a single bad row doesn't abort the import.
   const errors = [];
@@ -947,7 +991,21 @@ export async function importSimpleTable(model, filePath, callbackFn, { previewOn
     if (c.action === 'noop') continue;
     try {
       if (c.action === 'update') {
-        const { id, ...changes } = c.merged;
+        // Strip immutable + audit-create columns so an import never overwrites
+        // a row's `created_by` / `created_at` (BaseController.importXls injects
+        // a fresh `created_by` on every row, and the exported workbook may
+        // carry the original audit fields too — neither should be re-written
+        // on an update). `updated_at` is left to pg-schemata's writer to
+        // manage; `updated_by` flows from the ALS audit resolver, not the row.
+        const {
+          id,
+          tenant_id: _tid,
+          created_by: _cb,
+          created_at: _ca,
+          updated_at: _ua,
+          updated_by: _ub,
+          ...changes
+        } = c.merged;
         await model.updateWhere([{ id }], changes, { includeDeactivated: true });
         updated++;
       } else {
@@ -2779,12 +2837,28 @@ function _diffParent(transformed, existing, { caseSensitive = false } = {}) {
  * empty-string and trims strings, but compares strings byte-for-byte so
  * case-only edits surface as real diffs. Used by callers that opt into
  * `{ caseSensitive: true }` on `diffParent`.
+ *
+ * Also bridges pg-promise's numeric-as-string round-trip: pg returns
+ * `numeric(p,s)` / `bigint` columns as strings, while spreadsheet cells
+ * arrive as JS numbers. When one side is a number and the other a string
+ * that parses cleanly to the same value, treat as equal — otherwise a
+ * round-trip of `total_amount`, `contract_amount`, etc. would classify
+ * every existing row as an update.
  * @private
  */
 function _strictEq(a, b) {
   const na = a == null || a === '' ? null : typeof a === 'string' ? a.trim() : a;
   const nb = b == null || b === '' ? null : typeof b === 'string' ? b.trim() : b;
-  return na === nb;
+  if (na === nb) return true;
+  if (na === null || nb === null) return false;
+  const aIsNum = typeof na === 'number';
+  const bIsNum = typeof nb === 'number';
+  if ((aIsNum && typeof nb === 'string') || (bIsNum && typeof na === 'string')) {
+    const an = aIsNum ? na : Number(na);
+    const bn = bIsNum ? nb : Number(nb);
+    if (!Number.isNaN(an) && !Number.isNaN(bn)) return an === bn;
+  }
+  return false;
 }
 
 /**
