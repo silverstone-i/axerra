@@ -483,6 +483,106 @@ describe('Vendors combined import — preview + commit', () => {
     expect(afterEmails).toEqual(beforeEmails);
   });
 
+  test('child-only change — parent unchanged but child set differs — preview AND commit both count it as an update', async () => {
+    // Acme's parent fields don't change; one of its emails gets a different
+    // value. Preview must classify Acme as an update (not noop) and commit's
+    // `updated` counter must reflect the child wholesale-replace.
+    const acme = await db.one(
+      `SELECT id, source_id FROM vcombo.vendors WHERE name = $1`,
+      ['Acme Supplies LLC'],
+    );
+
+    const buf = await buildWorkbook(
+      [
+        // Parent identical to current DB state.
+        blankVendor({
+          id: acme.id, name: 'Acme Supplies LLC', status: 'active',
+          email: 'sales@acme.test', email_label: 'work', email_is_primary: true,
+        }),
+        // Continuation row: same 'purchasing' label, NEW email value.
+        blankVendor({
+          email: 'procurement@acme.test', email_label: 'purchasing', email_is_primary: false,
+        }),
+      ],
+      [],
+    );
+
+    const preview = await postImport(buf, cookies, 'childOnly-preview', { preview: true });
+    expect(preview.status).toBe(200);
+    expect(preview.body.vendors).toEqual({ inserts: 0, updates: 1, noops: 0, omitted: 0 });
+
+    const commit = await postImport(buf, cookies, 'childOnly-commit');
+    if (commit.status !== 200) {
+      throw new Error(`child-only commit returned ${commit.status}: ${JSON.stringify(commit.body)}`);
+    }
+    expect(commit.body.updated).toBe(1);
+    expect(commit.body.inserted).toBe(0);
+
+    const activeEmails = await db.any(
+      `SELECT email FROM vcombo.emails WHERE source_id = $1 AND deactivated_at IS NULL ORDER BY email`,
+      [acme.source_id],
+    );
+    expect(activeEmails.map((r) => r.email)).toEqual(['procurement@acme.test', 'sales@acme.test']);
+  });
+
+  test('case-only edit on a child field counts as a real change (not a noop)', async () => {
+    // Seed Acme with an address, then re-import with the same address but
+    // a case-only edit on `address_line_1`. The DB column is case-sensitive
+    // and the user's intent is to update casing, so the diff must surface
+    // it as an update — `_normChildVal` must not lowercase its way past it.
+    const acme = await db.one(
+      `SELECT id, source_id FROM vcombo.vendors WHERE name = $1`,
+      ['Acme Supplies LLC'],
+    );
+
+    // Seed: a single address row with mixed-case street name.
+    const seedBuf = await buildWorkbook(
+      [
+        blankVendor({
+          id: acme.id, name: 'Acme Supplies LLC', status: 'active',
+          address_label: 'office', address_line_1: '123 Main St',
+          address_city: 'Springfield', address_country_code: 'US',
+        }),
+      ],
+      [],
+    );
+    const seedRes = await postImport(seedBuf, cookies, 'caseSeed');
+    expect(seedRes.status).toBe(200);
+
+    // Verify the seed landed with the original casing.
+    const seeded = await db.one(
+      `SELECT id, address_line_1 FROM vcombo.addresses WHERE source_id = $1 AND deactivated_at IS NULL`,
+      [acme.source_id],
+    );
+    expect(seeded.address_line_1).toBe('123 Main St');
+
+    // Re-import with case-only change on address_line_1.
+    const editBuf = await buildWorkbook(
+      [
+        blankVendor({
+          id: acme.id, name: 'Acme Supplies LLC', status: 'active',
+          address_label: 'office', address_line_1: '123 MAIN ST',
+          address_city: 'Springfield', address_country_code: 'US',
+        }),
+      ],
+      [],
+    );
+
+    const preview = await postImport(editBuf, cookies, 'caseEdit-preview', { preview: true });
+    expect(preview.status).toBe(200);
+    expect(preview.body.vendors).toEqual({ inserts: 0, updates: 1, noops: 0, omitted: 0 });
+
+    const commit = await postImport(editBuf, cookies, 'caseEdit-commit');
+    expect(commit.status).toBe(200);
+    expect(commit.body.updated).toBe(1);
+
+    const after = await db.one(
+      `SELECT address_line_1 FROM vcombo.addresses WHERE source_id = $1 AND deactivated_at IS NULL`,
+      [acme.source_id],
+    );
+    expect(after.address_line_1).toBe('123 MAIN ST');
+  });
+
   test('workbook with more than 2 sheets is rejected with a format error', async () => {
     const buf = await buildWorkbook(
       [blankVendor({ name: 'Should Not Import', status: 'active' })],

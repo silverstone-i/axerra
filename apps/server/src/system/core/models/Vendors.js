@@ -182,15 +182,24 @@ const _childKeyForModel = (model) =>
 
 /**
  * Normalize a child column value for set-comparison. Conflates null /
- * undefined / empty-string, lowercases + trims strings, and coerces booleans
- * to 1/0 so comparisons survive the round-trip through the spreadsheet
- * (which may carry bools as strings) and pg-schemata coercion.
+ * undefined / empty-string, trims strings, and coerces literal `'true'` /
+ * `'false'` strings to booleans so the comparison survives the round-trip
+ * through tablsx (which can hand back booleans as strings) and pg-schemata
+ * coercion. Case is preserved — case-sensitive fields like `address_line_1`,
+ * `city`, and `label` must surface case-only edits as real changes.
  */
 function _normChildVal(v) {
-  if (v === true) return 1;
-  if (v === false) return 0;
-  if (v == null || v === '') return null;
-  return typeof v === 'string' ? v.trim().toLowerCase() : v;
+  if (v === true) return true;
+  if (v === false) return false;
+  if (v == null) return null;
+  if (typeof v === 'string') {
+    const t = v.trim();
+    if (t === '') return null;
+    if (/^true$/i.test(t)) return true;
+    if (/^false$/i.test(t)) return false;
+    return t;
+  }
+  return v;
 }
 
 /**
@@ -515,6 +524,8 @@ export default class Vendors extends TableModel {
       const buckets = await this._classifyCombinedForPreview({
         db,
         s,
+        schema,
+        pgp,
         vendorGroups,
         contactGroups,
         callbackFn,
@@ -591,7 +602,6 @@ export default class Vendors extends TableModel {
           } else {
             await t.none(`UPDATE ${s}.vendors SET deactivated_at = NULL WHERE id = $1 AND deactivated_at IS NOT NULL`, [id]);
           }
-          updatedCount++;
         }
 
         // Always populate the ref maps so cross-sheet contact resolution and
@@ -600,9 +610,13 @@ export default class Vendors extends TableModel {
         vendorRefToId.set(id, id);
         vendorIdToSourceId.set(id, existing.source_id);
 
+        // Child wholesale-replace also counts as an update: the count must
+        // reflect every DB write, not just parent-field changes.
+        let childReplaced = false;
         if (existing.source_id) {
-          await this._upsertFlatChildren(t, s, schema, db, pgp, existing.source_id, group.children, VENDOR_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
+          childReplaced = await this._upsertFlatChildren(t, s, schema, db, pgp, existing.source_id, group.children, VENDOR_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
         }
+        if (parentChanged || childReplaced) updatedCount++;
       }
 
       _tVendorUpdates = Date.now();
@@ -757,12 +771,13 @@ export default class Vendors extends TableModel {
           } else {
             await t.none(`UPDATE ${s}.vendor_contacts SET deactivated_at = NULL WHERE id = $1 AND deactivated_at IS NOT NULL`, [id]);
           }
-          contactsUpdated++;
         }
 
+        let childReplaced = false;
         if (existing.source_id) {
-          await this._upsertFlatChildren(t, s, schema, db, pgp, existing.source_id, group.children, CONTACT_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
+          childReplaced = await this._upsertFlatChildren(t, s, schema, db, pgp, existing.source_id, group.children, CONTACT_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
         }
+        if (parentChanged || childReplaced) contactsUpdated++;
       }
 
       // Run contact inserts
@@ -888,13 +903,75 @@ export default class Vendors extends TableModel {
   }
 
   /**
-   * Upsert flat children for an updated parent: when the file's child set for
-   * a given cfg matches what's already in the DB (by `cfg.cols`), skip the
-   * wholesale-replace so child rows don't get recycled with new ids and bumped
-   * audit timestamps on a no-op re-import. Otherwise soft-delete the existing
-   * active set and bulk-insert the file's set.
+   * Transform the file's child rows for a single cfg into the same shape
+   * `bulkInsert` would persist. Shared by the commit (`_upsertFlatChildren`)
+   * and the preview classifier (`_anyChildrenDiffer`) so both sides compare
+   * the exact same values.
+   */
+  async _transformFlatChildSet(cfg, fileRows, sourceId, childModel, callbackFn, tenantId) {
+    const out = [];
+    for (const row of fileRows) {
+      const { _rowNum: _, ...rest } = row;
+      const base = { ...rest, source_id: sourceId };
+      const transformed = callbackFn ? await callbackFn(base) : base;
+      delete transformed.tenant_code;
+      if (tenantId) transformed.tenant_id = tenantId;
+      coerceChildRow(transformed, childModel);
+      out.push(transformed);
+    }
+    // Enforce single is_primary per source (partial unique index).
+    if (out.length > 1) {
+      let seenPrimary = false;
+      for (const r of out) {
+        if (r.is_primary) {
+          if (seenPrimary) r.is_primary = false;
+          else seenPrimary = true;
+        }
+      }
+    }
+    return out;
+  }
+
+  /**
+   * No-write check: would `_upsertFlatChildren` replace any of this parent's
+   * child sets? Iterates the cfgs the same way, transforms the file rows,
+   * loads the DB's current active set, and returns true on the first cfg
+   * whose set differs. Used by the preview classifier to keep preview /
+   * commit aligned on child-only changes, and (indirectly) by the commit
+   * path's updated-count accounting via `_upsertFlatChildren`'s return.
+   */
+  async _anyChildrenDiffer({ t, db, s, schema, pgp, sourceId, fileChildren, childConfig, callbackFn, tenantId }) {
+    const handle = t || db;
+    for (const cfg of childConfig) {
+      const key = cfg.model === 'phoneNumbers' ? 'phones' : cfg.model === 'taxIdentifiers' ? 'taxIds' : cfg.model;
+      const rawRows = fileChildren?.[key];
+      if (!rawRows || !rawRows.length) continue;
+
+      const childModel = db(cfg.model, schema);
+      if (t) childModel.tx = t;
+      const tableName = childModel._schema?.table || cfg.model;
+      const tName = pgp.as.name(tableName);
+
+      const toInsert = await this._transformFlatChildSet(cfg, rawRows, sourceId, childModel, callbackFn, tenantId);
+      const existing = await handle.any(
+        `SELECT * FROM ${s}.${tName} WHERE source_id = $1 AND deactivated_at IS NULL`,
+        [sourceId],
+      );
+      if (!_sameChildSet(toInsert, existing, cfg.cols)) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Upsert flat children for an updated parent: per cfg, skip the wholesale
+   * soft-delete + bulk-insert when the file's set matches the DB's current
+   * active set on `cfg.cols` so child rows don't get recycled on a no-op
+   * re-import. Returns `true` when at least one cfg was actually replaced —
+   * the parent loops use that to count child-only changes as updates so the
+   * commit's `updated` / `contactsUpdated` counters reflect every DB write.
    */
   async _upsertFlatChildren(t, s, schema, db, pgp, sourceId, children, childConfig, callbackFn, tenantId) {
+    let anyReplaced = false;
     for (const cfg of childConfig) {
       const key = cfg.model === 'phoneNumbers' ? 'phones' : cfg.model === 'taxIdentifiers' ? 'taxIds' : cfg.model;
       const childRows = children[key];
@@ -905,33 +982,7 @@ export default class Vendors extends TableModel {
       const tableName = childModel._schema?.table || cfg.model;
       const tName = pgp.as.name(tableName);
 
-      // Transform incoming rows first so the diff compares post-coercion
-      // values against the DB's typed values (matches what bulkInsert would
-      // persist).
-      const toInsert = [];
-      for (const row of childRows) {
-        const { _rowNum: _, ...rest } = row;
-        const base = { ...rest, source_id: sourceId };
-        const transformed = callbackFn ? await callbackFn(base) : base;
-        delete transformed.tenant_code;
-        if (tenantId) transformed.tenant_id = tenantId;
-        coerceChildRow(transformed, childModel);
-        toInsert.push(transformed);
-      }
-
-      // Enforce single is_primary per source (partial unique index).
-      if (toInsert.length > 1) {
-        let seenPrimary = false;
-        for (const r of toInsert) {
-          if (r.is_primary) {
-            if (seenPrimary) r.is_primary = false;
-            else seenPrimary = true;
-          }
-        }
-      }
-
-      // Skip the wholesale replace when the incoming set matches the DB's
-      // current active set on the cfg's content columns.
+      const toInsert = await this._transformFlatChildSet(cfg, childRows, sourceId, childModel, callbackFn, tenantId);
       const existing = await t.any(
         `SELECT * FROM ${s}.${tName} WHERE source_id = $1 AND deactivated_at IS NULL`,
         [sourceId],
@@ -945,7 +996,9 @@ export default class Vendors extends TableModel {
       if (toInsert.length) {
         await childModel.bulkInsert(toInsert);
       }
+      anyReplaced = true;
     }
+    return anyReplaced;
   }
 
   /**
@@ -1032,12 +1085,13 @@ export default class Vendors extends TableModel {
 
   /**
    * Classify what `_importFlatCombined` would do without touching the DB.
-   * Returns parent-level counts for vendors and contacts. Children are not
-   * counted separately — the combined import always replaces a parent's
-   * children wholesale, so a parent classified as "update" or "noop" carries
-   * its child set with it.
+   * Returns parent-level counts for vendors and contacts. Parents with no
+   * field-level diff but whose child set differs from the DB count as
+   * updates (not noops) to mirror what `_upsertFlatChildren` would do on
+   * commit — preview must not promise "no changes" when a child wholesale
+   * replace is about to fire.
    */
-  async _classifyCombinedForPreview({ db, s, vendorGroups, contactGroups, callbackFn, tenantId }) {
+  async _classifyCombinedForPreview({ db, s, schema, pgp, vendorGroups, contactGroups, callbackFn, tenantId }) {
     const stripContactCols = ['status', 'deactivated_at', 'password'];
 
     const vendors = { inserts: 0, updates: 0, noops: 0, omitted: 0 };
@@ -1065,7 +1119,18 @@ export default class Vendors extends TableModel {
       delete transformed.tenant_code;
       if (tenantId) transformed.tenant_id = tenantId;
       const changes = diffParent(transformed, existing);
-      if (Object.keys(changes).length > 0 || willBeArchived !== wasArchived) vendors.updates += 1;
+      const parentChanged = Object.keys(changes).length > 0 || willBeArchived !== wasArchived;
+      const childrenDiffer = existing.source_id
+        ? await this._anyChildrenDiffer({
+            db, s, schema, pgp,
+            sourceId: existing.source_id,
+            fileChildren: group.children,
+            childConfig: VENDOR_CHILD_ARRAYS_CONFIG,
+            callbackFn,
+            tenantId,
+          })
+        : false;
+      if (parentChanged || childrenDiffer) vendors.updates += 1;
       else vendors.noops += 1;
     }
 
@@ -1098,7 +1163,18 @@ export default class Vendors extends TableModel {
       // normally.
       if (transformed.vendor_id && !isUuid(transformed.vendor_id)) delete transformed.vendor_id;
       const changes = diffParent(transformed, existing);
-      if (Object.keys(changes).length > 0 || willBeArchived !== wasArchived) contacts.updates += 1;
+      const parentChanged = Object.keys(changes).length > 0 || willBeArchived !== wasArchived;
+      const childrenDiffer = existing.source_id
+        ? await this._anyChildrenDiffer({
+            db, s, schema, pgp,
+            sourceId: existing.source_id,
+            fileChildren: group.children,
+            childConfig: CONTACT_CHILD_ARRAYS_CONFIG,
+            callbackFn,
+            tenantId,
+          })
+        : false;
+      if (parentChanged || childrenDiffer) contacts.updates += 1;
       else contacts.noops += 1;
     }
 
