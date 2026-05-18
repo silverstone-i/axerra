@@ -46,8 +46,9 @@ export const tenantApi = {
   /** POST /export-xls — export tenants to flat spreadsheet. */
   exportXls: (body = {}) => client.post(`${BASE}/export-xls`, body, { responseType: 'blob' }),
 
-  /** POST /import-xls — import tenants from flat spreadsheet. */
-  importXls: (formData) => client.post(`${BASE}/import-xls`, formData),
+  /** POST /import-xls — import tenants from flat spreadsheet. Pass `{ preview: true }` for a dry-run. */
+  importXls: (formData, { preview = false } = {}) =>
+    client.post(`${BASE}/import-xls${preview ? '?preview=1' : ''}`, formData),
 };
 
 export default tenantApi;
