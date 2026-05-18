@@ -775,6 +775,202 @@ export async function exportSourceEntity(model, filePath, where, joinType, optio
 }
 
 /**
+ * Import a single-sheet "simple" table (no children, no sources record, no
+ * slot-keyed reconciliation) with idempotent upsert-by-UUID semantics and
+ * optional preview classification.
+ *
+ * Behavior shared across every entity in the simple-table family
+ * (PaymentTerms, ChartOfAccounts, JournalEntries, CatalogSkus, ApInvoices,
+ * Activities, Categories, Projects, ChangeOrders, etc.):
+ *
+ *   - Sheet 0 only; one row per record.
+ *   - Rows with a valid UUID in `id` are looked up; rows with no id are inserted.
+ *   - For UUID rows, the writer compares the transformed row against the
+ *     existing DB row with `diffParent(..., { caseSensitive: true })`. No
+ *     diff and no archive transition → noop (no write). Otherwise → update.
+ *   - `status` column (string) parses to `deactivated_at`: 'archived' soft-
+ *     deletes, 'active' restores, anything else is ignored.
+ *   - `tenant_id` is resolved from the callback's `tenant_code` once per call
+ *     (matches `PaymentTerms`'s pattern). `tenant_code` is stripped from the
+ *     row before write.
+ *   - On `previewOnly`, no DB writes happen; returns classification counts
+ *     `{ preview, inserts, updates, noops, omitted: 0, errors }` shaped to
+ *     match the flat single-entity payload that `ImportDialog` already renders.
+ *   - On commit, returns `{ inserted, updated, errors? }`; per-row DB errors
+ *     are surfaced via `parseDbImportError` with sheet/row context.
+ *
+ * @param {Object}   model       pg-schemata TableModel instance (this).
+ * @param {string}   filePath    Input file path.
+ * @param {Function} callbackFn  Row transformer supplied by the controller
+ *                               (adds `tenant_code`, `created_by`, `updated_by`).
+ * @param {Object}   [opts]
+ * @param {boolean}  [opts.previewOnly=false]  Skip writes; return counts.
+ * @returns {Promise<Object>}    Preview or commit payload (see above).
+ */
+export async function importSimpleTable(model, filePath, callbackFn, { previewOnly = false } = {}) {
+  const { WorkbookReader } = await import('@nap-sft/tablsx');
+  const buffer = readFileSync(filePath);
+  const reader = WorkbookReader.fromBuffer(buffer);
+  const rows = parseSheet(reader, 0);
+  const sheetName = reader.sheetNames?.[0] || (model._schema?.table || 'Sheet1');
+
+  if (!rows.length) {
+    return previewOnly
+      ? { preview: true, inserts: 0, updates: 0, noops: 0, omitted: 0, errors: [] }
+      : { inserted: 0, updated: 0 };
+  }
+
+  // Resolve tenant_id from the callback's sample row (the controller injects
+  // tenant_code on every row). One DB lookup per import.
+  let tenantId = null;
+  const sampleRow = callbackFn ? await callbackFn({}) : {};
+  if (sampleRow.tenant_code) {
+    const tenantRec = await model.db.oneOrNone(
+      'SELECT id FROM admin.tenants WHERE tenant_code = $1 AND deactivated_at IS NULL',
+      [sampleRow.tenant_code.toUpperCase()],
+    );
+    tenantId = tenantRec?.id ?? null;
+  }
+
+  // Transform every row up front so both preview and commit see the same
+  // post-coercion shape. Carry `_rowNum` + the row's intended archive state
+  // alongside the merged row so we can attribute errors and detect archive
+  // transitions later.
+  const prepared = [];
+  for (const raw of rows) {
+    const { _rowNum, status, ...row } = raw;
+    coerceChildRow(row, model);
+    let archiveTarget; // undefined → leave deactivated_at alone
+    if (typeof status === 'string') {
+      const s = status.toLowerCase().trim();
+      if (s === 'archived') archiveTarget = true;
+      else if (s === 'active') archiveTarget = false;
+    }
+    const merged = callbackFn ? await callbackFn(row) : row;
+    delete merged.tenant_code;
+    if (tenantId) merged.tenant_id = tenantId;
+    if (archiveTarget === true) merged.deactivated_at = new Date();
+    else if (archiveTarget === false) merged.deactivated_at = null;
+    prepared.push({ rowNum: _rowNum || null, merged, archiveTarget });
+  }
+
+  const tName = model.pgp.as.name(model._schema?.table || sheetName);
+  const sName = model.pgp.as.name(model._schema?.dbSchema || 'public');
+
+  // Batch-load the existing DB rows for every UUID id in the file (avoid N+1).
+  const uuidIds = prepared.filter((p) => isUuid(p.merged.id)).map((p) => p.merged.id);
+  const existingById = new Map();
+  if (uuidIds.length) {
+    const existing = await model.db.any(
+      `SELECT * FROM ${sName}.${tName} WHERE id IN ($1:csv)`,
+      [uuidIds],
+    );
+    for (const row of existing) existingById.set(row.id, row);
+  }
+
+  // Natural-key fallback: when a row's `id` isn't a usable UUID (or doesn't
+  // resolve to a DB row), look it up by the entity's natural unique key
+  // before classifying as insert. This makes round-trip idempotent even
+  // when the file's `id` column carries non-UUID values (e.g. a workbook
+  // hand-edited with sequential 1/2/3 ids, or an export from a different
+  // system) — without this fallback the commit would hit the entity's
+  // (tenant_id, X) unique constraint and 422 with a cryptic error.
+  //
+  // The natural key is derived from the first unique constraint in the
+  // schema, minus `tenant_id` (which is implicit per-import). Only
+  // single-column natural keys are supported here; composite natural keys
+  // fall back to the UUID-only path.
+  const uniqueDef = model._schema?.constraints?.unique?.[0] || [];
+  const naturalKeyCols = uniqueDef.filter((c) => c !== 'tenant_id');
+  const naturalKey = naturalKeyCols.length === 1 ? naturalKeyCols[0] : null;
+  const existingByNatural = new Map();
+  if (naturalKey && tenantId) {
+    const valuesNeedingLookup = prepared
+      .filter((p) => !(isUuid(p.merged.id) && existingById.has(p.merged.id)))
+      .map((p) => p.merged[naturalKey])
+      .filter((v) => v != null && v !== '');
+    if (valuesNeedingLookup.length) {
+      const kCol = model.pgp.as.name(naturalKey);
+      const existing = await model.db.any(
+        `SELECT * FROM ${sName}.${tName} WHERE tenant_id = $1 AND ${kCol} IN ($2:csv)`,
+        [tenantId, valuesNeedingLookup],
+      );
+      for (const row of existing) existingByNatural.set(row[naturalKey], row);
+    }
+  }
+
+  // Classification pass. Two lookups per row: UUID first (authoritative when
+  // present), then natural key as a fallback. Rows that match by natural key
+  // have their merged.id rewritten to the existing UUID so the commit path
+  // uses updateWhere instead of insert.
+  let inserts = 0;
+  let updates = 0;
+  let noops = 0;
+  const classified = [];
+  for (const p of prepared) {
+    let existing = null;
+    if (isUuid(p.merged.id)) existing = existingById.get(p.merged.id);
+    if (!existing && naturalKey) {
+      const matched = existingByNatural.get(p.merged[naturalKey]);
+      if (matched) {
+        existing = matched;
+        p.merged.id = matched.id; // upgrade insert → update on the existing row
+      }
+    }
+    if (!existing) {
+      inserts += 1;
+      classified.push({ ...p, action: 'insert' });
+      continue;
+    }
+    const wasArchived = !!existing.deactivated_at;
+    const willBeArchived = p.archiveTarget === undefined ? wasArchived : !!p.archiveTarget;
+    const archiveChanged = wasArchived !== willBeArchived;
+    const diff = diffParent(p.merged, existing, { caseSensitive: true });
+    if (Object.keys(diff).length > 0 || archiveChanged) {
+      updates += 1;
+      classified.push({ ...p, action: 'update' });
+    } else {
+      noops += 1;
+      classified.push({ ...p, action: 'noop' });
+    }
+  }
+
+  if (previewOnly) {
+    return { preview: true, inserts, updates, noops, omitted: 0, errors: [] };
+  }
+
+  // Commit pass. Per-row try/catch so a single bad row doesn't abort the import.
+  const errors = [];
+  let inserted = 0;
+  let updated = 0;
+  for (const c of classified) {
+    if (c.action === 'noop') continue;
+    try {
+      if (c.action === 'update') {
+        const { id, ...changes } = c.merged;
+        await model.updateWhere([{ id }], changes, { includeDeactivated: true });
+        updated++;
+      } else {
+        const insertRow = { ...c.merged };
+        delete insertRow.id;
+        await model.insert(insertRow);
+        inserted++;
+      }
+    } catch (err) {
+      const parsed = parseDbImportError(err);
+      if (parsed) {
+        for (const e of parsed) errors.push({ ...e, sheet: sheetName, row: c.rowNum });
+      } else {
+        errors.push({ sheet: sheetName, row: c.rowNum, column: null, value: null, message: err.message });
+      }
+    }
+  }
+
+  if (errors.length) return { errors };
+  return { inserted, updated };
+}
+
+/**
  * Import a source entity from a multi-sheet workbook with upsert semantics.
  *
  * Sheet 0: Parent entity (required) — `id` determines insert vs update
