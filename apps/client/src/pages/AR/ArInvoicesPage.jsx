@@ -103,7 +103,9 @@ export default function ArInvoicesPage() {
   const handleImport = useCallback(async (formData) => {
     try {
       const result = await importMut.mutateAsync(formData);
-      toast(`Imported ${result.inserted} records`);
+      const ins = result?.inserted ?? 0;
+      const upd = result?.updated ?? 0;
+      toast(ins + upd === 0 ? 'Import complete — no changes' : `AR Invoices: ${ins} new, ${upd} updated`);
       importDialog.close();
     } catch (err) {
       toast(errMsg(err), 'error');
@@ -282,7 +284,7 @@ export default function ArInvoicesPage() {
       <ConfirmDialog {...archiveConfirmProps} />
       <ConfirmDialog {...restoreConfirmProps} />
 
-      <ImportDialog open={importDialog.isOpen} title="Import AR Invoices" loading={importMut.isPending} onSubmit={handleImport} onCancel={importDialog.close} />
+      <ImportDialog open={importDialog.isOpen} title="Import AR Invoices" loading={importMut.isPending} onPreview={(fd) => arInvoiceApi.importXls(fd, { preview: true })} onSubmit={handleImport} onCancel={importDialog.close} />
 
       <ToastSnackbar {...snackProps} />
     </Box>

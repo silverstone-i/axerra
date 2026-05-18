@@ -136,7 +136,9 @@ export default function ProjectsPage() {
   const handleImport = useCallback(async (formData) => {
     try {
       const result = await importMut.mutateAsync(formData);
-      toast(`Imported ${result.inserted} records`);
+      const ins = result?.inserted ?? 0;
+      const upd = result?.updated ?? 0;
+      toast(ins + upd === 0 ? 'Import complete — no changes' : `Projects: ${ins} new, ${upd} updated`);
       importDialog.close();
     } catch (err) {
       toast(errMsg(err), 'error');
@@ -278,7 +280,7 @@ export default function ProjectsPage() {
         <TextField label="Notes" multiline minRows={2} value={editForm.notes} onChange={onEditField('notes')} />
       </FormDialog>
 
-      <ImportDialog open={importDialog.isOpen} title="Import Projects" loading={importMut.isPending} onSubmit={handleImport} onCancel={importDialog.close} />
+      <ImportDialog open={importDialog.isOpen} title="Import Projects" loading={importMut.isPending} onPreview={(fd) => projectApi.importXls(fd, { preview: true })} onSubmit={handleImport} onCancel={importDialog.close} />
 
       <ConfirmDialog {...archiveConfirmProps} />
       <ConfirmDialog {...restoreConfirmProps} />

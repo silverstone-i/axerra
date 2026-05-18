@@ -237,6 +237,16 @@ export function coerceChildRow(row, model) {
       if (col.type === 'boolean') row[col.name] = col.default ?? false;
       continue;
     }
+    // Blank spreadsheet cells arrive as `''`. For non-text columns
+    // (date / uuid / numeric / boolean / timestamp / etc.) pg rejects `''`
+    // as a literal — coerce blanks here: booleans land on the schema
+    // default (mirrors the null-branch above), every other non-text type
+    // lands on null. Text-shaped columns (varchar / char / text) keep `''`
+    // so callers that distinguish empty-string from null still can.
+    if (val === '' && !/^(varchar|char|text)/i.test(col.type)) {
+      row[col.name] = col.type === 'boolean' ? (col.default ?? false) : null;
+      continue;
+    }
     // varchar/char/text columns: coerce numbers to strings
     if (/^(varchar|char|text)/i.test(col.type) && typeof val === 'number') {
       row[col.name] = String(val);
@@ -772,6 +782,372 @@ export async function exportSourceEntity(model, filePath, where, joinType, optio
 
   writeFileSync(filePath, writeXlsx(wb.build()));
   return { exported: rows.length, filePath };
+}
+
+/**
+ * Import a single-sheet "simple" table (no children, no sources record, no
+ * slot-keyed reconciliation) with idempotent upsert-by-UUID semantics and
+ * optional preview classification.
+ *
+ * Behavior shared across every entity in the simple-table family
+ * (PaymentTerms, ChartOfAccounts, JournalEntries, CatalogSkus, ApInvoices,
+ * Activities, Categories, Projects, ChangeOrders, etc.):
+ *
+ *   - Sheet 0 only; one row per record.
+ *   - Row classification is a two-stage lookup: (1) UUID `id` matched
+ *     against the DB, then (2) the entity's single-column natural unique
+ *     key as a fallback when the schema declares a single-column
+ *     `constraints.unique` entry — e.g. PaymentTerms (`label`),
+ *     ChartOfAccounts (`code`), CatalogSkus (`catalog_sku`), Categories
+ *     (`code`), Projects (`project_code`). Either lookup match resolves
+ *     to an update path against the existing row; rows that miss both
+ *     lookups insert.
+ *
+ *     **Coverage caveat:** transactional entities without a single-column
+ *     unique constraint (JournalEntries, ApInvoices, ArInvoices, Payments,
+ *     Receipts, ApCreditMemos, Deliverables, Budgets, ActualCosts,
+ *     ChangeOrders) have no natural key to fall back to. For those,
+ *     idempotent round-trip works only via a stable UUID `id` in the
+ *     workbook — a ghost UUID (or a missing/blank id) classifies as an
+ *     insert, which then succeeds (no unique constraint to conflict with)
+ *     and produces a duplicate row. Either rely on the exporter's real
+ *     UUIDs round-tripping, or add a unique constraint to the schema
+ *     before treating those imports as idempotent.
+ *   - For matched rows, the writer diffs the transformed row against the
+ *     existing DB row via `diffParent(..., { caseSensitive: true })`. No
+ *     diff and no archive transition → noop (no write). Otherwise → update,
+ *     writing only the diff (plus an explicit archive transition) so blank
+ *     cells can't clobber unrelated DB values.
+ *   - `status` column is the synthetic archive marker ONLY when the schema
+ *     doesn't already have its own `status` column. For entities like
+ *     JournalEntries / ApInvoices / Projects (real workflow status), the
+ *     spreadsheet value flows through to the DB unchanged.
+ *   - `tenant_id` is resolved from the callback's `tenant_code` once per call
+ *     (matches `PaymentTerms`'s pattern). `tenant_code` is stripped from the
+ *     row before write.
+ *   - On `previewOnly`, no DB writes happen; returns classification counts
+ *     `{ preview, inserts, updates, noops, omitted: 0, errors }` shaped to
+ *     match the flat single-entity payload that `ImportDialog` already renders.
+ *   - On commit, returns `{ inserted, updated, errors? }`; per-row DB errors
+ *     are surfaced via `parseDbImportError` with sheet/row context.
+ *
+ * @param {Object}   model       pg-schemata TableModel instance (this).
+ * @param {string}   filePath    Input file path.
+ * @param {Function} callbackFn  Row transformer supplied by the controller
+ *                               (adds `tenant_code`, `created_by`, `updated_by`).
+ * @param {Object}   [opts]
+ * @param {boolean}  [opts.previewOnly=false]  Skip writes; return counts.
+ * @returns {Promise<Object>}    Preview or commit payload (see above).
+ */
+export async function importSimpleTable(model, filePath, callbackFn, { previewOnly = false } = {}) {
+  const { WorkbookReader } = await import('@nap-sft/tablsx');
+  const buffer = readFileSync(filePath);
+  const reader = WorkbookReader.fromBuffer(buffer);
+  const rows = parseSheet(reader, 0);
+  const sheetName = reader.sheetNames?.[0] || (model._schema?.table || 'Sheet1');
+
+  if (!rows.length) {
+    return previewOnly
+      ? { preview: true, inserts: 0, updates: 0, noops: 0, omitted: 0, errors: [] }
+      : { inserted: 0, updated: 0 };
+  }
+
+  // Resolve tenant_id from the callback's sample row (the controller injects
+  // tenant_code on every row). One DB lookup per import.
+  let tenantId = null;
+  const sampleRow = callbackFn ? await callbackFn({}) : {};
+  if (sampleRow.tenant_code) {
+    const tenantRec = await model.db.oneOrNone(
+      'SELECT id FROM admin.tenants WHERE tenant_code = $1 AND deactivated_at IS NULL',
+      [sampleRow.tenant_code.toUpperCase()],
+    );
+    tenantId = tenantRec?.id ?? null;
+  }
+
+  // When the schema has its own `status` column (e.g. journal_entries
+  // 'posted', ap_invoices 'paid', projects 'in_progress'), the spreadsheet's
+  // status cell is a real business value that must flow through to the DB
+  // — destructuring it out as synthetic archive metadata would silently
+  // corrupt workflow state. Only entities WITHOUT a real status column
+  // (PaymentTerms, ChartOfAccounts, etc.) treat the column as the
+  // export-side archived/active marker.
+  const hasStatusColumn = (model._schema?.columns || []).some((c) => c.name === 'status');
+
+  // Build a set of valid schema column names to filter `merged` against.
+  // Spreadsheet headers from newer exports, user-added notes columns,
+  // or columns from a different system would otherwise live in `merged`,
+  // get compared against `existing[unknownCol]=undefined`, classify
+  // unchanged rows as updates, and then get silently dropped by
+  // `sanitizeDto` at write time (preview/commit divergence).
+  const schemaColumns = new Set((model._schema?.columns || []).map((c) => c.name));
+
+  // Transform every row up front so both preview and commit see the same
+  // post-coercion shape. Carry `_rowNum` + the row's intended archive state
+  // alongside the merged row so we can attribute errors and detect archive
+  // transitions later. NB: `deactivated_at` is NOT set in this loop — it's
+  // applied per-row at commit time, only when an actual archive transition
+  // is detected against the existing DB row. That preserves the original
+  // archive timestamp on a re-import of an already-archived row.
+  const prepared = [];
+  for (const raw of rows) {
+    const { _rowNum, ...rest } = raw;
+    let row = rest;
+    let archiveTarget; // undefined → no archive intent expressed in the file
+    if (!hasStatusColumn) {
+      const { status, ...withoutStatus } = row;
+      row = withoutStatus;
+      if (typeof status === 'string') {
+        const s = status.toLowerCase().trim();
+        if (s === 'archived') archiveTarget = true;
+        else if (s === 'active') archiveTarget = false;
+      }
+    }
+    coerceChildRow(row, model);
+    const merged = callbackFn ? await callbackFn(row) : row;
+    delete merged.tenant_code;
+    if (tenantId) merged.tenant_id = tenantId;
+    // Drop the stale-on-update audit columns now so they never participate
+    // in the diff (and never land in the insert/update DTO either).
+    delete merged.created_at;
+    delete merged.updated_at;
+    delete merged.updated_by;
+    // `deactivated_at` is decided per-row at commit time.
+    delete merged.deactivated_at;
+    // Drop any spreadsheet column the schema doesn't know about. Keeps
+    // preview classification aligned with what `sanitizeDto` will actually
+    // persist on commit.
+    if (schemaColumns.size) {
+      for (const k of Object.keys(merged)) {
+        if (!schemaColumns.has(k)) delete merged[k];
+      }
+    }
+    prepared.push({ rowNum: _rowNum || null, merged, archiveTarget });
+  }
+
+  const tName = model.pgp.as.name(model._schema?.table || sheetName);
+  const sName = model.pgp.as.name(model._schema?.dbSchema || 'public');
+
+  // Batch-load the existing DB rows for every UUID id in the file (avoid N+1).
+  const uuidIds = prepared.filter((p) => isUuid(p.merged.id)).map((p) => p.merged.id);
+  const existingById = new Map();
+  if (uuidIds.length) {
+    const existing = await model.db.any(
+      `SELECT * FROM ${sName}.${tName} WHERE id IN ($1:csv)`,
+      [uuidIds],
+    );
+    for (const row of existing) existingById.set(row.id, row);
+  }
+
+  // Natural-key fallback: when a row's `id` isn't a usable UUID (or doesn't
+  // resolve to a DB row), look it up by the entity's natural unique key
+  // before classifying as insert. This makes round-trip idempotent even
+  // when the file's `id` column carries non-UUID values (e.g. a workbook
+  // hand-edited with sequential 1/2/3 ids, or an export from a different
+  // system) — without this fallback the commit would hit the entity's
+  // (tenant_id, X) unique constraint and 422 with a cryptic error.
+  //
+  // The natural key is derived from the first unique constraint in the
+  // schema, minus `tenant_id` (which is implicit per-import). Only
+  // single-column natural keys are supported here; composite natural keys
+  // fall back to the UUID-only path.
+  const uniqueDef = model._schema?.constraints?.unique?.[0] || [];
+  const naturalKeyCols = uniqueDef.filter((c) => c !== 'tenant_id');
+  const naturalKey = naturalKeyCols.length === 1 ? naturalKeyCols[0] : null;
+  const existingByNatural = new Map();
+  if (naturalKey && tenantId) {
+    const valuesNeedingLookup = prepared
+      .filter((p) => !(isUuid(p.merged.id) && existingById.has(p.merged.id)))
+      .map((p) => p.merged[naturalKey])
+      .filter((v) => v != null && v !== '');
+    if (valuesNeedingLookup.length) {
+      const kCol = model.pgp.as.name(naturalKey);
+      const existing = await model.db.any(
+        `SELECT * FROM ${sName}.${tName} WHERE tenant_id = $1 AND ${kCol} IN ($2:csv)`,
+        [tenantId, valuesNeedingLookup],
+      );
+      for (const row of existing) existingByNatural.set(row[naturalKey], row);
+    }
+  }
+
+  // Intra-file duplicate detection — natural-key AND UUID. Two rows with
+  // the same key (either kind) are blocking errors: the commit would either
+  // 422 on a unique-constraint violation (natural-key duplicate going to
+  // insert) or silently apply two updates against the same DB row with the
+  // later row winning (UUID duplicate). Surfacing them in preview lets the
+  // user fix the workbook before any writes.
+  //
+  // Errors flow through `pushIssue` so a workbook with thousands of
+  // duplicates can't build an unbounded error array (cap at MAX_IMPORT_ISSUES
+  // with a single sentinel entry once exceeded).
+  const validationErrors = [];
+  if (naturalKey) {
+    const seenAt = new Map(); // value -> first rowNum
+    for (const p of prepared) {
+      const nkVal = p.merged[naturalKey];
+      if (nkVal == null || nkVal === '') continue;
+      if (seenAt.has(nkVal)) {
+        pushIssue(validationErrors, {
+          sheet: sheetName,
+          row: p.rowNum,
+          column: naturalKey,
+          value: nkVal,
+          message: `Duplicate ${naturalKey} '${nkVal}' in file (also at row ${seenAt.get(nkVal)})`,
+        });
+      } else {
+        seenAt.set(nkVal, p.rowNum);
+      }
+    }
+  }
+  {
+    const seenIdAt = new Map(); // UUID id -> first rowNum
+    for (const p of prepared) {
+      const idVal = p.merged.id;
+      if (!isUuid(idVal)) continue;
+      if (seenIdAt.has(idVal)) {
+        pushIssue(validationErrors, {
+          sheet: sheetName,
+          row: p.rowNum,
+          column: 'id',
+          value: idVal,
+          message: `Duplicate id '${idVal}' in file (also at row ${seenIdAt.get(idVal)})`,
+        });
+      } else {
+        seenIdAt.set(idVal, p.rowNum);
+      }
+    }
+  }
+
+  // Classification pass. Two lookups per row: UUID first (authoritative when
+  // present), then natural key as a fallback. Rows that match by natural key
+  // have their merged.id rewritten to the existing UUID so the commit path
+  // uses updateWhere instead of insert. We also capture `diff` and `existing`
+  // on each classified entry so commit can write only the changed columns
+  // (instead of every imported cell, which would clobber unrelated DB values
+  // with blanks).
+  let inserts = 0;
+  let updates = 0;
+  let noops = 0;
+  const classified = [];
+  for (const p of prepared) {
+    let existing = null;
+    if (isUuid(p.merged.id)) existing = existingById.get(p.merged.id);
+    if (!existing && naturalKey) {
+      const matched = existingByNatural.get(p.merged[naturalKey]);
+      if (matched) {
+        existing = matched;
+        p.merged.id = matched.id; // upgrade insert → update on the existing row
+      }
+    }
+    if (!existing) {
+      inserts += 1;
+      classified.push({ ...p, existing: null, diff: null, action: 'insert' });
+      continue;
+    }
+    const wasArchived = !!existing.deactivated_at;
+    const willBeArchived = p.archiveTarget === undefined ? wasArchived : !!p.archiveTarget;
+    const archiveChanged = wasArchived !== willBeArchived;
+    const diff = diffParent(p.merged, existing, { caseSensitive: true });
+    if (Object.keys(diff).length > 0 || archiveChanged) {
+      updates += 1;
+      classified.push({ ...p, existing, diff, action: 'update' });
+    } else {
+      noops += 1;
+      classified.push({ ...p, existing, diff, action: 'noop' });
+    }
+  }
+
+  if (previewOnly) {
+    return { preview: true, inserts, updates, noops, omitted: 0, errors: validationErrors };
+  }
+
+  // Validation errors are blocking — surface them before any writes so the
+  // commit doesn't half-apply a workbook the preview already flagged.
+  if (validationErrors.length) return { errors: validationErrors };
+
+  // Build the insert + update batches. We compute the actual write payload
+  // here so the tx callback below is purely "submit + roll back on error".
+  const insertRows = [];
+  const updateRows = [];
+  for (const c of classified) {
+    if (c.action === 'noop') continue;
+    if (c.action === 'update') {
+      // Write only the computed diff. Blank cells in the workbook that
+      // match the existing DB value never appear in the diff, so they
+      // can't clobber non-null DB columns the user didn't intend to
+      // touch. Apply the archive transition explicitly when the row's
+      // status flipped.
+      const changes = { ...c.diff };
+      const wasArchived = !!c.existing.deactivated_at;
+      const willBeArchived = c.archiveTarget === undefined ? wasArchived : !!c.archiveTarget;
+      if (willBeArchived !== wasArchived) {
+        changes.deactivated_at = willBeArchived ? new Date() : null;
+      }
+      if (Object.keys(changes).length === 0) continue; // safety: nothing to write
+      updateRows.push({ id: c.existing.id, ...changes });
+    } else {
+      const insertRow = { ...c.merged };
+      delete insertRow.id;
+      if (c.archiveTarget === true) insertRow.deactivated_at = new Date();
+      insertRows.push(insertRow);
+    }
+  }
+
+  if (insertRows.length === 0 && updateRows.length === 0) {
+    return { inserted: 0, updated: 0 };
+  }
+
+  // Build per-row UPDATE statements via pg-schemata's column-set helpers
+  // and run them through `t.batch` inside the outer tx. Why not use the
+  // model's `bulkUpdate`? It hardcodes `AND deactivated_at IS NULL` in the
+  // WHERE clause when softDelete is enabled, so it would silently no-op
+  // on already-archived rows — breaking the restore (archived → active)
+  // path entirely. Mirroring its internals here lets us drop the softCheck.
+  const updateQueries = [];
+  for (const row of updateRows) {
+    const { id, ...changes } = row;
+    if (model._auditEnabled?.() && !('updated_by' in changes) && model._resolveAuditActor) {
+      changes.updated_by = model._resolveAuditActor();
+    }
+    const safeUpdates = model.sanitizeDto(changes, { includeImmutable: false });
+    if (Object.keys(safeUpdates).length === 0) continue;
+    // Mirror what every other update path does: bump `updated_at` so the
+    // audit timestamp stays accurate for imported edits.
+    if (model._auditEnabled?.()) safeUpdates.updated_at = new Date();
+    const updateCs = new model.pgp.helpers.ColumnSet(Object.keys(safeUpdates), {
+      table: { table: model._schema.table, schema: model._schema.dbSchema },
+    });
+    const setClause = model.pgp.helpers.update(safeUpdates, updateCs);
+    const where = model.pgp.as.format('WHERE id = $1', [id]);
+    updateQueries.push(`${setClause} ${where}`);
+  }
+
+  // Atomic commit. `bulkInsert` honors `this.tx`; the raw update queries
+  // run through `t.batch`. A constraint / FK / check violation on any row
+  // aborts the tx and rolls back every earlier write in the same import.
+  // `model.tx` always resets in `finally` so a thrown error can't leak
+  // the tx onto the shared model instance.
+  const errors = [];
+  try {
+    await model.db.tx(async (t) => {
+      model.tx = t;
+      if (insertRows.length) await model.bulkInsert(insertRows);
+      if (updateQueries.length) {
+        await t.batch(updateQueries.map((q) => t.result(q, [], (r) => r.rowCount)));
+      }
+    });
+  } catch (err) {
+    const parsed = parseDbImportError(err);
+    if (parsed) {
+      for (const e of parsed) pushIssue(errors, { ...e, sheet: sheetName });
+    } else {
+      pushIssue(errors, { sheet: sheetName, row: null, column: null, value: null, message: err.message });
+    }
+  } finally {
+    model.tx = null;
+  }
+
+  if (errors.length) return { errors };
+  return { inserted: insertRows.length, updated: updateQueries.length };
 }
 
 /**
@@ -2560,10 +2936,18 @@ function _arrayEq(a, b) {
  *   - `updated_at`, `updated_by`   — managed separately by the writer; including
  *     them in the diff would defeat NO-OP detection since the importing user
  *     normally differs from the prior `updated_by`.
+ *   - `deactivated_at`             — archive transitions are driven by the
+ *     importer's explicit `status` parse, not by diffing the timestamp.
+ *     Including it would refresh the original archive timestamp on every
+ *     re-import of an already-archived row.
  * @private
  */
 function _diffParent(transformed, existing, { caseSensitive = false } = {}) {
-  const SKIP = new Set(['id', 'tenant_id', 'created_at', 'created_by', 'updated_at', 'updated_by']);
+  // `deactivated_at` is treated as audit metadata too: archive transitions
+  // are driven by the importer's explicit `status` parse, not by diffing
+  // the timestamp. Including it in the diff would refresh the original
+  // archive timestamp on every re-import of an already-archived row.
+  const SKIP = new Set(['id', 'tenant_id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'deactivated_at']);
   const changes = {};
   const eq = caseSensitive ? _strictEq : _normEq;
   for (const [col, val] of Object.entries(transformed)) {
@@ -2583,12 +2967,41 @@ function _diffParent(transformed, existing, { caseSensitive = false } = {}) {
  * empty-string and trims strings, but compares strings byte-for-byte so
  * case-only edits surface as real diffs. Used by callers that opt into
  * `{ caseSensitive: true }` on `diffParent`.
+ *
+ * Also bridges pg-promise's numeric-as-string round-trip: pg returns
+ * `numeric(p,s)` / `bigint` columns as strings, while spreadsheet cells
+ * arrive as JS numbers. When one side is a number and the other a string
+ * that parses cleanly to the same value, treat as equal — otherwise a
+ * round-trip of `total_amount`, `contract_amount`, etc. would classify
+ * every existing row as an update.
  * @private
  */
 function _strictEq(a, b) {
   const na = a == null || a === '' ? null : typeof a === 'string' ? a.trim() : a;
   const nb = b == null || b === '' ? null : typeof b === 'string' ? b.trim() : b;
-  return na === nb;
+  if (na === nb) return true;
+  if (na === null || nb === null) return false;
+
+  // Date equivalence: pg returns date/timestamp columns as Date objects,
+  // tablsx may hand back a fresh Date for the same cell, and spreadsheet
+  // authors sometimes type ISO strings. Compare on epoch ms so any of
+  // those combinations round-trip cleanly without classifying as updates.
+  const aDate = na instanceof Date ? na : null;
+  const bDate = nb instanceof Date ? nb : null;
+  if (aDate || bDate) {
+    const at = aDate ? aDate.getTime() : (typeof na === 'string' ? new Date(na).getTime() : NaN);
+    const bt = bDate ? bDate.getTime() : (typeof nb === 'string' ? new Date(nb).getTime() : NaN);
+    if (!Number.isNaN(at) && !Number.isNaN(bt) && at === bt) return true;
+  }
+
+  const aIsNum = typeof na === 'number';
+  const bIsNum = typeof nb === 'number';
+  if ((aIsNum && typeof nb === 'string') || (bIsNum && typeof na === 'string')) {
+    const an = aIsNum ? na : Number(na);
+    const bn = bIsNum ? nb : Number(nb);
+    if (!Number.isNaN(an) && !Number.isNaN(bn)) return an === bn;
+  }
+  return false;
 }
 
 /**

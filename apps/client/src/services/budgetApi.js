@@ -24,7 +24,8 @@ export const budgetApi = {
   archive: (filterParams) => client.del(`${BASE}/archive${qs(filterParams)}`, {}),
   restore: (filterParams) => client.patch(`${BASE}/restore${qs(filterParams)}`, {}),
   createNewVersion: (body) => client.post(`${BASE}/new-version`, body),
-  importXls: (formData) => client.post(`${BASE}/import-xls`, formData),
+  importXls: (formData, { preview = false } = {}) =>
+    client.post(`${BASE}/import-xls${preview ? '?preview=1' : ''}`, formData),
   exportXls: (body = {}) => client.post(`${BASE}/export-xls`, body, { responseType: 'blob' }),
 };
 

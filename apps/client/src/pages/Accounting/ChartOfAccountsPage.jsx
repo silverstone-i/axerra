@@ -128,7 +128,9 @@ export default function ChartOfAccountsPage() {
   const handleImport = useCallback(async (formData) => {
     try {
       const result = await importMut.mutateAsync(formData);
-      toast(`Imported ${result.inserted} records`);
+      const ins = result?.inserted ?? 0;
+      const upd = result?.updated ?? 0;
+      toast(ins + upd === 0 ? 'Import complete — no changes' : `Chart of Accounts: ${ins} new, ${upd} updated`);
       importDialog.close();
     } catch (err) {
       toast(errMsg(err), 'error');
@@ -268,6 +270,7 @@ export default function ChartOfAccountsPage() {
         open={importDialog.isOpen}
         title="Import Chart of Accounts"
         loading={importMut.isPending}
+        onPreview={(fd) => chartOfAccountsApi.importXls(fd, { preview: true })}
         onSubmit={handleImport}
         onCancel={importDialog.close}
       />
