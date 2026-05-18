@@ -794,12 +794,22 @@ export async function exportSourceEntity(model, filePath, where, joinType, optio
  * Activities, Categories, Projects, ChangeOrders, etc.):
  *
  *   - Sheet 0 only; one row per record.
- *   - Rows with a valid UUID in `id` are looked up; rows with no id are inserted.
- *   - For UUID rows, the writer compares the transformed row against the
- *     existing DB row with `diffParent(..., { caseSensitive: true })`. No
- *     diff and no archive transition → noop (no write). Otherwise → update.
- *   - `status` column (string) parses to `deactivated_at`: 'archived' soft-
- *     deletes, 'active' restores, anything else is ignored.
+ *   - Row classification is a two-stage lookup: (1) UUID `id` matched against
+ *     the DB, then (2) the entity's single-column natural unique key (e.g.
+ *     `label` for PaymentTerms, `code` for ChartOfAccounts) as a fallback.
+ *     Either match resolves to an update path against the existing row;
+ *     rows that miss both lookups insert. So a workbook with non-UUID ids
+ *     (hand-edited, or ghost UUIDs from a different env) still round-trips
+ *     idempotently by natural key.
+ *   - For matched rows, the writer diffs the transformed row against the
+ *     existing DB row via `diffParent(..., { caseSensitive: true })`. No
+ *     diff and no archive transition → noop (no write). Otherwise → update,
+ *     writing only the diff (plus an explicit archive transition) so blank
+ *     cells can't clobber unrelated DB values.
+ *   - `status` column is the synthetic archive marker ONLY when the schema
+ *     doesn't already have its own `status` column. For entities like
+ *     JournalEntries / ApInvoices / Projects (real workflow status), the
+ *     spreadsheet value flows through to the DB unchanged.
  *   - `tenant_id` is resolved from the callback's `tenant_code` once per call
  *     (matches `PaymentTerms`'s pattern). `tenant_code` is stripped from the
  *     row before write.
@@ -851,6 +861,14 @@ export async function importSimpleTable(model, filePath, callbackFn, { previewOn
   // export-side archived/active marker.
   const hasStatusColumn = (model._schema?.columns || []).some((c) => c.name === 'status');
 
+  // Build a set of valid schema column names to filter `merged` against.
+  // Spreadsheet headers from newer exports, user-added notes columns,
+  // or columns from a different system would otherwise live in `merged`,
+  // get compared against `existing[unknownCol]=undefined`, classify
+  // unchanged rows as updates, and then get silently dropped by
+  // `sanitizeDto` at write time (preview/commit divergence).
+  const schemaColumns = new Set((model._schema?.columns || []).map((c) => c.name));
+
   // Transform every row up front so both preview and commit see the same
   // post-coercion shape. Carry `_rowNum` + the row's intended archive state
   // alongside the merged row so we can attribute errors and detect archive
@@ -883,6 +901,14 @@ export async function importSimpleTable(model, filePath, callbackFn, { previewOn
     delete merged.updated_by;
     // `deactivated_at` is decided per-row at commit time.
     delete merged.deactivated_at;
+    // Drop any spreadsheet column the schema doesn't know about. Keeps
+    // preview classification aligned with what `sanitizeDto` will actually
+    // persist on commit.
+    if (schemaColumns.size) {
+      for (const k of Object.keys(merged)) {
+        if (!schemaColumns.has(k)) delete merged[k];
+      }
+    }
     prepared.push({ rowNum: _rowNum || null, merged, archiveTarget });
   }
 
@@ -1072,6 +1098,9 @@ export async function importSimpleTable(model, filePath, callbackFn, { previewOn
     }
     const safeUpdates = model.sanitizeDto(changes, { includeImmutable: false });
     if (Object.keys(safeUpdates).length === 0) continue;
+    // Mirror what every other update path does: bump `updated_at` so the
+    // audit timestamp stays accurate for imported edits.
+    if (model._auditEnabled?.()) safeUpdates.updated_at = new Date();
     const updateCs = new model.pgp.helpers.ColumnSet(Object.keys(safeUpdates), {
       table: { table: model._schema.table, schema: model._schema.dbSchema },
     });
@@ -2936,6 +2965,19 @@ function _strictEq(a, b) {
   const nb = b == null || b === '' ? null : typeof b === 'string' ? b.trim() : b;
   if (na === nb) return true;
   if (na === null || nb === null) return false;
+
+  // Date equivalence: pg returns date/timestamp columns as Date objects,
+  // tablsx may hand back a fresh Date for the same cell, and spreadsheet
+  // authors sometimes type ISO strings. Compare on epoch ms so any of
+  // those combinations round-trip cleanly without classifying as updates.
+  const aDate = na instanceof Date ? na : null;
+  const bDate = nb instanceof Date ? nb : null;
+  if (aDate || bDate) {
+    const at = aDate ? aDate.getTime() : (typeof na === 'string' ? new Date(na).getTime() : NaN);
+    const bt = bDate ? bDate.getTime() : (typeof nb === 'string' ? new Date(nb).getTime() : NaN);
+    if (!Number.isNaN(at) && !Number.isNaN(bt) && at === bt) return true;
+  }
+
   const aIsNum = typeof na === 'number';
   const bIsNum = typeof nb === 'number';
   if ((aIsNum && typeof nb === 'string') || (bIsNum && typeof na === 'string')) {

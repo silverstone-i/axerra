@@ -45,8 +45,12 @@ export default class PaymentTerms extends TableModel {
 
   /**
    * Import payment terms from an XLSX spreadsheet via the shared
-   * simple-table shim: rows with a valid UUID `id` upsert, others insert,
-   * `status` ('archived' / 'active') maps to `deactivated_at`, and the
+   * simple-table shim. Rows resolve to an existing row via UUID `id` first;
+   * if that misses, the shim falls back to the natural unique key (`label`)
+   * so round-trips remain idempotent even when the file's `id` cells aren't
+   * UUIDs (hand-edited workbook, or an export whose UUIDs no longer exist
+   * in the target DB). Rows that miss both lookups insert. The `status`
+   * column maps to `deactivated_at` ('archived' / 'active'), and the
    * `previewOnly` option from `BaseController.importXls` is honored.
    */
   async importFromSpreadsheet(filePath, _sheetIndex = 0, callbackFn = null, _returning = null, options = {}) {

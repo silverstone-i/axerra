@@ -437,14 +437,38 @@ describe('diffParent { caseSensitive: true } numeric equivalence', () => {
   });
 
   it('does not coerce a non-numeric string to match a number', () => {
-    const transformed = { code: '1000' };
+    // Exercises the number-vs-string branch: one side must be a number
+    // for the coercion path to fire at all.
+    const transformed = { code: 1000 };
     const existing = { code: 'abc' };
-    expect(diffParent(transformed, existing, { caseSensitive: true })).toEqual({ code: '1000' });
+    expect(diffParent(transformed, existing, { caseSensitive: true })).toEqual({ code: 1000 });
   });
 
   it('preserves case-sensitive string comparison alongside the numeric fix', () => {
     const transformed = { label: 'Acme' };
     const existing = { label: 'ACME' };
     expect(diffParent(transformed, existing, { caseSensitive: true })).toEqual({ label: 'Acme' });
+  });
+});
+
+describe('diffParent { caseSensitive: true } date equivalence', () => {
+  it('treats two Date instances with the same epoch as no diff', () => {
+    const t = Date.UTC(2026, 4, 15);
+    const transformed = { invoice_date: new Date(t) };
+    const existing = { invoice_date: new Date(t) };
+    expect(diffParent(transformed, existing, { caseSensitive: true })).toEqual({});
+  });
+
+  it('treats a Date instance equal to its ISO string form as no diff', () => {
+    const iso = '2026-05-15T00:00:00.000Z';
+    const transformed = { invoice_date: iso };
+    const existing = { invoice_date: new Date(iso) };
+    expect(diffParent(transformed, existing, { caseSensitive: true })).toEqual({});
+  });
+
+  it('still reports a real date change as a diff', () => {
+    const transformed = { invoice_date: new Date('2026-05-15T00:00:00Z') };
+    const existing = { invoice_date: new Date('2026-05-16T00:00:00Z') };
+    expect(Object.keys(diffParent(transformed, existing, { caseSensitive: true }))).toEqual(['invoice_date']);
   });
 });
