@@ -53,6 +53,13 @@ function _validatePasswordStrength(pw) {
   return PW_RULES.filter((r) => !r.test(pw)).map((r) => r.msg);
 }
 
+// Postgres error codes: 3F000 = invalid_schema_name, 42P01 = undefined_table.
+// Used to scope the diff-helper try/catch to "tenant schema not provisioned
+// yet" cases — any other DB error must surface.
+function _isSchemaMissing(err) {
+  return err && (err.code === '3F000' || err.code === '42P01');
+}
+
 export default class Tenants extends TableModel {
   constructor(db, pgp, logger = null) {
     super(db, pgp, tenantsSchema, logger);
@@ -412,6 +419,27 @@ export default class Tenants extends TableModel {
       for (const t of tenants) existingById.set(t.id, t);
     }
 
+    // ROOT_TENANT archive protection for UPDATE rows: also resolve by the
+    // persisted tenant_code, since the spreadsheet may identify the row by
+    // `id` alone (with a blank/different tenant_code in the row).
+    for (const c of updateCandidates) {
+      const willArchive = String(c.row.status || '').toLowerCase().trim() === 'archived';
+      if (!willArchive) continue;
+      const existing = existingById.get(c.row.id);
+      if (existing && existing.tenant_code?.toUpperCase() === rootTenantCode) {
+        // Only push if we didn't already record a code-based hit for this row.
+        const already = errors.some(
+          (e) => e.row === c.rowNum && e.column === 'tenant_code' && /Cannot archive the root tenant/.test(e.message),
+        );
+        if (!already) {
+          pushIssue(errors, {
+            sheet: sheetName, row: c.rowNum, column: 'tenant_code', value: existing.tenant_code,
+            message: `Cannot archive the root tenant '${rootTenantCode}'.`,
+          });
+        }
+      }
+    }
+
     // Classification pass. A row is `error` if any error in `errors` references
     // its rowNum. Otherwise: insert / update / noop.
     const errorRows = new Set(errors.map((e) => e.row).filter((r) => r != null));
@@ -439,9 +467,15 @@ export default class Tenants extends TableModel {
       const addressDiff = await this._billingAddressDiff(c.row, existing);
       const taxDiff = await this._taxIdentifierDiff(c.row, existing);
       const phoneDiff = await this._adminPhoneDiff(c.row, existing);
-      const willArchive = String(c.row.status || '').toLowerCase().trim() === 'archived';
+      // Archive transitions only fire when status is *explicitly present and
+      // recognized*. A row that omits `status` leaves archive state untouched —
+      // re-importing a workbook without a status column must not silently
+      // restore archived tenants.
+      const normalizedStatus = c.row.status ? String(c.row.status).toLowerCase().trim() : null;
+      const statusRecognized = normalizedStatus === 'archived' || VALID_STATUSES.has(normalizedStatus);
+      const willArchive = normalizedStatus === 'archived';
       const wasArchived = !!existing.deactivated_at;
-      const archiveChanged = willArchive !== wasArchived;
+      const archiveChanged = statusRecognized && willArchive !== wasArchived;
       const hasAnyChange = Object.keys(tenantDiff).length > 0
         || addressDiff != null
         || taxDiff != null
@@ -499,8 +533,9 @@ export default class Tenants extends TableModel {
         `SELECT source_id FROM ${sch}.companies WHERE code = $1 AND deactivated_at IS NULL LIMIT 1`,
         [existing.tenant_code],
       );
-    } catch {
-      return null; // schema may not exist (failed provision)
+    } catch (err) {
+      if (_isSchemaMissing(err)) return null; // tenant schema not provisioned
+      throw err;
     }
     if (!company?.source_id) return null;
 
@@ -540,8 +575,9 @@ export default class Tenants extends TableModel {
         `SELECT source_id FROM ${sch}.companies WHERE code = $1 AND deactivated_at IS NULL LIMIT 1`,
         [existing.tenant_code],
       );
-    } catch {
-      return null;
+    } catch (err) {
+      if (_isSchemaMissing(err)) return null;
+      throw err;
     }
     if (!company?.source_id) return null;
 
@@ -580,8 +616,9 @@ export default class Tenants extends TableModel {
          WHERE e.is_primary_contact = true AND e.deactivated_at IS NULL
          ORDER BY e.created_at LIMIT 1`,
       );
-    } catch {
-      return null;
+    } catch (err) {
+      if (_isSchemaMissing(err)) return null;
+      throw err;
     }
     if (!adminEmp?.source_id) return null;
 
