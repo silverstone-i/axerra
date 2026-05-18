@@ -17,6 +17,7 @@ import { useState, useCallback, useEffect } from 'react';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
 import Stack from '@mui/material/Stack';
+import Divider from '@mui/material/Divider';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -143,7 +144,12 @@ export default function ImportDialog({
             Preview — review before importing:
           </Typography>
           {previewData.vendors && previewData.contacts ? (
-            <Stack spacing={1.5}>
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              spacing={{ xs: 1.5, sm: 4 }}
+              divider={<Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />}
+              sx={{ alignItems: 'flex-start' }}
+            >
               <PreviewBucket label="Vendors" counts={previewData.vendors} />
               <PreviewBucket label="Vendor Contacts" counts={previewData.contacts} />
             </Stack>
