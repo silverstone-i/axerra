@@ -27,6 +27,20 @@ import UploadFileIcon from '@mui/icons-material/UploadFile';
 import FormDialog from './FormDialog.jsx';
 import SecondaryButton from './SecondaryButton.jsx';
 
+function PreviewBucket({ label, counts }) {
+  return (
+    <Stack spacing={0.25}>
+      <Typography variant="body2" sx={{ fontWeight: 600 }}>{label}</Typography>
+      <Typography variant="body2">New rows: <strong>{counts.inserts}</strong></Typography>
+      <Typography variant="body2">Updates in place: <strong>{counts.updates}</strong></Typography>
+      <Typography variant="body2">Unchanged: <strong>{counts.noops}</strong></Typography>
+      {typeof counts.omitted === 'number' && (
+        <Typography variant="body2">Existing rows not in file (left unchanged): <strong>{counts.omitted}</strong></Typography>
+      )}
+    </Stack>
+  );
+}
+
 export default function ImportDialog({
   open,
   title = 'Import Spreadsheet',
@@ -128,12 +142,19 @@ export default function ImportDialog({
           <Typography variant="subtitle2" gutterBottom>
             Preview — review before importing:
           </Typography>
-          <Stack spacing={0.5}>
-            <Typography variant="body2">New rows: <strong>{previewData.inserts}</strong></Typography>
-            <Typography variant="body2">Updates in place: <strong>{previewData.updates}</strong></Typography>
-            <Typography variant="body2">Unchanged: <strong>{previewData.noops}</strong></Typography>
-            <Typography variant="body2">Existing rows not in file (left unchanged): <strong>{previewData.omitted}</strong></Typography>
-          </Stack>
+          {previewData.vendors && previewData.contacts ? (
+            <Stack spacing={1.5}>
+              <PreviewBucket label="Vendors" counts={previewData.vendors} />
+              <PreviewBucket label="Vendor Contacts" counts={previewData.contacts} />
+            </Stack>
+          ) : (
+            <Stack spacing={0.5}>
+              <Typography variant="body2">New rows: <strong>{previewData.inserts}</strong></Typography>
+              <Typography variant="body2">Updates in place: <strong>{previewData.updates}</strong></Typography>
+              <Typography variant="body2">Unchanged: <strong>{previewData.noops}</strong></Typography>
+              <Typography variant="body2">Existing rows not in file (left unchanged): <strong>{previewData.omitted}</strong></Typography>
+            </Stack>
+          )}
         </Alert>
       )}
 
