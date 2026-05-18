@@ -583,6 +583,46 @@ describe('Vendors combined import — preview + commit', () => {
     expect(after.address_line_1).toBe('123 MAIN ST');
   });
 
+  test('case-only edit on a parent field counts as a real change (not a noop)', async () => {
+    // Same case-sensitivity contract as the child-side fix, but at the
+    // parent level: `diffParent` defaults to case-insensitive comparison
+    // (preserves the flat single-entity behavior), so the combined importer
+    // opts in to caseSensitive: true. A rename 'Acme Supplies LLC' ->
+    // 'acme supplies llc' must persist instead of silently noop-skipping.
+    const acme = await db.one(
+      `SELECT id, name FROM vcombo.vendors WHERE id IN (SELECT id FROM vcombo.vendors WHERE name ILIKE 'acme%' LIMIT 1)`,
+    );
+    const originalName = acme.name;
+    const recased = originalName.toLowerCase();
+    expect(recased).not.toBe(originalName);
+
+    const buf = await buildWorkbook(
+      [
+        blankVendor({ id: acme.id, name: recased, status: 'active' }),
+      ],
+      [],
+    );
+
+    const preview = await postImport(buf, cookies, 'parentCase-preview', { preview: true });
+    expect(preview.status).toBe(200);
+    expect(preview.body.vendors).toEqual({ inserts: 0, updates: 1, noops: 0, omitted: 0 });
+
+    const commit = await postImport(buf, cookies, 'parentCase-commit');
+    expect(commit.status).toBe(200);
+    expect(commit.body.updated).toBe(1);
+
+    const after = await db.one(`SELECT name FROM vcombo.vendors WHERE id = $1`, [acme.id]);
+    expect(after.name).toBe(recased);
+
+    // Restore the original casing so subsequent tests in the file see the
+    // state they expect.
+    const restoreBuf = await buildWorkbook(
+      [blankVendor({ id: acme.id, name: originalName, status: 'active' })],
+      [],
+    );
+    await postImport(restoreBuf, cookies, 'parentCase-restore');
+  });
+
   test('workbook with more than 2 sheets is rejected with a format error', async () => {
     const buf = await buildWorkbook(
       [blankVendor({ name: 'Should Not Import', status: 'active' })],

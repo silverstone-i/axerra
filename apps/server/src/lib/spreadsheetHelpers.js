@@ -2562,9 +2562,10 @@ function _arrayEq(a, b) {
  *     normally differs from the prior `updated_by`.
  * @private
  */
-function _diffParent(transformed, existing) {
+function _diffParent(transformed, existing, { caseSensitive = false } = {}) {
   const SKIP = new Set(['id', 'tenant_id', 'created_at', 'created_by', 'updated_at', 'updated_by']);
   const changes = {};
+  const eq = caseSensitive ? _strictEq : _normEq;
   for (const [col, val] of Object.entries(transformed)) {
     if (SKIP.has(col)) continue;
     const cur = existing[col];
@@ -2572,16 +2573,30 @@ function _diffParent(transformed, existing) {
       if (!_arrayEq(val, cur)) changes[col] = val;
       continue;
     }
-    if (!_normEq(val, cur)) changes[col] = val;
+    if (!eq(val, cur)) changes[col] = val;
   }
   return changes;
+}
+
+/**
+ * Case-preserving variant of `_normEq`: still conflates null / undefined /
+ * empty-string and trims strings, but compares strings byte-for-byte so
+ * case-only edits surface as real diffs. Used by callers that opt into
+ * `{ caseSensitive: true }` on `diffParent`.
+ * @private
+ */
+function _strictEq(a, b) {
+  const na = a == null || a === '' ? null : typeof a === 'string' ? a.trim() : a;
+  const nb = b == null || b === '' ? null : typeof b === 'string' ? b.trim() : b;
+  return na === nb;
 }
 
 /**
  * Public re-export of the parent-row diff used by flat-import preview paths.
  * Returns the subset of `transformed` whose values differ from `existing`,
  * ignoring id / tenant_id / audit columns. Used by Vendors._importFlatCombined
- * to classify per-parent insert / update / noop without writing.
+ * to classify per-parent insert / update / noop without writing. Pass
+ * `{ caseSensitive: true }` when case-only edits must count as changes.
  */
 export const diffParent = _diffParent;
 

@@ -590,7 +590,7 @@ export default class Vendors extends TableModel {
       for (const { transformed, isArchived, group } of toUpdate) {
         const { id, ...changes } = transformed;
         const existing = existingVendors.get(id);
-        const parentDiff = diffParent(transformed, existing);
+        const parentDiff = diffParent(transformed, existing, { caseSensitive: true });
         const wasArchived = !!existing.deactivated_at;
         const archiveChanged = wasArchived !== isArchived;
         const parentChanged = Object.keys(parentDiff).length > 0 || archiveChanged;
@@ -759,7 +759,7 @@ export default class Vendors extends TableModel {
         const existing = existingContacts.get(transformed.id);
         const { id, vendor_id: _vid, ...changes } = transformed;
         const { vendor_id: _diffVid, ...transformedForDiff } = transformed;
-        const parentDiff = diffParent(transformedForDiff, existing);
+        const parentDiff = diffParent(transformedForDiff, existing, { caseSensitive: true });
         const wasArchived = !!existing.deactivated_at;
         const archiveChanged = wasArchived !== isArchived;
         const parentChanged = Object.keys(parentDiff).length > 0 || archiveChanged;
@@ -1118,7 +1118,7 @@ export default class Vendors extends TableModel {
       const transformed = callbackFn ? await callbackFn({ ...vendorData }) : { ...vendorData };
       delete transformed.tenant_code;
       if (tenantId) transformed.tenant_id = tenantId;
-      const changes = diffParent(transformed, existing);
+      const changes = diffParent(transformed, existing, { caseSensitive: true });
       const parentChanged = Object.keys(changes).length > 0 || willBeArchived !== wasArchived;
       const childrenDiffer = existing.source_id
         ? await this._anyChildrenDiffer({
@@ -1162,7 +1162,7 @@ export default class Vendors extends TableModel {
       // is built during writes). If a stable UUID is provided it'll be diffed
       // normally.
       if (transformed.vendor_id && !isUuid(transformed.vendor_id)) delete transformed.vendor_id;
-      const changes = diffParent(transformed, existing);
+      const changes = diffParent(transformed, existing, { caseSensitive: true });
       const parentChanged = Object.keys(changes).length > 0 || willBeArchived !== wasArchived;
       const childrenDiffer = existing.source_id
         ? await this._anyChildrenDiffer({
