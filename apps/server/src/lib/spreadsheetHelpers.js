@@ -1026,57 +1026,87 @@ export async function importSimpleTable(model, filePath, callbackFn, { previewOn
   // commit doesn't half-apply a workbook the preview already flagged.
   if (validationErrors.length) return { errors: validationErrors };
 
-  // Commit pass. Per-row try/catch collects errors without aborting on the
-  // first failure, so a response can surface multiple issues in one pass.
-  //
-  // Atomicity caveat: pg-schemata's `insert` and `updateWhere` use
-  // `this.db.*` directly rather than honoring `this.tx`, so wrapping this
-  // loop in `db.tx` would be a no-op — writes from earlier rows would
-  // already be committed by the time a later row hits a constraint
-  // violation. Pre-validation (intra-file duplicate-key check above) is
-  // the primary atomicity guard for now. True atomic commit would require
-  // either patching pg-schemata or rewriting this pass against raw
-  // `t.result(...)` queries; tracked as a follow-up.
-  const errors = [];
-  let inserted = 0;
-  let updated = 0;
+  // Build the insert + update batches. We compute the actual write payload
+  // here so the tx callback below is purely "submit + roll back on error".
+  const insertRows = [];
+  const updateRows = [];
   for (const c of classified) {
     if (c.action === 'noop') continue;
-    try {
-      if (c.action === 'update') {
-        // Write only the computed diff. Blank cells in the workbook that
-        // match the existing DB value never appear in the diff, so they
-        // can't clobber non-null DB columns the user didn't intend to
-        // touch. Apply the archive transition explicitly when the row's
-        // status flipped.
-        const changes = { ...c.diff };
-        const wasArchived = !!c.existing.deactivated_at;
-        const willBeArchived = c.archiveTarget === undefined ? wasArchived : !!c.archiveTarget;
-        if (willBeArchived !== wasArchived) {
-          changes.deactivated_at = willBeArchived ? new Date() : null;
-        }
-        if (Object.keys(changes).length === 0) continue; // safety: nothing to write
-        await model.updateWhere([{ id: c.existing.id }], changes, { includeDeactivated: true });
-        updated++;
-      } else {
-        const insertRow = { ...c.merged };
-        delete insertRow.id;
-        if (c.archiveTarget === true) insertRow.deactivated_at = new Date();
-        await model.insert(insertRow);
-        inserted++;
+    if (c.action === 'update') {
+      // Write only the computed diff. Blank cells in the workbook that
+      // match the existing DB value never appear in the diff, so they
+      // can't clobber non-null DB columns the user didn't intend to
+      // touch. Apply the archive transition explicitly when the row's
+      // status flipped.
+      const changes = { ...c.diff };
+      const wasArchived = !!c.existing.deactivated_at;
+      const willBeArchived = c.archiveTarget === undefined ? wasArchived : !!c.archiveTarget;
+      if (willBeArchived !== wasArchived) {
+        changes.deactivated_at = willBeArchived ? new Date() : null;
       }
-    } catch (err) {
-      const parsed = parseDbImportError(err);
-      if (parsed) {
-        for (const e of parsed) pushIssue(errors, { ...e, sheet: sheetName, row: c.rowNum });
-      } else {
-        pushIssue(errors, { sheet: sheetName, row: c.rowNum, column: null, value: null, message: err.message });
-      }
+      if (Object.keys(changes).length === 0) continue; // safety: nothing to write
+      updateRows.push({ id: c.existing.id, ...changes });
+    } else {
+      const insertRow = { ...c.merged };
+      delete insertRow.id;
+      if (c.archiveTarget === true) insertRow.deactivated_at = new Date();
+      insertRows.push(insertRow);
     }
   }
 
+  if (insertRows.length === 0 && updateRows.length === 0) {
+    return { inserted: 0, updated: 0 };
+  }
+
+  // Build per-row UPDATE statements via pg-schemata's column-set helpers
+  // and run them through `t.batch` inside the outer tx. Why not use the
+  // model's `bulkUpdate`? It hardcodes `AND deactivated_at IS NULL` in the
+  // WHERE clause when softDelete is enabled, so it would silently no-op
+  // on already-archived rows — breaking the restore (archived → active)
+  // path entirely. Mirroring its internals here lets us drop the softCheck.
+  const updateQueries = [];
+  for (const row of updateRows) {
+    const { id, ...changes } = row;
+    if (model._auditEnabled?.() && !('updated_by' in changes) && model._resolveAuditActor) {
+      changes.updated_by = model._resolveAuditActor();
+    }
+    const safeUpdates = model.sanitizeDto(changes, { includeImmutable: false });
+    if (Object.keys(safeUpdates).length === 0) continue;
+    const updateCs = new model.pgp.helpers.ColumnSet(Object.keys(safeUpdates), {
+      table: { table: model._schema.table, schema: model._schema.dbSchema },
+    });
+    const setClause = model.pgp.helpers.update(safeUpdates, updateCs);
+    const where = model.pgp.as.format('WHERE id = $1', [id]);
+    updateQueries.push(`${setClause} ${where}`);
+  }
+
+  // Atomic commit. `bulkInsert` honors `this.tx`; the raw update queries
+  // run through `t.batch`. A constraint / FK / check violation on any row
+  // aborts the tx and rolls back every earlier write in the same import.
+  // `model.tx` always resets in `finally` so a thrown error can't leak
+  // the tx onto the shared model instance.
+  const errors = [];
+  try {
+    await model.db.tx(async (t) => {
+      model.tx = t;
+      if (insertRows.length) await model.bulkInsert(insertRows);
+      if (updateQueries.length) {
+        await t.batch(updateQueries.map((q) => t.result(q, [], (r) => r.rowCount)));
+      }
+    });
+  } catch (err) {
+    const parsed = parseDbImportError(err);
+    if (parsed) {
+      for (const e of parsed) pushIssue(errors, { ...e, sheet: sheetName });
+    } else {
+      pushIssue(errors, { sheet: sheetName, row: null, column: null, value: null, message: err.message });
+    }
+  } finally {
+    model.tx = null;
+  }
+
   if (errors.length) return { errors };
-  return { inserted, updated };
+  return { inserted: insertRows.length, updated: updateQueries.length };
 }
 
 /**

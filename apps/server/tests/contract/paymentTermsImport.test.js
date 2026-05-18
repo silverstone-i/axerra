@@ -413,6 +413,32 @@ describe('PaymentTerms import — simple-table shim', () => {
     expect(after.label).toBe('Net 60');
   });
 
+  test('atomic commit — a row that fails a check constraint rolls back the whole import', async () => {
+    // Row 1 is a valid new term ('Atomic A'). Row 2 violates the schema's
+    // CHECK (units IN ('days', 'months')) constraint. With bulkInsert wrapped
+    // in db.tx, the whole batch fails and rolls back — neither row should
+    // exist in the DB after the import returns 422.
+    const beforeCount = await db.one(`SELECT count(*)::int AS n FROM ptimp.payment_terms`);
+
+    const buf = await buildWorkbook([
+      blank({ label: 'Atomic A', term: 30, units: 'days', is_active: true, status: 'active' }),
+      blank({ label: 'Atomic B', term: 30, units: 'weeks', is_active: true, status: 'active' }),
+    ]);
+
+    const commit = await postImport(buf, cookies, 'atomic-rollback');
+    expect(commit.status).toBe(422);
+    expect(commit.body.errors.length).toBeGreaterThanOrEqual(1);
+
+    const afterCount = await db.one(`SELECT count(*)::int AS n FROM ptimp.payment_terms`);
+    expect(afterCount.n).toBe(beforeCount.n);
+
+    // Specifically: 'Atomic A' didn't leak through ahead of the failure.
+    const atomicA = await db.oneOrNone(
+      `SELECT id FROM ptimp.payment_terms WHERE label = 'Atomic A'`,
+    );
+    expect(atomicA).toBeNull();
+  });
+
   test('case-only edit on a parent varchar field counts as a real change', async () => {
     const net30 = await db.one(`SELECT id, label FROM ptimp.payment_terms WHERE label = 'Net 30'`);
     const recased = net30.label.toUpperCase();
