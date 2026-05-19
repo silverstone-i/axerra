@@ -30,6 +30,8 @@ import {
   getEnumColumns,
   parseDbImportError,
   diffParent,
+  _reconcileChildrenForSource,
+  _classifyChildren,
   PHONE_HEADERS,
   ADDRESS_HEADERS,
   TAX_ID_HEADERS,
@@ -153,16 +155,50 @@ const CONTACT_CHILD_EXTRACTORS = [
 ];
 
 /** Child column mappings for flat export (source cols → flat cols) */
+// Each cfg also carries the slotKeyCols / compareCols / key fields so it can
+// be passed straight to the shared `_reconcileChildrenForSource` from
+// spreadsheetHelpers. `modelName` mirrors `model` for the same reason — the
+// shared helper reads `modelName`.
 const VENDOR_CHILD_ARRAYS_CONFIG = [
-  { model: 'emails', cols: ['email', 'label', 'is_primary'], flatCols: ['email', 'email_label', 'email_is_primary'] },
-  { model: 'phoneNumbers', cols: ['country_code', 'phone_type', 'phone_number', 'is_primary'], flatCols: ['phone_country_code', 'phone_type', 'phone_number', 'phone_is_primary'] },
-  { model: 'addresses', cols: ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'], flatCols: ['address_label', 'address_line_1', 'address_line_2', 'address_line_3', 'address_city', 'address_state_province', 'address_postal_code', 'address_country_code'] },
-  { model: 'taxIdentifiers', cols: ['country_code', 'tax_type', 'tax_value'], flatCols: ['tax_country_code', 'tax_type', 'tax_value'] },
+  {
+    model: 'emails', modelName: 'emails', key: 'emails',
+    cols: ['email', 'label', 'is_primary'],
+    flatCols: ['email', 'email_label', 'email_is_primary'],
+    slotKeyCols: ['label'], compareCols: ['email', 'is_primary'],
+  },
+  {
+    model: 'phoneNumbers', modelName: 'phoneNumbers', key: 'phones',
+    cols: ['country_code', 'phone_type', 'phone_number', 'is_primary'],
+    flatCols: ['phone_country_code', 'phone_type', 'phone_number', 'phone_is_primary'],
+    slotKeyCols: ['phone_type'], compareCols: ['country_code', 'phone_number', 'is_primary'],
+  },
+  {
+    model: 'addresses', modelName: 'addresses', key: 'addresses',
+    cols: ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'],
+    flatCols: ['address_label', 'address_line_1', 'address_line_2', 'address_line_3', 'address_city', 'address_state_province', 'address_postal_code', 'address_country_code'],
+    slotKeyCols: ['label'], compareCols: ['address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'],
+  },
+  {
+    model: 'taxIdentifiers', modelName: 'taxIdentifiers', key: 'taxIds',
+    cols: ['country_code', 'tax_type', 'tax_value'],
+    flatCols: ['tax_country_code', 'tax_type', 'tax_value'],
+    slotKeyCols: ['country_code', 'tax_type'], compareCols: ['tax_value'],
+  },
 ];
 
 const CONTACT_CHILD_ARRAYS_CONFIG = [
-  { model: 'emails', cols: ['email', 'label', 'is_primary', 'is_login'], flatCols: ['email', 'email_label', 'email_is_primary', 'email_is_login'] },
-  { model: 'phoneNumbers', cols: ['country_code', 'phone_type', 'phone_number', 'is_primary'], flatCols: ['phone_country_code', 'phone_type', 'phone_number', 'phone_is_primary'] },
+  {
+    model: 'emails', modelName: 'emails', key: 'emails',
+    cols: ['email', 'label', 'is_primary', 'is_login'],
+    flatCols: ['email', 'email_label', 'email_is_primary', 'email_is_login'],
+    slotKeyCols: ['label'], compareCols: ['email', 'is_primary', 'is_login'],
+  },
+  {
+    model: 'phoneNumbers', modelName: 'phoneNumbers', key: 'phones',
+    cols: ['country_code', 'phone_type', 'phone_number', 'is_primary'],
+    flatCols: ['phone_country_code', 'phone_type', 'phone_number', 'phone_is_primary'],
+    slotKeyCols: ['phone_type'], compareCols: ['country_code', 'phone_number', 'is_primary'],
+  },
 ];
 
 /** Lazy-load db */
@@ -536,8 +572,10 @@ export default class Vendors extends TableModel {
 
     let insertedCount = 0;
     let updatedCount = 0;
+    let vendorsRestored = 0;
     let contactsInserted = 0;
     let contactsUpdated = 0;
+    let contactsRestored = 0;
 
     // Maps for cross-sheet vendor_id resolution
     const vendorRefToId = new Map(); // spreadsheet id/ref → DB vendor id
@@ -610,11 +648,13 @@ export default class Vendors extends TableModel {
         vendorRefToId.set(id, id);
         vendorIdToSourceId.set(id, existing.source_id);
 
-        // Child wholesale-replace also counts as an update: the count must
-        // reflect every DB write, not just parent-field changes.
+        // Child reconcile also counts as an update: the count must reflect
+        // every DB write, not just parent-field changes.
         let childReplaced = false;
         if (existing.source_id) {
-          childReplaced = await this._upsertFlatChildren(t, s, schema, db, pgp, existing.source_id, group.children, VENDOR_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
+          const r = await this._upsertFlatChildren(t, s, schema, db, pgp, existing.source_id, group.children, VENDOR_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
+          childReplaced = r.anyReplaced;
+          vendorsRestored += r.restored;
         }
         if (parentChanged || childReplaced) updatedCount++;
       }
@@ -700,7 +740,8 @@ export default class Vendors extends TableModel {
         }
 
         // ── Batch: insert children across all new vendors ──────────
-        await this._batchUpsertFlatChildren(t, s, schema, db, pgp, insertResults, sourceByParentId, toInsert, VENDOR_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
+        const r = await this._batchUpsertFlatChildren(t, s, schema, db, pgp, insertResults, sourceByParentId, toInsert, VENDOR_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
+        vendorsRestored += r.restored;
       }
 
       _tVendorInserts = Date.now();
@@ -775,7 +816,9 @@ export default class Vendors extends TableModel {
 
         let childReplaced = false;
         if (existing.source_id) {
-          childReplaced = await this._upsertFlatChildren(t, s, schema, db, pgp, existing.source_id, group.children, CONTACT_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
+          const r = await this._upsertFlatChildren(t, s, schema, db, pgp, existing.source_id, group.children, CONTACT_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
+          childReplaced = r.anyReplaced;
+          contactsRestored += r.restored;
         }
         if (parentChanged || childReplaced) contactsUpdated++;
       }
@@ -822,7 +865,8 @@ export default class Vendors extends TableModel {
         }
 
         // ── Batch: insert children across all new contacts ─────────
-        await this._batchUpsertFlatChildren(t, s, schema, db, pgp, insertResults, sourceByParentId, contactToInsert, CONTACT_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
+        const r = await this._batchUpsertFlatChildren(t, s, schema, db, pgp, insertResults, sourceByParentId, contactToInsert, CONTACT_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
+        contactsRestored += r.restored;
 
         _tContactInserts = Date.now();
         // Provision portal_users for app-user contacts after emails are inserted
@@ -897,8 +941,10 @@ export default class Vendors extends TableModel {
     return {
       inserted: insertedCount,
       updated: updatedCount,
+      restored: vendorsRestored,
       contactsInserted,
       contactsUpdated,
+      contactsRestored,
     };
   }
 
@@ -943,8 +989,7 @@ export default class Vendors extends TableModel {
   async _anyChildrenDiffer({ t, db, s, schema, pgp, sourceId, fileChildren, childConfig, callbackFn, tenantId }) {
     const handle = t || db;
     for (const cfg of childConfig) {
-      const key = cfg.model === 'phoneNumbers' ? 'phones' : cfg.model === 'taxIdentifiers' ? 'taxIds' : cfg.model;
-      const rawRows = fileChildren?.[key];
+      const rawRows = fileChildren?.[cfg.key];
       if (!rawRows || !rawRows.length) continue;
 
       const childModel = db(cfg.model, schema);
@@ -953,52 +998,45 @@ export default class Vendors extends TableModel {
       const tName = pgp.as.name(tableName);
 
       const toInsert = await this._transformFlatChildSet(cfg, rawRows, sourceId, childModel, callbackFn, tenantId);
+      // Archive-aware: load active AND archived rows so an incoming value
+      // matching an archived row classifies as restore (= a DB write that
+      // commit will perform). Old behavior loaded active only and missed
+      // restores entirely, leaving preview reporting "no change" for a
+      // commit that would actually flip a deactivated_at.
       const existing = await handle.any(
-        `SELECT * FROM ${s}.${tName} WHERE source_id = $1 AND deactivated_at IS NULL`,
+        `SELECT * FROM ${s}.${tName} WHERE source_id = $1`,
         [sourceId],
       );
-      if (!_sameChildSet(toInsert, existing, cfg.cols)) return true;
+      const { counts } = _classifyChildren(existing, toInsert, cfg);
+      if (counts.inserts + counts.updates + counts.restores > 0) return true;
     }
     return false;
   }
 
   /**
-   * Upsert flat children for an updated parent: per cfg, skip the wholesale
-   * soft-delete + bulk-insert when the file's set matches the DB's current
-   * active set on `cfg.cols` so child rows don't get recycled on a no-op
-   * re-import. Returns `true` when at least one cfg was actually replaced —
-   * the parent loops use that to count child-only changes as updates so the
-   * commit's `updated` / `contactsUpdated` counters reflect every DB write.
+   * Upsert flat children for an updated parent via the shared archive-aware
+   * reconciler from spreadsheetHelpers (`_reconcileChildrenForSource`). Per
+   * incoming row classifies as insert / update / restore / restore+update /
+   * noop — so re-importing a value that lived only in the trash bin brings
+   * the original row back instead of either tripping a unique constraint or
+   * leaving the trash bin to grow.
+   *
+   * Returns `{ anyReplaced, restored }`. The boolean lets the caller count
+   * child-only changes as parent updates; the count rolls into the importer's
+   * top-level `restored` total.
    */
   async _upsertFlatChildren(t, s, schema, db, pgp, sourceId, children, childConfig, callbackFn, tenantId) {
     let anyReplaced = false;
+    let restored = 0;
     for (const cfg of childConfig) {
-      const key = cfg.model === 'phoneNumbers' ? 'phones' : cfg.model === 'taxIdentifiers' ? 'taxIds' : cfg.model;
-      const childRows = children[key];
+      const childRows = children[cfg.key];
       if (!childRows || !childRows.length) continue;
 
-      const childModel = db(cfg.model, schema);
-      childModel.tx = t;
-      const tableName = childModel._schema?.table || cfg.model;
-      const tName = pgp.as.name(tableName);
-
-      const toInsert = await this._transformFlatChildSet(cfg, childRows, sourceId, childModel, callbackFn, tenantId);
-      const existing = await t.any(
-        `SELECT * FROM ${s}.${tName} WHERE source_id = $1 AND deactivated_at IS NULL`,
-        [sourceId],
-      );
-      if (_sameChildSet(toInsert, existing, cfg.cols)) continue;
-
-      await t.none(
-        `UPDATE ${s}.${tName} SET deactivated_at = NOW() WHERE source_id = $1 AND deactivated_at IS NULL`,
-        [sourceId],
-      );
-      if (toInsert.length) {
-        await childModel.bulkInsert(toInsert);
-      }
-      anyReplaced = true;
+      const counts = await _reconcileChildrenForSource(t, s, schema, db, pgp, sourceId, childRows, cfg, callbackFn, tenantId);
+      restored += counts.restores;
+      if (counts.inserts + counts.updates + counts.restores > 0) anyReplaced = true;
     }
-    return anyReplaced;
+    return { anyReplaced, restored };
   }
 
   /**
@@ -1019,66 +1057,24 @@ export default class Vendors extends TableModel {
    * @param {string}   tenantId        Resolved tenant UUID
    */
   async _batchUpsertFlatChildren(t, s, schema, db, pgp, insertResults, sourceByParentId, toInsertMeta, childConfig, callbackFn, tenantId) {
+    // Iterate per (cfg, source) and delegate to the shared reconciler. We
+    // lose the prior 1-soft-delete-+-1-bulk-insert micro-optimization but
+    // gain archive-aware reconciliation (a child whose value lives in the
+    // trash bin gets restored, matching the flat single-entity path). Newly
+    // inserted parents normally have empty existing-child sets, so the
+    // reconciler degrades to a single bulk insert per source.
+    let restored = 0;
     for (const cfg of childConfig) {
-      const key = cfg.model === 'phoneNumbers' ? 'phones' : cfg.model === 'taxIdentifiers' ? 'taxIds' : cfg.model;
-
-      const childModel = db(cfg.model, schema);
-      childModel.tx = t;
-      const tableName = childModel._schema?.table || cfg.model;
-
-      const allSourceIds = new Set();
-      const allToInsert = [];
-
-      // Collect children from all parents
       for (let i = 0; i < insertResults.length; i++) {
         const sourceId = sourceByParentId.get(insertResults[i].id);
         if (!sourceId) continue;
-
-        const children = toInsertMeta[i].group?.children;
-        const childRows = children?.[key];
+        const childRows = toInsertMeta[i].group?.children?.[cfg.key];
         if (!childRows?.length) continue;
-
-        allSourceIds.add(sourceId);
-
-        // Track rows per source for is_primary enforcement
-        const sourceRows = [];
-        for (const row of childRows) {
-          const { _rowNum: _, ...rest } = row;
-          const base = { ...rest, source_id: sourceId };
-          const transformed = callbackFn ? await callbackFn(base) : base;
-          delete transformed.tenant_code;
-          if (tenantId) transformed.tenant_id = tenantId;
-          coerceChildRow(transformed, childModel);
-          sourceRows.push(transformed);
-        }
-
-        // Enforce single is_primary per source (partial unique index)
-        if (sourceRows.length > 1) {
-          let seenPrimary = false;
-          for (const r of sourceRows) {
-            if (r.is_primary) {
-              if (seenPrimary) r.is_primary = false;
-              else seenPrimary = true;
-            }
-          }
-        }
-
-        allToInsert.push(...sourceRows);
-      }
-
-      if (!allSourceIds.size) continue;
-
-      // Single soft-delete for all affected source_ids
-      await t.none(
-        `UPDATE ${s}.${pgp.as.name(tableName)} SET deactivated_at = NOW() WHERE source_id IN ($1:csv) AND deactivated_at IS NULL`,
-        [[...allSourceIds]],
-      );
-
-      // Single bulk insert for all children of this type
-      if (allToInsert.length) {
-        await childModel.bulkInsert(allToInsert);
+        const counts = await _reconcileChildrenForSource(t, s, schema, db, pgp, sourceId, childRows, cfg, callbackFn, tenantId);
+        restored += counts.restores;
       }
     }
+    return { restored };
   }
 
   // ── Preview classifier (no writes) ────────────────────────────────────────

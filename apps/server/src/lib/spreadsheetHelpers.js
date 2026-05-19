@@ -3110,7 +3110,7 @@ async function _collectCrossSourceConflicts(db, s, pgp, schema, ownSourceType, g
  * the existing set when needed.
  * @private
  */
-function _classifyChildren(existingRows, incomingRows, cfg) {
+export function _classifyChildren(existingRows, incomingRows, cfg) {
   const activeBySlot = new Map();
   const activeByValue = new Map();
   const archivedBySlot = new Map();
@@ -3214,7 +3214,7 @@ function _classifyChildren(existingRows, incomingRows, cfg) {
  * behavior is identical across both importer shapes.
  * @private
  */
-async function _reconcileChildrenForSource(t, s, schema, db, pgp, sourceId, childRows, cfg, callbackFn, tenantId) {
+export async function _reconcileChildrenForSource(t, s, schema, db, pgp, sourceId, childRows, cfg, callbackFn, tenantId) {
   const childModel = db(cfg.modelName, schema);
   childModel.tx = t;
   const tableName = childModel._schema?.table || cfg.modelName;
