@@ -2352,6 +2352,8 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
   let insertedCount = 0;
   let updatedCount = 0;
   let restoredCount = 0;
+  let childInsertedCount = 0;
+  let childUpdatedCount = 0;
   let appUserSkipped = 0;
 
   try {
@@ -2457,6 +2459,8 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
         if (sourceId) {
           const childCounts = await _reconcileFlatChildren(t, s, schema, db, pgp, sourceId, group.children, config.flat.children, callbackFn, tenantId);
           restoredCount += childCounts.restores;
+          childInsertedCount += childCounts.inserts;
+          childUpdatedCount += childCounts.updates;
         }
 
         // ── Login email portal_users sync (L1) ───────────────────────────
@@ -2621,6 +2625,8 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
           if (sourceId) {
             const childCounts = await _reconcileFlatChildren(t, s, schema, db, pgp, sourceId, toInsert[i].group.children, config.flat.children, callbackFn, tenantId);
             restoredCount += childCounts.restores;
+            childInsertedCount += childCounts.inserts;
+            childUpdatedCount += childCounts.updates;
           }
         }
 
@@ -2677,6 +2683,14 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
     inserted: insertedCount,
     updated: updatedCount,
     restored: restoredCount,
+    // Per-child writes bubble into the top-level response too. Without these
+    // the client toast can't tell whether a child-only edit produced writes
+    // (parent counts stay zero in that case) — without them, "Import
+    // complete — no changes" lies. Preview's counts already mix parent and
+    // child operations, so reporting both here keeps preview and commit
+    // aligned on what the user sees.
+    childInserted: childInsertedCount,
+    childUpdated: childUpdatedCount,
     appUserSkipped,
   };
 }
