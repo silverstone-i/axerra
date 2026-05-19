@@ -7,9 +7,12 @@
 ## Context
 
 The four polymorphic child tables — `emails`, `phone_numbers`, `addresses`,
-`tax_identifiers` — each expose a `DELETE /:id/archive` route on their
-controller. There is no corresponding `PATCH /:id/restore` route. This is
-deliberate.
+`tax_identifiers` — each expose a `DELETE /:id/archive` route via the
+standard `createRouter` REST factory, and they inherit `PATCH /restore`
+from the same factory (so the API endpoint technically exists). What's
+deliberate is that **no UI affordance calls `PATCH /restore` on a child
+row** — the client never offers a "restore deleted email" button. Users
+recover an archived child by re-importing the parent's workbook.
 
 When the parent of a soft-deleted child row is restored, the parent restore
 does **not** cascade-restore the child. The user explicitly chose to delete
@@ -28,8 +31,12 @@ importer (employees, clients, etc.) and the combined two-sheet importer
 ## Decision
 
 1. Child controllers (`emailsController`, `phoneNumbersController`,
-   `addressesController`, `taxIdentifiersController`) provide
-   `DELETE /:id/archive` but **no** `PATCH /:id/restore` route.
+   `addressesController`, `taxIdentifiersController`) provide the
+   standard CRUD surface, which includes `PATCH /restore` via
+   `createRouter`. The client UI does **not** call that endpoint for
+   child rows — there is no "restore deleted email/phone/address/tax id"
+   button in any client page. Restore of an archived child is a side
+   effect of re-importing the parent's workbook (see Decision #2).
 2. The shared classifier `_classifyChildren` and per-source reconciler
    `_reconcileChildrenForSource` in `apps/server/src/lib/spreadsheetHelpers.js`
    examine both active and archived rows when matching incoming workbook
@@ -65,9 +72,13 @@ importer (employees, clients, etc.) and the combined two-sheet importer
 
 ## Consequences
 
-- Child rows have no UI restore affordance. A user who needs a deleted row
-  back must edit the parent's exported workbook to include it (or upload
-  one of their own that contains the value), then re-import.
+- Child rows have no UI restore affordance, even though the API endpoint
+  exists. A user who needs a deleted row back must edit the parent's
+  exported workbook to include it (or upload one of their own that
+  contains the value), then re-import. Direct API consumers can still
+  hit `PATCH /restore` if they have a reason to — that's the existing
+  `BaseController.restore` surface — but the product position is that
+  the import path is the supported recovery flow.
 - Round-trip re-imports (no edits) are guaranteed noops on the child side.
 - Workbook re-imports of older exports will restore values that were
   deleted between the export and the re-import. This is the intended
@@ -76,7 +87,10 @@ importer (employees, clients, etc.) and the combined two-sheet importer
 
 ## Out of scope
 
-- A `PATCH /:id/restore` route on child controllers (see Decision #1).
+- Disabling `PATCH /restore` at the router level for these child
+  resources. The endpoint exists today (and one contract test exercises
+  the tax_identifiers variant); the ADR codifies the UI-side product
+  decision, not a route-level enforcement.
 - Importer-driven child archiving (Decision #4).
 - `status` column manipulation on restore (Decision #3).
 - Case-sensitivity of the diff comparator. The shared classifier uses
