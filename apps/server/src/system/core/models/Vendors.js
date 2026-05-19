@@ -1014,11 +1014,15 @@ export default class Vendors extends TableModel {
       const toInsert = await this._transformFlatChildSet(cfg, rawRows, sourceId, childModel, callbackFn, tenantId);
       // Archive-aware: load active AND archived rows so an incoming value
       // matching an archived row classifies as restore (= a DB write that
-      // commit will perform). Old behavior loaded active only and missed
-      // restores entirely, leaving preview reporting "no change" for a
-      // commit that would actually flip a deactivated_at.
+      // commit will perform). ORDER BY matches the contract `_classifyChildren`
+      // expects — active first, then archived most-recent-first — so the
+      // first-match-wins behavior gives the same answer here that commit
+      // will give. Without it preview can flip based on heap order when
+      // multiple archived rows share a key.
       const existing = await handle.any(
-        `SELECT * FROM ${s}.${tName} WHERE source_id = $1`,
+        `SELECT * FROM ${s}.${tName}
+          WHERE source_id = $1
+          ORDER BY deactivated_at IS NOT NULL, deactivated_at DESC`,
         [sourceId],
       );
       const { counts } = _classifyChildren(existing, toInsert, cfg);

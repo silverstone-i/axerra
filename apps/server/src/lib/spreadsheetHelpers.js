@@ -2345,7 +2345,7 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
 
   // Preview short-circuit (R10). Classify what *would* happen without writing.
   if (previewOnly) {
-    const counts = await _classifyForPreview(db, s, pgp, schema, groups, config, ownEntities);
+    const counts = await _classifyForPreview(db, s, pgp, schema, groups, config, ownEntities, callbackFn, tenantId);
     return { preview: true, ...counts, errors: [] };
   }
 
@@ -2707,7 +2707,7 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
  *
  * @private
  */
-async function _classifyForPreview(db, s, pgp, schema, groups, config, ownEntities) {
+async function _classifyForPreview(db, s, pgp, schema, groups, config, ownEntities, callbackFn = null, tenantId = null) {
   let inserts = 0;
   let updates = 0;
   let restores = 0;
@@ -2757,24 +2757,40 @@ async function _classifyForPreview(db, s, pgp, schema, groups, config, ownEntiti
       .filter((sid) => !!sid);
 
     const existingBySource = new Map();
+    let childModel = null;
     if (existingSourceIds.length) {
-      const childModel = db(cfg.modelName, schema);
+      childModel = db(cfg.modelName, schema);
       const tableName = childModel._schema?.table || cfg.modelName;
       const tName = pgp.as.name(tableName);
+      // Match `_reconcileChildrenForSource`'s ORDER BY contract so preview
+      // and commit see existing rows in the same order — required for
+      // deterministic archived selection inside `_classifyChildren`.
       const rows = await db.any(
-        `SELECT * FROM ${s}.${tName} WHERE source_id IN ($1:csv)`,
+        `SELECT * FROM ${s}.${tName}
+          WHERE source_id IN ($1:csv)
+          ORDER BY source_id, deactivated_at IS NOT NULL, deactivated_at DESC`,
         [existingSourceIds],
       );
       for (const r of rows) {
         if (!existingBySource.has(r.source_id)) existingBySource.set(r.source_id, []);
         existingBySource.get(r.source_id).push(r);
       }
+    } else {
+      childModel = db(cfg.modelName, schema);
     }
 
     for (const group of groupsWithChildren) {
-      const incoming = group.children[cfg.key] || [];
+      const rawIncoming = group.children[cfg.key] || [];
       const ownSource = group._ownSourceId;
       const existing = ownSource ? (existingBySource.get(ownSource) || []) : [];
+      // Normalize incoming the same way commit will — callbackFn,
+      // coerceChildRow, boolean defaults, single is_primary — so preview
+      // classification matches the writes commit will perform. Raw
+      // spreadsheet rows compare incorrectly against DB values (string
+      // 'true' vs bool true, etc).
+      const incoming = ownSource
+        ? await _transformAndNormalizeChildRows(rawIncoming, ownSource, childModel, callbackFn, tenantId)
+        : rawIncoming;
       const { counts, claimedExistingIds, seenIncomingSlots } = _classifyChildren(existing, incoming, cfg);
 
       inserts += counts.inserts;
@@ -3146,6 +3162,49 @@ async function _collectCrossSourceConflicts(db, s, pgp, schema, ownSourceType, g
  * the existing set when needed.
  * @private
  */
+/**
+ * Bring incoming spreadsheet child rows into the same shape commit will
+ * write: apply callbackFn (typically threads tenant_id / created_by from
+ * the controller), strip ephemeral `tenant_code`, coerce per the child
+ * model's column types (booleans, numerics, dates), backfill notNull
+ * boolean defaults, and demote all-but-first `is_primary=true` so the
+ * partial unique index `(source_id) WHERE is_primary AND NOT deactivated`
+ * can't trip.
+ *
+ * Shared by `_reconcileChildrenForSource` (commit) and `_classifyForPreview`
+ * (preview) so preview classifications match commit reality — without this,
+ * preview sees string `'true'` against existing bool `true` (and so on) and
+ * misreports updates / noops / restores vs. what commit will actually do.
+ * @private
+ */
+async function _transformAndNormalizeChildRows(childRows, sourceId, childModel, callbackFn, tenantId) {
+  const out = [];
+  for (const row of childRows) {
+    const { _rowNum: _, ...rest } = row;
+    const base = { ...rest, source_id: sourceId };
+    const transformed = callbackFn ? await callbackFn(base) : base;
+    delete transformed.tenant_code;
+    if (tenantId) transformed.tenant_id = tenantId;
+    coerceChildRow(transformed, childModel);
+    for (const col of childModel._schema?.columns || []) {
+      if (col.type === 'boolean' && col.notNull && transformed[col.name] == null) {
+        transformed[col.name] = col.default ?? false;
+      }
+    }
+    out.push(transformed);
+  }
+  if (out.length > 1) {
+    let seenPrimary = false;
+    for (const r of out) {
+      if (r.is_primary === true) {
+        if (seenPrimary) r.is_primary = false;
+        else seenPrimary = true;
+      }
+    }
+  }
+  return out;
+}
+
 export function _classifyChildren(existingRows, incomingRows, cfg) {
   const activeBySlot = new Map();
   const activeByValue = new Map();
@@ -3264,11 +3323,11 @@ export async function _reconcileChildrenForSource(t, s, schema, db, pgp, sourceI
 
   // Load BOTH active and archived children for this source — the classifier
   // needs the trash bin too so a re-imported value can resurrect its row.
-  // ORDER BY `deactivated_at` ascending with NULLs first puts active rows up
-  // top (NULL deactivated_at) then archived rows most-recent-first; combined
-  // with `_classifyChildren`'s first-match-wins maps, that gives deterministic
-  // selection when multiple archived rows share a slot/value key (partial
-  // unique indexes only enforce uniqueness for active rows).
+  // `deactivated_at IS NOT NULL` sorts false (active) before true (archived),
+  // then `deactivated_at DESC` orders the archived portion most-recent-first.
+  // Combined with `_classifyChildren`'s first-match-wins maps, that yields
+  // deterministic selection when multiple archived rows share a slot/value
+  // key (partial unique indexes only enforce uniqueness for active rows).
   const existing = existingRows != null
     ? existingRows
     : await t.any(
@@ -3278,37 +3337,7 @@ export async function _reconcileChildrenForSource(t, s, schema, db, pgp, sourceI
         [sourceId],
       );
 
-  // Transform every incoming row to the child-table shape before classifying.
-  const transformedRows = [];
-  for (const row of childRows) {
-    const { _rowNum: _, ...rest } = row;
-    const base = { ...rest, source_id: sourceId };
-    const transformed = callbackFn ? await callbackFn(base) : base;
-    delete transformed.tenant_code;
-    if (tenantId) transformed.tenant_id = tenantId;
-    coerceChildRow(transformed, childModel);
-    for (const col of childModel._schema?.columns || []) {
-      if (col.type === 'boolean' && col.notNull && transformed[col.name] == null) {
-        transformed[col.name] = col.default ?? false;
-      }
-    }
-    transformedRows.push(transformed);
-  }
-
-  // Enforce single is_primary per source. The emails and phone_numbers
-  // tables carry a partial unique index `(source_id) WHERE is_primary AND
-  // NOT deactivated`, so the spreadsheet can't supply two primaries — we
-  // demote all but the first to false. No-op for tables without is_primary
-  // (addresses, tax_identifiers don't carry the column).
-  if (transformedRows.length > 1) {
-    let seenPrimary = false;
-    for (const r of transformedRows) {
-      if (r.is_primary === true) {
-        if (seenPrimary) r.is_primary = false;
-        else seenPrimary = true;
-      }
-    }
-  }
+  const transformedRows = await _transformAndNormalizeChildRows(childRows, sourceId, childModel, callbackFn, tenantId);
 
   const { classifications, counts } = _classifyChildren(existing, transformedRows, cfg);
 
