@@ -205,6 +205,31 @@ class VendorsController extends BaseController {
 
       let restoredVendor = 0;
       await db.tx(async (t) => {
+        // Identify the cohort BEFORE clearing the vendor's deactivated_at,
+        // using a server-side subquery so the timestamp comparison happens
+        // in Postgres (microsecond precision). The earlier approach
+        // (`MAX(vendor_contacts.deactivated_at)`) was wrong: contacts
+        // archived independently before the vendor's archive event would
+        // erroneously be restored. The fixed approach: cohort = contacts
+        // whose `deactivated_at` exactly equals the vendor's own
+        // `deactivated_at`. The archive cascade uses one NOW() per tx, so
+        // a contact archived together with its vendor has the same
+        // timestamp down to the microsecond. SELECT FOR UPDATE locks the
+        // vendor row so no concurrent archive/restore can race here.
+        const beforeRow = await t.oneOrNone(
+          `SELECT deactivated_at FROM ${s}.vendors WHERE id = $1 FOR UPDATE`,
+          [vendorId],
+        );
+
+        const cohort = beforeRow?.deactivated_at
+          ? await t.any(
+              `SELECT vc.id FROM ${s}.vendor_contacts vc
+                WHERE vc.vendor_id = $1
+                  AND vc.deactivated_at = (SELECT deactivated_at FROM ${s}.vendors WHERE id = $1)`,
+              [vendorId],
+            )
+          : [];
+
         const result = await t.result(
           `UPDATE ${s}.vendors
               SET deactivated_at = NULL, updated_by = $1
@@ -214,19 +239,6 @@ class VendorsController extends BaseController {
         );
         restoredVendor = result;
         if (!restoredVendor) return;
-
-        // Cohort of vendor_contacts archived together with the vendor.
-        const cohort = await t.any(
-          `WITH max_ts AS (
-             SELECT MAX(deactivated_at) AS ts FROM ${s}.vendor_contacts
-             WHERE vendor_id = $1 AND deactivated_at IS NOT NULL
-           )
-           SELECT id FROM ${s}.vendor_contacts
-           WHERE vendor_id = $1
-             AND deactivated_at IS NOT NULL
-             AND deactivated_at = (SELECT ts FROM max_ts)`,
-          [vendorId],
-        );
 
         if (!cohort.length) return;
         const contactIds = cohort.map((r) => r.id);

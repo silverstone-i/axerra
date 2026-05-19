@@ -152,6 +152,38 @@ describe('Vendor archive/restore cascade — vendor_contacts + portal_users', ()
     }
   });
 
+  test('vendor restore only restores contacts archived in the same tx as the vendor', async () => {
+    // Setup: archive one contact FIRST (independent), then archive the
+    // vendor (cascade picks up the OTHER contact). On restore, only the
+    // vendor's own cohort should come back — the independently-archived
+    // contact must stay archived even though its deactivated_at is older
+    // than the vendor's. Naive MAX(deactivated_at) would mistakenly grab
+    // whichever happened most recently regardless of cause.
+    const cookies = await loginAs('admin@vcasc.test', 'CascadePass123!');
+    const v2 = await createVendor(cookies, 'VC002', 'Cohort Boundary LLC');
+    const ind = await createAppUserContact(cookies, v2.id, 'Independent', 'One', 'ind@vcasc.test', 'IndPass123!');
+    const co = await createAppUserContact(cookies, v2.id, 'Cohort', 'Two', 'co@vcasc.test', 'CoPass123!');
+
+    // Independently archive `ind` first.
+    let res = await request(app)
+      .delete(`/api/core/v1/vendor-contacts/archive?id=${ind.id}`)
+      .set('Cookie', cookies);
+    expect(res.status).toBe(200);
+
+    // Now archive the vendor — cascade should only touch `co`.
+    res = await request(app).delete(`/api/core/v1/vendors/archive?id=${v2.id}`).set('Cookie', cookies);
+    expect(res.status).toBe(200);
+
+    // Restore the vendor. Only `co` should come back, not `ind`.
+    res = await request(app).patch(`/api/core/v1/vendors/restore?id=${v2.id}`).set('Cookie', cookies);
+    expect(res.status).toBe(200);
+
+    const indRow = await db.one(`SELECT deactivated_at FROM vcasc.vendor_contacts WHERE id = $1`, [ind.id]);
+    const coRow = await db.one(`SELECT deactivated_at FROM vcasc.vendor_contacts WHERE id = $1`, [co.id]);
+    expect(indRow.deactivated_at).not.toBeNull();
+    expect(coRow.deactivated_at).toBeNull();
+  });
+
   test('restore by ?code= succeeds for an archived vendor and restores the cohort', async () => {
     const res = await request(app)
       .patch(`/api/core/v1/vendors/restore?code=VC001`)

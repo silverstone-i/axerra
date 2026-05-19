@@ -117,29 +117,27 @@ export async function restorePortalUserFor({ entityType, entityId, tenantId, act
  *
  * Accepts an optional pg-promise transaction context `t` so the caller can
  * make the tenant update + binding cascade atomic. When omitted, runs the
- * cascade in its own short tx. Either way the SELECT and the two UPDATEs
- * execute against the same executor — no cross-tx visibility issues.
+ * whole sequence (cohort SELECT + both UPDATEs) inside one short tx so the
+ * cohort can't shift between the SELECT and the UPDATEs.
  */
 export async function restoreTenantBindings({ tenantId, actorId = null }, t = null) {
-  const executor = t || db;
+  const run = async (exec) => {
+    const cohort = await exec.any(
+      `WITH max_ts AS (
+         SELECT MAX(deactivated_at) AS ts FROM admin.portal_user_tenants
+         WHERE tenant_id = $1 AND deactivated_at IS NOT NULL
+       )
+       SELECT id, portal_user_id FROM admin.portal_user_tenants
+       WHERE tenant_id = $1
+         AND deactivated_at IS NOT NULL
+         AND deactivated_at = (SELECT ts FROM max_ts)`,
+      [tenantId],
+    );
+    if (!cohort.length) return { bindingIds: [], userIds: [] };
 
-  const cohort = await executor.any(
-    `WITH max_ts AS (
-       SELECT MAX(deactivated_at) AS ts FROM admin.portal_user_tenants
-       WHERE tenant_id = $1 AND deactivated_at IS NOT NULL
-     )
-     SELECT id, portal_user_id FROM admin.portal_user_tenants
-     WHERE tenant_id = $1
-       AND deactivated_at IS NOT NULL
-       AND deactivated_at = (SELECT ts FROM max_ts)`,
-    [tenantId],
-  );
-  if (!cohort.length) return;
+    const bindingIds = cohort.map((r) => r.id);
+    const userIds = [...new Set(cohort.map((r) => r.portal_user_id))];
 
-  const bindingIds = cohort.map((r) => r.id);
-  const userIds = [...new Set(cohort.map((r) => r.portal_user_id))];
-
-  const runUpdates = async (exec) => {
     await exec.none(
       `UPDATE admin.portal_user_tenants
          SET deactivated_at = NULL, updated_by = $1
@@ -153,12 +151,11 @@ export async function restoreTenantBindings({ tenantId, actorId = null }, t = nu
          AND deactivated_at IS NOT NULL`,
       [actorId, userIds],
     );
+    return { bindingIds, userIds };
   };
 
-  if (t) {
-    await runUpdates(t);
-  } else {
-    await db.tx(runUpdates);
+  const { bindingIds, userIds } = t ? await run(t) : await db.tx(run);
+  if (bindingIds.length) {
+    logger.info(`Restored ${bindingIds.length} binding(s) + ${userIds.length} portal_user(s) for tenant ${tenantId}`);
   }
-  logger.info(`Restored ${bindingIds.length} binding(s) + ${userIds.length} portal_user(s) for tenant ${tenantId}`);
 }
