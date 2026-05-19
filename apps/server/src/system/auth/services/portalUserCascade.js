@@ -114,9 +114,16 @@ export async function restorePortalUserFor({ entityType, entityId, tenantId, act
  * to bring back the users that were locked together when the tenant was
  * archived, without disturbing users archived at an earlier date for a
  * different reason.
+ *
+ * Accepts an optional pg-promise transaction context `t` so the caller can
+ * make the tenant update + binding cascade atomic. When omitted, runs the
+ * cascade in its own short tx. Either way the SELECT and the two UPDATEs
+ * execute against the same executor — no cross-tx visibility issues.
  */
-export async function restoreTenantBindings({ tenantId, actorId = null }) {
-  const cohort = await db.any(
+export async function restoreTenantBindings({ tenantId, actorId = null }, t = null) {
+  const executor = t || db;
+
+  const cohort = await executor.any(
     `WITH max_ts AS (
        SELECT MAX(deactivated_at) AS ts FROM admin.portal_user_tenants
        WHERE tenant_id = $1 AND deactivated_at IS NOT NULL
@@ -132,20 +139,26 @@ export async function restoreTenantBindings({ tenantId, actorId = null }) {
   const bindingIds = cohort.map((r) => r.id);
   const userIds = [...new Set(cohort.map((r) => r.portal_user_id))];
 
-  await db.tx(async (t) => {
-    await t.none(
+  const runUpdates = async (exec) => {
+    await exec.none(
       `UPDATE admin.portal_user_tenants
          SET deactivated_at = NULL, updated_by = $1
        WHERE id = ANY($2::uuid[])`,
       [actorId, bindingIds],
     );
-    await t.none(
+    await exec.none(
       `UPDATE admin.portal_users
          SET deactivated_at = NULL, updated_by = $1
        WHERE id = ANY($2::uuid[])
          AND deactivated_at IS NOT NULL`,
       [actorId, userIds],
     );
-  });
+  };
+
+  if (t) {
+    await runUpdates(t);
+  } else {
+    await db.tx(runUpdates);
+  }
   logger.info(`Restored ${bindingIds.length} binding(s) + ${userIds.length} portal_user(s) for tenant ${tenantId}`);
 }

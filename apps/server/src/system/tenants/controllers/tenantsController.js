@@ -173,25 +173,43 @@ class TenantsController extends BaseController {
    * before the tenant was archived, stay archived. `status` is not modified.
    */
   async restore(req, res) {
-    req.body.deactivated_at = null;
-    const filters = [{ deactivated_at: { $not: null } }, { ...req.query }];
+    if (!req.query.id && !req.query.tenant_code) {
+      return res.status(400).json({ error: 'id or tenant_code query parameter is required' });
+    }
+
+    const actorId = req.user?.id || null;
 
     try {
-      const count = await this.model('admin').updateWhere(filters, req.body, { includeDeactivated: true });
-      if (!count) return res.status(404).json({ error: `${this.errorLabel} not found or already active` });
+      let count = 0;
+      let tenantId = req.query.id || null;
 
-      // Resolve the tenant id so we can cascade-restore the binding cohort.
-      // We accept either ?id= or ?tenant_code= (mirrors archive). The
-      // updateWhere succeeded with whichever was supplied, so a lookup
-      // here is safe.
-      let tenantId = req.query.id;
-      if (!tenantId && req.query.tenant_code) {
-        const row = await this.model('admin').findOneByFilter({ tenant_code: req.query.tenant_code });
-        tenantId = row?.id;
-      }
-      if (tenantId) {
-        await restoreTenantBindings({ tenantId, actorId: req.user?.id || null });
-      }
+      // Tenant update + binding cascade run in one outer tx — a cascade
+      // failure rolls back the tenant flip so we can't leave the tenant
+      // marked active while its bindings stayed locked.
+      await db.tx(async (t) => {
+        if (!tenantId) {
+          const row = await t.oneOrNone(
+            `SELECT id FROM admin.tenants WHERE tenant_code = $1`,
+            [req.query.tenant_code],
+          );
+          tenantId = row?.id || null;
+        }
+        if (!tenantId) return;
+
+        const result = await t.result(
+          `UPDATE admin.tenants
+              SET deactivated_at = NULL, updated_by = $1
+            WHERE id = $2 AND deactivated_at IS NOT NULL`,
+          [actorId, tenantId],
+          (r) => r.rowCount,
+        );
+        count = result;
+        if (!count) return;
+
+        await restoreTenantBindings({ tenantId, actorId }, t);
+      });
+
+      if (!count) return res.status(404).json({ error: `${this.errorLabel} not found or already active` });
 
       res.status(200).json({ message: `${this.errorLabel} marked as active` });
     } catch (err) {

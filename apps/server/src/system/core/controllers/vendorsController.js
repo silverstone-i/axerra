@@ -97,6 +97,7 @@ class VendorsController extends BaseController {
 
     try {
       if (!vendorId) {
+        // Archive operates on active vendors, so the default model filter is fine here.
         const vendor = await this.model(schema).findOneByFilter({ code: req.query.code });
         if (!vendor) return res.status(404).json({ error: `${this.errorLabel} not found or already inactive` });
         vendorId = vendor.id;
@@ -104,47 +105,9 @@ class VendorsController extends BaseController {
 
       let archivedVendor = 0;
       await db.tx(async (t) => {
-        const contacts = await t.any(
-          `SELECT id FROM ${s}.vendor_contacts WHERE vendor_id = $1 AND deactivated_at IS NULL`,
-          [vendorId],
-        );
-
-        if (contacts.length) {
-          const contactIds = contacts.map((r) => r.id);
-
-          await t.none(
-            `UPDATE ${s}.vendor_contacts
-                SET deactivated_at = NOW(), updated_by = $1
-              WHERE id = ANY($2::uuid[])`,
-            [actorId, contactIds],
-          );
-
-          const affected = await t.any(
-            `UPDATE admin.portal_user_tenants
-                SET deactivated_at = NOW(), status = 'locked', updated_by = $1
-              WHERE entity_type = 'vendor_contact'
-                AND entity_id = ANY($2::uuid[])
-                AND tenant_id = $3
-                AND deactivated_at IS NULL
-              RETURNING portal_user_id`,
-            [actorId, contactIds, tenantId],
-          );
-
-          const userIds = [...new Set(affected.map((r) => r.portal_user_id))];
-          if (userIds.length) {
-            await t.none(
-              `UPDATE admin.portal_users
-                  SET deactivated_at = NOW(), status = 'locked', updated_by = $1
-                WHERE id = ANY($2::uuid[])
-                  AND deactivated_at IS NULL
-                  AND id NOT IN (
-                    SELECT portal_user_id FROM admin.portal_user_tenants WHERE deactivated_at IS NULL
-                  )`,
-              [actorId, userIds],
-            );
-          }
-        }
-
+        // Vendor row first — if the row doesn't move (404 case, e.g. already
+        // archived), abort before any cascade fires. Avoids the prior bug
+        // where the cascade committed even when the vendor archive was a no-op.
         const result = await t.result(
           `UPDATE ${s}.vendors
               SET deactivated_at = NOW(), updated_by = $1
@@ -153,6 +116,48 @@ class VendorsController extends BaseController {
           (r) => r.rowCount,
         );
         archivedVendor = result;
+        if (!archivedVendor) return;
+
+        // Cascade — only runs when the vendor actually transitioned to archived.
+        const contacts = await t.any(
+          `SELECT id FROM ${s}.vendor_contacts WHERE vendor_id = $1 AND deactivated_at IS NULL`,
+          [vendorId],
+        );
+        if (!contacts.length) return;
+
+        const contactIds = contacts.map((r) => r.id);
+
+        await t.none(
+          `UPDATE ${s}.vendor_contacts
+              SET deactivated_at = NOW(), updated_by = $1
+            WHERE id = ANY($2::uuid[])`,
+          [actorId, contactIds],
+        );
+
+        const affected = await t.any(
+          `UPDATE admin.portal_user_tenants
+              SET deactivated_at = NOW(), status = 'locked', updated_by = $1
+            WHERE entity_type = 'vendor_contact'
+              AND entity_id = ANY($2::uuid[])
+              AND tenant_id = $3
+              AND deactivated_at IS NULL
+            RETURNING portal_user_id`,
+          [actorId, contactIds, tenantId],
+        );
+
+        const userIds = [...new Set(affected.map((r) => r.portal_user_id))];
+        if (userIds.length) {
+          await t.none(
+            `UPDATE admin.portal_users
+                SET deactivated_at = NOW(), status = 'locked', updated_by = $1
+              WHERE id = ANY($2::uuid[])
+                AND deactivated_at IS NULL
+                AND id NOT IN (
+                  SELECT portal_user_id FROM admin.portal_user_tenants WHERE deactivated_at IS NULL
+                )`,
+            [actorId, userIds],
+          );
+        }
       });
 
       if (!archivedVendor) {
@@ -189,7 +194,11 @@ class VendorsController extends BaseController {
 
     try {
       if (!vendorId) {
-        const vendor = await this.model(schema).findOneByFilter({ code: req.query.code });
+        // Restore by definition operates on an archived row — must include deactivated.
+        const vendor = await this.model(schema).findOneByFilter(
+          { code: req.query.code },
+          { includeDeactivated: true },
+        );
         if (!vendor) return res.status(404).json({ error: `${this.errorLabel} not found or already active` });
         vendorId = vendor.id;
       }
