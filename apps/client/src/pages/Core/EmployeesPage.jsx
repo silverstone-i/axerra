@@ -223,7 +223,14 @@ export default function EmployeesPage() {
       const inserted = result.inserted || 0;
       const updated = result.updated || 0;
       const restored = result.restored || 0;
-      if (inserted === 0 && updated === 0 && restored === 0) {
+      // Child counts (child rows written via reconcile) are separate from
+      // parent counts — a child-only edit leaves parent inserted/updated at
+      // zero. Include them in the "any writes?" check so the toast doesn't
+      // claim "no changes" when a phone or address was actually written.
+      const childInserted = result.childInserted || 0;
+      const childUpdated = result.childUpdated || 0;
+      const anyWrite = inserted || updated || restored || childInserted || childUpdated;
+      if (!anyWrite) {
         toast('Import complete — no changes');
       } else {
         const parts = [`${inserted} new`, `${updated} updated`];

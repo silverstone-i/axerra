@@ -271,7 +271,13 @@ export default function VendorsPage() {
       const cIns = result.contactsInserted || 0;
       const cUpd = result.contactsUpdated || 0;
       const cRes = result.contactsRestored || 0;
-      const allZero = !vIns && !vUpd && !vRes && !cIns && !cUpd && !cRes;
+      // Child counts (rows written via reconcile) are separate from parent
+      // counts — a child-only edit leaves the parent counters at zero.
+      // Include them in the "any writes?" check so the toast doesn't claim
+      // "no changes" when a phone or address was actually written.
+      const vChild = (result.childInserted || 0) + (result.childUpdated || 0);
+      const cChild = (result.contactsChildInserted || 0) + (result.contactsChildUpdated || 0);
+      const allZero = !vIns && !vUpd && !vRes && !vChild && !cIns && !cUpd && !cRes && !cChild;
       const fmt = (i, u, r) => {
         const parts = [`${i} new`, `${u} updated`];
         if (r > 0) parts.push(`${r} restored`);

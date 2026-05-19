@@ -205,7 +205,12 @@ export default function ClientsPage() {
       const inserted = result.inserted || 0;
       const updated = result.updated || 0;
       const restored = result.restored || 0;
-      if (inserted === 0 && updated === 0 && restored === 0) {
+      // Child-only edits leave parent counts at zero — see comment in
+      // EmployeesPage.handleImport for rationale.
+      const childInserted = result.childInserted || 0;
+      const childUpdated = result.childUpdated || 0;
+      const anyWrite = inserted || updated || restored || childInserted || childUpdated;
+      if (!anyWrite) {
         toast('Import complete — no changes');
       } else {
         const parts = [`${inserted} new`, `${updated} updated`];
