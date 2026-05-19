@@ -174,15 +174,24 @@ class VendorsController extends BaseController {
   }
 
   /**
-   * PATCH /restore — restore the vendor and the cohort of vendor_contacts that
-   * were archived together with it. Cohort is identified by the MAX
-   * `deactivated_at` of vendor_contacts under this vendor; each cohort
-   * member's portal_user / portal_user_tenants binding pair is restored too
-   * (only when the binding's `deactivated_at` matches the binding-level
-   * MAX, per the same rule used for direct entity restore).
+   * PATCH /restore — restore the vendor and the cohort of vendor_contacts
+   * that were archived together with it. Cohort is identified by exact
+   * timestamp match against the vendor's own `deactivated_at`: contacts
+   * whose `vendor_contacts.deactivated_at` equals the vendor row's
+   * `deactivated_at` at the moment we capture it (under SELECT FOR
+   * UPDATE). This is reliable because the archive cascade uses one
+   * NOW() per transaction, so a contact archived together with its
+   * vendor shares the timestamp down to the microsecond. The comparison
+   * is done in a server-side subquery so we don't lose precision
+   * marshalling the timestamp through JavaScript.
    *
-   * `status` is intentionally not modified anywhere — restoring only flips
-   * `deactivated_at` back to NULL.
+   * Each cohort member's portal_user / portal_user_tenants binding pair
+   * is restored using the same MAX-`deactivated_at` cohort rule per
+   * vendor_contact as the standalone vendor_contact restore (see
+   * `restorePortalUserFor`).
+   *
+   * `status` is intentionally not modified anywhere — restoring only
+   * flips `deactivated_at` back to NULL.
    */
   async restore(req, res) {
     if (!req.query.id && !req.query.code) {
