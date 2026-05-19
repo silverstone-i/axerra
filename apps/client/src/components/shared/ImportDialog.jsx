@@ -7,8 +7,11 @@
  *     is invoked with the FormData.
  *   - With `onPreview`: mandatory three-step flow — pick file → preview
  *     (counts or errors) → confirm. onPreview must resolve to the server's
- *     preview payload `{ preview: true, inserts, updates, noops, omitted, errors }`
- *     or throw with `err.payload.errors` if validation failed.
+ *     preview payload `{ preview: true, inserts, updates, restores, noops, omitted, errors }`
+ *     (single bucket) or `{ preview: true, vendors: {...}, contacts: {...}, errors }`
+ *     (combined Vendors+VendorContacts). `restores` and `omitted` are optional
+ *     per importer. onPreview should throw with `err.payload.errors` if
+ *     validation failed.
  *
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */

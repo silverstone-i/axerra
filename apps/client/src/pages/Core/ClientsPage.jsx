@@ -202,18 +202,16 @@ export default function ClientsPage() {
     setImportErrors(null);
     try {
       const result = await importMut.mutateAsync(formData);
-      const inserted = result.inserted || 0;
-      const updated = result.updated || 0;
+      // Roll parent + child counts into the displayed numbers — see the
+      // comment on EmployeesPage.handleImport.
+      const newTotal = (result.inserted || 0) + (result.childInserted || 0);
+      const updatedTotal = (result.updated || 0) + (result.childUpdated || 0);
       const restored = result.restored || 0;
-      // Child-only edits leave parent counts at zero — see comment in
-      // EmployeesPage.handleImport for rationale.
-      const childInserted = result.childInserted || 0;
-      const childUpdated = result.childUpdated || 0;
-      const anyWrite = inserted || updated || restored || childInserted || childUpdated;
+      const anyWrite = newTotal || updatedTotal || restored;
       if (!anyWrite) {
         toast('Import complete — no changes');
       } else {
-        const parts = [`${inserted} new`, `${updated} updated`];
+        const parts = [`${newTotal} new`, `${updatedTotal} updated`];
         if (restored > 0) parts.push(`${restored} restored`);
         toast(`Clients: ${parts.join(', ')}`);
       }

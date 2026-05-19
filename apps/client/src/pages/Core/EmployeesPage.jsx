@@ -220,20 +220,18 @@ export default function EmployeesPage() {
     setImportErrors(null);
     try {
       const result = await importMut.mutateAsync(formData);
-      const inserted = result.inserted || 0;
-      const updated = result.updated || 0;
+      // Roll parent + child counts into the displayed numbers — a child-only
+      // edit (phone, address, etc.) leaves parent inserted/updated at zero
+      // but is still a write the user should see reflected. The toast
+      // shows total rows written, mixed across parent and child.
+      const newTotal = (result.inserted || 0) + (result.childInserted || 0);
+      const updatedTotal = (result.updated || 0) + (result.childUpdated || 0);
       const restored = result.restored || 0;
-      // Child counts (child rows written via reconcile) are separate from
-      // parent counts — a child-only edit leaves parent inserted/updated at
-      // zero. Include them in the "any writes?" check so the toast doesn't
-      // claim "no changes" when a phone or address was actually written.
-      const childInserted = result.childInserted || 0;
-      const childUpdated = result.childUpdated || 0;
-      const anyWrite = inserted || updated || restored || childInserted || childUpdated;
+      const anyWrite = newTotal || updatedTotal || restored;
       if (!anyWrite) {
         toast('Import complete — no changes');
       } else {
-        const parts = [`${inserted} new`, `${updated} updated`];
+        const parts = [`${newTotal} new`, `${updatedTotal} updated`];
         if (restored > 0) parts.push(`${restored} restored`);
         toast(`Employees: ${parts.join(', ')}`);
       }

@@ -265,19 +265,17 @@ export default function VendorsPage() {
     setImportErrors(null);
     try {
       const result = await importMut.mutateAsync(formData);
-      const vIns = result.inserted || 0;
-      const vUpd = result.updated || 0;
+      // Roll parent + child counts into the displayed numbers — a child-only
+      // edit (phone, address) leaves parent counters at zero but is still a
+      // write the user should see. Vendors and Contacts get their own
+      // totals so the message stays scoped per entity.
+      const vNew = (result.inserted || 0) + (result.childInserted || 0);
+      const vUpd = (result.updated || 0) + (result.childUpdated || 0);
       const vRes = result.restored || 0;
-      const cIns = result.contactsInserted || 0;
-      const cUpd = result.contactsUpdated || 0;
+      const cNew = (result.contactsInserted || 0) + (result.contactsChildInserted || 0);
+      const cUpd = (result.contactsUpdated || 0) + (result.contactsChildUpdated || 0);
       const cRes = result.contactsRestored || 0;
-      // Child counts (rows written via reconcile) are separate from parent
-      // counts — a child-only edit leaves the parent counters at zero.
-      // Include them in the "any writes?" check so the toast doesn't claim
-      // "no changes" when a phone or address was actually written.
-      const vChild = (result.childInserted || 0) + (result.childUpdated || 0);
-      const cChild = (result.contactsChildInserted || 0) + (result.contactsChildUpdated || 0);
-      const allZero = !vIns && !vUpd && !vRes && !vChild && !cIns && !cUpd && !cRes && !cChild;
+      const allZero = !vNew && !vUpd && !vRes && !cNew && !cUpd && !cRes;
       const fmt = (i, u, r) => {
         const parts = [`${i} new`, `${u} updated`];
         if (r > 0) parts.push(`${r} restored`);
@@ -285,7 +283,7 @@ export default function VendorsPage() {
       };
       const message = allZero
         ? 'Import complete — no changes'
-        : `Vendors: ${fmt(vIns, vUpd, vRes)} • Contacts: ${fmt(cIns, cUpd, cRes)}`;
+        : `Vendors: ${fmt(vNew, vUpd, vRes)} • Contacts: ${fmt(cNew, cUpd, cRes)}`;
       toast(message);
       importDialog.close();
     } catch (err) {
