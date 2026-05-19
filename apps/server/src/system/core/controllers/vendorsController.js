@@ -98,7 +98,7 @@ class VendorsController extends BaseController {
     try {
       if (!vendorId) {
         // Archive operates on active vendors, so the default model filter is fine here.
-        const vendor = await this.model(schema).findOneByFilter({ code: req.query.code });
+        const vendor = await this.model(schema).findOneBy([{ code: req.query.code }]);
         if (!vendor) return res.status(404).json({ error: `${this.errorLabel} not found or already inactive` });
         vendorId = vendor.id;
       }
@@ -195,8 +195,8 @@ class VendorsController extends BaseController {
     try {
       if (!vendorId) {
         // Restore by definition operates on an archived row — must include deactivated.
-        const vendor = await this.model(schema).findOneByFilter(
-          { code: req.query.code },
+        const vendor = await this.model(schema).findOneBy(
+          [{ code: req.query.code }],
           { includeDeactivated: true },
         );
         if (!vendor) return res.status(404).json({ error: `${this.errorLabel} not found or already active` });
