@@ -48,15 +48,18 @@ export async function archivePortalUserFor({ entityType, entityId, tenantId, act
       [actorId, binding.id],
     );
     // Only lock the portal_user when this was its last active binding —
-    // a user bound to another active tenant stays live.
+    // a user bound to another active tenant stays live. Use a correlated
+    // NOT EXISTS scoped to this portal_user so we hit the
+    // (portal_user_id, deactivated_at) index instead of scanning all
+    // active bindings.
     await t.none(
       `UPDATE admin.portal_users
          SET deactivated_at = NOW(), status = 'locked', updated_by = $1
        WHERE id = $2
          AND deactivated_at IS NULL
-         AND id NOT IN (
-           SELECT portal_user_id FROM admin.portal_user_tenants
-           WHERE deactivated_at IS NULL
+         AND NOT EXISTS (
+           SELECT 1 FROM admin.portal_user_tenants
+           WHERE portal_user_id = $2 AND deactivated_at IS NULL
          )`,
       [actorId, binding.portal_user_id],
     );
@@ -68,44 +71,52 @@ export async function archivePortalUserFor({ entityType, entityId, tenantId, act
  * Restore every portal_user binding for the given entity whose `deactivated_at`
  * equals the most recent archive timestamp on that entity, plus the referenced
  * portal_users. `status` is intentionally not modified.
+ *
+ * Accepts an optional pg-promise tx executor `t`. When omitted, the whole
+ * sequence (cohort SELECT + both UPDATEs) runs inside one short tx so the
+ * cohort can't shift between the SELECT and the UPDATEs.
  */
-export async function restorePortalUserFor({ entityType, entityId, tenantId, actorId = null }) {
-  // Resolve the cohort first so the audit log can name what was touched.
-  const cohort = await db.any(
-    `WITH max_ts AS (
-       SELECT MAX(deactivated_at) AS ts FROM admin.portal_user_tenants
+export async function restorePortalUserFor({ entityType, entityId, tenantId, actorId = null }, t = null) {
+  const run = async (exec) => {
+    const cohort = await exec.any(
+      `WITH max_ts AS (
+         SELECT MAX(deactivated_at) AS ts FROM admin.portal_user_tenants
+         WHERE entity_type = $1 AND entity_id = $2 AND tenant_id = $3
+           AND deactivated_at IS NOT NULL
+       )
+       SELECT id, portal_user_id FROM admin.portal_user_tenants
        WHERE entity_type = $1 AND entity_id = $2 AND tenant_id = $3
          AND deactivated_at IS NOT NULL
-     )
-     SELECT id, portal_user_id FROM admin.portal_user_tenants
-     WHERE entity_type = $1 AND entity_id = $2 AND tenant_id = $3
-       AND deactivated_at IS NOT NULL
-       AND deactivated_at = (SELECT ts FROM max_ts)`,
-    [entityType, entityId, tenantId],
-  );
-  if (!cohort.length) return;
+         AND deactivated_at = (SELECT ts FROM max_ts)`,
+      [entityType, entityId, tenantId],
+    );
+    if (!cohort.length) return { bindingIds: [], userIds: [] };
 
-  const bindingIds = cohort.map((r) => r.id);
-  const userIds = [...new Set(cohort.map((r) => r.portal_user_id))];
+    const bindingIds = cohort.map((r) => r.id);
+    const userIds = [...new Set(cohort.map((r) => r.portal_user_id))];
 
-  await db.tx(async (t) => {
-    await t.none(
+    await exec.none(
       `UPDATE admin.portal_user_tenants
          SET deactivated_at = NULL, updated_by = $1
        WHERE id = ANY($2::uuid[])`,
       [actorId, bindingIds],
     );
-    await t.none(
+    await exec.none(
       `UPDATE admin.portal_users
          SET deactivated_at = NULL, updated_by = $1
        WHERE id = ANY($2::uuid[])
          AND deactivated_at IS NOT NULL`,
       [actorId, userIds],
     );
-  });
-  logger.info(
-    `Restored ${bindingIds.length} binding(s) + ${userIds.length} portal_user(s) for ${entityType} ${entityId}`,
-  );
+    return { bindingIds, userIds };
+  };
+
+  const { bindingIds, userIds } = t ? await run(t) : await db.tx(run);
+  if (bindingIds.length) {
+    logger.info(
+      `Restored ${bindingIds.length} binding(s) + ${userIds.length} portal_user(s) for ${entityType} ${entityId}`,
+    );
+  }
 }
 
 /**

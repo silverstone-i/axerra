@@ -147,13 +147,17 @@ class VendorsController extends BaseController {
 
         const userIds = [...new Set(affected.map((r) => r.portal_user_id))];
         if (userIds.length) {
+          // Correlated NOT EXISTS so the planner can use the
+          // (portal_user_id, deactivated_at) index on portal_user_tenants
+          // instead of scanning every active binding.
           await t.none(
-            `UPDATE admin.portal_users
+            `UPDATE admin.portal_users pu
                 SET deactivated_at = NOW(), status = 'locked', updated_by = $1
-              WHERE id = ANY($2::uuid[])
-                AND deactivated_at IS NULL
-                AND id NOT IN (
-                  SELECT portal_user_id FROM admin.portal_user_tenants WHERE deactivated_at IS NULL
+              WHERE pu.id = ANY($2::uuid[])
+                AND pu.deactivated_at IS NULL
+                AND NOT EXISTS (
+                  SELECT 1 FROM admin.portal_user_tenants put
+                  WHERE put.portal_user_id = pu.id AND put.deactivated_at IS NULL
                 )`,
             [actorId, userIds],
           );
