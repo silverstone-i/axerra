@@ -993,15 +993,22 @@ export default class Vendors extends TableModel {
   }
 
   /**
-   * No-write check: would `_upsertFlatChildren` replace any of this parent's
-   * child sets? Iterates the cfgs the same way, transforms the file rows,
-   * loads the DB's current active set, and returns true on the first cfg
-   * whose set differs. Used by the preview classifier to keep preview /
-   * commit aligned on child-only changes, and (indirectly) by the commit
-   * path's updated-count accounting via `_upsertFlatChildren`'s return.
+   * Preview-side per-parent check: classify each cfg's child rows against
+   * the DB (active + archived) using the same shared logic the commit
+   * path uses, and return whether the parent's child sets would produce
+   * any DB writes (`changed`) plus the count of archived rows that would
+   * be restored (`restored`).
+   *
+   * The combined-import preview surfaces `restored` into the bucket so
+   * `ImportDialog` can show "Restored from trash" before commit, matching
+   * what the flat single-entity preview already does.
+   *
+   * @returns {Promise<{changed: boolean, restored: number}>}
    */
   async _anyChildrenDiffer({ t, db, s, schema, pgp, sourceId, fileChildren, childConfig, callbackFn, tenantId }) {
     const handle = t || db;
+    let changed = false;
+    let restored = 0;
     for (const cfg of childConfig) {
       const rawRows = fileChildren?.[cfg.key];
       if (!rawRows || !rawRows.length) continue;
@@ -1026,9 +1033,10 @@ export default class Vendors extends TableModel {
         [sourceId],
       );
       const { counts } = _classifyChildren(existing, toInsert, cfg);
-      if (counts.inserts + counts.updates + counts.restores > 0) return true;
+      if (counts.inserts + counts.updates + counts.restores > 0) changed = true;
+      restored += counts.restores;
     }
-    return false;
+    return { changed, restored };
   }
 
   /**
@@ -1039,9 +1047,10 @@ export default class Vendors extends TableModel {
    * the original row back instead of either tripping a unique constraint or
    * leaving the trash bin to grow.
    *
-   * Returns `{ anyReplaced, restored }`. The boolean lets the caller count
-   * child-only changes as parent updates; the count rolls into the importer's
-   * top-level `restored` total.
+   * Returns `{ anyReplaced, restored, inserted, updated }`. `anyReplaced`
+   * lets the caller count child-only changes as parent updates; the
+   * per-action counts roll into the importer's top-level `restored`,
+   * `childInserted`, and `childUpdated` totals.
    */
   async _upsertFlatChildren(t, s, schema, db, pgp, sourceId, children, childConfig, callbackFn, tenantId) {
     let anyReplaced = false;
@@ -1144,8 +1153,8 @@ export default class Vendors extends TableModel {
   async _classifyCombinedForPreview({ db, s, schema, pgp, vendorGroups, contactGroups, callbackFn, tenantId }) {
     const stripContactCols = ['status', 'deactivated_at', 'password'];
 
-    const vendors = { inserts: 0, updates: 0, noops: 0, omitted: 0 };
-    const contacts = { inserts: 0, updates: 0, noops: 0, omitted: 0 };
+    const vendors = { inserts: 0, updates: 0, restores: 0, noops: 0, omitted: 0 };
+    const contacts = { inserts: 0, updates: 0, restores: 0, noops: 0, omitted: 0 };
 
     // Vendors ─────────────────────────────────────────────────────────────
     const vendorUuidIds = vendorGroups.filter((g) => isUuid(g.parent.id)).map((g) => g.parent.id);
@@ -1170,7 +1179,7 @@ export default class Vendors extends TableModel {
       if (tenantId) transformed.tenant_id = tenantId;
       const changes = diffParent(transformed, existing, { caseSensitive: true });
       const parentChanged = Object.keys(changes).length > 0 || willBeArchived !== wasArchived;
-      const childrenDiffer = existing.source_id
+      const childDiff = existing.source_id
         ? await this._anyChildrenDiffer({
             db, s, schema, pgp,
             sourceId: existing.source_id,
@@ -1179,8 +1188,9 @@ export default class Vendors extends TableModel {
             callbackFn,
             tenantId,
           })
-        : false;
-      if (parentChanged || childrenDiffer) vendors.updates += 1;
+        : { changed: false, restored: 0 };
+      vendors.restores += childDiff.restored;
+      if (parentChanged || childDiff.changed) vendors.updates += 1;
       else vendors.noops += 1;
     }
 
@@ -1214,7 +1224,7 @@ export default class Vendors extends TableModel {
       if (transformed.vendor_id && !isUuid(transformed.vendor_id)) delete transformed.vendor_id;
       const changes = diffParent(transformed, existing, { caseSensitive: true });
       const parentChanged = Object.keys(changes).length > 0 || willBeArchived !== wasArchived;
-      const childrenDiffer = existing.source_id
+      const childDiff = existing.source_id
         ? await this._anyChildrenDiffer({
             db, s, schema, pgp,
             sourceId: existing.source_id,
@@ -1223,8 +1233,9 @@ export default class Vendors extends TableModel {
             callbackFn,
             tenantId,
           })
-        : false;
-      if (parentChanged || childrenDiffer) contacts.updates += 1;
+        : { changed: false, restored: 0 };
+      contacts.restores += childDiff.restored;
+      if (parentChanged || childDiff.changed) contacts.updates += 1;
       else contacts.noops += 1;
     }
 

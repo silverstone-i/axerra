@@ -57,9 +57,11 @@ importer (employees, clients, etc.) and the combined two-sheet importer
   noop. A user who edits the export to re-add a previously deleted value
   (or re-uploads an older export from before the delete) gets the row back
   with its original id; no constraint conflict, no duplicate.
-- **Match-first-by-id, then-by-natural-key** preserves stable identifiers
-  for downstream FKs while still allowing recovery in the common case
-  where the user doesn't have the id in front of them.
+- **Match-by-natural-key** (slot key first, then value key — see
+  Decision #2 for the exact priority order) lets the user recover an
+  archived child without having to look up its database id. The
+  matched row is restored in place, so its original id and downstream
+  FK references are preserved.
 
 ## Consequences
 

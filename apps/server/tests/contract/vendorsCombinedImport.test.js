@@ -146,8 +146,8 @@ describe('Vendors combined import — preview + commit', () => {
     expect(res.status).toBe(200);
     expect(res.body.preview).toBe(true);
     expect(res.body.errors).toEqual([]);
-    expect(res.body.vendors).toEqual({ inserts: 2, updates: 0, noops: 0, omitted: 0 });
-    expect(res.body.contacts).toEqual({ inserts: 1, updates: 0, noops: 0, omitted: 0 });
+    expect(res.body.vendors).toEqual({ inserts: 2, updates: 0, restores: 0, noops: 0, omitted: 0 });
+    expect(res.body.contacts).toEqual({ inserts: 1, updates: 0, restores: 0, noops: 0, omitted: 0 });
 
     const vendorsAfter = await db.any('SELECT count(*)::int AS n FROM vcombo.vendors');
     const contactsAfter = await db.any('SELECT count(*)::int AS n FROM vcombo.vendor_contacts');
@@ -199,8 +199,8 @@ describe('Vendors combined import — preview + commit', () => {
 
     const previewRes = await postImport(round, cookies, 'roundpreview', { preview: true });
     expect(previewRes.status).toBe(200);
-    expect(previewRes.body.vendors).toEqual({ inserts: 0, updates: 0, noops: 2, omitted: 0 });
-    expect(previewRes.body.contacts).toEqual({ inserts: 0, updates: 0, noops: 1, omitted: 0 });
+    expect(previewRes.body.vendors).toEqual({ inserts: 0, updates: 0, restores: 0, noops: 2, omitted: 0 });
+    expect(previewRes.body.contacts).toEqual({ inserts: 0, updates: 0, restores: 0, noops: 1, omitted: 0 });
   });
 
   test('update path — changing a vendor field reports updated:1 and persists', async () => {
@@ -428,8 +428,8 @@ describe('Vendors combined import — preview + commit', () => {
     // Preview: must report zero writes coming.
     const previewRes = await postImport(buf, cookies, 'rt-preview', { preview: true });
     expect(previewRes.status).toBe(200);
-    expect(previewRes.body.vendors).toEqual({ inserts: 0, updates: 0, noops: 2, omitted: 0 });
-    expect(previewRes.body.contacts).toEqual({ inserts: 0, updates: 0, noops: 2, omitted: 0 });
+    expect(previewRes.body.vendors).toEqual({ inserts: 0, updates: 0, restores: 0, noops: 2, omitted: 0 });
+    expect(previewRes.body.contacts).toEqual({ inserts: 0, updates: 0, restores: 0, noops: 2, omitted: 0 });
 
     // Snapshot DB timestamps before commit so we can prove nothing got touched.
     const beforeVendors = await db.any(
@@ -505,7 +505,7 @@ describe('Vendors combined import — preview + commit', () => {
 
     const preview = await postImport(buf, cookies, 'childOnly-preview', { preview: true });
     expect(preview.status).toBe(200);
-    expect(preview.body.vendors).toEqual({ inserts: 0, updates: 1, noops: 0, omitted: 0 });
+    expect(preview.body.vendors).toEqual({ inserts: 0, updates: 1, restores: 0, noops: 0, omitted: 0 });
 
     const commit = await postImport(buf, cookies, 'childOnly-commit');
     if (commit.status !== 200) {
@@ -567,7 +567,7 @@ describe('Vendors combined import — preview + commit', () => {
 
     const preview = await postImport(editBuf, cookies, 'caseEdit-preview', { preview: true });
     expect(preview.status).toBe(200);
-    expect(preview.body.vendors).toEqual({ inserts: 0, updates: 0, noops: 1, omitted: 0 });
+    expect(preview.body.vendors).toEqual({ inserts: 0, updates: 0, restores: 0, noops: 1, omitted: 0 });
 
     const commit = await postImport(editBuf, cookies, 'caseEdit-commit');
     expect(commit.status).toBe(200);
@@ -603,7 +603,7 @@ describe('Vendors combined import — preview + commit', () => {
 
     const preview = await postImport(buf, cookies, 'parentCase-preview', { preview: true });
     expect(preview.status).toBe(200);
-    expect(preview.body.vendors).toEqual({ inserts: 0, updates: 1, noops: 0, omitted: 0 });
+    expect(preview.body.vendors).toEqual({ inserts: 0, updates: 1, restores: 0, noops: 0, omitted: 0 });
 
     const commit = await postImport(buf, cookies, 'parentCase-commit');
     expect(commit.status).toBe(200);

@@ -7,8 +7,8 @@
  *   - Soft-deleting an email via emailsController, then re-importing the
  *     employee's workbook unchanged, restores the email in place — same
  *     id, same value, `deactivated_at IS NULL`.
- *   - The preview reports `restored: 1` before commit; commit returns
- *     `restored: 1` in the same shape.
+ *   - The preview reports `restores: 1` (preview-side field name) before
+ *     commit; commit returns `restored: 1` (commit-side field name).
  *   - The restore does NOT create a duplicate row.
  *
  * Mirrors the matrix described in ADR-0026 (child rows restore via import,

@@ -4,7 +4,7 @@
  *
  * NOTE: there is intentionally NO `PATCH /:id/restore` route. Soft-deleted
  * phone rows are restored by re-importing the parent's workbook (the
- * importer matches archived rows by id then by value/slot key and
+ * importer matches archived rows by slot key then by value key and
  * resurrects them in place). See `docs/decisions/0026-child-restore-via-import.md`.
  *
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.

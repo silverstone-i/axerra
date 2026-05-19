@@ -3144,25 +3144,6 @@ async function _collectCrossSourceConflicts(db, s, pgp, schema, ownSourceType, g
 }
 
 /**
- * Pure classifier used by both preview and commit paths. Given the full
- * existing-children set (active AND archived) plus the incoming rows for a
- * single source, return per-row classifications and aggregate counts.
- *
- * Match priority for each incoming row:
- *   1. active slot key
- *   2. active value key (catches a slot rename — e.g. an email moves from
- *      label="work" to label="primary" but the email address itself is
- *      stable)
- *   3. archived slot key      → restore (and update if values differ)
- *   4. archived value key     → restore (+ update if values differ)
- *   5. no match → insert
- *
- * Actions emitted per row: 'insert' | 'update' | 'restore' | 'restore+update' | 'noop'.
- * `claimedExistingIds` is returned so the caller can compute `omitted` against
- * the existing set when needed.
- * @private
- */
-/**
  * Bring incoming spreadsheet child rows into the same shape commit will
  * write: apply callbackFn (typically threads tenant_id / created_by from
  * the controller), strip ephemeral `tenant_code`, coerce per the child
@@ -3205,6 +3186,25 @@ async function _transformAndNormalizeChildRows(childRows, sourceId, childModel, 
   return out;
 }
 
+/**
+ * Pure classifier used by both preview and commit paths. Given the full
+ * existing-children set (active AND archived) plus the incoming rows for a
+ * single source, return per-row classifications and aggregate counts.
+ *
+ * Match priority for each incoming row:
+ *   1. active slot key
+ *   2. active value key (catches a slot rename — e.g. an email moves from
+ *      label="work" to label="primary" but the email address itself is
+ *      stable)
+ *   3. archived slot key      → restore (and update if values differ)
+ *   4. archived value key     → restore (+ update if values differ)
+ *   5. no match → insert
+ *
+ * Actions emitted per row: 'insert' | 'update' | 'restore' | 'restore+update' | 'noop'.
+ * `claimedExistingIds` is returned so the caller can compute `omitted` against
+ * the existing set when needed.
+ * @private
+ */
 export function _classifyChildren(existingRows, incomingRows, cfg) {
   const activeBySlot = new Map();
   const activeByValue = new Map();
