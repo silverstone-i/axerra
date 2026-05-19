@@ -573,9 +573,13 @@ export default class Vendors extends TableModel {
     let insertedCount = 0;
     let updatedCount = 0;
     let vendorsRestored = 0;
+    let vendorsChildInserted = 0;
+    let vendorsChildUpdated = 0;
     let contactsInserted = 0;
     let contactsUpdated = 0;
     let contactsRestored = 0;
+    let contactsChildInserted = 0;
+    let contactsChildUpdated = 0;
 
     // Maps for cross-sheet vendor_id resolution
     const vendorRefToId = new Map(); // spreadsheet id/ref → DB vendor id
@@ -655,6 +659,8 @@ export default class Vendors extends TableModel {
           const r = await this._upsertFlatChildren(t, s, schema, db, pgp, existing.source_id, group.children, VENDOR_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
           childReplaced = r.anyReplaced;
           vendorsRestored += r.restored;
+          vendorsChildInserted += r.inserted;
+          vendorsChildUpdated += r.updated;
         }
         if (parentChanged || childReplaced) updatedCount++;
       }
@@ -742,6 +748,7 @@ export default class Vendors extends TableModel {
         // ── Batch: insert children across all new vendors ──────────
         const r = await this._batchUpsertFlatChildren(t, s, schema, db, pgp, insertResults, sourceByParentId, toInsert, VENDOR_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
         vendorsRestored += r.restored;
+        vendorsChildInserted += r.inserted;
       }
 
       _tVendorInserts = Date.now();
@@ -819,6 +826,8 @@ export default class Vendors extends TableModel {
           const r = await this._upsertFlatChildren(t, s, schema, db, pgp, existing.source_id, group.children, CONTACT_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
           childReplaced = r.anyReplaced;
           contactsRestored += r.restored;
+          contactsChildInserted += r.inserted;
+          contactsChildUpdated += r.updated;
         }
         if (parentChanged || childReplaced) contactsUpdated++;
       }
@@ -867,6 +876,7 @@ export default class Vendors extends TableModel {
         // ── Batch: insert children across all new contacts ─────────
         const r = await this._batchUpsertFlatChildren(t, s, schema, db, pgp, insertResults, sourceByParentId, contactToInsert, CONTACT_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
         contactsRestored += r.restored;
+        contactsChildInserted += r.inserted;
 
         _tContactInserts = Date.now();
         // Provision portal_users for app-user contacts after emails are inserted
@@ -942,9 +952,13 @@ export default class Vendors extends TableModel {
       inserted: insertedCount,
       updated: updatedCount,
       restored: vendorsRestored,
+      childInserted: vendorsChildInserted,
+      childUpdated: vendorsChildUpdated,
       contactsInserted,
       contactsUpdated,
       contactsRestored,
+      contactsChildInserted,
+      contactsChildUpdated,
     };
   }
 
@@ -1028,15 +1042,19 @@ export default class Vendors extends TableModel {
   async _upsertFlatChildren(t, s, schema, db, pgp, sourceId, children, childConfig, callbackFn, tenantId) {
     let anyReplaced = false;
     let restored = 0;
+    let inserted = 0;
+    let updated = 0;
     for (const cfg of childConfig) {
       const childRows = children[cfg.key];
       if (!childRows || !childRows.length) continue;
 
       const counts = await _reconcileChildrenForSource(t, s, schema, db, pgp, sourceId, childRows, cfg, callbackFn, tenantId);
       restored += counts.restores;
+      inserted += counts.inserts;
+      updated += counts.updates;
       if (counts.inserts + counts.updates + counts.restores > 0) anyReplaced = true;
     }
-    return { anyReplaced, restored };
+    return { anyReplaced, restored, inserted, updated };
   }
 
   /**
@@ -1063,7 +1081,9 @@ export default class Vendors extends TableModel {
     // a wasted SELECT. Skip the reconciler entirely and do 1 bulkInsert
     // per cfg across all parents — restores the prior performance shape
     // for large imports. `restored` is always 0 here (no archived rows to
-    // resurrect under a fresh source).
+    // resurrect under a fresh source); `inserted` counts child rows
+    // written so the importer's top-level response can surface them.
+    let inserted = 0;
     for (const cfg of childConfig) {
       const childModel = db(cfg.model, schema);
       childModel.tx = t;
@@ -1101,9 +1121,10 @@ export default class Vendors extends TableModel {
 
       if (allToInsert.length) {
         await childModel.bulkInsert(allToInsert);
+        inserted += allToInsert.length;
       }
     }
-    return { restored: 0 };
+    return { restored: 0, inserted, updated: 0 };
   }
 
   // ── Preview classifier (no writes) ────────────────────────────────────────
