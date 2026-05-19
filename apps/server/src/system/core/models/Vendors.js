@@ -30,6 +30,8 @@ import {
   getEnumColumns,
   parseDbImportError,
   diffParent,
+  _reconcileChildrenForSource,
+  _classifyChildren,
   PHONE_HEADERS,
   ADDRESS_HEADERS,
   TAX_ID_HEADERS,
@@ -153,16 +155,50 @@ const CONTACT_CHILD_EXTRACTORS = [
 ];
 
 /** Child column mappings for flat export (source cols → flat cols) */
+// Each cfg also carries the slotKeyCols / compareCols / key fields so it can
+// be passed straight to the shared `_reconcileChildrenForSource` from
+// spreadsheetHelpers. `modelName` mirrors `model` for the same reason — the
+// shared helper reads `modelName`.
 const VENDOR_CHILD_ARRAYS_CONFIG = [
-  { model: 'emails', cols: ['email', 'label', 'is_primary'], flatCols: ['email', 'email_label', 'email_is_primary'] },
-  { model: 'phoneNumbers', cols: ['country_code', 'phone_type', 'phone_number', 'is_primary'], flatCols: ['phone_country_code', 'phone_type', 'phone_number', 'phone_is_primary'] },
-  { model: 'addresses', cols: ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'], flatCols: ['address_label', 'address_line_1', 'address_line_2', 'address_line_3', 'address_city', 'address_state_province', 'address_postal_code', 'address_country_code'] },
-  { model: 'taxIdentifiers', cols: ['country_code', 'tax_type', 'tax_value'], flatCols: ['tax_country_code', 'tax_type', 'tax_value'] },
+  {
+    model: 'emails', modelName: 'emails', key: 'emails',
+    cols: ['email', 'label', 'is_primary'],
+    flatCols: ['email', 'email_label', 'email_is_primary'],
+    slotKeyCols: ['label'], compareCols: ['email', 'is_primary'],
+  },
+  {
+    model: 'phoneNumbers', modelName: 'phoneNumbers', key: 'phones',
+    cols: ['country_code', 'phone_type', 'phone_number', 'is_primary'],
+    flatCols: ['phone_country_code', 'phone_type', 'phone_number', 'phone_is_primary'],
+    slotKeyCols: ['phone_type'], compareCols: ['country_code', 'phone_number', 'is_primary'],
+  },
+  {
+    model: 'addresses', modelName: 'addresses', key: 'addresses',
+    cols: ['label', 'address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'],
+    flatCols: ['address_label', 'address_line_1', 'address_line_2', 'address_line_3', 'address_city', 'address_state_province', 'address_postal_code', 'address_country_code'],
+    slotKeyCols: ['label'], compareCols: ['address_line_1', 'address_line_2', 'address_line_3', 'city', 'state_province', 'postal_code', 'country_code'],
+  },
+  {
+    model: 'taxIdentifiers', modelName: 'taxIdentifiers', key: 'taxIds',
+    cols: ['country_code', 'tax_type', 'tax_value'],
+    flatCols: ['tax_country_code', 'tax_type', 'tax_value'],
+    slotKeyCols: ['country_code', 'tax_type'], compareCols: ['tax_value'],
+  },
 ];
 
 const CONTACT_CHILD_ARRAYS_CONFIG = [
-  { model: 'emails', cols: ['email', 'label', 'is_primary', 'is_login'], flatCols: ['email', 'email_label', 'email_is_primary', 'email_is_login'] },
-  { model: 'phoneNumbers', cols: ['country_code', 'phone_type', 'phone_number', 'is_primary'], flatCols: ['phone_country_code', 'phone_type', 'phone_number', 'phone_is_primary'] },
+  {
+    model: 'emails', modelName: 'emails', key: 'emails',
+    cols: ['email', 'label', 'is_primary', 'is_login'],
+    flatCols: ['email', 'email_label', 'email_is_primary', 'email_is_login'],
+    slotKeyCols: ['label'], compareCols: ['email', 'is_primary', 'is_login'],
+  },
+  {
+    model: 'phoneNumbers', modelName: 'phoneNumbers', key: 'phones',
+    cols: ['country_code', 'phone_type', 'phone_number', 'is_primary'],
+    flatCols: ['phone_country_code', 'phone_type', 'phone_number', 'phone_is_primary'],
+    slotKeyCols: ['phone_type'], compareCols: ['country_code', 'phone_number', 'is_primary'],
+  },
 ];
 
 /** Lazy-load db */
@@ -536,8 +572,14 @@ export default class Vendors extends TableModel {
 
     let insertedCount = 0;
     let updatedCount = 0;
+    let vendorsRestored = 0;
+    let vendorsChildInserted = 0;
+    let vendorsChildUpdated = 0;
     let contactsInserted = 0;
     let contactsUpdated = 0;
+    let contactsRestored = 0;
+    let contactsChildInserted = 0;
+    let contactsChildUpdated = 0;
 
     // Maps for cross-sheet vendor_id resolution
     const vendorRefToId = new Map(); // spreadsheet id/ref → DB vendor id
@@ -610,11 +652,15 @@ export default class Vendors extends TableModel {
         vendorRefToId.set(id, id);
         vendorIdToSourceId.set(id, existing.source_id);
 
-        // Child wholesale-replace also counts as an update: the count must
-        // reflect every DB write, not just parent-field changes.
+        // Child reconcile also counts as an update: the count must reflect
+        // every DB write, not just parent-field changes.
         let childReplaced = false;
         if (existing.source_id) {
-          childReplaced = await this._upsertFlatChildren(t, s, schema, db, pgp, existing.source_id, group.children, VENDOR_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
+          const r = await this._upsertFlatChildren(t, s, schema, db, pgp, existing.source_id, group.children, VENDOR_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
+          childReplaced = r.anyReplaced;
+          vendorsRestored += r.restored;
+          vendorsChildInserted += r.inserted;
+          vendorsChildUpdated += r.updated;
         }
         if (parentChanged || childReplaced) updatedCount++;
       }
@@ -700,7 +746,9 @@ export default class Vendors extends TableModel {
         }
 
         // ── Batch: insert children across all new vendors ──────────
-        await this._batchUpsertFlatChildren(t, s, schema, db, pgp, insertResults, sourceByParentId, toInsert, VENDOR_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
+        const r = await this._batchUpsertFlatChildren(t, s, schema, db, pgp, insertResults, sourceByParentId, toInsert, VENDOR_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
+        vendorsRestored += r.restored;
+        vendorsChildInserted += r.inserted;
       }
 
       _tVendorInserts = Date.now();
@@ -775,7 +823,11 @@ export default class Vendors extends TableModel {
 
         let childReplaced = false;
         if (existing.source_id) {
-          childReplaced = await this._upsertFlatChildren(t, s, schema, db, pgp, existing.source_id, group.children, CONTACT_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
+          const r = await this._upsertFlatChildren(t, s, schema, db, pgp, existing.source_id, group.children, CONTACT_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
+          childReplaced = r.anyReplaced;
+          contactsRestored += r.restored;
+          contactsChildInserted += r.inserted;
+          contactsChildUpdated += r.updated;
         }
         if (parentChanged || childReplaced) contactsUpdated++;
       }
@@ -822,7 +874,9 @@ export default class Vendors extends TableModel {
         }
 
         // ── Batch: insert children across all new contacts ─────────
-        await this._batchUpsertFlatChildren(t, s, schema, db, pgp, insertResults, sourceByParentId, contactToInsert, CONTACT_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
+        const r = await this._batchUpsertFlatChildren(t, s, schema, db, pgp, insertResults, sourceByParentId, contactToInsert, CONTACT_CHILD_ARRAYS_CONFIG, callbackFn, tenantId);
+        contactsRestored += r.restored;
+        contactsChildInserted += r.inserted;
 
         _tContactInserts = Date.now();
         // Provision portal_users for app-user contacts after emails are inserted
@@ -897,8 +951,14 @@ export default class Vendors extends TableModel {
     return {
       inserted: insertedCount,
       updated: updatedCount,
+      restored: vendorsRestored,
+      childInserted: vendorsChildInserted,
+      childUpdated: vendorsChildUpdated,
       contactsInserted,
       contactsUpdated,
+      contactsRestored,
+      contactsChildInserted,
+      contactsChildUpdated,
     };
   }
 
@@ -933,18 +993,24 @@ export default class Vendors extends TableModel {
   }
 
   /**
-   * No-write check: would `_upsertFlatChildren` replace any of this parent's
-   * child sets? Iterates the cfgs the same way, transforms the file rows,
-   * loads the DB's current active set, and returns true on the first cfg
-   * whose set differs. Used by the preview classifier to keep preview /
-   * commit aligned on child-only changes, and (indirectly) by the commit
-   * path's updated-count accounting via `_upsertFlatChildren`'s return.
+   * Preview-side per-parent check: classify each cfg's child rows against
+   * the DB (active + archived) using the same shared logic the commit
+   * path uses, and return whether the parent's child sets would produce
+   * any DB writes (`changed`) plus the count of archived rows that would
+   * be restored (`restored`).
+   *
+   * The combined-import preview surfaces `restored` into the bucket so
+   * `ImportDialog` can show "Restored from trash" before commit, matching
+   * what the flat single-entity preview already does.
+   *
+   * @returns {Promise<{changed: boolean, restored: number}>}
    */
   async _anyChildrenDiffer({ t, db, s, schema, pgp, sourceId, fileChildren, childConfig, callbackFn, tenantId }) {
     const handle = t || db;
+    let changed = false;
+    let restored = 0;
     for (const cfg of childConfig) {
-      const key = cfg.model === 'phoneNumbers' ? 'phones' : cfg.model === 'taxIdentifiers' ? 'taxIds' : cfg.model;
-      const rawRows = fileChildren?.[key];
+      const rawRows = fileChildren?.[cfg.key];
       if (!rawRows || !rawRows.length) continue;
 
       const childModel = db(cfg.model, schema);
@@ -953,52 +1019,55 @@ export default class Vendors extends TableModel {
       const tName = pgp.as.name(tableName);
 
       const toInsert = await this._transformFlatChildSet(cfg, rawRows, sourceId, childModel, callbackFn, tenantId);
+      // Archive-aware: load active AND archived rows so an incoming value
+      // matching an archived row classifies as restore (= a DB write that
+      // commit will perform). ORDER BY matches the contract `_classifyChildren`
+      // expects — active first, then archived most-recent-first — so the
+      // first-match-wins behavior gives the same answer here that commit
+      // will give. Without it preview can flip based on heap order when
+      // multiple archived rows share a key.
       const existing = await handle.any(
-        `SELECT * FROM ${s}.${tName} WHERE source_id = $1 AND deactivated_at IS NULL`,
+        `SELECT * FROM ${s}.${tName}
+          WHERE source_id = $1
+          ORDER BY deactivated_at IS NOT NULL, deactivated_at DESC`,
         [sourceId],
       );
-      if (!_sameChildSet(toInsert, existing, cfg.cols)) return true;
+      const { counts } = _classifyChildren(existing, toInsert, cfg);
+      if (counts.inserts + counts.updates + counts.restores > 0) changed = true;
+      restored += counts.restores;
     }
-    return false;
+    return { changed, restored };
   }
 
   /**
-   * Upsert flat children for an updated parent: per cfg, skip the wholesale
-   * soft-delete + bulk-insert when the file's set matches the DB's current
-   * active set on `cfg.cols` so child rows don't get recycled on a no-op
-   * re-import. Returns `true` when at least one cfg was actually replaced —
-   * the parent loops use that to count child-only changes as updates so the
-   * commit's `updated` / `contactsUpdated` counters reflect every DB write.
+   * Upsert flat children for an updated parent via the shared archive-aware
+   * reconciler from spreadsheetHelpers (`_reconcileChildrenForSource`). Per
+   * incoming row classifies as insert / update / restore / restore+update /
+   * noop — so re-importing a value that lived only in the trash bin brings
+   * the original row back instead of either tripping a unique constraint or
+   * leaving the trash bin to grow.
+   *
+   * Returns `{ anyReplaced, restored, inserted, updated }`. `anyReplaced`
+   * lets the caller count child-only changes as parent updates; the
+   * per-action counts roll into the importer's top-level `restored`,
+   * `childInserted`, and `childUpdated` totals.
    */
   async _upsertFlatChildren(t, s, schema, db, pgp, sourceId, children, childConfig, callbackFn, tenantId) {
     let anyReplaced = false;
+    let restored = 0;
+    let inserted = 0;
+    let updated = 0;
     for (const cfg of childConfig) {
-      const key = cfg.model === 'phoneNumbers' ? 'phones' : cfg.model === 'taxIdentifiers' ? 'taxIds' : cfg.model;
-      const childRows = children[key];
+      const childRows = children[cfg.key];
       if (!childRows || !childRows.length) continue;
 
-      const childModel = db(cfg.model, schema);
-      childModel.tx = t;
-      const tableName = childModel._schema?.table || cfg.model;
-      const tName = pgp.as.name(tableName);
-
-      const toInsert = await this._transformFlatChildSet(cfg, childRows, sourceId, childModel, callbackFn, tenantId);
-      const existing = await t.any(
-        `SELECT * FROM ${s}.${tName} WHERE source_id = $1 AND deactivated_at IS NULL`,
-        [sourceId],
-      );
-      if (_sameChildSet(toInsert, existing, cfg.cols)) continue;
-
-      await t.none(
-        `UPDATE ${s}.${tName} SET deactivated_at = NOW() WHERE source_id = $1 AND deactivated_at IS NULL`,
-        [sourceId],
-      );
-      if (toInsert.length) {
-        await childModel.bulkInsert(toInsert);
-      }
-      anyReplaced = true;
+      const counts = await _reconcileChildrenForSource(t, s, schema, db, pgp, sourceId, childRows, cfg, callbackFn, tenantId);
+      restored += counts.restores;
+      inserted += counts.inserts;
+      updated += counts.updates;
+      if (counts.inserts + counts.updates + counts.restores > 0) anyReplaced = true;
     }
-    return anyReplaced;
+    return { anyReplaced, restored, inserted, updated };
   }
 
   /**
@@ -1019,28 +1088,28 @@ export default class Vendors extends TableModel {
    * @param {string}   tenantId        Resolved tenant UUID
    */
   async _batchUpsertFlatChildren(t, s, schema, db, pgp, insertResults, sourceByParentId, toInsertMeta, childConfig, callbackFn, tenantId) {
+    // Fast path for newly-inserted parents: by definition their sources are
+    // brand-new and carry no existing children, so the archive-aware
+    // reconciler would just degrade to a single bulkInsert per source after
+    // a wasted SELECT. Skip the reconciler entirely and do 1 bulkInsert
+    // per cfg across all parents — restores the prior performance shape
+    // for large imports. `restored` is always 0 here (no archived rows to
+    // resurrect under a fresh source); `inserted` counts child rows
+    // written so the importer's top-level response can surface them.
+    let inserted = 0;
     for (const cfg of childConfig) {
-      const key = cfg.model === 'phoneNumbers' ? 'phones' : cfg.model === 'taxIdentifiers' ? 'taxIds' : cfg.model;
-
       const childModel = db(cfg.model, schema);
       childModel.tx = t;
-      const tableName = childModel._schema?.table || cfg.model;
 
-      const allSourceIds = new Set();
       const allToInsert = [];
-
-      // Collect children from all parents
       for (let i = 0; i < insertResults.length; i++) {
         const sourceId = sourceByParentId.get(insertResults[i].id);
         if (!sourceId) continue;
-
-        const children = toInsertMeta[i].group?.children;
-        const childRows = children?.[key];
+        const childRows = toInsertMeta[i].group?.children?.[cfg.key];
         if (!childRows?.length) continue;
 
-        allSourceIds.add(sourceId);
-
-        // Track rows per source for is_primary enforcement
+        // Transform per source so we can enforce single is_primary inside
+        // that source (the partial unique index is scoped to one source).
         const sourceRows = [];
         for (const row of childRows) {
           const { _rowNum: _, ...rest } = row;
@@ -1051,34 +1120,24 @@ export default class Vendors extends TableModel {
           coerceChildRow(transformed, childModel);
           sourceRows.push(transformed);
         }
-
-        // Enforce single is_primary per source (partial unique index)
         if (sourceRows.length > 1) {
           let seenPrimary = false;
           for (const r of sourceRows) {
-            if (r.is_primary) {
+            if (r.is_primary === true) {
               if (seenPrimary) r.is_primary = false;
               else seenPrimary = true;
             }
           }
         }
-
         allToInsert.push(...sourceRows);
       }
 
-      if (!allSourceIds.size) continue;
-
-      // Single soft-delete for all affected source_ids
-      await t.none(
-        `UPDATE ${s}.${pgp.as.name(tableName)} SET deactivated_at = NOW() WHERE source_id IN ($1:csv) AND deactivated_at IS NULL`,
-        [[...allSourceIds]],
-      );
-
-      // Single bulk insert for all children of this type
       if (allToInsert.length) {
         await childModel.bulkInsert(allToInsert);
+        inserted += allToInsert.length;
       }
     }
+    return { restored: 0, inserted, updated: 0 };
   }
 
   // ── Preview classifier (no writes) ────────────────────────────────────────
@@ -1094,8 +1153,8 @@ export default class Vendors extends TableModel {
   async _classifyCombinedForPreview({ db, s, schema, pgp, vendorGroups, contactGroups, callbackFn, tenantId }) {
     const stripContactCols = ['status', 'deactivated_at', 'password'];
 
-    const vendors = { inserts: 0, updates: 0, noops: 0, omitted: 0 };
-    const contacts = { inserts: 0, updates: 0, noops: 0, omitted: 0 };
+    const vendors = { inserts: 0, updates: 0, restores: 0, noops: 0, omitted: 0 };
+    const contacts = { inserts: 0, updates: 0, restores: 0, noops: 0, omitted: 0 };
 
     // Vendors ─────────────────────────────────────────────────────────────
     const vendorUuidIds = vendorGroups.filter((g) => isUuid(g.parent.id)).map((g) => g.parent.id);
@@ -1120,7 +1179,7 @@ export default class Vendors extends TableModel {
       if (tenantId) transformed.tenant_id = tenantId;
       const changes = diffParent(transformed, existing, { caseSensitive: true });
       const parentChanged = Object.keys(changes).length > 0 || willBeArchived !== wasArchived;
-      const childrenDiffer = existing.source_id
+      const childDiff = existing.source_id
         ? await this._anyChildrenDiffer({
             db, s, schema, pgp,
             sourceId: existing.source_id,
@@ -1129,8 +1188,9 @@ export default class Vendors extends TableModel {
             callbackFn,
             tenantId,
           })
-        : false;
-      if (parentChanged || childrenDiffer) vendors.updates += 1;
+        : { changed: false, restored: 0 };
+      vendors.restores += childDiff.restored;
+      if (parentChanged || childDiff.changed) vendors.updates += 1;
       else vendors.noops += 1;
     }
 
@@ -1164,7 +1224,7 @@ export default class Vendors extends TableModel {
       if (transformed.vendor_id && !isUuid(transformed.vendor_id)) delete transformed.vendor_id;
       const changes = diffParent(transformed, existing, { caseSensitive: true });
       const parentChanged = Object.keys(changes).length > 0 || willBeArchived !== wasArchived;
-      const childrenDiffer = existing.source_id
+      const childDiff = existing.source_id
         ? await this._anyChildrenDiffer({
             db, s, schema, pgp,
             sourceId: existing.source_id,
@@ -1173,8 +1233,9 @@ export default class Vendors extends TableModel {
             callbackFn,
             tenantId,
           })
-        : false;
-      if (parentChanged || childrenDiffer) contacts.updates += 1;
+        : { changed: false, restored: 0 };
+      contacts.restores += childDiff.restored;
+      if (parentChanged || childDiff.changed) contacts.updates += 1;
       else contacts.noops += 1;
     }
 

@@ -146,8 +146,8 @@ describe('Vendors combined import — preview + commit', () => {
     expect(res.status).toBe(200);
     expect(res.body.preview).toBe(true);
     expect(res.body.errors).toEqual([]);
-    expect(res.body.vendors).toEqual({ inserts: 2, updates: 0, noops: 0, omitted: 0 });
-    expect(res.body.contacts).toEqual({ inserts: 1, updates: 0, noops: 0, omitted: 0 });
+    expect(res.body.vendors).toEqual({ inserts: 2, updates: 0, restores: 0, noops: 0, omitted: 0 });
+    expect(res.body.contacts).toEqual({ inserts: 1, updates: 0, restores: 0, noops: 0, omitted: 0 });
 
     const vendorsAfter = await db.any('SELECT count(*)::int AS n FROM vcombo.vendors');
     const contactsAfter = await db.any('SELECT count(*)::int AS n FROM vcombo.vendor_contacts');
@@ -199,8 +199,8 @@ describe('Vendors combined import — preview + commit', () => {
 
     const previewRes = await postImport(round, cookies, 'roundpreview', { preview: true });
     expect(previewRes.status).toBe(200);
-    expect(previewRes.body.vendors).toEqual({ inserts: 0, updates: 0, noops: 2, omitted: 0 });
-    expect(previewRes.body.contacts).toEqual({ inserts: 0, updates: 0, noops: 1, omitted: 0 });
+    expect(previewRes.body.vendors).toEqual({ inserts: 0, updates: 0, restores: 0, noops: 2, omitted: 0 });
+    expect(previewRes.body.contacts).toEqual({ inserts: 0, updates: 0, restores: 0, noops: 1, omitted: 0 });
   });
 
   test('update path — changing a vendor field reports updated:1 and persists', async () => {
@@ -270,11 +270,11 @@ describe('Vendors combined import — preview + commit', () => {
     expect(after.deactivated_at).toBeNull();
   });
 
-  test('child reconciliation — re-importing a vendor with new emails wholesale-replaces the child set', async () => {
-    // Acme arrived with one email ('sales@acme.test') in the initial commit.
-    // The combined importer treats children as wholesale-replaced per parent:
-    // when the file includes children for a vendor, every active child for
-    // that vendor's source is soft-deleted and the file's set is re-inserted.
+  test('child reconciliation — re-importing a vendor adds new children without churning the existing row', async () => {
+    // Combined importer now reconciles children per row (same behavior as
+    // the flat single-entity importer): matching slot → noop / update;
+    // new slot → insert; no wholesale soft-delete + reinsert. The original
+    // sales@acme.test row keeps its id.
     const acme = await db.one(
       `SELECT id, source_id FROM vcombo.vendors WHERE name = $1`,
       ['Acme Supplies LLC'],
@@ -293,10 +293,6 @@ describe('Vendors combined import — preview + commit', () => {
           id: acme.id, name: 'Acme Supplies LLC', status: 'active',
           email: 'sales@acme.test', email_label: 'work', email_is_primary: true,
         }),
-        // Continuation row — all parent cols blank, just supplies a second
-        // child email. groupFlatRows() attaches it to the prior group. Distinct
-        // label is required: `emails` has a unique partial index on
-        // (source_id, label) so two 'work' emails per source would collide.
         blankVendor({
           email: 'purchasing@acme.test', email_label: 'purchasing', email_is_primary: false,
         }),
@@ -306,7 +302,7 @@ describe('Vendors combined import — preview + commit', () => {
 
     const res = await postImport(buf, cookies, 'childReplace');
     if (res.status !== 200) {
-      throw new Error(`child replace returned ${res.status}: ${JSON.stringify(res.body)}`);
+      throw new Error(`child reconcile returned ${res.status}: ${JSON.stringify(res.body)}`);
     }
 
     const afterActive = await db.any(
@@ -315,15 +311,15 @@ describe('Vendors combined import — preview + commit', () => {
     );
     expect(afterActive.map((r) => r.email)).toEqual(['purchasing@acme.test', 'sales@acme.test']);
 
-    // The original sales@acme.test row was soft-deleted as part of wholesale
-    // replace; the re-inserted sales@acme.test carries a new id.
+    // sales@acme.test is reconciled in place — same id, no soft-delete churn.
+    const salesRow = afterActive.find((r) => r.email === 'sales@acme.test');
+    expect(salesRow.id).toBe(originalEmailId);
+
     const archived = await db.any(
       `SELECT id, email FROM vcombo.emails WHERE source_id = $1 AND deactivated_at IS NOT NULL`,
       [acme.source_id],
     );
-    expect(archived.map((r) => r.id)).toContain(originalEmailId);
-    const newSalesRow = afterActive.find((r) => r.email === 'sales@acme.test');
-    expect(newSalesRow.id).not.toBe(originalEmailId);
+    expect(archived.map((r) => r.id)).not.toContain(originalEmailId);
   });
 
   test('app-user provisioning — new contact with is_app_user=true gets portal_users + binding', async () => {
@@ -432,8 +428,8 @@ describe('Vendors combined import — preview + commit', () => {
     // Preview: must report zero writes coming.
     const previewRes = await postImport(buf, cookies, 'rt-preview', { preview: true });
     expect(previewRes.status).toBe(200);
-    expect(previewRes.body.vendors).toEqual({ inserts: 0, updates: 0, noops: 2, omitted: 0 });
-    expect(previewRes.body.contacts).toEqual({ inserts: 0, updates: 0, noops: 2, omitted: 0 });
+    expect(previewRes.body.vendors).toEqual({ inserts: 0, updates: 0, restores: 0, noops: 2, omitted: 0 });
+    expect(previewRes.body.contacts).toEqual({ inserts: 0, updates: 0, restores: 0, noops: 2, omitted: 0 });
 
     // Snapshot DB timestamps before commit so we can prove nothing got touched.
     const beforeVendors = await db.any(
@@ -509,7 +505,7 @@ describe('Vendors combined import — preview + commit', () => {
 
     const preview = await postImport(buf, cookies, 'childOnly-preview', { preview: true });
     expect(preview.status).toBe(200);
-    expect(preview.body.vendors).toEqual({ inserts: 0, updates: 1, noops: 0, omitted: 0 });
+    expect(preview.body.vendors).toEqual({ inserts: 0, updates: 1, restores: 0, noops: 0, omitted: 0 });
 
     const commit = await postImport(buf, cookies, 'childOnly-commit');
     if (commit.status !== 200) {
@@ -525,17 +521,20 @@ describe('Vendors combined import — preview + commit', () => {
     expect(activeEmails.map((r) => r.email)).toEqual(['procurement@acme.test', 'sales@acme.test']);
   });
 
-  test('case-only edit on a child field counts as a real change (not a noop)', async () => {
-    // Seed Acme with an address, then re-import with the same address but
-    // a case-only edit on `address_line_1`. The DB column is case-sensitive
-    // and the user's intent is to update casing, so the diff must surface
-    // it as an update — `_normChildVal` must not lowercase its way past it.
+  test('case-only edit on a child field is treated as a noop (matches flat importer)', async () => {
+    // The combined importer now reconciles children through the same shared
+    // classifier as the flat importer (`_classifyChildren` in
+    // spreadsheetHelpers), which compares via the case-insensitive `_normEq`.
+    // The earlier Vendors-only case-sensitive comparison was inconsistent with
+    // the flat path; unifying them was the explicit goal of the cascade-
+    // restore importer follow-on. Case-only edits no longer round-trip — a
+    // separate change would need to add a per-cfg case-sensitivity flag if
+    // we want them back.
     const acme = await db.one(
       `SELECT id, source_id FROM vcombo.vendors WHERE name = $1`,
       ['Acme Supplies LLC'],
     );
 
-    // Seed: a single address row with mixed-case street name.
     const seedBuf = await buildWorkbook(
       [
         blankVendor({
@@ -549,14 +548,12 @@ describe('Vendors combined import — preview + commit', () => {
     const seedRes = await postImport(seedBuf, cookies, 'caseSeed');
     expect(seedRes.status).toBe(200);
 
-    // Verify the seed landed with the original casing.
     const seeded = await db.one(
       `SELECT id, address_line_1 FROM vcombo.addresses WHERE source_id = $1 AND deactivated_at IS NULL`,
       [acme.source_id],
     );
     expect(seeded.address_line_1).toBe('123 Main St');
 
-    // Re-import with case-only change on address_line_1.
     const editBuf = await buildWorkbook(
       [
         blankVendor({
@@ -570,17 +567,18 @@ describe('Vendors combined import — preview + commit', () => {
 
     const preview = await postImport(editBuf, cookies, 'caseEdit-preview', { preview: true });
     expect(preview.status).toBe(200);
-    expect(preview.body.vendors).toEqual({ inserts: 0, updates: 1, noops: 0, omitted: 0 });
+    expect(preview.body.vendors).toEqual({ inserts: 0, updates: 0, restores: 0, noops: 1, omitted: 0 });
 
     const commit = await postImport(editBuf, cookies, 'caseEdit-commit');
     expect(commit.status).toBe(200);
-    expect(commit.body.updated).toBe(1);
+    expect(commit.body.updated).toBe(0);
 
+    // Original casing preserved — no write happened.
     const after = await db.one(
       `SELECT address_line_1 FROM vcombo.addresses WHERE source_id = $1 AND deactivated_at IS NULL`,
       [acme.source_id],
     );
-    expect(after.address_line_1).toBe('123 MAIN ST');
+    expect(after.address_line_1).toBe('123 Main St');
   });
 
   test('case-only edit on a parent field counts as a real change (not a noop)', async () => {
@@ -605,7 +603,7 @@ describe('Vendors combined import — preview + commit', () => {
 
     const preview = await postImport(buf, cookies, 'parentCase-preview', { preview: true });
     expect(preview.status).toBe(200);
-    expect(preview.body.vendors).toEqual({ inserts: 0, updates: 1, noops: 0, omitted: 0 });
+    expect(preview.body.vendors).toEqual({ inserts: 0, updates: 1, restores: 0, noops: 0, omitted: 0 });
 
     const commit = await postImport(buf, cookies, 'parentCase-commit');
     expect(commit.status).toBe(200);

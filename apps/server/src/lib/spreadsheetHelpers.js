@@ -1403,7 +1403,7 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
       for (let ci = 0; ci < config.childSheets.length; ci++) {
         const sheetIdx = ci + 1;
         if (reader.sheetCount > sheetIdx) {
-          const count = await importChildSheet(
+          const counts = await importChildSheet(
             reader,
             sheetIdx,
             refToSourceId,
@@ -1414,10 +1414,14 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
             tenantId,
             t,
           );
-          // Map child model names to result keys
-          if (config.childSheets[ci].modelName === 'phoneNumbers') phonesCount = count;
-          else if (config.childSheets[ci].modelName === 'addresses') addressesCount = count;
-          else if (config.childSheets[ci].modelName === 'taxIdentifiers') taxIdsCount = count;
+          // Map child model names to result keys. The shared classifier now
+          // returns { inserts, updates, restores, noops }; flatten to a single
+          // "rows touched" number for the legacy response shape (inserts +
+          // updates + restores = anything that wrote, not counting noops).
+          const touched = counts.inserts + counts.updates + counts.restores;
+          if (config.childSheets[ci].modelName === 'phoneNumbers') phonesCount = touched;
+          else if (config.childSheets[ci].modelName === 'addresses') addressesCount = touched;
+          else if (config.childSheets[ci].modelName === 'taxIdentifiers') taxIdsCount = touched;
         }
       }
 
@@ -1484,8 +1488,14 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
 }
 
 /**
- * Parse and import a child sheet using delete-and-reinsert per parent.
- * Resolves parent linkage column → source_id.
+ * Parse and import a child sheet (used by the combined Vendors+VendorContacts
+ * importer). For each row, group by resolved `source_id` and reconcile each
+ * source via the shared archive-aware classifier (`_reconcileChildrenForSource`).
+ *
+ * Replaces the previous wholesale "soft-delete every active child per affected
+ * source, then bulk-insert from sheet" behavior with per-row insert / update /
+ * restore / restore+update / noop — same shape as the flat single-entity
+ * importer.
  *
  * @param {Object}   reader         WorkbookReader instance
  * @param {number}   sheetIndex     0-based sheet index
@@ -1496,50 +1506,71 @@ export async function importSourceEntity(model, filePath, _sheetIndex, callbackF
  * @param {Function} callbackFn     Row transformer
  * @param {string}   tenantId       Resolved tenant UUID
  * @param {Object}   t              Transaction object
- * @returns {Promise<number>} Number of rows inserted
+ * @returns {Promise<{inserts: number, updates: number, restores: number, noops: number}>}
  */
 export async function importChildSheet(reader, sheetIndex, refToSourceId, modelName, schema, linkColName, callbackFn, tenantId, t) {
   const childRows = parseSheet(reader, sheetIndex);
-  if (!childRows.length) return 0;
+  if (!childRows.length) return { inserts: 0, updates: 0, restores: 0, noops: 0 };
+
+  // Resolve descriptor at call time so the lookup happens AFTER the
+  // FLAT_CHILD_* exports lower in this file have initialized.
+  const _COMBINED_CHILD_DESCRIPTORS = {
+    emails: FLAT_CHILD_EMAILS,
+    phoneNumbers: FLAT_CHILD_PHONES,
+    addresses: FLAT_CHILD_ADDRESSES,
+    taxIdentifiers: FLAT_CHILD_TAX_IDS,
+  };
+  const cfg = _COMBINED_CHILD_DESCRIPTORS[modelName];
+  if (!cfg) {
+    throw new Error(`importChildSheet: no descriptor registered for modelName='${modelName}'`);
+  }
 
   const { db, pgp } = await getDb();
   const s = pgp.as.name(schema);
-  const childModel = db(modelName, schema);
-  childModel.tx = t;
 
-  const toInsert = [];
-  const affectedSourceIds = new Set();
-
+  // Bucket rows by resolved source_id. Rows whose parent ref can't be resolved
+  // are silently dropped (same as the prior behavior).
+  const rowsBySource = new Map();
   for (const row of childRows) {
     const parentRef = row[linkColName];
-    delete row[linkColName];
-    delete row.deactivated_at;
-    delete row.id;
-
+    const { [linkColName]: _link, id: _id, deactivated_at: _da, ...rest } = row;
     const sourceId = refToSourceId.get(parentRef);
-    if (!sourceId) continue; // can't link — skip
-
-    affectedSourceIds.add(sourceId);
-    const base = { ...row, source_id: sourceId };
-    const transformed = callbackFn ? await callbackFn(base) : base;
-    delete transformed.tenant_code;
-    if (tenantId) transformed.tenant_id = tenantId;
-    coerceChildRow(transformed, childModel);
-    toInsert.push(transformed);
+    if (!sourceId) continue;
+    if (!rowsBySource.has(sourceId)) rowsBySource.set(sourceId, []);
+    rowsBySource.get(sourceId).push(rest);
   }
 
-  if (!toInsert.length) return 0;
+  if (!rowsBySource.size) return { inserts: 0, updates: 0, restores: 0, noops: 0 };
 
-  // Soft-delete existing child rows for affected parents
-  const tableName = childModel._schema?.table || modelName;
-  const sourceIdArray = [...affectedSourceIds];
-  await t.none(`UPDATE ${s}.${pgp.as.name(tableName)} SET deactivated_at = NOW() WHERE source_id IN ($1:csv) AND deactivated_at IS NULL`, [
-    sourceIdArray,
-  ]);
+  // Batch-load existing children for every affected source_id in one query
+  // instead of one round-trip per source. Same ORDER BY contract the
+  // reconciler expects: active first, then archived most-recent-first.
+  const childModel = db(cfg.modelName, schema);
+  const tableName = childModel._schema?.table || cfg.modelName;
+  const tName = pgp.as.name(tableName);
+  const sourceIds = [...rowsBySource.keys()];
+  const allExisting = await t.any(
+    `SELECT * FROM ${s}.${tName}
+      WHERE source_id IN ($1:csv)
+      ORDER BY deactivated_at IS NOT NULL, deactivated_at DESC`,
+    [sourceIds],
+  );
+  const existingBySource = new Map();
+  for (const r of allExisting) {
+    if (!existingBySource.has(r.source_id)) existingBySource.set(r.source_id, []);
+    existingBySource.get(r.source_id).push(r);
+  }
 
-  // Insert all rows from the sheet
-  const result = await childModel.bulkInsert(toInsert);
-  return typeof result === 'number' ? result : toInsert.length;
+  const totals = { inserts: 0, updates: 0, restores: 0, noops: 0 };
+  for (const [sourceId, sourceRows] of rowsBySource) {
+    const existing = existingBySource.get(sourceId) || [];
+    const counts = await _reconcileChildrenForSource(t, s, schema, db, pgp, sourceId, sourceRows, cfg, callbackFn, tenantId, existing);
+    totals.inserts += counts.inserts;
+    totals.updates += counts.updates;
+    totals.restores += counts.restores;
+    totals.noops += counts.noops;
+  }
+  return totals;
 }
 
 /**
@@ -2308,18 +2339,21 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
 
   if (errors.length) {
     return previewOnly
-      ? { preview: true, inserts: 0, updates: 0, noops: 0, omitted: 0, errors }
+      ? { preview: true, inserts: 0, updates: 0, restores: 0, noops: 0, omitted: 0, errors }
       : { errors };
   }
 
   // Preview short-circuit (R10). Classify what *would* happen without writing.
   if (previewOnly) {
-    const counts = await _classifyForPreview(db, s, pgp, schema, groups, config, ownEntities);
+    const counts = await _classifyForPreview(db, s, pgp, schema, groups, config, ownEntities, callbackFn, tenantId);
     return { preview: true, ...counts, errors: [] };
   }
 
   let insertedCount = 0;
   let updatedCount = 0;
+  let restoredCount = 0;
+  let childInsertedCount = 0;
+  let childUpdatedCount = 0;
   let appUserSkipped = 0;
 
   try {
@@ -2420,10 +2454,13 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
           }
         }
 
-        // Reconcile children for this entity (slot-keyed, NO-OPs preserved)
+        // Reconcile children for this entity (slot-keyed, archive-aware).
         const sourceId = group._ownSourceId;
         if (sourceId) {
-          await _reconcileFlatChildren(t, s, schema, db, pgp, sourceId, group.children, config.flat.children, callbackFn, tenantId);
+          const childCounts = await _reconcileFlatChildren(t, s, schema, db, pgp, sourceId, group.children, config.flat.children, callbackFn, tenantId);
+          restoredCount += childCounts.restores;
+          childInsertedCount += childCounts.inserts;
+          childUpdatedCount += childCounts.updates;
         }
 
         // ── Login email portal_users sync (L1) ───────────────────────────
@@ -2582,9 +2619,14 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
             await t.none(`UPDATE ${s}.${tbl} SET deactivated_at = NOW() WHERE id = $1`, [rec.id]);
           }
 
-          // Insert children for new entity
+          // Insert children for new entity (also archive-aware — a new parent
+          // can still resurrect a previously-archived child if values match;
+          // unusual but covers re-importing after a parent delete+recreate).
           if (sourceId) {
-            await _reconcileFlatChildren(t, s, schema, db, pgp, sourceId, toInsert[i].group.children, config.flat.children, callbackFn, tenantId);
+            const childCounts = await _reconcileFlatChildren(t, s, schema, db, pgp, sourceId, toInsert[i].group.children, config.flat.children, callbackFn, tenantId);
+            restoredCount += childCounts.restores;
+            childInsertedCount += childCounts.inserts;
+            childUpdatedCount += childCounts.updates;
           }
         }
 
@@ -2640,6 +2682,15 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
   return {
     inserted: insertedCount,
     updated: updatedCount,
+    restored: restoredCount,
+    // Per-child writes bubble into the top-level response too. Without these
+    // the client toast can't tell whether a child-only edit produced writes
+    // (parent counts stay zero in that case) — without them, "Import
+    // complete — no changes" lies. Preview's counts already mix parent and
+    // child operations, so reporting both here keeps preview and commit
+    // aligned on what the user sees.
+    childInserted: childInsertedCount,
+    childUpdated: childUpdatedCount,
     appUserSkipped,
   };
 }
@@ -2656,9 +2707,10 @@ export async function importFlatSourceEntity(model, reader, callbackFn, config, 
  *
  * @private
  */
-async function _classifyForPreview(db, s, pgp, schema, groups, config, ownEntities) {
+async function _classifyForPreview(db, s, pgp, schema, groups, config, ownEntities, callbackFn = null, tenantId = null) {
   let inserts = 0;
   let updates = 0;
+  let restores = 0;
   let noops = 0;
   let omitted = 0;
 
@@ -2691,7 +2743,11 @@ async function _classifyForPreview(db, s, pgp, schema, groups, config, ownEntiti
     else noops += 1;
   }
 
-  // Per-child classification for groups that map to an existing source
+  // Per-child classification for groups that map to an existing source.
+  // Archive-aware: loads BOTH active and archived rows for each source so the
+  // classifier can see soft-deleted matches and route them to `restores`. This
+  // mirrors the commit-time path (`_reconcileChildrenForSource`) so preview
+  // counts always match what commit will actually do.
   for (const cfg of config.flat.children) {
     const groupsWithChildren = groups.filter((g) => (g.children[cfg.key] || []).length > 0);
     if (!groupsWithChildren.length) continue;
@@ -2700,69 +2756,54 @@ async function _classifyForPreview(db, s, pgp, schema, groups, config, ownEntiti
       .map((g) => g._ownSourceId)
       .filter((sid) => !!sid);
 
-    // Load existing children for known sources in one query
     const existingBySource = new Map();
+    let childModel = null;
     if (existingSourceIds.length) {
-      const childModel = db(cfg.modelName, schema);
+      childModel = db(cfg.modelName, schema);
       const tableName = childModel._schema?.table || cfg.modelName;
       const tName = pgp.as.name(tableName);
+      // Match `_reconcileChildrenForSource`'s ORDER BY contract so preview
+      // and commit see existing rows in the same order — required for
+      // deterministic archived selection inside `_classifyChildren`.
       const rows = await db.any(
-        `SELECT * FROM ${s}.${tName} WHERE source_id IN ($1:csv) AND deactivated_at IS NULL`,
+        `SELECT * FROM ${s}.${tName}
+          WHERE source_id IN ($1:csv)
+          ORDER BY source_id, deactivated_at IS NOT NULL, deactivated_at DESC`,
         [existingSourceIds],
       );
       for (const r of rows) {
         if (!existingBySource.has(r.source_id)) existingBySource.set(r.source_id, []);
         existingBySource.get(r.source_id).push(r);
       }
+    } else {
+      childModel = db(cfg.modelName, schema);
     }
 
     for (const group of groupsWithChildren) {
-      const incoming = group.children[cfg.key] || [];
+      const rawIncoming = group.children[cfg.key] || [];
       const ownSource = group._ownSourceId;
       const existing = ownSource ? (existingBySource.get(ownSource) || []) : [];
-      const existingBySlot = new Map();
-      const existingByValue = new Map();
-      for (const ex of existing) {
-        const k = _computeSlotKey(ex, cfg);
-        if (k != null) existingBySlot.set(k, ex);
-        const vk = _computeValueKey(ex, cfg);
-        if (vk != null) existingByValue.set(vk, ex);
-      }
-      const claimedExistingIds = new Set();
-      const seenIncomingSlots = new Set();
+      // Normalize incoming the same way commit will — callbackFn,
+      // coerceChildRow, boolean defaults, single is_primary — so preview
+      // classification matches the writes commit will perform. Raw
+      // spreadsheet rows compare incorrectly against DB values (string
+      // 'true' vs bool true, etc).
+      const incoming = ownSource
+        ? await _transformAndNormalizeChildRows(rawIncoming, ownSource, childModel, callbackFn, tenantId)
+        : rawIncoming;
+      const { counts, claimedExistingIds, seenIncomingSlots } = _classifyChildren(existing, incoming, cfg);
 
-      for (const row of incoming) {
-        const slot = _computeSlotKey(row, cfg);
-        if (slot != null) seenIncomingSlots.add(slot);
-        let match = slot != null ? existingBySlot.get(slot) : null;
-        if (!match) {
-          const vk = _computeValueKey(row, cfg);
-          if (vk != null) {
-            const candidate = existingByValue.get(vk);
-            if (candidate && !claimedExistingIds.has(candidate.id)) match = candidate;
-          }
-        }
-        if (!match) {
-          inserts += 1;
-          continue;
-        }
-        claimedExistingIds.add(match.id);
-        // Include slot key cols in the diff so a rename counts as UPDATE.
-        const diffCols = new Set([...(cfg.compareCols || []), ...(cfg.slotKeyCols || [])]);
-        let changed = false;
-        for (const col of diffCols) {
-          if (!_normEq(match[col], row[col])) {
-            changed = true;
-            break;
-          }
-        }
-        if (changed) updates += 1;
-        else noops += 1;
-      }
+      inserts += counts.inserts;
+      updates += counts.updates;
+      restores += counts.restores;
+      noops += counts.noops;
 
       // Omitted: existing rows whose slot wasn't named AND whose row id wasn't
-      // claimed by a value-key rename match.
+      // claimed by a value-key match. Only count active rows here — an
+      // archived row that the workbook didn't name stays archived, but it's
+      // not "omitted" because the user already chose to delete it.
       for (const ex of existing) {
+        if (ex.deactivated_at) continue;
         const slot = _computeSlotKey(ex, cfg);
         if (slot != null && seenIncomingSlots.has(slot)) continue;
         if (claimedExistingIds.has(ex.id)) continue;
@@ -2771,7 +2812,7 @@ async function _classifyForPreview(db, s, pgp, schema, groups, config, ownEntiti
     }
   }
 
-  return { inserts, updates, noops, omitted };
+  return { inserts, updates, restores, noops, omitted };
 }
 
 /**
@@ -3103,95 +3144,260 @@ async function _collectCrossSourceConflicts(db, s, pgp, schema, ownSourceType, g
 }
 
 /**
- * Reconcile children for one parent source_id by slot key (R3–R6).
- *   - Slot in incoming + slot in DB + values equal → NO-OP.
- *   - Slot in incoming + slot in DB + values differ → UPDATE in place; id preserved.
- *   - Slot in incoming + no matching slot in DB → INSERT.
- *   - Slot in DB + not in incoming → left alone. Never deleted by omission.
- * Slot-key validity has already been enforced upstream (R2), so any blank-slot
- * row is treated defensively as INSERT (the DB unique index would catch the
- * resulting collision if it mattered).
+ * Bring incoming spreadsheet child rows into the same shape commit will
+ * write: apply callbackFn (typically threads tenant_id / created_by from
+ * the controller), strip ephemeral `tenant_code`, coerce per the child
+ * model's column types (booleans, numerics, dates), backfill notNull
+ * boolean defaults, and demote all-but-first `is_primary=true` so the
+ * partial unique index `(source_id) WHERE is_primary AND NOT deactivated`
+ * can't trip.
+ *
+ * Shared by `_reconcileChildrenForSource` (commit) and `_classifyForPreview`
+ * (preview) so preview classifications match commit reality — without this,
+ * preview sees string `'true'` against existing bool `true` (and so on) and
+ * misreports updates / noops / restores vs. what commit will actually do.
+ * @private
+ */
+async function _transformAndNormalizeChildRows(childRows, sourceId, childModel, callbackFn, tenantId) {
+  const out = [];
+  for (const row of childRows) {
+    const { _rowNum: _, ...rest } = row;
+    const base = { ...rest, source_id: sourceId };
+    const transformed = callbackFn ? await callbackFn(base) : base;
+    delete transformed.tenant_code;
+    if (tenantId) transformed.tenant_id = tenantId;
+    coerceChildRow(transformed, childModel);
+    for (const col of childModel._schema?.columns || []) {
+      if (col.type === 'boolean' && col.notNull && transformed[col.name] == null) {
+        transformed[col.name] = col.default ?? false;
+      }
+    }
+    out.push(transformed);
+  }
+  if (out.length > 1) {
+    let seenPrimary = false;
+    for (const r of out) {
+      if (r.is_primary === true) {
+        if (seenPrimary) r.is_primary = false;
+        else seenPrimary = true;
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Pure classifier used by both preview and commit paths. Given the full
+ * existing-children set (active AND archived) plus the incoming rows for a
+ * single source, return per-row classifications and aggregate counts.
+ *
+ * Match priority for each incoming row:
+ *   1. active slot key
+ *   2. active value key (catches a slot rename — e.g. an email moves from
+ *      label="work" to label="primary" but the email address itself is
+ *      stable)
+ *   3. archived slot key      → restore (and update if values differ)
+ *   4. archived value key     → restore (+ update if values differ)
+ *   5. no match → insert
+ *
+ * Actions emitted per row: 'insert' | 'update' | 'restore' | 'restore+update' | 'noop'.
+ * `claimedExistingIds` is returned so the caller can compute `omitted` against
+ * the existing set when needed.
+ * @private
+ */
+export function _classifyChildren(existingRows, incomingRows, cfg) {
+  const activeBySlot = new Map();
+  const activeByValue = new Map();
+  const archivedBySlot = new Map();
+  const archivedByValue = new Map();
+  // `existingRows` is expected to be ordered active-first then
+  // archived-most-recent-first (see `_reconcileChildrenForSource`). The
+  // `!has(...)` guards make selection deterministic when the partial unique
+  // index permits duplicates (archived rows can collide on slot key) —
+  // first match wins, which after the ORDER BY is the most-recently
+  // archived row.
+  for (const ex of existingRows) {
+    const isArchived = !!ex.deactivated_at;
+    const k = _computeSlotKey(ex, cfg);
+    const vk = _computeValueKey(ex, cfg);
+    if (isArchived) {
+      if (k != null && !archivedBySlot.has(k)) archivedBySlot.set(k, ex);
+      if (vk != null && !archivedByValue.has(vk)) archivedByValue.set(vk, ex);
+    } else {
+      if (k != null && !activeBySlot.has(k)) activeBySlot.set(k, ex);
+      if (vk != null && !activeByValue.has(vk)) activeByValue.set(vk, ex);
+    }
+  }
+
+  const classifications = [];
+  const counts = { inserts: 0, updates: 0, restores: 0, noops: 0 };
+  const claimedExistingIds = new Set();
+  const seenIncomingSlots = new Set();
+
+  const diffCols = new Set([...(cfg.compareCols || []), ...(cfg.slotKeyCols || [])]);
+
+  for (const row of incomingRows) {
+    const slot = _computeSlotKey(row, cfg);
+    if (slot != null) seenIncomingSlots.add(slot);
+
+    let match = null;
+    let fromArchived = false;
+
+    if (slot != null) match = activeBySlot.get(slot) || null;
+    if (!match) {
+      const vk = _computeValueKey(row, cfg);
+      if (vk != null) {
+        const cand = activeByValue.get(vk);
+        if (cand && !claimedExistingIds.has(cand.id)) match = cand;
+      }
+    }
+    if (!match && slot != null) {
+      const cand = archivedBySlot.get(slot);
+      if (cand && !claimedExistingIds.has(cand.id)) {
+        match = cand;
+        fromArchived = true;
+      }
+    }
+    if (!match) {
+      const vk = _computeValueKey(row, cfg);
+      if (vk != null) {
+        const cand = archivedByValue.get(vk);
+        if (cand && !claimedExistingIds.has(cand.id)) {
+          match = cand;
+          fromArchived = true;
+        }
+      }
+    }
+
+    if (!match) {
+      counts.inserts += 1;
+      classifications.push({ action: 'insert', row, match: null, changes: null });
+      continue;
+    }
+    claimedExistingIds.add(match.id);
+
+    const changes = {};
+    for (const col of diffCols) {
+      if (_normEq(match[col], row[col])) continue;
+      changes[col] = row[col];
+    }
+    const hasDiff = Object.keys(changes).length > 0;
+
+    if (fromArchived) {
+      counts.restores += 1;
+      classifications.push({
+        action: hasDiff ? 'restore+update' : 'restore',
+        row,
+        match,
+        changes: hasDiff ? changes : null,
+      });
+    } else if (hasDiff) {
+      counts.updates += 1;
+      classifications.push({ action: 'update', row, match, changes });
+    } else {
+      counts.noops += 1;
+      classifications.push({ action: 'noop', row, match, changes: null });
+    }
+  }
+
+  return { counts, classifications, claimedExistingIds, seenIncomingSlots };
+}
+
+/**
+ * Apply the classifier's output for one source: INSERT new rows in bulk,
+ * UPDATE diffed active rows, RESTORE (clear `deactivated_at`) on archived
+ * matches, RESTORE+UPDATE when the archived match also differs. Returns the
+ * per-source `{ inserts, updates, restores, noops }` count for the caller to
+ * aggregate.
+ *
+ * Shared by `_reconcileFlatChildren` (flat single-entity import) and
+ * `importChildSheet` (combined Vendors + VendorContacts import) so the
+ * behavior is identical across both importer shapes.
+ * @private
+ */
+export async function _reconcileChildrenForSource(t, s, schema, db, pgp, sourceId, childRows, cfg, callbackFn, tenantId, existingRows = null) {
+  const childModel = db(cfg.modelName, schema);
+  childModel.tx = t;
+  const tableName = childModel._schema?.table || cfg.modelName;
+  const tName = pgp.as.name(tableName);
+
+  // Load BOTH active and archived children for this source — the classifier
+  // needs the trash bin too so a re-imported value can resurrect its row.
+  // `deactivated_at IS NOT NULL` sorts false (active) before true (archived),
+  // then `deactivated_at DESC` orders the archived portion most-recent-first.
+  // Combined with `_classifyChildren`'s first-match-wins maps, that yields
+  // deterministic selection when multiple archived rows share a slot/value
+  // key (partial unique indexes only enforce uniqueness for active rows).
+  const existing = existingRows != null
+    ? existingRows
+    : await t.any(
+        `SELECT * FROM ${s}.${tName}
+          WHERE source_id = $1
+          ORDER BY deactivated_at IS NOT NULL, deactivated_at DESC`,
+        [sourceId],
+      );
+
+  const transformedRows = await _transformAndNormalizeChildRows(childRows, sourceId, childModel, callbackFn, tenantId);
+
+  const { classifications, counts } = _classifyChildren(existing, transformedRows, cfg);
+
+  const toInsert = [];
+  for (const c of classifications) {
+    if (c.action === 'insert') {
+      toInsert.push(c.row);
+    } else if (c.action === 'noop') {
+      continue;
+    } else if (c.action === 'update') {
+      const changes = { ...c.changes };
+      if (c.row.updated_by) changes.updated_by = c.row.updated_by;
+      changes.updated_at = new Date();
+      await childModel.updateWhere([{ id: c.match.id }], changes);
+    } else if (c.action === 'restore') {
+      // Pure restore: clear deactivated_at, no other column changes.
+      const changes = { deactivated_at: null };
+      if (c.row.updated_by) changes.updated_by = c.row.updated_by;
+      changes.updated_at = new Date();
+      await childModel.updateWhere([{ id: c.match.id }], changes, { includeDeactivated: true });
+    } else if (c.action === 'restore+update') {
+      const changes = { ...c.changes, deactivated_at: null };
+      if (c.row.updated_by) changes.updated_by = c.row.updated_by;
+      changes.updated_at = new Date();
+      await childModel.updateWhere([{ id: c.match.id }], changes, { includeDeactivated: true });
+    }
+  }
+
+  if (toInsert.length) {
+    await childModel.bulkInsert(toInsert);
+  }
+
+  return counts;
+}
+
+/**
+ * Reconcile children for one parent source_id, archive-aware.
+ *
+ * For each child config (emails / phones / addresses / tax IDs) on the
+ * supplied source, classifies every incoming row against the active AND
+ * archived existing sets via `_classifyChildren`, then applies the per-row
+ * action (insert / update / restore / restore+update / noop). See the
+ * `_classifyChildren` JSDoc for the match-priority and action contract.
+ *
+ * Returns `{ inserts, updates, restores, noops }` aggregated across all
+ * child configs so the caller can roll it into its top-level response.
  * @private
  */
 async function _reconcileFlatChildren(t, s, schema, db, pgp, sourceId, children, childConfigs, callbackFn, tenantId) {
+  const totals = { inserts: 0, updates: 0, restores: 0, noops: 0 };
   for (const cfg of childConfigs) {
     const childRows = children[cfg.key];
     if (!childRows || !childRows.length) continue;
-
-    const childModel = db(cfg.modelName, schema);
-    childModel.tx = t;
-    const tableName = childModel._schema?.table || cfg.modelName;
-    const tName = pgp.as.name(tableName);
-
-    const existing = await t.any(`SELECT * FROM ${s}.${tName} WHERE source_id = $1 AND deactivated_at IS NULL`, [sourceId]);
-    const existingBySlot = new Map();
-    const existingByValue = new Map();
-    for (const ex of existing) {
-      const k = _computeSlotKey(ex, cfg);
-      if (k != null) existingBySlot.set(k, ex);
-      const vk = _computeValueKey(ex, cfg);
-      if (vk != null) existingByValue.set(vk, ex);
-    }
-
-    const toInsert = [];
-    const toUpdate = []; // [{ id, changes }]
-    const claimedExistingIds = new Set();
-
-    for (const row of childRows) {
-      const { _rowNum: _, ...rest } = row;
-      const base = { ...rest, source_id: sourceId };
-      const transformed = callbackFn ? await callbackFn(base) : base;
-      delete transformed.tenant_code;
-      if (tenantId) transformed.tenant_id = tenantId;
-      coerceChildRow(transformed, childModel);
-      for (const col of childModel._schema?.columns || []) {
-        if (col.type === 'boolean' && col.notNull && transformed[col.name] == null) {
-          transformed[col.name] = col.default ?? false;
-        }
-      }
-
-      // Match priority: 1) slot key. 2) value key (catches slot rename when
-      // the underlying value is unique-by-DB, e.g. an email's address or a
-      // cell phone number — keeps the same row id and just updates the slot).
-      const slot = _computeSlotKey(transformed, cfg);
-      let match = slot != null ? existingBySlot.get(slot) : null;
-      if (!match) {
-        const vk = _computeValueKey(transformed, cfg);
-        if (vk != null) {
-          const candidate = existingByValue.get(vk);
-          if (candidate && !claimedExistingIds.has(candidate.id)) match = candidate;
-        }
-      }
-
-      if (!match) {
-        toInsert.push(transformed);
-        continue;
-      }
-      claimedExistingIds.add(match.id);
-
-      // Diff against compareCols PLUS the slot key cols (so a slot rename
-      // detected via value-match actually updates the label/phone_type).
-      const diffCols = new Set([...(cfg.compareCols || []), ...(cfg.slotKeyCols || [])]);
-      const changes = {};
-      for (const col of diffCols) {
-        if (_normEq(match[col], transformed[col])) continue;
-        changes[col] = transformed[col];
-      }
-      if (Object.keys(changes).length === 0) continue; // NO-OP
-      // Stamp audit fields on every real write. pg-schemata's `updateWhere`
-      // does not auto-bump updated_at, so set both explicitly.
-      if (transformed.updated_by) changes.updated_by = transformed.updated_by;
-      changes.updated_at = new Date();
-      toUpdate.push({ id: match.id, changes });
-    }
-
-    if (toInsert.length) {
-      await childModel.bulkInsert(toInsert);
-    }
-    for (const u of toUpdate) {
-      await childModel.updateWhere([{ id: u.id }], u.changes);
-    }
+    const c = await _reconcileChildrenForSource(t, s, schema, db, pgp, sourceId, childRows, cfg, callbackFn, tenantId);
+    totals.inserts += c.inserts;
+    totals.updates += c.updates;
+    totals.restores += c.restores;
+    totals.noops += c.noops;
   }
+  return totals;
 }
 
 // ── Flat-format helpers (repeated-row export/import) ─────────────────────────

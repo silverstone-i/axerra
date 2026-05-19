@@ -202,7 +202,19 @@ export default function ClientsPage() {
     setImportErrors(null);
     try {
       const result = await importMut.mutateAsync(formData);
-      toast(`Imported ${result.inserted} records`);
+      // Roll parent + child counts into the displayed numbers — see the
+      // comment on EmployeesPage.handleImport.
+      const newTotal = (result.inserted || 0) + (result.childInserted || 0);
+      const updatedTotal = (result.updated || 0) + (result.childUpdated || 0);
+      const restored = result.restored || 0;
+      const anyWrite = newTotal || updatedTotal || restored;
+      if (!anyWrite) {
+        toast('Import complete — no changes');
+      } else {
+        const parts = [`${newTotal} new`, `${updatedTotal} updated`];
+        if (restored > 0) parts.push(`${restored} restored`);
+        toast(`Clients: ${parts.join(', ')}`);
+      }
       importDialog.close();
     } catch (err) {
       const validationErrors = err.payload?.errors;

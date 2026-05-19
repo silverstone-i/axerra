@@ -7,8 +7,11 @@
  *     is invoked with the FormData.
  *   - With `onPreview`: mandatory three-step flow — pick file → preview
  *     (counts or errors) → confirm. onPreview must resolve to the server's
- *     preview payload `{ preview: true, inserts, updates, noops, omitted, errors }`
- *     or throw with `err.payload.errors` if validation failed.
+ *     preview payload `{ preview: true, inserts, updates, restores, noops, omitted, errors }`
+ *     (single bucket) or `{ preview: true, vendors: {...}, contacts: {...}, errors }`
+ *     (combined Vendors+VendorContacts). `restores` and `omitted` are optional
+ *     per importer. onPreview should throw with `err.payload.errors` if
+ *     validation failed.
  *
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
@@ -29,11 +32,21 @@ import FormDialog from './FormDialog.jsx';
 import SecondaryButton from './SecondaryButton.jsx';
 
 function PreviewBucket({ label, counts }) {
+  // `restores` is the per-row count of soft-deleted child rows that the
+  // importer would resurrect via natural-key match (see ADR-0026). Optional
+  // on the server response — render only when present and non-zero so older
+  // importers without the bucket don't show a redundant "Restored: 0".
+  const showRestored = typeof counts.restores === 'number' && counts.restores > 0;
   return (
     <Stack spacing={0.25}>
-      <Typography variant="body2" sx={{ fontWeight: 600 }}>{label}</Typography>
+      {label && (
+        <Typography variant="body2" sx={{ fontWeight: 600 }}>{label}</Typography>
+      )}
       <Typography variant="body2">New rows: <strong>{counts.inserts}</strong></Typography>
       <Typography variant="body2">Updates in place: <strong>{counts.updates}</strong></Typography>
+      {showRestored && (
+        <Typography variant="body2">Restored from trash: <strong>{counts.restores}</strong></Typography>
+      )}
       <Typography variant="body2">Unchanged: <strong>{counts.noops}</strong></Typography>
       {typeof counts.omitted === 'number' && (
         <Typography variant="body2">Existing rows not in file (left unchanged): <strong>{counts.omitted}</strong></Typography>
@@ -154,12 +167,12 @@ export default function ImportDialog({
               <PreviewBucket label="Vendor Contacts" counts={previewData.contacts} />
             </Stack>
           ) : (
-            <Stack spacing={0.5}>
-              <Typography variant="body2">New rows: <strong>{previewData.inserts}</strong></Typography>
-              <Typography variant="body2">Updates in place: <strong>{previewData.updates}</strong></Typography>
-              <Typography variant="body2">Unchanged: <strong>{previewData.noops}</strong></Typography>
-              <Typography variant="body2">Existing rows not in file (left unchanged): <strong>{previewData.omitted}</strong></Typography>
-            </Stack>
+            // Single-bucket render goes through PreviewBucket too so the
+            // conditional `restores` line surfaces for flat imports (not just
+            // the combined Vendors+Contacts shape rendered above). Label is
+            // omitted for the single-bucket case to keep the existing
+            // visual unchanged.
+            <PreviewBucket label="" counts={previewData} />
           )}
         </Alert>
       )}

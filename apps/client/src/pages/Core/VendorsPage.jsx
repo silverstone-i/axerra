@@ -265,14 +265,25 @@ export default function VendorsPage() {
     setImportErrors(null);
     try {
       const result = await importMut.mutateAsync(formData);
-      const vIns = result.inserted || 0;
-      const vUpd = result.updated || 0;
-      const cIns = result.contactsInserted || 0;
-      const cUpd = result.contactsUpdated || 0;
-      const allZero = !vIns && !vUpd && !cIns && !cUpd;
+      // Roll parent + child counts into the displayed numbers — a child-only
+      // edit (phone, address) leaves parent counters at zero but is still a
+      // write the user should see. Vendors and Contacts get their own
+      // totals so the message stays scoped per entity.
+      const vNew = (result.inserted || 0) + (result.childInserted || 0);
+      const vUpd = (result.updated || 0) + (result.childUpdated || 0);
+      const vRes = result.restored || 0;
+      const cNew = (result.contactsInserted || 0) + (result.contactsChildInserted || 0);
+      const cUpd = (result.contactsUpdated || 0) + (result.contactsChildUpdated || 0);
+      const cRes = result.contactsRestored || 0;
+      const allZero = !vNew && !vUpd && !vRes && !cNew && !cUpd && !cRes;
+      const fmt = (i, u, r) => {
+        const parts = [`${i} new`, `${u} updated`];
+        if (r > 0) parts.push(`${r} restored`);
+        return parts.join(', ');
+      };
       const message = allZero
         ? 'Import complete — no changes'
-        : `Vendors: ${vIns} new, ${vUpd} updated • Contacts: ${cIns} new, ${cUpd} updated`;
+        : `Vendors: ${fmt(vNew, vUpd, vRes)} • Contacts: ${fmt(cNew, cUpd, cRes)}`;
       toast(message);
       importDialog.close();
     } catch (err) {

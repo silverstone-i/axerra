@@ -2,6 +2,13 @@
  * @file Phone numbers controller — CRUD with single-primary enforcement
  * @module core/controllers/phoneNumbersController
  *
+ * NOTE: the standard `PATCH /restore` endpoint inherited from
+ * `BaseController` via `createRouter` exists on this resource, but the
+ * client UI deliberately does not call it. Soft-deleted phone rows are
+ * restored by re-importing the parent's workbook (the importer matches
+ * archived rows by slot key then by value key and resurrects them in
+ * place). See `docs/decisions/0026-child-restore-via-import.md`.
+ *
  * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
  */
 
