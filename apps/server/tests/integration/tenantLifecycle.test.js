@@ -143,7 +143,7 @@ describe('Tenant lifecycle — create, provision, archive, restore', () => {
     expect(res.status).toBeGreaterThanOrEqual(400);
   });
 
-  test('8. Restore tenant — tenant reactivated but users remain archived', async () => {
+  test('8. Restore tenant — cascade-restores the binding cohort locked by the same archive', async () => {
     const cookies = await loginRoot();
 
     const res = await request(app)
@@ -153,13 +153,24 @@ describe('Tenant lifecycle — create, provision, archive, restore', () => {
 
     expect(res.status).toBe(200);
 
-    // Tenant should be active again
+    // Tenant is active again.
     const tenant = await db.oneOrNone('SELECT * FROM admin.tenants WHERE id = $1', [tenantId]);
     expect(tenant.deactivated_at).toBeNull();
 
-    // User should still be archived (users must be restored individually)
+    // Per the cascade-restore rule of record, the bindings sharing the
+    // tenant's MAX(deactivated_at) cohort come back too, along with their
+    // portal_users. `status` is intentionally untouched — the admin user's
+    // status stays at 'locked' from the archive cascade.
     const user = await db.oneOrNone('SELECT * FROM admin.portal_users WHERE id = $1', [adminUserId]);
-    expect(user.deactivated_at).not.toBeNull();
+    expect(user.deactivated_at).toBeNull();
+    expect(user.status).toBe('locked');
+
+    const binding = await db.oneOrNone(
+      'SELECT deactivated_at, status FROM admin.portal_user_tenants WHERE portal_user_id = $1 AND tenant_id = $2',
+      [adminUserId, tenantId],
+    );
+    expect(binding.deactivated_at).toBeNull();
+    expect(binding.status).toBe('locked');
   });
 });
 

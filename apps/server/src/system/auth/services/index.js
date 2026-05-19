@@ -10,3 +10,8 @@
  */
 
 export { findActiveBinding, findAnyBinding, findActivePortalUserId } from './portalUserBindings.js';
+export {
+  archivePortalUserFor,
+  restorePortalUserFor,
+  restoreTenantBindings,
+} from './portalUserCascade.js';

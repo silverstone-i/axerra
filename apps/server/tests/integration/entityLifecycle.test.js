@@ -114,12 +114,16 @@ describe('Entity lifecycle — employee is_app_user with portal_users cascade', 
     expect(res.status).not.toBe(200);
   });
 
-  test('5. Restore employee cascades to restore portal_user', async () => {
+  test('5. Restore employee cascades to restore portal_user (deactivated_at only; status preserved)', async () => {
     const res = await request(app).patch(`/api/core/v1/employees/restore?id=${employeeId}`).set('Cookie', tenantCookies).send({});
 
     expect(res.status).toBe(200);
 
-    // Verify portal_user is restored
+    // Per the cascade-restore rule of record: clear deactivated_at on the
+    // binding cohort sharing the MAX deactivated_at, AND on the linked
+    // portal_users — but never touch `status`. The portal_user was set to
+    // 'locked' by the archive cascade and stays at 'locked' until the
+    // user is explicitly reactivated.
     const portalUser = await db.oneOrNone(
       `SELECT pu.status, pu.deactivated_at
        FROM admin.portal_users pu
@@ -127,8 +131,8 @@ describe('Entity lifecycle — employee is_app_user with portal_users cascade', 
        WHERE b.entity_type = 'employee' AND b.entity_id = $1`,
       [employeeId],
     );
-    expect(portalUser.status).toBe('active');
     expect(portalUser.deactivated_at).toBeNull();
+    expect(portalUser.status).toBe('locked');
   });
 
   test('6. Source record was created for employee', async () => {

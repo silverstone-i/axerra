@@ -16,6 +16,7 @@ import BaseController from '../../../lib/BaseController.js';
 import db, { pgp } from '../../../db/db.js';
 import logger from '../../../lib/logger.js';
 import { provisionNewTenant } from '../../../services/tenantSetup.js';
+import { restoreTenantBindings } from '../../auth/services/index.js';
 
 class TenantsController extends BaseController {
   constructor() {
@@ -164,7 +165,12 @@ class TenantsController extends BaseController {
   }
 
   /**
-   * PATCH /restore — reactivate tenant only (users remain archived)
+   * PATCH /restore — reactivate tenant and the binding cohort that was locked
+   * together with it. Cohort is identified by the MAX `deactivated_at` across
+   * `admin.portal_user_tenants` rows scoped to this tenant: bindings (and the
+   * portal_users they reference) sharing that timestamp come back; older
+   * archives, e.g. a user who was already locked for a separate reason
+   * before the tenant was archived, stay archived. `status` is not modified.
    */
   async restore(req, res) {
     req.body.deactivated_at = null;
@@ -173,6 +179,19 @@ class TenantsController extends BaseController {
     try {
       const count = await this.model('admin').updateWhere(filters, req.body, { includeDeactivated: true });
       if (!count) return res.status(404).json({ error: `${this.errorLabel} not found or already active` });
+
+      // Resolve the tenant id so we can cascade-restore the binding cohort.
+      // We accept either ?id= or ?tenant_code= (mirrors archive). The
+      // updateWhere succeeded with whichever was supplied, so a lookup
+      // here is safe.
+      let tenantId = req.query.id;
+      if (!tenantId && req.query.tenant_code) {
+        const row = await this.model('admin').findOneByFilter({ tenant_code: req.query.tenant_code });
+        tenantId = row?.id;
+      }
+      if (tenantId) {
+        await restoreTenantBindings({ tenantId, actorId: req.user?.id || null });
+      }
 
       res.status(200).json({ message: `${this.errorLabel} marked as active` });
     } catch (err) {
