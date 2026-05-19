@@ -1540,9 +1540,31 @@ export async function importChildSheet(reader, sheetIndex, refToSourceId, modelN
     rowsBySource.get(sourceId).push(rest);
   }
 
+  if (!rowsBySource.size) return { inserts: 0, updates: 0, restores: 0, noops: 0 };
+
+  // Batch-load existing children for every affected source_id in one query
+  // instead of one round-trip per source. Same ORDER BY contract the
+  // reconciler expects: active first, then archived most-recent-first.
+  const childModel = db(cfg.modelName, schema);
+  const tableName = childModel._schema?.table || cfg.modelName;
+  const tName = pgp.as.name(tableName);
+  const sourceIds = [...rowsBySource.keys()];
+  const allExisting = await t.any(
+    `SELECT * FROM ${s}.${tName}
+      WHERE source_id IN ($1:csv)
+      ORDER BY deactivated_at IS NOT NULL, deactivated_at DESC`,
+    [sourceIds],
+  );
+  const existingBySource = new Map();
+  for (const r of allExisting) {
+    if (!existingBySource.has(r.source_id)) existingBySource.set(r.source_id, []);
+    existingBySource.get(r.source_id).push(r);
+  }
+
   const totals = { inserts: 0, updates: 0, restores: 0, noops: 0 };
   for (const [sourceId, sourceRows] of rowsBySource) {
-    const counts = await _reconcileChildrenForSource(t, s, schema, db, pgp, sourceId, sourceRows, cfg, callbackFn, tenantId);
+    const existing = existingBySource.get(sourceId) || [];
+    const counts = await _reconcileChildrenForSource(t, s, schema, db, pgp, sourceId, sourceRows, cfg, callbackFn, tenantId, existing);
     totals.inserts += counts.inserts;
     totals.updates += counts.updates;
     totals.restores += counts.restores;
@@ -3115,16 +3137,22 @@ export function _classifyChildren(existingRows, incomingRows, cfg) {
   const activeByValue = new Map();
   const archivedBySlot = new Map();
   const archivedByValue = new Map();
+  // `existingRows` is expected to be ordered active-first then
+  // archived-most-recent-first (see `_reconcileChildrenForSource`). The
+  // `!has(...)` guards make selection deterministic when the partial unique
+  // index permits duplicates (archived rows can collide on slot key) —
+  // first match wins, which after the ORDER BY is the most-recently
+  // archived row.
   for (const ex of existingRows) {
     const isArchived = !!ex.deactivated_at;
     const k = _computeSlotKey(ex, cfg);
     const vk = _computeValueKey(ex, cfg);
     if (isArchived) {
-      if (k != null) archivedBySlot.set(k, ex);
-      if (vk != null) archivedByValue.set(vk, ex);
+      if (k != null && !archivedBySlot.has(k)) archivedBySlot.set(k, ex);
+      if (vk != null && !archivedByValue.has(vk)) archivedByValue.set(vk, ex);
     } else {
-      if (k != null) activeBySlot.set(k, ex);
-      if (vk != null) activeByValue.set(vk, ex);
+      if (k != null && !activeBySlot.has(k)) activeBySlot.set(k, ex);
+      if (vk != null && !activeByValue.has(vk)) activeByValue.set(vk, ex);
     }
   }
 
@@ -3214,7 +3242,7 @@ export function _classifyChildren(existingRows, incomingRows, cfg) {
  * behavior is identical across both importer shapes.
  * @private
  */
-export async function _reconcileChildrenForSource(t, s, schema, db, pgp, sourceId, childRows, cfg, callbackFn, tenantId) {
+export async function _reconcileChildrenForSource(t, s, schema, db, pgp, sourceId, childRows, cfg, callbackFn, tenantId, existingRows = null) {
   const childModel = db(cfg.modelName, schema);
   childModel.tx = t;
   const tableName = childModel._schema?.table || cfg.modelName;
@@ -3222,7 +3250,19 @@ export async function _reconcileChildrenForSource(t, s, schema, db, pgp, sourceI
 
   // Load BOTH active and archived children for this source — the classifier
   // needs the trash bin too so a re-imported value can resurrect its row.
-  const existing = await t.any(`SELECT * FROM ${s}.${tName} WHERE source_id = $1`, [sourceId]);
+  // ORDER BY `deactivated_at` ascending with NULLs first puts active rows up
+  // top (NULL deactivated_at) then archived rows most-recent-first; combined
+  // with `_classifyChildren`'s first-match-wins maps, that gives deterministic
+  // selection when multiple archived rows share a slot/value key (partial
+  // unique indexes only enforce uniqueness for active rows).
+  const existing = existingRows != null
+    ? existingRows
+    : await t.any(
+        `SELECT * FROM ${s}.${tName}
+          WHERE source_id = $1
+          ORDER BY deactivated_at IS NOT NULL, deactivated_at DESC`,
+        [sourceId],
+      );
 
   // Transform every incoming row to the child-table shape before classifying.
   const transformedRows = [];
@@ -3239,6 +3279,21 @@ export async function _reconcileChildrenForSource(t, s, schema, db, pgp, sourceI
       }
     }
     transformedRows.push(transformed);
+  }
+
+  // Enforce single is_primary per source. The emails and phone_numbers
+  // tables carry a partial unique index `(source_id) WHERE is_primary AND
+  // NOT deactivated`, so the spreadsheet can't supply two primaries — we
+  // demote all but the first to false. No-op for tables without is_primary
+  // (addresses, tax_identifiers don't carry the column).
+  if (transformedRows.length > 1) {
+    let seenPrimary = false;
+    for (const r of transformedRows) {
+      if (r.is_primary === true) {
+        if (seenPrimary) r.is_primary = false;
+        else seenPrimary = true;
+      }
+    }
   }
 
   const { classifications, counts } = _classifyChildren(existing, transformedRows, cfg);

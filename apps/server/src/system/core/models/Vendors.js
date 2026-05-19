@@ -1057,24 +1057,53 @@ export default class Vendors extends TableModel {
    * @param {string}   tenantId        Resolved tenant UUID
    */
   async _batchUpsertFlatChildren(t, s, schema, db, pgp, insertResults, sourceByParentId, toInsertMeta, childConfig, callbackFn, tenantId) {
-    // Iterate per (cfg, source) and delegate to the shared reconciler. We
-    // lose the prior 1-soft-delete-+-1-bulk-insert micro-optimization but
-    // gain archive-aware reconciliation (a child whose value lives in the
-    // trash bin gets restored, matching the flat single-entity path). Newly
-    // inserted parents normally have empty existing-child sets, so the
-    // reconciler degrades to a single bulk insert per source.
-    let restored = 0;
+    // Fast path for newly-inserted parents: by definition their sources are
+    // brand-new and carry no existing children, so the archive-aware
+    // reconciler would just degrade to a single bulkInsert per source after
+    // a wasted SELECT. Skip the reconciler entirely and do 1 bulkInsert
+    // per cfg across all parents — restores the prior performance shape
+    // for large imports. `restored` is always 0 here (no archived rows to
+    // resurrect under a fresh source).
     for (const cfg of childConfig) {
+      const childModel = db(cfg.model, schema);
+      childModel.tx = t;
+
+      const allToInsert = [];
       for (let i = 0; i < insertResults.length; i++) {
         const sourceId = sourceByParentId.get(insertResults[i].id);
         if (!sourceId) continue;
         const childRows = toInsertMeta[i].group?.children?.[cfg.key];
         if (!childRows?.length) continue;
-        const counts = await _reconcileChildrenForSource(t, s, schema, db, pgp, sourceId, childRows, cfg, callbackFn, tenantId);
-        restored += counts.restores;
+
+        // Transform per source so we can enforce single is_primary inside
+        // that source (the partial unique index is scoped to one source).
+        const sourceRows = [];
+        for (const row of childRows) {
+          const { _rowNum: _, ...rest } = row;
+          const base = { ...rest, source_id: sourceId };
+          const transformed = callbackFn ? await callbackFn(base) : base;
+          delete transformed.tenant_code;
+          if (tenantId) transformed.tenant_id = tenantId;
+          coerceChildRow(transformed, childModel);
+          sourceRows.push(transformed);
+        }
+        if (sourceRows.length > 1) {
+          let seenPrimary = false;
+          for (const r of sourceRows) {
+            if (r.is_primary === true) {
+              if (seenPrimary) r.is_primary = false;
+              else seenPrimary = true;
+            }
+          }
+        }
+        allToInsert.push(...sourceRows);
+      }
+
+      if (allToInsert.length) {
+        await childModel.bulkInsert(allToInsert);
       }
     }
-    return { restored };
+    return { restored: 0 };
   }
 
   // ── Preview classifier (no writes) ────────────────────────────────────────
