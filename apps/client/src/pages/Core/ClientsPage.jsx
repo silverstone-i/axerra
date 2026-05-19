@@ -202,7 +202,16 @@ export default function ClientsPage() {
     setImportErrors(null);
     try {
       const result = await importMut.mutateAsync(formData);
-      toast(`Imported ${result.inserted} records`);
+      const inserted = result.inserted || 0;
+      const updated = result.updated || 0;
+      const restored = result.restored || 0;
+      if (inserted === 0 && updated === 0 && restored === 0) {
+        toast('Import complete — no changes');
+      } else {
+        const parts = [`${inserted} new`, `${updated} updated`];
+        if (restored > 0) parts.push(`${restored} restored`);
+        toast(`Clients: ${parts.join(', ')}`);
+      }
       importDialog.close();
     } catch (err) {
       const validationErrors = err.payload?.errors;
