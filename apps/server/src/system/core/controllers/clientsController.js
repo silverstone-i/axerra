@@ -15,7 +15,12 @@ import BaseController from '../../../lib/BaseController.js';
 import db, { pgp } from '../../../db/db.js';
 import { allocateNumber } from '../services/numberingService.js';
 import { invalidateByEntity } from '../../../services/permCacheInvalidator.js';
-import { findActiveBinding, findAnyBinding } from '../../auth/services/index.js';
+import {
+  findActiveBinding,
+  findAnyBinding,
+  archivePortalUserFor,
+  restorePortalUserFor,
+} from '../../auth/services/index.js';
 import logger from '../../../lib/logger.js';
 
 class ClientsController extends BaseController {
@@ -416,57 +421,28 @@ class ClientsController extends BaseController {
 
   /**
    * Archive (soft-delete) the portal_users + binding linked to a client.
+   * Shared cascade — see auth/services/portalUserCascade.js.
    */
   async #archiveAppUser(clientId, req) {
-    const binding = await findActiveBinding('client', clientId, req.user?.tenant_id);
-    if (!binding) return;
-
-    const updatedBy = req.user?.id || null;
-    await db.tx(async (t) => {
-      await t.none(
-        `UPDATE admin.portal_user_tenants
-         SET deactivated_at = NOW(), status = 'locked', updated_by = $1
-         WHERE id = $2`,
-        [updatedBy, binding.id],
-      );
-      await t.none(
-        `UPDATE admin.portal_users
-         SET deactivated_at = NOW(), status = 'locked', updated_by = $1
-         WHERE id = $2`,
-        [updatedBy, binding.portal_user_id],
-      );
+    await archivePortalUserFor({
+      entityType: 'client',
+      entityId: clientId,
+      tenantId: req.user?.tenant_id,
+      actorId: req.user?.id || null,
     });
-    logger.info(`Archived portal_user ${binding.portal_user_id} + binding for client ${clientId}`);
   }
 
   /**
-   * Restore the portal_users + binding linked to a client.
+   * Restore the portal_users + binding linked to a client. Uses the
+   * MAX-timestamp cohort rule; `status` is intentionally untouched.
    */
   async #restoreAppUser(clientId, req) {
-    const binding = await db.oneOrNone(
-      `SELECT id, portal_user_id FROM admin.portal_user_tenants
-       WHERE entity_type = 'client' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NOT NULL
-       ORDER BY deactivated_at DESC LIMIT 1`,
-      [clientId, req.user?.tenant_id],
-    );
-    if (!binding) return;
-
-    const updatedBy = req.user?.id || null;
-    await db.tx(async (t) => {
-      await t.none(
-        `UPDATE admin.portal_users
-         SET deactivated_at = NULL, status = 'active', updated_by = $1
-         WHERE id = $2`,
-        [updatedBy, binding.portal_user_id],
-      );
-      await t.none(
-        `UPDATE admin.portal_user_tenants
-         SET deactivated_at = NULL, status = 'active', updated_by = $1
-         WHERE id = $2`,
-        [updatedBy, binding.id],
-      );
+    await restorePortalUserFor({
+      entityType: 'client',
+      entityId: clientId,
+      tenantId: req.user?.tenant_id,
+      actorId: req.user?.id || null,
     });
-    logger.info(`Restored portal_user ${binding.portal_user_id} + binding for client ${clientId}`);
   }
 }
 

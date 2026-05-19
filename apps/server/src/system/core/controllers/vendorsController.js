@@ -74,6 +74,242 @@ class VendorsController extends BaseController {
   }
 
   /**
+   * DELETE /archive — soft-delete the vendor and cascade-archive every active
+   * vendor_contact under it, locking the portal_user bindings (and the
+   * portal_users themselves when those were the last active binding).
+   *
+   * Mirrors the tenant-archive cascade pattern: the cascade is scoped via
+   * RETURNING so multi-tenant portal_users with other active bindings stay
+   * live. Inline rather than delegating per-contact to the cascade helper so
+   * everything happens in one transaction with one round-trip per step.
+   */
+  async archive(req, res) {
+    if (!req.query.id && !req.query.code) {
+      return res.status(400).json({ error: 'id or code query parameter is required' });
+    }
+
+    const schema = this.getSchema(req);
+    const s = pgp.as.name(schema);
+    const tenantId = req.user?.tenant_id;
+    const actorId = req.user?.id || null;
+
+    let vendorId = req.query.id;
+
+    try {
+      if (!vendorId) {
+        // Archive operates on active vendors, so the default model filter is fine here.
+        const vendor = await this.model(schema).findOneBy([{ code: req.query.code }]);
+        if (!vendor) return res.status(404).json({ error: `${this.errorLabel} not found or already inactive` });
+        vendorId = vendor.id;
+      }
+
+      let archivedVendor = 0;
+      await db.tx(async (t) => {
+        // Vendor row first — if the row doesn't move (404 case, e.g. already
+        // archived), abort before any cascade fires. Avoids the prior bug
+        // where the cascade committed even when the vendor archive was a no-op.
+        const result = await t.result(
+          `UPDATE ${s}.vendors
+              SET deactivated_at = NOW(), updated_by = $1
+            WHERE id = $2 AND deactivated_at IS NULL`,
+          [actorId, vendorId],
+          (r) => r.rowCount,
+        );
+        archivedVendor = result;
+        if (!archivedVendor) return;
+
+        // Cascade — only runs when the vendor actually transitioned to archived.
+        const contacts = await t.any(
+          `SELECT id FROM ${s}.vendor_contacts WHERE vendor_id = $1 AND deactivated_at IS NULL`,
+          [vendorId],
+        );
+        if (!contacts.length) return;
+
+        const contactIds = contacts.map((r) => r.id);
+
+        await t.none(
+          `UPDATE ${s}.vendor_contacts
+              SET deactivated_at = NOW(), updated_by = $1
+            WHERE id = ANY($2::uuid[])`,
+          [actorId, contactIds],
+        );
+
+        const affected = await t.any(
+          `UPDATE admin.portal_user_tenants
+              SET deactivated_at = NOW(), status = 'locked', updated_by = $1
+            WHERE entity_type = 'vendor_contact'
+              AND entity_id = ANY($2::uuid[])
+              AND tenant_id = $3
+              AND deactivated_at IS NULL
+            RETURNING portal_user_id`,
+          [actorId, contactIds, tenantId],
+        );
+
+        const userIds = [...new Set(affected.map((r) => r.portal_user_id))];
+        if (userIds.length) {
+          // Correlated NOT EXISTS so the planner can use the
+          // (portal_user_id, deactivated_at) index on portal_user_tenants
+          // instead of scanning every active binding.
+          await t.none(
+            `UPDATE admin.portal_users pu
+                SET deactivated_at = NOW(), status = 'locked', updated_by = $1
+              WHERE pu.id = ANY($2::uuid[])
+                AND pu.deactivated_at IS NULL
+                AND NOT EXISTS (
+                  SELECT 1 FROM admin.portal_user_tenants put
+                  WHERE put.portal_user_id = pu.id AND put.deactivated_at IS NULL
+                )`,
+            [actorId, userIds],
+          );
+        }
+      });
+
+      if (!archivedVendor) {
+        return res.status(404).json({ error: `${this.errorLabel} not found or already inactive` });
+      }
+      res.status(200).json({ message: `${this.errorLabel} marked as inactive` });
+    } catch (err) {
+      this.handleError(err, res, 'archiving', this.errorLabel);
+    }
+  }
+
+  /**
+   * PATCH /restore — restore the vendor and the cohort of vendor_contacts
+   * that were archived together with it. Cohort is identified by exact
+   * timestamp match against the vendor's own `deactivated_at`: contacts
+   * whose `vendor_contacts.deactivated_at` equals the vendor row's
+   * `deactivated_at` at the moment we capture it (under SELECT FOR
+   * UPDATE). This is reliable because the archive cascade uses one
+   * NOW() per transaction, so a contact archived together with its
+   * vendor shares the timestamp down to the microsecond. The comparison
+   * is done in a server-side subquery so we don't lose precision
+   * marshalling the timestamp through JavaScript.
+   *
+   * Each cohort member's portal_user / portal_user_tenants binding pair
+   * is restored using the same MAX-`deactivated_at` cohort rule per
+   * vendor_contact as the standalone vendor_contact restore (see
+   * `restorePortalUserFor`).
+   *
+   * `status` is intentionally not modified anywhere — restoring only
+   * flips `deactivated_at` back to NULL.
+   */
+  async restore(req, res) {
+    if (!req.query.id && !req.query.code) {
+      return res.status(400).json({ error: 'id or code query parameter is required' });
+    }
+
+    const schema = this.getSchema(req);
+    const s = pgp.as.name(schema);
+    const tenantId = req.user?.tenant_id;
+    const actorId = req.user?.id || null;
+
+    let vendorId = req.query.id;
+
+    try {
+      if (!vendorId) {
+        // Restore by definition operates on an archived row — must include deactivated.
+        const vendor = await this.model(schema).findOneBy(
+          [{ code: req.query.code }],
+          { includeDeactivated: true },
+        );
+        if (!vendor) return res.status(404).json({ error: `${this.errorLabel} not found or already active` });
+        vendorId = vendor.id;
+      }
+
+      let restoredVendor = 0;
+      await db.tx(async (t) => {
+        // Identify the cohort BEFORE clearing the vendor's deactivated_at,
+        // using a server-side subquery so the timestamp comparison happens
+        // in Postgres (microsecond precision). The earlier approach
+        // (`MAX(vendor_contacts.deactivated_at)`) was wrong: contacts
+        // archived independently before the vendor's archive event would
+        // erroneously be restored. The fixed approach: cohort = contacts
+        // whose `deactivated_at` exactly equals the vendor's own
+        // `deactivated_at`. The archive cascade uses one NOW() per tx, so
+        // a contact archived together with its vendor has the same
+        // timestamp down to the microsecond. SELECT FOR UPDATE locks the
+        // vendor row so no concurrent archive/restore can race here.
+        const beforeRow = await t.oneOrNone(
+          `SELECT deactivated_at FROM ${s}.vendors WHERE id = $1 FOR UPDATE`,
+          [vendorId],
+        );
+
+        const cohort = beforeRow?.deactivated_at
+          ? await t.any(
+              `SELECT vc.id FROM ${s}.vendor_contacts vc
+                WHERE vc.vendor_id = $1
+                  AND vc.deactivated_at = (SELECT deactivated_at FROM ${s}.vendors WHERE id = $1)`,
+              [vendorId],
+            )
+          : [];
+
+        const result = await t.result(
+          `UPDATE ${s}.vendors
+              SET deactivated_at = NULL, updated_by = $1
+            WHERE id = $2 AND deactivated_at IS NOT NULL`,
+          [actorId, vendorId],
+          (r) => r.rowCount,
+        );
+        restoredVendor = result;
+        if (!restoredVendor) return;
+
+        if (!cohort.length) return;
+        const contactIds = cohort.map((r) => r.id);
+
+        await t.none(
+          `UPDATE ${s}.vendor_contacts
+              SET deactivated_at = NULL, updated_by = $1
+            WHERE id = ANY($2::uuid[])`,
+          [actorId, contactIds],
+        );
+
+        // Restore the binding cohort sharing the MAX(deactivated_at) per
+        // entity_id — matches the standalone vendor_contact restore rule.
+        const restoredBindings = await t.any(
+          `WITH cohort AS (
+             SELECT id, portal_user_id
+             FROM admin.portal_user_tenants put1
+             WHERE entity_type = 'vendor_contact'
+               AND tenant_id = $1
+               AND entity_id = ANY($2::uuid[])
+               AND deactivated_at IS NOT NULL
+               AND deactivated_at = (
+                 SELECT MAX(deactivated_at) FROM admin.portal_user_tenants put2
+                 WHERE put2.entity_type = put1.entity_type
+                   AND put2.entity_id = put1.entity_id
+                   AND put2.tenant_id = put1.tenant_id
+                   AND put2.deactivated_at IS NOT NULL
+               )
+           )
+           UPDATE admin.portal_user_tenants
+              SET deactivated_at = NULL, updated_by = $3
+            WHERE id IN (SELECT id FROM cohort)
+            RETURNING portal_user_id`,
+          [tenantId, contactIds, actorId],
+        );
+
+        const userIds = [...new Set(restoredBindings.map((r) => r.portal_user_id))];
+        if (userIds.length) {
+          await t.none(
+            `UPDATE admin.portal_users
+                SET deactivated_at = NULL, updated_by = $1
+              WHERE id = ANY($2::uuid[])
+                AND deactivated_at IS NOT NULL`,
+            [actorId, userIds],
+          );
+        }
+      });
+
+      if (!restoredVendor) {
+        return res.status(404).json({ error: `${this.errorLabel} not found or already active` });
+      }
+      res.status(200).json({ message: `${this.errorLabel} marked as active` });
+    } catch (err) {
+      this.handleError(err, res, 'restoring', this.errorLabel);
+    }
+  }
+
+  /**
    * POST /export-combined-xls — export vendors + vendor contacts into a single workbook.
    */
   async exportCombinedXls(req, res) {

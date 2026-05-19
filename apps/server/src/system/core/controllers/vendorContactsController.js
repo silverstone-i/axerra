@@ -17,7 +17,12 @@ import crypto from 'node:crypto';
 import BaseController from '../../../lib/BaseController.js';
 import db, { pgp } from '../../../db/db.js';
 import { invalidateByEntity } from '../../../services/permCacheInvalidator.js';
-import { findActiveBinding, findAnyBinding } from '../../auth/services/index.js';
+import {
+  findActiveBinding,
+  findAnyBinding,
+  archivePortalUserFor,
+  restorePortalUserFor,
+} from '../../auth/services/index.js';
 import logger from '../../../lib/logger.js';
 
 class VendorContactsController extends BaseController {
@@ -833,67 +838,27 @@ class VendorContactsController extends BaseController {
    * remaining active binding.
    */
   async #archiveAppUser(vendorContactId, req) {
-    const binding = await findActiveBinding('vendor_contact', vendorContactId, req.user?.tenant_id);
-    if (!binding) return;
-
-    const updatedBy = req.user?.id || null;
-    await db.tx(async (t) => {
-      await t.none(
-        `UPDATE admin.portal_user_tenants
-         SET deactivated_at = NOW(), status = 'locked', updated_by = $1
-         WHERE id = $2`,
-        [updatedBy, binding.id],
-      );
-      // Only lock the portal_user globally if this was the last active
-      // binding. Mirrors tenantsController's cascade pattern.
-      await t.none(
-        `UPDATE admin.portal_users
-         SET deactivated_at = NOW(), status = 'locked', updated_by = $1
-         WHERE id = $2 AND deactivated_at IS NULL
-           AND NOT EXISTS (
-             SELECT 1 FROM admin.portal_user_tenants
-             WHERE portal_user_id = $2 AND deactivated_at IS NULL
-           )`,
-        [updatedBy, binding.portal_user_id],
-      );
+    await archivePortalUserFor({
+      entityType: 'vendor_contact',
+      entityId: vendorContactId,
+      tenantId: req.user?.tenant_id,
+      actorId: req.user?.id || null,
     });
-    logger.info(`Archived binding for vendor_contact ${vendorContactId} → portal_user ${binding.portal_user_id}`);
   }
 
   /**
-   * Restore the per-tenant binding for a vendor_contact.
-   *
-   * Only touches admin.portal_users when it is actually archived. If
-   * the portal_user is already active/invited via another tenant's
-   * binding, leave its global state alone — overwriting status='active'
-   * would clear a force-password-change ('invited') state that
-   * belongs to the user, not to this tenant's vendor_contact.
+   * Restore the per-tenant binding for a vendor_contact. Uses the
+   * MAX-timestamp cohort rule and leaves `status` untouched — preserves
+   * any pending 'invited' state on a portal_user that's already active
+   * through another tenant's binding.
    */
   async #restoreAppUser(vendorContactId, req) {
-    const binding = await db.oneOrNone(
-      `SELECT id, portal_user_id FROM admin.portal_user_tenants
-       WHERE entity_type = 'vendor_contact' AND entity_id = $1 AND tenant_id = $2 AND deactivated_at IS NOT NULL
-       ORDER BY deactivated_at DESC LIMIT 1`,
-      [vendorContactId, req.user?.tenant_id],
-    );
-    if (!binding) return;
-
-    const updatedBy = req.user?.id || null;
-    await db.tx(async (t) => {
-      await t.none(
-        `UPDATE admin.portal_users
-         SET deactivated_at = NULL, status = 'active', updated_by = $1
-         WHERE id = $2 AND deactivated_at IS NOT NULL`,
-        [updatedBy, binding.portal_user_id],
-      );
-      await t.none(
-        `UPDATE admin.portal_user_tenants
-         SET deactivated_at = NULL, status = 'active', updated_by = $1
-         WHERE id = $2`,
-        [updatedBy, binding.id],
-      );
+    await restorePortalUserFor({
+      entityType: 'vendor_contact',
+      entityId: vendorContactId,
+      tenantId: req.user?.tenant_id,
+      actorId: req.user?.id || null,
     });
-    logger.info(`Restored binding for vendor_contact ${vendorContactId} → portal_user ${binding.portal_user_id}`);
   }
 }
 
