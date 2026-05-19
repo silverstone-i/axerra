@@ -39,7 +39,9 @@ function PreviewBucket({ label, counts }) {
   const showRestored = typeof counts.restores === 'number' && counts.restores > 0;
   return (
     <Stack spacing={0.25}>
-      <Typography variant="body2" sx={{ fontWeight: 600 }}>{label}</Typography>
+      {label && (
+        <Typography variant="body2" sx={{ fontWeight: 600 }}>{label}</Typography>
+      )}
       <Typography variant="body2">New rows: <strong>{counts.inserts}</strong></Typography>
       <Typography variant="body2">Updates in place: <strong>{counts.updates}</strong></Typography>
       {showRestored && (
@@ -165,12 +167,12 @@ export default function ImportDialog({
               <PreviewBucket label="Vendor Contacts" counts={previewData.contacts} />
             </Stack>
           ) : (
-            <Stack spacing={0.5}>
-              <Typography variant="body2">New rows: <strong>{previewData.inserts}</strong></Typography>
-              <Typography variant="body2">Updates in place: <strong>{previewData.updates}</strong></Typography>
-              <Typography variant="body2">Unchanged: <strong>{previewData.noops}</strong></Typography>
-              <Typography variant="body2">Existing rows not in file (left unchanged): <strong>{previewData.omitted}</strong></Typography>
-            </Stack>
+            // Single-bucket render goes through PreviewBucket too so the
+            // conditional `restores` line surfaces for flat imports (not just
+            // the combined Vendors+Contacts shape rendered above). Label is
+            // omitted for the single-bucket case to keep the existing
+            // visual unchanged.
+            <PreviewBucket label="" counts={previewData} />
           )}
         </Alert>
       )}
