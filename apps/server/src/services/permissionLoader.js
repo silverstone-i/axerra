@@ -17,17 +17,63 @@
 
 import db from '../db/db.js';
 import logger from '../lib/logger.js';
+import { getRedis } from '../db/redis.js';
 
 const LEVEL_ORDER = { none: 0, view: 1, full: 2 };
 const LEVEL_NAMES = ['none', 'view', 'full'];
 
+/** TTL (seconds) for the permission cache entry. Single source of truth. */
+export const PERM_CACHE_TTL_SECONDS = 900;
+
+/**
+ * Cache key shape — single source of truth, shared with `authRedis`.
+ * Tenant code is lowercased here because the request-time middleware
+ * lowercases its lookup key (see `authRedis.js`'s `homeTenantCode` /
+ * `tenantCode` derivations). Without normalizing in this one place,
+ * login-time priming would write `perm:<uid>:AXERRA` while reads went
+ * to `perm:<uid>:axerra`, missing the primed entry on every request.
+ */
+export function permCacheKey(userId, tenantCode) {
+  const normalized = tenantCode == null ? '' : String(tenantCode).toLowerCase();
+  return `perm:${userId}:${normalized}`;
+}
+
+/**
+ * Write a permission canon to Redis under the standard cache key. Used by
+ * both the login-time prime path (`authController.login`) and the
+ * request-time lazy hydration in `authRedis` (the DB-fallback branch that
+ * fires on a cache miss) so the key shape lives in one place. Redis
+ * errors are swallowed — the cache is an optimization, not the source
+ * of truth.
+ */
+export async function primePermCache(userId, tenantCode, canon) {
+  if (!userId || !tenantCode || !canon) return;
+  try {
+    const redis = await getRedis();
+    await redis.set(permCacheKey(userId, tenantCode), JSON.stringify(canon), 'EX', PERM_CACHE_TTL_SECONDS);
+  } catch {
+    // Redis unavailable — fall through; lazy hydration on next request handles it.
+  }
+}
+
 /** Scope hierarchy: higher value = broader access. Most permissive wins on merge. */
 const SCOPE_ORDER = { self: 0, assigned_projects: 1, assigned_companies: 2, all_projects: 3 };
 
-/** Maps entity_type to the table name in the tenant schema. */
-const ENTITY_TABLE_MAP = {
+/**
+ * Maps `entity_type` (from `admin.portal_user_tenants`) to the
+ * pg-schemata MODEL KEY passed into `db(modelName, schemaName)` — not
+ * the literal SQL table name. The two differ for multi-word entities
+ * (model key `vendorContacts`, SQL table `vendor_contacts`); single
+ * lowercase entities happen to coincide. `vendor_contact` is the value
+ * actually written to the CHECK-constrained `entity_type` column,
+ * alongside `employee` and `client`. `vendor` and `contact` are kept
+ * here for forward compatibility with downstream features that may
+ * bind a portal user directly to a vendor or one-off contact.
+ */
+const ENTITY_MODEL_MAP = {
   employee: 'employees',
   vendor: 'vendors',
+  vendor_contact: 'vendorContacts',
   client: 'clients',
   contact: 'contacts',
 };
@@ -55,11 +101,11 @@ const EMPTY_CANON = Object.freeze({
 async function resolveEntityRoles(schemaName, entityType, entityId) {
   if (!entityType || !entityId) return [];
 
-  const tableName = ENTITY_TABLE_MAP[entityType];
-  if (!tableName) return [];
+  const modelName = ENTITY_MODEL_MAP[entityType];
+  if (!modelName) return [];
 
   try {
-    const modelInstance = db(tableName, schemaName);
+    const modelInstance = db(modelName, schemaName);
     if (!modelInstance) return [];
 
     const entity = await modelInstance.findById(entityId);
@@ -260,4 +306,4 @@ export async function loadPermissions({ schemaName, userId, entityType = null, e
   };
 }
 
-export default { loadPermissions };
+export default { loadPermissions, primePermCache, permCacheKey, PERM_CACHE_TTL_SECONDS };

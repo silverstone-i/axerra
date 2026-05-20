@@ -56,9 +56,23 @@ vi.mock('../../src/services/tenantProvisioning.js', () => ({
   provisionTenant: vi.fn().mockResolvedValue({ applied: [] }),
 }));
 
-// Mock permission loader
+// Mock permission loader. `loadPermissions` must return a canon with
+// non-empty `caps` so the Phase-3 login gate doesn't reject the mock
+// user. `primePermCache` is a no-op in this test (no real Redis).
 vi.mock('../../src/services/permissionLoader.js', () => ({
-  loadPermissions: vi.fn().mockResolvedValue({}),
+  loadPermissions: vi.fn().mockResolvedValue({
+    caps: { 'reports::reports::view': 'full' },
+    scope: 'all_projects',
+    projectIds: null,
+    companyIds: null,
+    entityType: null,
+    entityId: null,
+    stateFilters: {},
+    fieldGroups: {},
+  }),
+  primePermCache: vi.fn().mockResolvedValue(undefined),
+  permCacheKey: (uid, tenantCode) => `perm:${uid}:${tenantCode}`,
+  PERM_CACHE_TTL_SECONDS: 900,
 }));
 
 // Mock DB

@@ -14,7 +14,43 @@ import { setAuthCookies, clearAuthCookies } from '../../../lib/cookies.js';
 import jwt from 'jsonwebtoken';
 import db, { pgp } from '../../../db/db.js';
 import { invalidateByUser } from '../../../services/permCacheInvalidator.js';
+import { loadPermissions, primePermCache } from '../../../services/permissionLoader.js';
+import { calcPermHash } from '../../../lib/permHash.js';
 import logger from '../../../lib/logger.js';
+
+const NO_PERMISSIONS_MESSAGE = 'Your account has no permissions assigned. Contact your administrator.';
+
+/**
+ * Resolve a portal_user's RBAC canon for their home tenant, and refuse
+ * to issue tokens when the canon's `caps` is empty. Shared by `login`
+ * (Passport-authenticated) and `refresh` (refresh-token-authenticated)
+ * so the gate fires on every token issuance, not just the first one.
+ *
+ * Returns `{ ph, permissions, tenantCode }` on success, `null` after
+ * having written a 403 to the response on failure.
+ */
+async function resolveAndGatePermissions(res, user, tenant, binding) {
+  const permissions = await loadPermissions({
+    schemaName: tenant.schema_name,
+    userId: user.id,
+    entityType: binding?.entity_type ?? null,
+    entityId: binding?.entity_id ?? null,
+  });
+
+  if (!permissions.caps || Object.keys(permissions.caps).length === 0) {
+    logger.warn('Login blocked — empty permission set', {
+      userId: user.id,
+      tenantCode: tenant.tenant_code,
+      entityType: binding?.entity_type ?? null,
+      entityId: binding?.entity_id ?? null,
+    });
+    res.status(403).json({ message: NO_PERMISSIONS_MESSAGE });
+    return null;
+  }
+
+  await primePermCache(user.id, tenant.tenant_code, permissions);
+  return { ph: calcPermHash(permissions), permissions, tenantCode: tenant.tenant_code };
+}
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const EMAIL_MAX_LEN = 128;
@@ -34,19 +70,27 @@ export const login = (req, res, next) => {
       return res.status(400).json({ message: info?.message || 'Login failed' });
     }
 
-    const _tenant = user._tenant;
+    try {
+      // Phase 3: load RBAC permissions for the home tenant and gate the
+      // token issuance on the result. A user with no caps (no entity, no
+      // roles, or roles that don't resolve to any policy) is refused with
+      // 403 — credentials were valid, but the account is unusable. The
+      // canon is then primed into the Redis cache so the user's first
+      // authenticated request doesn't repeat the load.
+      const gate = await resolveAndGatePermissions(res, user, user._tenant, user._binding);
+      if (!gate) return; // resolveAndGatePermissions wrote the 403
 
-    // Phase 3 will add RBAC permission loading and Redis caching here.
-    // For now, ph is null (no permission hash).
-    const ph = null;
+      const accessToken = signAccessToken(user, { sub: user.id, ph: gate.ph });
+      const refreshToken = signRefreshToken(user, { sub: user.id });
 
-    const accessToken = signAccessToken(user, { sub: user.id, ph });
-    const refreshToken = signRefreshToken(user, { sub: user.id });
+      setAuthCookies(res, { accessToken, refreshToken });
 
-    setAuthCookies(res, { accessToken, refreshToken });
-
-    const forcePasswordChange = user.status === 'invited';
-    return res.json({ message: 'Logged in successfully', forcePasswordChange });
+      const forcePasswordChange = user.status === 'invited';
+      return res.json({ message: 'Logged in successfully', forcePasswordChange });
+    } catch (loadErr) {
+      logger.error('Login permission load failed', { userId: user.id, error: loadErr.message });
+      return res.status(500).json({ message: 'Login failed' });
+    }
   })(req, res, next);
 };
 
@@ -68,16 +112,38 @@ export const refresh = async (req, res) => {
     const user = await db('portalUsers', 'admin').findOneBy([{ id: decoded.sub }]);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    // Phase 3 will add RBAC permission reload here
-    const ph = null;
+    // Re-fetch the user's home binding + tenant so the same Phase 3 gate
+    // applies on refresh — a user whose authorization has been revoked
+    // since their last login (roles unassigned, entity archived) must
+    // not be allowed to rotate to a fresh access token.
+    const homeRow = await db.oneOrNone(
+      `SELECT t.*,
+              b.entity_type AS _home_entity_type,
+              b.entity_id   AS _home_entity_id
+         FROM admin.portal_user_tenants b
+         JOIN admin.tenants t ON t.id = b.tenant_id
+        WHERE b.portal_user_id = $1 AND b.deactivated_at IS NULL
+        ORDER BY b.created_at ASC
+        LIMIT 1`,
+      [user.id],
+    );
+    if (!homeRow || homeRow.deactivated_at !== null) {
+      return res.status(403).json({ message: 'Tenant is inactive.' });
+    }
+    const { _home_entity_type, _home_entity_id, ...tenant } = homeRow;
+    const binding = { entity_type: _home_entity_type ?? null, entity_id: _home_entity_id ?? null };
 
-    const accessToken = signAccessToken(user, { sub: user.id, ph });
+    const gate = await resolveAndGatePermissions(res, user, tenant, binding);
+    if (!gate) return;
+
+    const accessToken = signAccessToken(user, { sub: user.id, ph: gate.ph });
     const refreshToken = signRefreshToken(user, { sub: user.id });
 
     setAuthCookies(res, { accessToken, refreshToken });
 
     return res.json({ message: 'Access token refreshed' });
-  } catch {
+  } catch (err) {
+    logger.error('Refresh failed', { userId: decoded?.sub, error: err.message });
     return res.status(500).json({ message: 'Error refreshing token' });
   }
 };

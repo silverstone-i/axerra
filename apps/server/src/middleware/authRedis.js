@@ -11,12 +11,11 @@
 
 import jwt from 'jsonwebtoken';
 import logger from '../lib/logger.js';
-import { loadPermissions } from '../services/permissionLoader.js';
+import { loadPermissions, primePermCache, permCacheKey } from '../services/permissionLoader.js';
 import { calcPermHash } from '../lib/permHash.js';
 import { getRedis } from '../db/redis.js';
 
 const AUTH_BYPASS_SEGMENTS = ['/auth/login', '/auth/refresh', '/auth/logout'];
-const PERM_CACHE_TTL = 900; // 15 minutes
 
 /**
  * Check if the request path should bypass authentication.
@@ -32,30 +31,19 @@ function shouldBypassAuth(path, fullPath) {
 }
 
 /**
- * Try to read cached permissions from Redis.
+ * Try to read cached permissions from Redis. The write side lives in
+ * `permissionLoader.primePermCache` so the key shape stays in one place.
  * @returns {object|null} Cached permission canon, or null on miss/error
  */
 async function getCachedPermissions(userId, tenantCode) {
   try {
     const redis = await getRedis();
-    const cached = await redis.get(`perm:${userId}:${tenantCode}`);
+    const cached = await redis.get(permCacheKey(userId, tenantCode));
     if (cached) return JSON.parse(cached);
   } catch {
     // Redis unavailable — fall through to DB
   }
   return null;
-}
-
-/**
- * Cache permissions in Redis.
- */
-async function cachePermissions(userId, tenantCode, canon) {
-  try {
-    const redis = await getRedis();
-    await redis.set(`perm:${userId}:${tenantCode}`, JSON.stringify(canon), 'EX', PERM_CACHE_TTL);
-  } catch {
-    // Redis unavailable — non-fatal
-  }
 }
 
 /**
@@ -192,8 +180,8 @@ export function authRedis() {
       // once the user gains a binding to that tenant.
       const fellBackToHome = activeBinding === homeBinding;
       const schemaName = fellBackToHome ? homeSchemaName : effectiveTenantRecord.schema_name;
-      const permCacheKey = fellBackToHome ? homeTenantCode : tenantCode;
-      let permissions = await getCachedPermissions(uid, permCacheKey);
+      const cacheTenantCode = fellBackToHome ? homeTenantCode : tenantCode;
+      let permissions = await getCachedPermissions(uid, cacheTenantCode);
 
       if (!permissions) {
         permissions = await loadPermissions({
@@ -202,7 +190,7 @@ export function authRedis() {
           entityType: activeBinding.entity_type,
           entityId: activeBinding.entity_id,
         });
-        await cachePermissions(uid, permCacheKey, permissions);
+        await primePermCache(uid, cacheTenantCode, permissions);
       }
 
       // ── Stale Token Detection ───────────────────────────────────────────
