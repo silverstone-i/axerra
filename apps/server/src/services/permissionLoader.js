@@ -22,12 +22,20 @@ import { getRedis } from '../db/redis.js';
 const LEVEL_ORDER = { none: 0, view: 1, full: 2 };
 const LEVEL_NAMES = ['none', 'view', 'full'];
 
-/** TTL for the permission cache entry. Matches authRedis.js `PERM_CACHE_TTL`. */
+/** TTL (seconds) for the permission cache entry. Single source of truth. */
 export const PERM_CACHE_TTL_SECONDS = 900;
 
-/** Cache key shape — single source of truth, shared with authRedis. */
+/**
+ * Cache key shape — single source of truth, shared with `authRedis`.
+ * Tenant code is lowercased here because the request-time middleware
+ * lowercases its lookup key (see `authRedis.js`'s `homeTenantCode` /
+ * `tenantCode` derivations). Without normalizing in this one place,
+ * login-time priming would write `perm:<uid>:AXERRA` while reads went
+ * to `perm:<uid>:axerra`, missing the primed entry on every request.
+ */
 export function permCacheKey(userId, tenantCode) {
-  return `perm:${userId}:${tenantCode}`;
+  const normalized = tenantCode == null ? '' : String(tenantCode).toLowerCase();
+  return `perm:${userId}:${normalized}`;
 }
 
 /**
