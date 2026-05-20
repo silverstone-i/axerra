@@ -36,9 +36,13 @@ passport.use(
       const isMatch = await bcrypt.compare(password, user.password_hash);
       if (!isMatch) return done(null, false, { message: 'Incorrect password.' });
 
-      // Resolve home binding + tenant
-      const tenant = await db.oneOrNone(
-        `SELECT t.*
+      // Resolve home binding + tenant. We pull the binding's polymorphic
+      // entity link (entity_type, entity_id) so the auth controller can
+      // run RBAC permission loading at login without re-querying.
+      const homeRow = await db.oneOrNone(
+        `SELECT t.*,
+                b.entity_type AS _home_entity_type,
+                b.entity_id   AS _home_entity_id
          FROM admin.portal_user_tenants b
          JOIN admin.tenants t ON t.id = b.tenant_id
          WHERE b.portal_user_id = $1 AND b.deactivated_at IS NULL
@@ -46,12 +50,19 @@ passport.use(
          LIMIT 1`,
         [user.id],
       );
-      if (!tenant || tenant.deactivated_at !== null) {
+      if (!homeRow || homeRow.deactivated_at !== null) {
         return done(null, false, { message: 'Tenant is inactive.' });
       }
 
-      // Attach tenant context for the auth controller
+      // Separate the binding fields so `user._tenant` stays the clean
+      // tenants row shape; the home binding's entity link lives on
+      // `user._binding`.
+      const { _home_entity_type, _home_entity_id, ...tenant } = homeRow;
       user._tenant = tenant;
+      user._binding = {
+        entity_type: _home_entity_type ?? null,
+        entity_id: _home_entity_id ?? null,
+      };
 
       return done(null, user);
     } catch (err) {

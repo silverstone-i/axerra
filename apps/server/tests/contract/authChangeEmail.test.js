@@ -119,7 +119,7 @@ describe('PATCH /api/auth/me/email — self-service login email change', () => {
         last_name: 'Shared',
         email: ORIGINAL_EMAIL,
         is_app_user: true,
-        roles: ['vendor'],
+        roles: ['vendor_contact'],
         password: 'SallyPass123!',
       });
     expect(cA.status).toBe(201);
@@ -134,7 +134,7 @@ describe('PATCH /api/auth/me/email — self-service login email change', () => {
         last_name: 'Shared',
         email: ORIGINAL_EMAIL,
         is_app_user: true,
-        roles: ['vendor'],
+        roles: ['vendor_contact'],
         password: 'IgnoredPass123!',
       });
     expect(cB.status).toBe(201);

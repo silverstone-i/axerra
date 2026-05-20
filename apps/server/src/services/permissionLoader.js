@@ -17,17 +17,52 @@
 
 import db from '../db/db.js';
 import logger from '../lib/logger.js';
+import { getRedis } from '../db/redis.js';
 
 const LEVEL_ORDER = { none: 0, view: 1, full: 2 };
 const LEVEL_NAMES = ['none', 'view', 'full'];
 
+/** TTL for the permission cache entry. Matches authRedis.js `PERM_CACHE_TTL`. */
+export const PERM_CACHE_TTL_SECONDS = 900;
+
+/** Cache key shape — single source of truth, shared with authRedis. */
+export function permCacheKey(userId, tenantCode) {
+  return `perm:${userId}:${tenantCode}`;
+}
+
+/**
+ * Write a permission canon to Redis under the standard cache key. Used by
+ * both the login-time prime path (`authController.login`) and the lazy
+ * hydration path (`authRedis.cachePermissions`) so the key shape lives in
+ * one place. Redis errors are swallowed — the cache is an optimization,
+ * not the source of truth.
+ */
+export async function primePermCache(userId, tenantCode, canon) {
+  if (!userId || !tenantCode || !canon) return;
+  try {
+    const redis = await getRedis();
+    await redis.set(permCacheKey(userId, tenantCode), JSON.stringify(canon), 'EX', PERM_CACHE_TTL_SECONDS);
+  } catch {
+    // Redis unavailable — fall through; lazy hydration on next request handles it.
+  }
+}
+
 /** Scope hierarchy: higher value = broader access. Most permissive wins on merge. */
 const SCOPE_ORDER = { self: 0, assigned_projects: 1, assigned_companies: 2, all_projects: 3 };
 
-/** Maps entity_type to the table name in the tenant schema. */
+/**
+ * Maps entity_type to the table name in the tenant schema. `vendor_contact`
+ * is included even though there's no plain `vendor` portal-user pattern —
+ * the actual entity_type values written to `admin.portal_user_tenants`
+ * (see the CHECK constraint on that table) are `employee`, `client`, and
+ * `vendor_contact`. The other entries (`vendor`, `contact`) are kept for
+ * forward compatibility with downstream features that may bind a portal
+ * user directly to a vendor or one-off contact.
+ */
 const ENTITY_TABLE_MAP = {
   employee: 'employees',
   vendor: 'vendors',
+  vendor_contact: 'vendorContacts',
   client: 'clients',
   contact: 'contacts',
 };
@@ -260,4 +295,4 @@ export async function loadPermissions({ schemaName, userId, entityType = null, e
   };
 }
 
-export default { loadPermissions };
+export default { loadPermissions, primePermCache, permCacheKey, PERM_CACHE_TTL_SECONDS };
