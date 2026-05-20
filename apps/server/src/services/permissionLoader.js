@@ -40,10 +40,11 @@ export function permCacheKey(userId, tenantCode) {
 
 /**
  * Write a permission canon to Redis under the standard cache key. Used by
- * both the login-time prime path (`authController.login`) and the lazy
- * hydration path (`authRedis.cachePermissions`) so the key shape lives in
- * one place. Redis errors are swallowed — the cache is an optimization,
- * not the source of truth.
+ * both the login-time prime path (`authController.login`) and the
+ * request-time lazy hydration in `authRedis` (the DB-fallback branch that
+ * fires on a cache miss) so the key shape lives in one place. Redis
+ * errors are swallowed — the cache is an optimization, not the source
+ * of truth.
  */
 export async function primePermCache(userId, tenantCode, canon) {
   if (!userId || !tenantCode || !canon) return;
@@ -59,15 +60,17 @@ export async function primePermCache(userId, tenantCode, canon) {
 const SCOPE_ORDER = { self: 0, assigned_projects: 1, assigned_companies: 2, all_projects: 3 };
 
 /**
- * Maps entity_type to the table name in the tenant schema. `vendor_contact`
- * is included even though there's no plain `vendor` portal-user pattern —
- * the actual entity_type values written to `admin.portal_user_tenants`
- * (see the CHECK constraint on that table) are `employee`, `client`, and
- * `vendor_contact`. The other entries (`vendor`, `contact`) are kept for
- * forward compatibility with downstream features that may bind a portal
- * user directly to a vendor or one-off contact.
+ * Maps `entity_type` (from `admin.portal_user_tenants`) to the
+ * pg-schemata MODEL KEY passed into `db(modelName, schemaName)` — not
+ * the literal SQL table name. The two differ for multi-word entities
+ * (model key `vendorContacts`, SQL table `vendor_contacts`); single
+ * lowercase entities happen to coincide. `vendor_contact` is the value
+ * actually written to the CHECK-constrained `entity_type` column,
+ * alongside `employee` and `client`. `vendor` and `contact` are kept
+ * here for forward compatibility with downstream features that may
+ * bind a portal user directly to a vendor or one-off contact.
  */
-const ENTITY_TABLE_MAP = {
+const ENTITY_MODEL_MAP = {
   employee: 'employees',
   vendor: 'vendors',
   vendor_contact: 'vendorContacts',
@@ -98,11 +101,11 @@ const EMPTY_CANON = Object.freeze({
 async function resolveEntityRoles(schemaName, entityType, entityId) {
   if (!entityType || !entityId) return [];
 
-  const tableName = ENTITY_TABLE_MAP[entityType];
-  if (!tableName) return [];
+  const modelName = ENTITY_MODEL_MAP[entityType];
+  if (!modelName) return [];
 
   try {
-    const modelInstance = db(tableName, schemaName);
+    const modelInstance = db(modelName, schemaName);
     if (!modelInstance) return [];
 
     const entity = await modelInstance.findById(entityId);

@@ -5,7 +5,10 @@
  * Locks in the behavior introduced by Phase 3 (`authController.login`):
  *   - Properly-configured user (root admin) logs in successfully, gets
  *     cookies, and the permission canon is primed into Redis at the
- *     standard cache key (`perm:${userId}:${tenantCode}`).
+ *     standard cache key produced by `permCacheKey(userId, tenantCode)`
+ *     (`perm:${userId}:${tenantCode.toLowerCase()}` — tenant code is
+ *     normalized to lowercase so login-side writes line up with the
+ *     request-side reads in `authRedis`).
  *   - Bare-registered user with no entity binding (entity_type/entity_id
  *     are NULL on the home binding) is refused with 403 + the documented
  *     message and no cookies are set.
