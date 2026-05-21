@@ -34,6 +34,32 @@ jobs:
       - name: Verify production dependency licenses are AGPL-compatible
         run: node scripts/checkLicenses.js
 
+  doc-coverage:
+    name: Doc Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+      - name: Compute SKIP flag from no-doc-change label
+        id: skipflag
+        run: |
+          if echo '${{ toJSON(github.event.pull_request.labels.*.name) }}' | grep -qw '"no-doc-change"'; then
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=0" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Verify code changes carry matching rules-file edits
+        env:
+          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          SKIP_DOC_COVERAGE: ${{ steps.skipflag.outputs.skip }}
+        run: |
+          git fetch origin "${{ github.event.pull_request.base.ref }}"
+          node scripts/checkDocCoverage.js
+
   arch-check:
     name: Architecture Check
     runs-on: ubuntu-latest

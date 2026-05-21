@@ -4,11 +4,11 @@
 
 Every H2 (`##`) and H3 (`###`) heading in this document carries one of three scope tags:
 
-- **[in-scope]** — part of the current build plan. Spec body describes what is intended; implementation may be partial. Drift between spec and code is tracked in `docs/gap-analysis.md`.
+- **[in-scope]** — part of the current build plan. Spec body describes what is intended; implementation may be partial. Status tags on individual paragraphs distinguish `[implemented]` from `[intended]` work.
 - **[deferred]** — known requirement, not in the current build window. The section exists so the requirement is captured; a spec body is written when the section graduates to in-scope.
 - **[out-of-scope]** — explicitly not part of AXERRA. Listed so contributors don't propose it.
 
-Status tags applied at the paragraph or bullet level (`[intended]`, `[implemented]`, `[superseded]`) supplement the section scope tag where needed. See `docs/PRD-outline.md` for the per-section restructure plan.
+Status tags applied at the paragraph or bullet level (`[intended]`, `[implemented]`, `[superseded]`) supplement the section scope tag where needed.
 
 ## 1. Overview  [in-scope]
 
@@ -387,13 +387,29 @@ All roles — including system roles — go through the full RBAC policy resolut
 - **Layer 1 (opt-in middleware):** `withMeta({ module, router, action })` annotates `req.resource`. `rbac(requiredLevel)` can be explicitly added to routes that need per-action permission checks — it resolves the user's policy level from `caps` and returns 403 if insufficient. GET/HEAD default to `view`; mutations default to `full`. `createRouter` auto-applies `rbac()` on import/export routes: `rbac('full')` on `/import-xls` (with `setImportAction` overriding `req.resource.action = 'import'`) and `rbac('view')` on `/export-xls` (with `setExportAction` overriding `req.resource.action = 'export'`). For custom endpoints, `rbac()` is manually added (e.g., `employees/:id/reset-password`, `ar-invoices/approve`). Standard CRUD routes (POST, GET, PUT, DELETE, PATCH) from `createRouter` do **not** include `rbac()` — they rely on `moduleEntitlement` for access control. Permissions are resolved from entity `roles` array → `policies` for ALL users — no role-based bypass or short-circuit.
 - **Layers 2-4 (service layer):** `ViewController._applyRbacFilters()` applies scope, state, and field filters. Controllers opt in via `this.rbacConfig = { module, router, scopeColumn, entityScopeColumns }`. The `entityScopeColumns` mapping tells the `self` scope which FK column to filter for each entity type (e.g., `{ vendor: 'vendor_id', client: 'client_id', employee: 'employee_id' }`).
 
-**Admin Policy Auto-Seeding:**
+**Policy Seeding by Role Class:**
 
-- When a new module is added to the platform, its migration seeds `level: 'full'` policies for the `admin` role in every existing tenant schema
-- Ensures `admin` always has complete access without manual intervention
-- New tenant provisioning includes admin policies for all modules enabled by the tenant's `allowed_modules`
+Two mechanisms coexist by design. The choice is driven by whether the role is **idempotent** (its capability set is fixed and cannot change as new modules ship) or **module-sensitive** (its policies must grow when a new module is introduced).
 
-> **State as of 2026-05-21 (gap 1.7):** The shipped behaviour is a simpler single `module: ''` wildcard `level: 'full'` grant for the `admin` role (`systemRoleSeeder.js:66`). The per-module retroactive seeder described above is the intended end-state and is tracked as roadmap item 10. Until that lands, admin access is delivered via the wildcard.
+*Idempotent roles — wildcard policy at seed time* `[implemented]`
+
+Five system roles are idempotent and receive a single wildcard `level: 'full'` policy with `module: ''` (and the corresponding role-shaped scope rules) at tenant creation. Adding a new module does NOT require backfilling these roles — the wildcard already covers every module, present and future. Implementation: `apps/server/src/system/auth/services/systemRoleSeeder.js`.
+
+| Role | Scope | Why idempotent |
+| ---- | ----- | -------------- |
+| `super_user`    | Cross-tenant, Axerra-only | Platform operator; always full access across every tenant. |
+| `admin`         | All modules within their tenant | Always full access within the tenant; module set is irrelevant. |
+| `support`       | Cross-tenant, Axerra-only, excluding `FINANCIAL_MODULES` | Capability set fixed by Axerra; module changes don't alter the contract. |
+| `vendor_contact` | Vendor-shaped scope (their own vendor record + linked transactions) | Capability set fixed by the vendor-portal contract. |
+| `client`        | Client-shaped scope (their own projects + linked AR records) | Capability set fixed by the client-portal contract. |
+
+*Module-sensitive roles — per-module retroactive seeder* `[intended]`
+
+All other roles — `accountant`, `ap_clerk`, `ar_clerk`, `project_manager`, `procurement`, `cfo`, and any tenant-defined custom role — receive explicit per-module policy rows. Each role's policies enumerate the (module, router, action, level) tuples it can perform; the wildcard mechanism above is not available because these roles must be denyable on a per-module basis.
+
+When a new module ships, every existing tenant schema must be backfilled with the new module's policy rows for every module-sensitive role that already exists in that tenant. This retroactive seeder runs from the module's migration, walks `admin.tenants`, and inserts the per-(role, module) policy set into each tenant schema. New tenant provisioning calls the same seeder for every module currently enabled in the tenant's `allowed_modules`.
+
+The retroactive seeder is NOT yet built. Tenants stood up before a module ships will lack policies for that module until the seeder lands; in the interim, tenant admins can add policies manually via the RBAC management endpoints. (Tracked via the `[intended]` status tag on this paragraph — anyone scanning §3.1.2 sees the open work directly. Resolves gap 1.7 by accurately documenting the two-mechanism design, 2026-05-21.)
 
 **Policy-Catalog Carve-Outs (as of 2026-05-21):**
 
