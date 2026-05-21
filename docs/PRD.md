@@ -221,9 +221,15 @@ Browser -> Vite Dev Proxy (/api -> :3000) -> Express
   -> authRedis() [JWT verify, tenant resolve, permission load, set X-Token-Stale on ph mismatch]
   -> auditContext() [AsyncLocalStorage request context — depends on req.user from authRedis]
   -> /api/<module>/v1/<resource>
-  -> [requireRootTenant (admin routes)] -> [addAuditFields (mutations only)] -> [withMeta (user-supplied)] -> [moduleEntitlement (auto-appended)] -> [rbac() (auto on import/export; opt-in elsewhere)] -> Controller -> pg-schemata Model (schema-aware)
+  -> (per-route middleware chain — see GET vs mutation below)
   -> errorHandler() [unified Express 5 error mapping]
   -> Response
+
+GET / HEAD routes (createRouter does NOT prepend addAuditFields):
+  -> [requireRootTenant (admin routes)] -> [withMeta (user-supplied)] -> [moduleEntitlement (auto-appended)] -> [rbac('view') (auto on /export-xls; opt-in elsewhere)] -> Controller -> pg-schemata Model
+
+POST / PUT / DELETE / PATCH mutation routes (createRouter prepends addAuditFields):
+  -> addAuditFields (auto-prepended) -> [requireRootTenant (admin routes)] -> [withMeta (user-supplied)] -> [moduleEntitlement (auto-appended)] -> [rbac('full') (auto on /import-xls; opt-in elsewhere)] -> Controller -> pg-schemata Model
 ```
 
 > **Note:** `createRouter` automatically prepends `addAuditFields` on mutation routes (POST, PUT, DELETE, PATCH) and appends `moduleEntitlement` on all routes — with two exceptions: `/ping` has no middleware, and `POST /export-xls` uses read-level middleware (no `addAuditFields`). The `withMeta` middleware is passed by each router via per-method middleware arrays. `rbac()` is auto-applied on `/import-xls` (`rbac('full')`) and `/export-xls` (`rbac('view')`) routes with action overrides (`setImportAction` / `setExportAction`). For other routes, `rbac()` must be explicitly added (e.g. `portalUsersRouter` per-method arrays, `employees/:id/reset-password`, `ar-invoices/approve`).

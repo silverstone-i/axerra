@@ -116,3 +116,53 @@ authRedis → withMeta → moduleEntitlement → rbac → controller
 - `moduleEntitlement` checks tenant's `allowed_modules`
 - `rbac(level)` enforces Layer 1 capabilities
 - Controller's `_applyRbacFilters()` applies Layers 2-4
+
+## Business Rules
+
+The PRD links to anchored business rules below. Anchors are explicit
+HTML so PRD cross-references resolve regardless of heading edits.
+
+<a id="br-rbac-043"></a>
+
+### BR-RBAC-043 — Cross-tenant access via `x-tenant-code`
+
+Axerra users (members of the root tenant) can switch tenant context on
+a per-request basis by sending the `x-tenant-code` header. `authRedis`
+resolves the target tenant and re-loads the permission canon for that
+binding before the request reaches the route handler. No dedicated
+endpoint is required — every authenticated route honors the header
+when the caller has cross-tenant scope. Non-root-tenant users sending
+the header are ignored (the header is treated as absent). Permission
+caches are keyed `perm:{userId}:{tenantCode}`, so each tenant context
+maintains its own warm cache.
+
+<a id="br-rbac-044"></a>
+
+### BR-RBAC-044 — Impersonation session lifecycle
+
+A super_user or support role member may start an impersonation
+session targeting another portal_user in any tenant. The session is
+recorded in `admin.impersonation_logs` (`impersonator_id`,
+`target_user_id`, `target_tenant_code`, `reason`, `started_at`) and
+mirrored to Redis at `imp:{userId}` with a TTL. Concurrent sessions
+for the same impersonator are prevented by a partial unique index on
+`impersonation_logs (impersonator_id) WHERE ended_at IS NULL` — a
+second start attempt returns `409 Conflict`. Sessions end either by
+explicit `/impersonation/end` (sets `ended_at`, clears the Redis key)
+or by TTL expiry; either path produces an audit-complete log row.
+
+<a id="br-rbac-048"></a>
+
+### BR-RBAC-048 — Impersonated request context
+
+While `imp:{userId}` is active, `authRedis` swaps `req.user` to the
+**target** user (so authorization runs against the impersonated
+context) and sets `req.user.is_impersonating = true` and
+`req.user.impersonated_by = <impersonator_id>`. Audit columns
+(`created_by` / `updated_by`) record the target user's id — actions
+look like they came from the target, with the impersonator preserved
+in the dedicated `impersonated_by` field. Routes that must refuse an
+impersonated session (e.g. orphan portal-users cleanup) check
+`req.user.is_impersonating` and respond `403`. `/auth/me` includes
+`impersonation: { active, impersonated_by }` so the client can show
+an "impersonating" banner.
