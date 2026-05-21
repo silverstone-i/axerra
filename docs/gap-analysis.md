@@ -224,6 +224,38 @@ Decisions recorded from a strategic discussion on 2026-05-20. These are forward 
   - **Findings: no AGPL-incompatible licenses identified.** MIT, BSD-2-Clause, Apache-2.0, and OFL-1.1 are all compatible with redistribution under AGPLv3 (permissive licenses can be sublicensed under copyleft; OFL applies to font files and does not constrain the surrounding code). No vendored third-party code with its own license header exists under `apps/` or `packages/`.
 - **PRD reference:** Add or update PRD heading **§14 Licensing** (propose new section if absent) and update PRD §13 *Initial Decisions to Document* to reference the relicense ADR. A new ADR `0027-relicense-mit-to-agplv3.md` is the appropriate decision-record artifact.
 
+### Phase B doc reconciliation — 2026-05-21
+
+The following gaps were closed by documentation-only edits in Phase B (PRD / rules / roadmap; no application code changed). Roadmap items 14, 15, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 39, 44 carry the per-item details.
+
+- **1.14** — PRD §3.1.1 step 4 now names the tenant-active check (`passportService.js:54`).
+- **2.1 / 4.26** — New PRD §3.14.1 documents the `emails` table; `rules/entities.md` adds an Email row.
+- **2.2** — New PRD §3.14.2 documents `tenant_preferences`.
+- **2.3 / 2.16** — PRD §3.3.1a notes the `VendorContactsPanel` + import/export routing; §4.6.3 lists the panel.
+- **2.4** — PRD §3.2.3 documents the orphan portal-users router + SQL helpers.
+- **2.6** — New PRD §3.14.3 documents the `countries` admin reference table.
+- **2.7 / 4.28** — PRD §3.1.2 documents the `EXACT_MATCH_KEYS` carve-out.
+- **2.8** — PRD §3.1.2 documents `policyCatalogReconciler` + reseed migrations + CLI.
+- **2.9 / 2.11** — PRD §4.3 documents `auditContext`, `requestContext`, `registerAuditResolver`; §3.3.3 lists the app-user provisioning libs.
+- **2.10 / 2.21 / 2.12** — PRD §2.4 middleware reference now names `requireRootTenant`, `errorHandler`, `permCacheInvalidator`, `rbacQueryContext`, `permissionLoader`.
+- **2.13** — PRD §3.3.4 names the client-side editable sections.
+- **2.14** — PRD §3.2.3 references `PlatformMaintenancePage.jsx`.
+- **2.15** — PRD §6.5 replaces the "non-exhaustive" note with a concrete shared-component inventory.
+- **2.17 / 2.18** — PRD §3.2.1 documents `provisionTenantCli.js` and `seedRootEntity.js`.
+- **2.19 / 2.20 / 4.15** — PRD §5.4 documents `modelPlanner` and extends the migration list to entry 17.
+- **2.23 / 4.27** — PRD §3.10.5 names `/dashboard/cashflow` as the live UI placement.
+- **2.24 / 4.14 / 4.4** — PRD §3.1.2 + §3.2.1 corrected: `allowed_modules` is read from `req.ctx.tenant.allowed_modules` (not a separate Redis key) and the "whitelist" framing is removed.
+- **3.10 / 4.23** — PRD §3.2.2 access-control paragraph rewritten with the actual rbac wiring.
+- **3.11 / 3.12 / 4.11** — `email` columns removed from PRD §3.3.2 and §3.3.3; pointer to §3.14.1 / `emails` table added.
+- **3.25** — PRD §3.7.3 / §3.8.3 document the controller `VALID_METHODS` allowlist.
+- **3.26** — PRD §3.1.2 documents the `tenants::portal-users::import|export` carve-out with rationale.
+- **4.7** — Stale `policyCatalogRouter` `router: 'roles'` footnote removed from PRD §3.1.2.
+- **4.9 / 4.22** — `rules/rbac.md` now lists all four fallback steps including the `::::` wildcard.
+- **4.12** — PRD §13.5 extended with ADR-0024 / 0025 / 0026 / 0027.
+- **4.24** — PRD §3.1.2 Phase-2 `ph` claim replaced with the live Phase-3 wording.
+- **4.31** — PRD §3.10.6 aging-bucket prose now states 5 buckets matching the view DDL.
+- **1.7** — PRD §3.1.2 records the wildcard reality (roadmap item 10 still tracks the per-module retroactive seeder option).
+
 ### 5.4 — DCO sign-off requirement
 
 - **Tag:** [PROJECT]

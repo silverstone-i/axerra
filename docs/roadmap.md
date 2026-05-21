@@ -335,7 +335,7 @@ Ordered by dependency, then severity (Section 3), then PRD order (Section 1), th
   - Rules update: `docs/rules/projects.md`.
   - Tests added/changed: `apps/server/src/modules/projects/__tests__/projectsController.test.js` transition coverage.
 
-### [ ] 14. Update PRD entity sections to remove `email` columns on clients and employees
+### [x] 14. Update PRD entity sections to remove `email` columns on clients and employees
 
 - **Tag:** [PRD]
 - **Complexity:** (S)
@@ -353,7 +353,7 @@ Ordered by dependency, then severity (Section 3), then PRD order (Section 1), th
   - Rules update: `docs/rules/entities.md` if cross-references exist.
   - Tests added/changed: none.
 
-### [ ] 15. Document `portal-users` rbac wiring (PRD wording stale)
+### [x] 15. Document `portal-users` rbac wiring (PRD wording stale)
 
 - **Tag:** [PRD]
 - **Complexity:** (S)
@@ -407,7 +407,7 @@ Ordered by dependency, then severity (Section 3), then PRD order (Section 1), th
   - Rules update: none.
   - Tests added/changed: schema-level rejection test if available.
 
-### [ ] 18. Document tenant `active` check at login in PRD
+### [x] 18. Document tenant `active` check at login in PRD
 
 - **Tag:** [PRD]
 - **Complexity:** (S)
@@ -425,7 +425,7 @@ Ordered by dependency, then severity (Section 3), then PRD order (Section 1), th
   - Rules update: none.
   - Tests added/changed: none.
 
-### [ ] 19. Document `tenants::portal-users::import|export` carve-out in PRD
+### [x] 19. Document `tenants::portal-users::import|export` carve-out in PRD
 
 - **Tag:** [PRD]
 - **Complexity:** (S)
@@ -443,7 +443,7 @@ Ordered by dependency, then severity (Section 3), then PRD order (Section 1), th
   - Rules update: none.
   - Tests added/changed: none.
 
-### [ ] 20. Document AP/AR payment-method allowlist in PRD
+### [x] 20. Document AP/AR payment-method allowlist in PRD
 
 - **Tag:** [PRD]
 - **Complexity:** (S)
@@ -461,7 +461,7 @@ Ordered by dependency, then severity (Section 3), then PRD order (Section 1), th
   - Rules update: none.
   - Tests added/changed: none.
 
-### [ ] 21. Document `emails` first-class entity in PRD and rules/entities.md
+### [x] 21. Document `emails` first-class entity in PRD and rules/entities.md
 
 - **Tag:** [PRD]
 - **Complexity:** (S)
@@ -479,7 +479,7 @@ Ordered by dependency, then severity (Section 3), then PRD order (Section 1), th
   - Rules update: `docs/rules/entities.md`.
   - Tests added/changed: none.
 
-### [ ] 22. Document `tenant_preferences` module in PRD
+### [x] 22. Document `tenant_preferences` module in PRD
 
 - **Tag:** [PRD]
 - **Complexity:** (S)
@@ -497,7 +497,7 @@ Ordered by dependency, then severity (Section 3), then PRD order (Section 1), th
   - Rules update: none.
   - Tests added/changed: none.
 
-### [ ] 23. Document `countries` admin reference table in PRD
+### [x] 23. Document `countries` admin reference table in PRD
 
 - **Tag:** [PRD]
 - **Complexity:** (S)
@@ -515,7 +515,7 @@ Ordered by dependency, then severity (Section 3), then PRD order (Section 1), th
   - Rules update: none.
   - Tests added/changed: none.
 
-### [ ] 24. Document `vendor_contacts` entity + UI affordance and add §4.6.3 entry
+### [x] 24. Document `vendor_contacts` entity + UI affordance and add §4.6.3 entry
 
 - **Tag:** [PRD]
 - **Complexity:** (S)
@@ -533,7 +533,7 @@ Ordered by dependency, then severity (Section 3), then PRD order (Section 1), th
   - Rules update: none.
   - Tests added/changed: none.
 
-### [ ] 25. Document orphan portal-users admin surface
+### [x] 25. Document orphan portal-users admin surface
 
 - **Tag:** [PRD]
 - **Complexity:** (S)
@@ -551,7 +551,7 @@ Ordered by dependency, then severity (Section 3), then PRD order (Section 1), th
   - Rules update: `docs/rules/tenants.md` if not already.
   - Tests added/changed: none.
 
-### [ ] 26. Document `EXACT_MATCH_KEYS` policy-resolution carve-out
+### [x] 26. Document `EXACT_MATCH_KEYS` policy-resolution carve-out
 
 - **Tag:** [PRD]
 - **Complexity:** (S)
@@ -569,7 +569,7 @@ Ordered by dependency, then severity (Section 3), then PRD order (Section 1), th
   - Rules update: `docs/rules/rbac.md`.
   - Tests added/changed: none.
 
-### [ ] 27. Document policy-catalog reconciler + reseed migrations + CLI
+### [x] 27. Document policy-catalog reconciler + reseed migrations + CLI
 
 - **Tag:** [PRD]
 - **Complexity:** (S)
@@ -587,7 +587,7 @@ Ordered by dependency, then severity (Section 3), then PRD order (Section 1), th
   - Rules update: none.
   - Tests added/changed: none.
 
-### [ ] 28. Document app-user provisioning libs and audit/request-context middleware
+### [x] 28. Document app-user provisioning libs and audit/request-context middleware
 
 - **Tag:** [PRD]
 - **Complexity:** (S)
@@ -605,7 +605,7 @@ Ordered by dependency, then severity (Section 3), then PRD order (Section 1), th
   - Rules update: none.
   - Tests added/changed: none.
 
-### [ ] 29. Document `requireRootTenant`, `errorHandler`, client-side editable sections, Platform Maintenance page
+### [x] 29. Document `requireRootTenant`, `errorHandler`, client-side editable sections, Platform Maintenance page
 
 - **Tag:** [PRD]
 - **Complexity:** (S)
@@ -623,7 +623,7 @@ Ordered by dependency, then severity (Section 3), then PRD order (Section 1), th
   - Rules update: none.
   - Tests added/changed: none.
 
-### [ ] 30. Document tenant provisioning CLI and `seedRootEntity`
+### [x] 30. Document tenant provisioning CLI and `seedRootEntity`
 
 - **Tag:** [PRD]
 - **Complexity:** (S)
@@ -641,7 +641,7 @@ Ordered by dependency, then severity (Section 3), then PRD order (Section 1), th
   - Rules update: none.
   - Tests added/changed: none.
 
-### [ ] 31. Document migration tooling (`modelPlanner`, `moduleScopes`) and extend §5.4 migration list
+### [x] 31. Document migration tooling (`modelPlanner`, `moduleScopes`) and extend §5.4 migration list
 
 - **Tag:** [PRD]
 - **Complexity:** (S)
@@ -659,7 +659,7 @@ Ordered by dependency, then severity (Section 3), then PRD order (Section 1), th
   - Rules update: none.
   - Tests added/changed: none.
 
-### [ ] 32. Reconcile company-cashflow nav placement in PRD
+### [x] 32. Reconcile company-cashflow nav placement in PRD
 
 - **Tag:** [PRD]
 - **Complexity:** (S)
@@ -677,7 +677,7 @@ Ordered by dependency, then severity (Section 3), then PRD order (Section 1), th
   - Rules update: none.
   - Tests added/changed: none.
 
-### [ ] 33. Clarify `allowed_modules` wording and source
+### [x] 33. Clarify `allowed_modules` wording and source
 
 - **Tag:** [PRD]
 - **Complexity:** (S)
@@ -695,7 +695,7 @@ Ordered by dependency, then severity (Section 3), then PRD order (Section 1), th
   - Rules update: none.
   - Tests added/changed: none.
 
-### [ ] 34. Fix `rules/rbac.md` fallback step count (3 → 4 steps incl. `::::` wildcard)
+### [x] 34. Fix `rules/rbac.md` fallback step count (3 → 4 steps incl. `::::` wildcard)
 
 - **Tag:** [RULES]
 - **Complexity:** (S)
@@ -713,7 +713,7 @@ Ordered by dependency, then severity (Section 3), then PRD order (Section 1), th
   - Rules update: `docs/rules/rbac.md` fallback section.
   - Tests added/changed: none.
 
-### [ ] 35. Delete stale `policyCatalogRouter` `router: 'roles'` footnote in PRD
+### [x] 35. Delete stale `policyCatalogRouter` `router: 'roles'` footnote in PRD
 
 - **Tag:** [PRD]
 - **Complexity:** (S)
@@ -731,7 +731,7 @@ Ordered by dependency, then severity (Section 3), then PRD order (Section 1), th
   - Rules update: none.
   - Tests added/changed: none.
 
-### [ ] 36. Update §3.10.6 aging-bucket prose to 5 buckets
+### [x] 36. Update §3.10.6 aging-bucket prose to 5 buckets
 
 - **Tag:** [PRD]
 - **Complexity:** (S)
@@ -749,7 +749,7 @@ Ordered by dependency, then severity (Section 3), then PRD order (Section 1), th
   - Rules update: none.
   - Tests added/changed: none.
 
-### [ ] 37. Add ADR-0024, ADR-0025, ADR-0026 to §13.5 list
+### [x] 37. Add ADR-0024, ADR-0025, ADR-0026 to §13.5 list
 
 - **Tag:** [PRD]
 - **Complexity:** (S)
@@ -785,7 +785,7 @@ Ordered by dependency, then severity (Section 3), then PRD order (Section 1), th
   - Rules update: none.
   - Tests added/changed: none.
 
-### [ ] 39. Date-stamp PRD snapshot-state paragraphs (`rbac()`, `ph`, etc.)
+### [x] 39. Date-stamp PRD snapshot-state paragraphs (`rbac()`, `ph`, etc.)
 
 - **Tag:** [PRD]
 - **Complexity:** (S)
@@ -877,7 +877,7 @@ Ordered by dependency, then severity (Section 3), then PRD order (Section 1), th
   - Tests added/changed: integration tests under `apps/server/src/modules/core/__tests__/` covering both shared and scoped modes.
 - **Unknowns driving (L):** junction-table vs row-tagging tradeoff; interaction with RBAC scope filters; migration strategy for existing tenants opting in; default behavior when company assignment is partial.
 
-### [ ] 44. Document shared component inventory in PRD §6.5
+### [x] 44. Document shared component inventory in PRD §6.5
 
 - **Tag:** [PRD]
 - **Complexity:** (S)
@@ -962,3 +962,4 @@ Ordered by dependency, then severity (Section 3), then PRD order (Section 1), th
 - 2026-05-20: Initial roadmap created.
 - 2026-05-20: Sanity-check fixes: added gap 2.15 item; reclassified gap 1.1 planned; annotated 5 code/doc splits; corrected tags on items 9, 34, 43; added [RULES] tag; fixed Item 40 DoD label.
 - 2026-05-21: Phase A (legal & project hygiene) shipped. Items 38, 41, 42 marked done. LICENSE → AGPL-3.0-or-later; copyright → Ian Silverstone with SPDX tags across 684 files; README rewritten for horizontal-ERP positioning; COLLABORATION.md created with DCO 1.1; husky `commit-msg` hook enforces sign-off; npm license-check job added to CI (`scripts/checkLicenses.js`, `.licenses-allowed.json`, `.licenses-exceptions.json`); ADR-0027 records license / copyright / DCO / dependency policy decisions; AGENTS.md is now a symlink to CLAUDE.md.
+- 2026-05-21: Phase B (bulk PRD + rules reconciliation) shipped. Items 14, 15, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 39, 44 marked done. PRD edits: removed `email` columns from §3.3.2 / §3.3.3 with `emails`-table pointers; refreshed §3.2.2 portal-users RBAC wording; documented `EXACT_MATCH_KEYS`, the policy-catalog reconciler + CLI, the `tenants::portal-users::import|export` carve-out, and the wildcard admin auto-seed reality in §3.1.2; added AP/AR payment-method allowlist notes; added new §3.14 (Emails / Tenant Preferences / Countries); extended §3.3.4 with editable sections; expanded §2.4 Request Flow + §4.3 Audit Fields with `auditContext` / `requestContext` / `errorHandler` / `permCacheInvalidator`; documented orphan portal-users admin surface, Platform Maintenance page, tenant provisioning CLI, `seedRootEntity`, and `modelPlanner` / `moduleScopes`; extended §5.4 migration list to entry 17; reconciled `/dashboard/cashflow` placement; replaced 4-bucket aging prose with 5 buckets in §3.10.6; appended ADR-0024 / 0025 / 0026 / 0027 to §13.5; replaced §6.5 "non-exhaustive" shared-component note with a concrete inventory; corrected `allowed_modules` source / "whitelist" wording; cleaned up stale `policyCatalogRouter` footnote. Rules edits: `rules/rbac.md` four-step fallback + EXACT_MATCH note; `rules/entities.md` lists `emails` as a first-class entity.
