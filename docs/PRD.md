@@ -4,11 +4,11 @@
 
 Every H2 (`##`) and H3 (`###`) heading in this document carries one of three scope tags:
 
-- **[in-scope]** — part of the current build plan. Spec body describes what is intended; implementation may be partial. Drift between spec and code is tracked in `docs/gap-analysis.md`.
+- **[in-scope]** — part of the current build plan. Spec body describes what is intended; implementation may be partial. Status tags on individual paragraphs distinguish `[implemented]` from `[intended]` work.
 - **[deferred]** — known requirement, not in the current build window. The section exists so the requirement is captured; a spec body is written when the section graduates to in-scope.
 - **[out-of-scope]** — explicitly not part of AXERRA. Listed so contributors don't propose it.
 
-Status tags applied at the paragraph or bullet level (`[intended]`, `[implemented]`, `[superseded]`) supplement the section scope tag where needed. See `docs/PRD-outline.md` for the per-section restructure plan.
+Status tags applied at the paragraph or bullet level (`[intended]`, `[implemented]`, `[superseded]`) supplement the section scope tag where needed.
 
 ## 1. Overview  [in-scope]
 

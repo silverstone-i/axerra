@@ -25,9 +25,7 @@ axerra/
 └── docs/
     ├── PRD.md           # Product Requirements Document (intended state)
     ├── decisions/       # Architecture Decision Records (history)
-    ├── rules/           # Implementation rules per module
-    ├── gap-analysis.md  # Doc-vs-code reconciliation status
-    └── roadmap.md       # Execution roadmap
+    └── rules/           # Implementation rules per module
 ```
 
 ## License
