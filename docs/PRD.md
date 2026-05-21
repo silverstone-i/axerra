@@ -218,8 +218,8 @@ The UI follows a four-zone layout architecture:
 ```
 Browser -> Vite Dev Proxy (/api -> :3000) -> Express
   -> CORS -> express.json() -> express.urlencoded() -> cookieParser() -> Morgan logging
-  -> auditContext() [AsyncLocalStorage request context]
-  -> authRedis() [JWT verify, tenant resolve, permission load]
+  -> authRedis() [JWT verify, tenant resolve, permission load, set X-Token-Stale on ph mismatch]
+  -> auditContext() [AsyncLocalStorage request context — depends on req.user from authRedis]
   -> /api/<module>/v1/<resource>
   -> [requireRootTenant (admin routes)] -> [addAuditFields (mutations only)] -> [withMeta (user-supplied)] -> [moduleEntitlement (auto-appended)] -> [rbac() (auto on import/export; opt-in elsewhere)] -> Controller -> pg-schemata Model (schema-aware)
   -> errorHandler() [unified Express 5 error mapping]
@@ -230,9 +230,9 @@ Browser -> Vite Dev Proxy (/api -> :3000) -> Express
 
 > **Middleware reference (as of 2026-05-21, gaps 2.10 / 2.11 / 2.21):**
 >
-> - `apps/server/src/middleware/requireRootTenant.js` — gates admin / tenant-management routes. Returns 403 unless `req.user.tenant_code === process.env.ROOT_TENANT_CODE` (default `AXERRA`).
+> - `apps/server/src/middleware/requireRootTenant.js` — gates admin / tenant-management routes. Returns 403 unless `req.user.home_tenant?.toLowerCase()` equals `process.env.ROOT_TENANT_CODE` (default `axerra`, also lowercased). Comparison is case-insensitive.
 > - `apps/server/src/middleware/auditContext.js` — wraps each request in AsyncLocalStorage carrying the audit identity for model-layer hooks (paired with `lib/requestContext.js` and `lib/registerAuditResolver.js` — see §4.3).
-> - `apps/server/src/middleware/errorHandler.js` — unified Express 5 error handler; maps Zod errors → 400, pg-schemata violations → 422, auth errors → 401/403, and falls back to 500 with structured logging.
+> - `apps/server/src/middleware/errorHandler.js` — unified Express 5 error handler; maps `SchemaDefinitionError` / `type === 'validation'` → 400, pg-schemata `DatabaseError` 23505 (unique) → 409, 23503 (FK) → 422, application errors carrying `err.status` are returned with that status, all other unhandled errors → 500 with structured logging (and `err.message` in non-prod).
 > - `apps/server/src/services/{permCacheInvalidator,rbacQueryContext,permissionLoader}.js` — Redis cache invalidator (busts `perm:{userId}:{tenantCode}` on role/policy mutations), RBAC query context builder, and the permission loader that reads canon from DB on cache miss. See §3.1.2 and `rules/rbac.md`.
 
 ---
@@ -363,7 +363,7 @@ All roles — including system roles — go through the full RBAC policy resolut
 
 - Canonical form: `{ caps, scope, projectIds, companyIds, entityType, entityId, stateFilters, fieldGroups }`
 - Stored at `perm:{userId}:{tenantCode}`
-- SHA-256 permission hash designed for JWT (`ph` claim) — computed at login from the user's loaded permission canon (Phase 3, live as of commit `1ac6a21`, 2026-05-20). The `X-Token-Stale: 1` stale-detection logic exists in `authRedis` but is not yet wired (intended). (Resolves gap 4.24, 2026-05-21.)
+- SHA-256 permission hash designed for JWT (`ph` claim) — computed at login from the user's loaded permission canon (Phase 3, live as of commit `1ac6a21`, 2026-05-20). `authRedis` re-computes the hash on every request from the loaded canon and sets `X-Token-Stale: 1` when the request's `ph` claim diverges (`apps/server/src/middleware/authRedis.js:198-200`). Client-side handling of the header is intended but not yet wired. (Resolves gap 4.24, 2026-05-21.)
 - `authRedis` middleware reads the `roles` array from the entity record (resolved via `portal_users.entity_type` + `entity_id`), then queries `policies` for matching role IDs — NOT from a `portal_users.role` column or `role_members` table
 - `entityType` and `entityId` are included in the canon for `self` scope resolution
 
@@ -588,8 +588,8 @@ Bare `admin.portal_users` rows (no active `portal_user_tenants` binding and no t
 
 | Method | Path                                                       | Purpose                                                                                         |
 | ------ | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `GET`  | `/api/tenants/v1/orphan-portal-users/find_orphans`         | Preview up to N orphan rows + the total backlog count. Action `find_orphans`.                   |
-| `POST` | `/api/tenants/v1/orphan-portal-users/cleanup_orphans`      | Hard-delete a single orphan portal_user by id (transactional). Action `cleanup_orphans`.        |
+| `GET`  | `/api/tenants/v1/orphan-portal-users/orphans/preview`      | Preview up to N orphan rows + the total backlog count. Action `find_orphans` (set via `withMeta`).   |
+| `POST` | `/api/tenants/v1/orphan-portal-users/orphans/cleanup`      | Hard-delete a single orphan portal_user by id (transactional). Action `cleanup_orphans` (set via `withMeta`). |
 
 **Platform Maintenance UI:** `apps/client/src/pages/Tenant/PlatformMaintenancePage.jsx` (mounted under the Tenant admin nav group, Axerra-only) renders one card per maintenance operation. Orphan-portal-users find / cleanup is the first card; additional cross-tenant hygiene tools land here as separate cards. (Documented per gap 2.14, 2026-05-21.)
 
@@ -1877,13 +1877,13 @@ Keyset-based pagination via pg-schemata's `findAfterCursor()`:
 
 ### 4.3 Audit Fields  [in-scope]
 
-Most models define `hasAuditFields: { enabled: true, userFields: { type: 'uuid' } }`. Exceptions: `policy_catalog` (`hasAuditFields: { enabled: false }` — seed-only reference data). pg-schemata manages `created_at`/`updated_at` timestamps automatically. The `addAuditFields` Express middleware injects `created_by`/`updated_by` from `req.user.id` into `req.body` before the controller runs. On POST requests, the middleware additionally injects `tenant_code` and `tenant_id` from `req.user` (with skip logic for tenant creation and user registration routes).
+Most models define `hasAuditFields: { enabled: true, userFields: { type: 'uuid' } }`. Exceptions: `policy_catalog` (`hasAuditFields: { enabled: false }` — seed-only reference data). pg-schemata manages `created_at`/`updated_at` timestamps automatically. **Audit actor resolution** (`created_by` / `updated_by`) is handled by the ALS resolver registered through `registerAuditResolver` (see Request-context plumbing below) — these columns are no longer threaded through `req.body`. The `addAuditFields` Express middleware retains its name for historical reasons but now only injects **tenant context** (`tenant_code` and `tenant_id` from `req.user`) on POST requests, with skip logic for tenant creation and user registration. It still acts as the guard that rejects mutation requests with no user context.
 
 **Request-context plumbing (as of 2026-05-21, gaps 2.9 / 2.11):**
 
-- `apps/server/src/middleware/auditContext.js` — wraps each request in an AsyncLocalStorage context carrying the audit identity, so model-layer code (including pg-schemata triggers) can resolve `created_by` / `updated_by` even when the controller never touched `req.body`.
-- `apps/server/src/lib/requestContext.js` + `apps/server/src/lib/registerAuditResolver.js` — register a tenant-aware resolver with pg-schemata that pulls the current user id from the request context.
-- Together with `addAuditFields`, this guarantees mutations always carry both the explicit body fields and the implicit context — direct model calls inside services do not need to thread the user id manually.
+- `apps/server/src/middleware/auditContext.js` — wraps each request in an AsyncLocalStorage context carrying the audit identity. Runs after `authRedis` so `req.user` is hydrated before the store is populated.
+- `apps/server/src/lib/requestContext.js` + `apps/server/src/lib/registerAuditResolver.js` — register a tenant-aware resolver with pg-schemata that pulls the current user id from the ALS context. pg-schemata invokes this resolver for every insert/update, so `created_by`/`updated_by` are filled at the model layer regardless of whether the controller touched `req.body`.
+- Direct model calls inside services therefore do not need to thread the user id manually — the ALS store carries it as long as the call originated inside an Express request.
 
 ### 4.4 Soft Deletes  [in-scope]
 
