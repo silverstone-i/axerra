@@ -2,7 +2,8 @@
  * @file ActualCosts model — extends TableModel for actual cost tracking
  * @module activities/models/ActualCosts
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { TableModel } from 'pg-schemata';

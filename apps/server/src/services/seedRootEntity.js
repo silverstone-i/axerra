@@ -12,7 +12,8 @@
  * without changes. If a bare binding (entity_type IS NULL) exists, it's
  * updated in place to preserve the unique (portal_user_id, tenant_id) row.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 /**

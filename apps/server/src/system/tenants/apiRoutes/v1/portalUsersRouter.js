@@ -5,7 +5,8 @@
  * Standard POST is disabled; users must be created via /register.
  * All routes gated by requireRootTenant + RBAC (tenants::portal-users).
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import portalUsersController from '../../controllers/portalUsersController.js';

@@ -5,7 +5,8 @@
  * Status workflow: open → sent → paid → voided
  * On sending: GL journal entry (debit AR, credit Revenue)
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import BaseController from '../../../lib/BaseController.js';
@@ -53,7 +54,10 @@ class ArInvoicesController extends BaseController {
             // Auto-assign invoice_number on send (if enabled and not already set)
             if (!current.invoice_number) {
               try {
-                const numbering = await allocateNumber(schema, 'ar_invoice', current.legal_entity_id || null, new Date());
+                // In this product, companies are the legal entities. Scope
+                // numbering by company_id so each company gets its own
+                // running invoice sequence (PRD §3.13.1 / §3.8.1).
+                const numbering = await allocateNumber(schema, 'ar_invoice', current.company_id, new Date());
                 if (numbering) {
                   req.body.invoice_number = numbering.displayId;
                 }

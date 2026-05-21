@@ -2,7 +2,8 @@
  * @file Schema definition for tenant-scope clients table
  * @module core/schemas/clientsSchema
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 /** @type {import('pg-schemata').TableSchema} */

@@ -4,7 +4,8 @@
  *
  * Creates: tenant_preferences (one row per tenant for UI preferences)
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { defineMigration } from '../../../../db/migrations/defineMigration.js';

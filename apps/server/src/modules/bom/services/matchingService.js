@@ -5,7 +5,8 @@
  * Uses pgvector cosine similarity to find and auto-assign catalog SKU matches
  * for vendor SKUs. Logs match decisions to admin.match_review_logs for audit.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import db, { pgp } from '../../../db/db.js';

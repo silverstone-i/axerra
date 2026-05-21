@@ -2,7 +2,8 @@
  * @file RBAC tests for stale token detection
  * @module tests/rbac/staleToken
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';

@@ -5,7 +5,8 @@
  * Async posting queue for journal entries. Status: pending → posted → failed.
  * Append-only (no soft delete).
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 /** @type {import('pg-schemata').TableSchema} */

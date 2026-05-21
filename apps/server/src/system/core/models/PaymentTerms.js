@@ -2,7 +2,8 @@
  * @file PaymentTerms model — lookup table for standardised vendor payment terms
  * @module core/models/PaymentTerms
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { writeFileSync } from 'node:fs';

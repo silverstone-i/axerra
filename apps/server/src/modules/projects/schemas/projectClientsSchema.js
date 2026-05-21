@@ -5,7 +5,8 @@
  * Associates multiple clients with a project contract, replacing the former
  * single client_id FK on projects. Supports roles (buyer, co-buyer, guarantor).
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 /** @type {import('pg-schemata').TableSchema} */

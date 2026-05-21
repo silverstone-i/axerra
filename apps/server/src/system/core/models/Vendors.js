@@ -6,7 +6,8 @@
  * vendor + vendor_contacts export/import. The combined format uses a flat
  * 2-sheet layout with repeated rows (one row per child record).
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { writeFileSync, readFileSync } from 'node:fs';

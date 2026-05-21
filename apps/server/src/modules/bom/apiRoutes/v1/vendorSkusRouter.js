@@ -8,7 +8,8 @@
  * Custom GET routes must be mounted BEFORE createRouter so they
  * are not caught by the generic GET /:id route.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { Router } from 'express';

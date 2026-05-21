@@ -5,7 +5,8 @@
  * Tests tasks scoped to a unit: create, list, getById, update,
  * parent_task_id self-ref, archive, restore.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';

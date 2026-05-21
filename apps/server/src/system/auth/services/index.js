@@ -6,7 +6,8 @@
  * must import auth services through this barrel rather than reaching
  * into individual files.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 export { findActiveBinding, findAnyBinding, findActivePortalUserId } from './portalUserBindings.js';

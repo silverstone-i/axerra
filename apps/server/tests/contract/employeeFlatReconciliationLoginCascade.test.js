@@ -15,7 +15,8 @@
  *   - L4.dup-set    — setting is_login true when another login row exists → 422.
  *   - C3 — cross-source collision against an archived employee's active email → 422.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';

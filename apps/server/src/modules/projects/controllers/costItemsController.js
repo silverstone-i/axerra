@@ -5,7 +5,8 @@
  * The `amount` column is a GENERATED ALWAYS column (quantity * unit_cost)
  * and is computed by PostgreSQL — it should never be set directly.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import BaseController from '../../../lib/BaseController.js';

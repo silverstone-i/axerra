@@ -6,7 +6,8 @@
  *   GET /  — all clients AR aging summary
  *   GET /:clientId — single client AR aging detail
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import db, { pgp } from '../../../db/db.js';

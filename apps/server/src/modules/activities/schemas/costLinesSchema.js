@@ -9,7 +9,8 @@
  *
  * Status workflow: draft → locked → change_order.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 /** @type {import('pg-schemata').TableSchema} */
@@ -40,7 +41,7 @@ const costLinesSchema = {
     primaryKey: ['id'],
     checks: [
       { type: 'Check', columns: ['source_type'], expression: "source_type IN ('material', 'labor')" },
-      { type: 'Check', columns: ['status'], expression: "status IN ('draft', 'submitted', 'approved', 'change_order')" },
+      { type: 'Check', columns: ['status'], expression: "status IN ('draft', 'locked', 'change_order')" },
     ],
     foreignKeys: [
       {

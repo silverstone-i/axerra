@@ -10,7 +10,8 @@
  * dropped and admin data is reset to the root-only bootstrap state,
  * avoiding expensive repeated DDL operations.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { resolve, dirname } from 'node:path';

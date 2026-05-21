@@ -2,7 +2,8 @@
  * @file Central error handler — maps error types to HTTP status codes
  * @module server/middleware/errorHandler
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import logger from '../lib/logger.js';

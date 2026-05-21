@@ -2,7 +2,8 @@
  * @file Change orders controller — standard CRUD for unit change orders
  * @module projects/controllers/changeOrdersController
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import BaseController from '../../../lib/BaseController.js';

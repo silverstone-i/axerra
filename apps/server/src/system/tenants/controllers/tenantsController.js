@@ -8,7 +8,8 @@
  *   archive → cascades deactivation to all tenant users; rejects root tenant (Axerra)
  *   restore → reactivates tenant (users remain archived until individually restored)
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import fs from 'node:fs';

@@ -2,7 +2,8 @@
  * @file Project members controller — CRUD for RBAC Layer 2 project scope assignments
  * @module core/controllers/projectMembersController
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import BaseController from '../../../lib/BaseController.js';

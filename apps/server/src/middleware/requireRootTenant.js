@@ -5,7 +5,8 @@
  * Returns 403 for any request where the authenticated user does not belong
  * to the Axerra platform tenant (per PRD §3.2).
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 /**

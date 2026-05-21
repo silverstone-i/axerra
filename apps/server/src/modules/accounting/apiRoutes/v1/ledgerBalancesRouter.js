@@ -2,7 +2,8 @@
  * @file Ledger Balances router — /api/accounting/v1/ledger-balances (read-only)
  * @module accounting/apiRoutes/v1/ledgerBalancesRouter
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import createRouter from '../../../../lib/createRouter.js';

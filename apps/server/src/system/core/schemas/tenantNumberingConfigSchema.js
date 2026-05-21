@@ -5,7 +5,8 @@
  * One row per entity type per tenant — controls display format, reset
  * strategy, and enable/disable for auto-numbering.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 /** @type {import('pg-schemata').TableSchema} */

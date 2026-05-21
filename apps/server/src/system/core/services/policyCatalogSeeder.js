@@ -10,7 +10,8 @@
  * below is INSERT-only and is retained solely for the historical "reseed"
  * data migrations that import it; do not call it from new code.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import logger from '../../../lib/logger.js';

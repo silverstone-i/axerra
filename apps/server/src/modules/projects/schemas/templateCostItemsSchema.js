@@ -5,7 +5,8 @@
  * Template cost items belong to a template_task. The `amount` column
  * is a GENERATED ALWAYS AS (quantity * unit_cost) STORED column.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 /** @type {import('pg-schemata').TableSchema} */

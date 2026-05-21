@@ -10,7 +10,8 @@
  *   --dry-run    Show pending migrations without applying them.
  *   schema1 ...  List of schemas to migrate. If none specified, nothing is migrated.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { migrateTenants } from './migrateTenants.js';

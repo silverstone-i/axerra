@@ -8,7 +8,8 @@
  * binding (employees and clients have exactly one; vendor_contacts may
  * have several and the x-tenant-code header overrides at request time).
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import passport from 'passport';

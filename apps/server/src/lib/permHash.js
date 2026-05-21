@@ -2,7 +2,8 @@
  * @file Permission hash — stable SHA-256 hash of permission objects for token staleness detection
  * @module server/lib/permHash
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { createHash } from 'node:crypto';

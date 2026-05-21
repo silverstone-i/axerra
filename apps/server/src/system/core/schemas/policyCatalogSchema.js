@@ -9,7 +9,8 @@
  * No audit fields or tenant_code — this is static application-level
  * reference data, identical across all tenants.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 /** @type {import('pg-schemata').TableSchema} */

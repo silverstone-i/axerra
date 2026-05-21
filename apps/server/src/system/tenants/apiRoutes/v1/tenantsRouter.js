@@ -2,7 +2,8 @@
  * @file Tenants router — Axerra-only CRUD for tenant management per PRD §3.2.1
  * @module tenants/apiRoutes/v1/tenantsRouter
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import tenantsController from '../../controllers/tenantsController.js';
