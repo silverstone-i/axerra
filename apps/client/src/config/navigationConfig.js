@@ -5,7 +5,8 @@
  * Each nav group has a label, icon, and array of children.
  * Each child has a label, path, and optional capability guard.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import DashboardIcon from '@mui/icons-material/Dashboard';

@@ -5,7 +5,8 @@
  * Wraps MUI TextField and manages its own showPassword state.
  * All standard TextField props are forwarded.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { useState } from 'react';

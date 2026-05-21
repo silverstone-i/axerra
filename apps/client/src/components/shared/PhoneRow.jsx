@@ -2,7 +2,8 @@
  * @file Inline editable phone row — reusable across all entity edit forms
  * @module client/components/shared/PhoneRow
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import Box from '@mui/material/Box';

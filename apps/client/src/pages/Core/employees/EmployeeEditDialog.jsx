@@ -2,7 +2,8 @@
  * @file Edit Employee dialog with sub-collection editors
  * @module client/pages/Core/employees/EmployeeEditDialog
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import Box from '@mui/material/Box';

@@ -5,7 +5,8 @@
  * Structural layout presets consumed by components via sx or style props.
  * Visual tokens (borders, surfaces, radii) live in tokens.js and theme.js.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { typographyTokens, density } from './tokens.js';

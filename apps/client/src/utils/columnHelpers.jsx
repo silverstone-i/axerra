@@ -5,7 +5,8 @@
  * Each helper returns a partial column definition object that can be spread
  * or merged with additional overrides (width, flex, etc.).
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import StatusBadge from '../components/shared/StatusBadge.jsx';

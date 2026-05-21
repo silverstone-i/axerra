@@ -6,7 +6,8 @@
  * Visibility on hover is controlled by theme overrides on .row-actions-cell,
  * not inline styles.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { useState } from 'react';

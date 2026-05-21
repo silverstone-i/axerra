@@ -2,7 +2,8 @@
  * @file AP API methods — CRUD for AP invoices, invoice lines, payments, credit memos
  * @module client/services/apApi
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { client } from './client.js';

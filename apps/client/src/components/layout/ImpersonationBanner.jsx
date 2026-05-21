@@ -5,7 +5,8 @@
  * Displays an amber warning bar above TenantBar when the current user
  * is impersonating another user. Includes an "Exit Impersonation" button.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { Box, Typography, Button } from '@mui/material';

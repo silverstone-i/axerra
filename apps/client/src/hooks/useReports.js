@@ -5,7 +5,8 @@
  * All report queries use a 30-second staleTime since report data
  * is less dynamic than CRUD entity data.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { useQuery } from '@tanstack/react-query';

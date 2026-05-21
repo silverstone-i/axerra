@@ -8,7 +8,8 @@
  *   onSuccess  – called after successful password change
  *   forced     – if true, hides cancel button (used for invited-user first login)
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { useState, useMemo } from 'react';

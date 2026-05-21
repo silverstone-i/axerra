@@ -2,7 +2,8 @@
  * @file Catalog SKU management page — DataTable + create/edit/view/archive/restore/embedding refresh
  * @module client/pages/BOM/CatalogPage
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { useState, useMemo, useCallback } from 'react';

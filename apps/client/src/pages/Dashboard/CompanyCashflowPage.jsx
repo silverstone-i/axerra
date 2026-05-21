@@ -2,7 +2,8 @@
  * @file Company cashflow summary page — summary cards + bar chart + monthly grid
  * @module client/pages/Dashboard/CompanyCashflowPage
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { useMemo } from 'react';

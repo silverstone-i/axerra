@@ -9,7 +9,8 @@
  * No `color` — branded button wrappers (PrimaryButton/SecondaryButton/TertiaryButton) own
  * their styling per BRAND.md; destructive primaries use navy + a clear label.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { useMemo } from 'react';

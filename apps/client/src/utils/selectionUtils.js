@@ -2,7 +2,8 @@
  * @file Multi-select helpers — root-entity mutual exclusion & derived state
  * @module client/utils/selectionUtils
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 /** Root tenant code from env (set in monorepo root .env). */
