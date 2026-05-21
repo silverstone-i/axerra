@@ -58,7 +58,7 @@ draft → locked → change_order
 - **locked**: Finalized
 - **change_order**: Modified after lock (terminal)
 
-> **Note:** The schema CHECK constraint allows `draft`, `submitted`, `approved`, `change_order` but the controller's `VALID_TRANSITIONS` only permits `draft → locked → change_order`. The `submitted` and `approved` values in the CHECK are unused; `locked` is missing from the CHECK.
+> **Note:** Schema CHECK and controller `VALID_TRANSITIONS` agree on `draft`, `locked`, `change_order` (reconciled 2026-05-20 per gap 1.12 / 3.5). The previously unused `submitted` and `approved` values were removed from the CHECK.
 
 ### Generated Column
 

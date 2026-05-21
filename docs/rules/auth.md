@@ -15,8 +15,8 @@
 - **TTL:** 15 minutes
 - **Claims:**
   - `sub` — portal_user UUID (primary key of `admin.portal_users`)
-  - `ph` — SHA-256 hex hash of the user's permission canon (null in
-    Phase 2; populated once RBAC is active)
+  - `ph` — SHA-256 hex hash of the user's permission canon, computed at
+    login from the loaded canon (Phase 3, live as of commit `1ac6a21`)
   - `iss` — `axerra-serv`
   - `aud` — `axerra-serv-api`
 - **Secret:** `ACCESS_TOKEN_SECRET` env var (minimum 32 characters)
@@ -51,15 +51,23 @@
 
 ## Authentication Flow
 
-### Login (`POST /api/auth/login`)
+### Login (`POST /api/auth/login`)  *(Phase 3 — current as of commit `1ac6a21`)*
 
 1. Validate email exists in `admin.portal_users`
 2. Check user status is `active` or `invited` (not `locked`)
-3. Check associated tenant status is `active`
+3. Resolve home tenant via the oldest active `admin.portal_user_tenants`
+   binding for the user; refuse with *"Tenant is inactive."* if the home
+   tenant is not active
 4. Verify password against bcrypt hash
-5. Sign access + refresh tokens
-6. Set httpOnly cookies
-7. Return `{ message, forcePasswordChange }` — `forcePasswordChange` is
+5. Load RBAC permission canon for the home tenant; refuse with 403 if the
+   user has no usable permissions (empty caps — no entity, no roles, or
+   roles that resolve to no policies)
+6. Compute `ph` from the loaded canon; sign access + refresh tokens with
+   `ph` embedded in the access token
+7. Prime the canon into the Redis permission cache so the first
+   authenticated request does not re-load
+8. Set httpOnly cookies
+9. Return `{ message, forcePasswordChange }` — `forcePasswordChange` is
    `true` when `user.status === 'invited'` (derived, not a DB column).
    Invited users are prompted to change their password on first login
 
@@ -111,13 +119,14 @@
 8. If `x-tenant-code` header present (cross-tenant access), resolve
    target tenant for Axerra users
 
-### Phase 2 Simplifications (expanded in Phase 3)
+### Phase 3 Status (current as of commit `1ac6a21`)
 
-- No Redis permission cache read/write
-- No RBAC permission loading
-- No stale token detection (`X-Token-Stale` header)
-- No impersonation session resolution
-- Permission hash (`ph`) is null in all tokens
+- ✅ Redis permission cache: read at request time; primed at login
+- ✅ RBAC permission loading: runs at login (gating) and on cache miss
+- ⏳ Stale token detection (`X-Token-Stale` header): intended; not yet wired
+- ⏳ Impersonation session resolution: intended; not yet wired
+- ✅ Permission hash (`ph`): computed at login from the loaded canon and
+  embedded in the access token
 
 ## portal_users Table Design (PRD §3.2.2)
 
@@ -140,6 +149,33 @@ The `admin.portal_users` table is a pure identity/login table:
 - Roles are stored as `text[]` on entity records, not on portal_users
 - `entity_type` and `entity_id` are null for the bootstrap super user
   (entity tables don't exist until Phase 5)
+- `portal_users.tenant_id` is a convenience pointer to the **home**
+  tenant. It is NOT the authoritative cross-tenant access list — see
+  `portal_user_tenants` below.
+
+## portal_user_tenants Table Design (PRD §3.2.2)
+
+`admin.portal_user_tenants` is the authoritative cross-tenant binding
+table. One row per `(portal_user, tenant)` pair the user can access.
+
+| Column | Type | Purpose |
+|---|---|---|
+| `id` | uuid | Primary key |
+| `portal_user_id` | uuid | FK to `admin.portal_users` (CASCADE) |
+| `tenant_id` | uuid | FK to `admin.tenants` (CASCADE) |
+| `entity_type` | varchar(16) | `employee`, `vendor_contact`, `client`, or NULL |
+| `entity_id` | uuid | Cross-schema link to tenant-scoped entity, or NULL |
+| `status` | varchar(20) | `active`, `invited`, `locked` |
+
+Indexes:
+
+- Partial unique `(portal_user_id, tenant_id) WHERE deactivated_at IS NULL`
+- Partial unique `(tenant_id, entity_type, entity_id) WHERE deactivated_at IS NULL AND entity_type IS NOT NULL`
+- Supporting indexes on `portal_user_id`, `tenant_id`, `(entity_type, entity_id)`
+
+**Home tenant:** the oldest active binding. Resolved at login.
+**Cross-tenant requests:** select an active binding via `x-tenant-code`
+header at request time, subject to RBAC.
 
 ## Environment Variables
 

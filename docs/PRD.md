@@ -1,14 +1,36 @@
 # AXERRA - Product Requirements Document
 
-## 1. Overview
+## Scope-tag Legend
 
-### 1.1 Product Vision
+Every H2 (`##`) and H3 (`###`) heading in this document carries one of three scope tags:
 
-AXERRA is a **multi-tenant, modular construction and project management ERP** designed for property development, homebuilding, and general contracting companies. It provides end-to-end management of projects, budgets, cost tracking, vendor relationships, accounts payable/receivable, general ledger accounting, intercompany operations, and **project-level cashflow and profitability analysis** — all within a schema-isolated multi-tenant architecture.
+- **[in-scope]** — part of the current build plan. Spec body describes what is intended; implementation may be partial. Drift between spec and code is tracked in `docs/gap-analysis.md`.
+- **[deferred]** — known requirement, not in the current build window. The section exists so the requirement is captured; a spec body is written when the section graduates to in-scope.
+- **[out-of-scope]** — explicitly not part of AXERRA. Listed so contributors don't propose it.
+
+Status tags applied at the paragraph or bullet level (`[intended]`, `[implemented]`, `[superseded]`) supplement the section scope tag where needed. See `docs/PRD-outline.md` for the per-section restructure plan.
+
+## 1. Overview  [in-scope]
+
+### 1.1 Product Positioning  [in-scope]
+
+AXERRA is a **horizontal, project-native, multi-entity ERP**. The base ERP core — tenants and legal entities, master data, projects, activities, BOM, AP/AR, general-ledger accounting, cashflow and profitability — is industry-agnostic and ships as Phase 1. Industry-specific workflows are delivered as **add-on modules** layered on this core. Construction (property development, homebuilding, general contracting) is the reference vertical for **Phase 2** and is the first industry module to ship; additional verticals follow the same add-on pattern.
+
+This framing supersedes earlier wording that described AXERRA as a "construction ERP." Construction is a reference workflow, not the product definition.
+
+- **Phase 1 — Base ERP core:** multi-tenant infrastructure; RBAC; master data (vendors, clients, employees, contacts, companies); projects, activities, cost lines; BOM; AP/AR; accounting and GL; cashflow and profitability; reporting and views.
+- **Phase 2 — Construction reference module:** industry-specific workflows that extend the base core (e.g., construction-specific cost coding, unit/lot management nuance, draw schedules).
+- **Out-of-scope for both phases:** industry-vertical workflows beyond construction.
+
+This positioning is referenced from §13 and from each module section's intro.
+
+### 1.2 Product Vision  [in-scope]
+
+AXERRA is a **multi-tenant, modular project-native ERP** with double-entry accounting, designed to manage projects, budgets, cost tracking, vendor relationships, accounts payable/receivable, general ledger accounting, intercompany operations, and **project-level cashflow and profitability analysis** — all within a schema-isolated multi-tenant architecture. Construction is the Phase 2 reference vertical (see §1.1).
 
 > **Build Approach:** This application is built from scratch (greenfield). All server-side data access, schema management, migrations, and CRUD operations leverage **pg-schemata 1.3.0** — an owned, extensible PostgreSQL ORM layer. Since Axerra owns the pg-schemata repository, features can be added and bugs fixed as needed to support AXERRA requirements.
 
-### 1.2 Target Users
+### 1.3 Target Users  [in-scope]
 
 | Persona                             | Description                                                                                                  |
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------ |
@@ -21,7 +43,7 @@ AXERRA is a **multi-tenant, modular construction and project management ERP** de
 | **Procurement / BOM Manager** | Manages catalog SKUs, vendor SKU matching, and vendor pricing                                                |
 | **CFO / Financial Analyst**   | Reviews cashflow dashboards, project profitability reports, and margin analysis                              |
 
-### 1.3 Technology Stack
+### 1.4 Technology Stack  [in-scope]
 
 | Layer                      | Technology                                                                                                          |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------- |
@@ -35,7 +57,7 @@ AXERRA is a **multi-tenant, modular construction and project management ERP** de
 | **Testing**          | Vitest (unit, integration, contract, RBAC suites)                                                                   |
 | **Tooling**          | npm workspaces monorepo, ESLint 9 flat config (root-level, covers all workspaces), Prettier, Husky pre-commit hooks |
 
-### 1.4 Monorepo Structure
+### 1.5 Monorepo Structure  [in-scope]
 
 ```
 axerra/
@@ -49,18 +71,19 @@ axerra/
 
 ---
 
-## 2. Architecture
+## 2. Architecture  [in-scope]
 
-### 2.1 Multi-Tenant Model
+### 2.1 Multi-Tenant Model  [in-scope]
 
 AXERRA uses **PostgreSQL schema-per-tenant** isolation powered by pg-schemata:
 
-- **`admin` schema**: System-wide tables (`tenants`, `portal_users`, `match_review_logs`, `impersonation_logs`)
+- **`admin` schema**: System-wide tables (`tenants`, `portal_users`, `portal_user_tenants`, `match_review_logs`, `impersonation_logs`)
 - **Tenant schemas** (e.g., `acme`, `axerra`): Each customer gets a dedicated PostgreSQL schema containing all business tables (vendors, projects, accounting, etc.)
-- Tenant resolution is performed per-request: `authRedis` looks up the user's home tenant from their `portal_users` record (via JWT `sub`), optionally overridden by the `x-tenant-code` header
-- All database access is schema-aware via pg-schemata's `setSchemaName()` — models bind queries to the correct tenant schema dynamically
+- **Cross-tenant access source of truth:** the `admin.portal_user_tenants` binding table — not `portal_users.tenant_id` alone. A portal user has one row per tenant they can access; the oldest active binding is treated as the **home tenant** (used at login). `portal_users.tenant_id` is retained as a convenience pointer to the home tenant but is **not** the authoritative cross-tenant list.
+- Tenant resolution is performed per-request: at login the home tenant is resolved from `portal_user_tenants`; subsequent requests may target any active binding via the `x-tenant-code` header (subject to RBAC).
+- All database access is schema-aware via pg-schemata's `setSchemaName()` — models bind queries to the correct tenant schema dynamically.
 
-### 2.2 pg-schemata Integration (Owned Dependency)
+### 2.2 pg-schemata Integration (Owned Dependency)  [in-scope]
 
 AXERRA is built entirely on **pg-schemata 1.3.0**. Since Axerra owns the pg-schemata repository, the library can be extended with new features or patched as AXERRA requirements evolve.
 
@@ -169,7 +192,7 @@ Features that may need to be added to pg-schemata to support AXERRA:
 | **Event hooks**             | Pre/post insert/update hooks for GL posting triggers            |
 | **Connection tagging**      | Tag connections with tenant context for pg_stat monitoring      |
 
-### 2.3 Application Layout
+### 2.3 Application Layout  [in-scope]
 
 The UI follows a four-zone layout architecture:
 
@@ -190,7 +213,7 @@ The UI follows a four-zone layout architecture:
 - **Sidebar**: Collapsible navigation with up to 3 levels of nesting (group → sub-module → leaf item); supports flyout menus when collapsed
 - **Data Viewport**: Main content area where page components render
 
-### 2.4 Request Flow
+### 2.4 Request Flow  [in-scope]
 
 ```
 Browser -> Vite Dev Proxy (/api -> :3000) -> Express
@@ -205,21 +228,24 @@ Browser -> Vite Dev Proxy (/api -> :3000) -> Express
 
 ---
 
-## 3. Feature Modules
+## 3. Feature Modules  [in-scope]
 
-### 3.1 Authentication & Authorization (Core)
+> Modules below are part of the Phase 1 base ERP core unless otherwise noted (see §1.1). Industry-vertical workflows — including construction — are layered as add-on modules in Phase 2 and beyond.
+
+### 3.1 Authentication & Authorization (Core)  [in-scope]
 
 #### 3.1.1 Authentication
 
-**Login Flow:**
+**Login Flow:** (Phase 3 — current as of 2026-05-20)
 
 1. User submits email/password on `LoginPage`
 2. Client calls `POST /api/auth/login` via `authApi.login()`
 3. Server validates via Passport Local Strategy (bcrypt hash comparison against `admin.portal_users`)
-4. Server signs JWT tokens (RBAC policy loading is deferred — it happens lazily on the first `authRedis` middleware call, not during login)
-5. Server sets `auth_token` (15min) and `refresh_token` (7-day) as httpOnly cookies
-6. Client calls `GET /api/auth/me` to hydrate user context
-7. `AuthContext` stores user state; `LayoutShell` guards authenticated routes
+4. Server resolves the user's **home tenant** via `admin.portal_user_tenants` binding (oldest active binding). Login is refused with *"Tenant is inactive."* if the home tenant is not active.
+5. Server loads RBAC permissions for the home tenant and **gates token issuance** on the result. A user with no usable permissions (no entity, no roles, or roles that resolve to no policies) is refused with 403 — credentials were valid but the account is unusable.
+6. Server computes `ph` (permissions hash) from the resolved permission canon, signs `auth_token` (15min) and `refresh_token` (7-day) JWTs, and sets them as httpOnly cookies. The permission canon is primed into the Redis cache so the user's first authenticated request does not re-load.
+7. Client calls `GET /api/auth/me` to hydrate user context.
+8. `AuthContext` stores user state; `LayoutShell` guards authenticated routes.
 
 **Endpoints:**
 
@@ -235,7 +261,7 @@ Browser -> Vite Dev Proxy (/api -> :3000) -> Express
 **Token Claims:**
 
 - `sub`: User UUID
-- `ph`: Permissions hash for cache validation (currently hardcoded to `null` — Phase 3 will populate this)
+- `ph`: Permissions hash for cache validation — computed at login from the user's loaded permission canon (Phase 3, live as of commit `1ac6a21`)
 - `iss`: Issuer (`'axerra-serv'`)
 - `aud`: Audience (`'axerra-serv-api'`)
 
@@ -380,7 +406,7 @@ Roles with `is_immutable = true` OR `is_system = true` are read-only across all 
 
 ---
 
-### 3.2 Tenant Management
+### 3.2 Tenant Management  [in-scope]
 
 **Purpose:** Axerra operators manage customer organizations (tenants) and their users.
 
@@ -440,7 +466,7 @@ Roles with `is_immutable = true` OR `is_system = true` are read-only across all 
 | `PATCH`  | `/api/tenants/v1/tenants/restore`      | Restore archived tenant                                                                                                  |
 | `GET`    | `/api/tenants/v1/tenants/:id/modules`  | Get tenant's allowed modules                                                                                             |
 | `GET`    | `/api/tenants/v1/tenants/:id/contacts` | Get primary and billing contacts with phone/address (cross-schema query into tenant's employees)                         |
-| `POST`   | `/api/tenants/v1/tenants/import-xls`   | Import tenants from XLSX (requires `tenants::tenants::import` = `full`). Each row carries its own `tenant_code`. **Note:** the current implementation only inserts rows into `admin.tenants` — it does NOT call the full provisioning pipeline (no schema create / migrations / RBAC seed / admin user). Imported tenants must be provisioned separately. |
+| `POST`   | `/api/tenants/v1/tenants/import-xls`   | Import tenants from XLSX (requires `tenants::tenants::import` = `full`). Each row carries its own `tenant_code`. Rows without an `id` trigger a **full per-row `provisionNewTenant` call** (schema create, migrations, RBAC seed, admin portal user creation). Rows with an `id` are treated as updates. Supports `previewOnly=true` for upfront validation (per-row required-field / format / password-strength checks, intra-file duplicate detection, cross-table uniqueness against `admin.tenants` + `admin.portal_users`, ROOT_TENANT archive protection) without writes. See `apps/server/src/system/auth/models/Tenants.js`. |
 | `POST`   | `/api/tenants/v1/tenants/export-xls`   | Export tenants to XLSX (requires `tenants::tenants::export` = `view`)                                                    |
 
 #### 3.2.2 Manage Users
@@ -460,6 +486,34 @@ Roles with `is_immutable = true` OR `is_system = true` are read-only across all 
 | `status`        | varchar(20)  | `active`, `invited`, `locked`                                                                         |
 
 Partial unique index: `(entity_type, entity_id) WHERE deactivated_at IS NULL` — prevents duplicate logins for the same entity.
+
+> **`portal_users.tenant_id`** is a convenience pointer to the user's **home** tenant. It is **not** the authoritative cross-tenant access list — see `admin.portal_user_tenants` below.
+
+**Data Model (`admin.portal_user_tenants`):**
+
+`portal_user_tenants` is the authoritative cross-tenant binding table. One row per `(portal_user, tenant)` pair the user can access. The oldest active row is the user's **home tenant** (resolved at login).
+
+| Field            | Type         | Description                                                                                              |
+| ---------------- | ------------ | -------------------------------------------------------------------------------------------------------- |
+| `id`             | uuid         | Primary key                                                                                              |
+| `portal_user_id` | uuid         | FK to `admin.portal_users` (CASCADE)                                                                     |
+| `tenant_id`      | uuid         | FK to `admin.tenants` (CASCADE)                                                                          |
+| `entity_type`    | varchar(16)  | `'employee'`, `'vendor_contact'`, `'client'`, or NULL for bare registrations                             |
+| `entity_id`      | uuid         | Cross-schema reference to the tenant-scoped entity record (NULL for bare registrations)                  |
+| `status`         | varchar(20)  | `'active'`, `'invited'`, `'locked'`                                                                      |
+
+Indexes:
+
+- Partial unique `(portal_user_id, tenant_id) WHERE deactivated_at IS NULL` — at most one active binding per user per tenant.
+- Partial unique `(tenant_id, entity_type, entity_id) WHERE deactivated_at IS NULL AND entity_type IS NOT NULL` — preserves the "exactly one active portal_user per tenant-scoped entity" invariant.
+- Supporting indexes on `portal_user_id`, `tenant_id`, `(entity_type, entity_id)`.
+
+**Roles for the cross-tenant model:**
+
+- Employees and clients have exactly one active binding (their home tenant).
+- Vendor contacts may have one binding per tenant they service.
+- The login flow resolves the home tenant by oldest active binding and refuses login if the home tenant is inactive (see §3.1.1).
+- Cross-tenant requests (Axerra support / impersonation) use the `x-tenant-code` header to select a different active binding at request time.
 
 > **Removed from portal_users:** `tenant_code`, `user_name`, `full_name`, `tax_id`, `notes`, `role`, `tenant_role`, `employee_id`. The `employee_id` column has been replaced by the polymorphic `entity_type` + `entity_id` pair, supporting logins for employees, vendors, clients, and contacts. User identity data lives on the entity record. Roles are stored as a `roles` text array on the entity record (not in a `role_members` junction table). Contact designation (primary/billing) is via `employees.is_primary_contact` / `is_billing_contact`. The `axe_admin_phones` and `axe_admin_addresses` tables have been removed — phone numbers and addresses are stored on the linked entity via the polymorphic `sources` → `phone_numbers` / `addresses` pattern.
 
@@ -513,7 +567,7 @@ Partial unique index: `(entity_type, entity_id) WHERE deactivated_at IS NULL` �
 
 ---
 
-### 3.3 Core Entities
+### 3.3 Core Entities  [in-scope]
 
 **Purpose:** Shared reference data used across all modules — vendors, clients, employees, contacts, addresses, phone numbers, and intercompany entities.
 
@@ -714,7 +768,7 @@ Unique constraint: `(source_id, country_code, tax_type) WHERE deactivated_at IS 
 
 ---
 
-### 3.4 Project Management
+### 3.4 Project Management  [in-scope]
 
 **Purpose:** Manage construction projects, units (deliverables), tasks, cost items, and change orders. Supports template-based project creation.
 
@@ -855,7 +909,7 @@ Templates serve as reusable blueprints for project creation:
 
 ---
 
-### 3.5 Activities & Cost Management
+### 3.5 Activities & Cost Management  [in-scope]
 
 **Purpose:** Categorical cost tracking with deliverables, budgets, cost lines, actual costs, and change orders.
 
@@ -943,7 +997,7 @@ Templates serve as reusable blueprints for project creation:
 | `unit_price`     | numeric(12,4) | Unit price                                                                                           |
 | `amount`         | numeric(12,2) | **GENERATED** (quantity * unit_price)                                                          |
 | `markup_pct`     | numeric(5,2)  | Markup percentage                                                                                    |
-| `status`         | varchar(20)   | `draft` -> `change_order`; CHECK allows `draft`, `submitted`, `approved`, `change_order` |
+| `status`         | varchar(20)   | Workflow: `draft` -> `locked` -> `change_order`. CHECK allows `draft`, `locked`, `change_order`. |
 
 **Endpoint:** `/api/activities/v1/cost-lines`
 
@@ -986,7 +1040,7 @@ Templates serve as reusable blueprints for project creation:
 
 ---
 
-### 3.6 Bill of Materials (BOM)
+### 3.6 Bill of Materials (BOM)  [in-scope]
 
 **Purpose:** Manage material catalogs, vendor SKU matching (with AI-powered similarity search), and vendor pricing.
 
@@ -1041,7 +1095,7 @@ Templates serve as reusable blueprints for project creation:
 
 ---
 
-### 3.7 Accounts Payable (AP)
+### 3.7 Accounts Payable (AP)  [in-scope]
 
 **Purpose:** Manage vendor invoices, invoice lines, payments, and credit memos.
 
@@ -1067,6 +1121,7 @@ Templates serve as reusable blueprints for project creation:
 - Posting updates vendor balances and creates GL entries (AP Liability <-> Expense/WIP)
 - When `project_id` is set, the invoice amount feeds into project cashflow outflow metrics
 - Remaining balance is computed as `total_amount − SUM(payments) − SUM(applied credit memos)` — not stored as a column
+- **Invoice numbering** is auto-assigned on `status` transition to `approved` (when no `invoice_number` was provided). The scope is `company_id` per §3.13 — each company under the tenant gets its own running sequence
 
 **Endpoint:** `/api/ap/v1/ap-invoices`
 
@@ -1116,7 +1171,7 @@ Templates serve as reusable blueprints for project creation:
 
 ---
 
-### 3.8 Accounts Receivable (AR)
+### 3.8 Accounts Receivable (AR)  [in-scope]
 
 **Purpose:** Manage client invoices, invoice lines, and payment receipts. AR is the primary revenue source for project profitability tracking.
 
@@ -1146,6 +1201,7 @@ Templates serve as reusable blueprints for project creation:
 - When `project_id` is set, the invoice feeds into project revenue/cashflow inflow metrics
 - Partial payments and retainage supported (see Cashflow module)
 - Remaining balance is computed as `total_amount − SUM(receipts)` — not stored as a column
+- **Invoice numbering** is auto-assigned on `status` transition to `sent` (when no `invoice_number` was provided). The scope is `company_id` per §3.13 — each company under the tenant gets its own running sequence
 
 **Endpoints:**
 
@@ -1181,7 +1237,7 @@ Templates serve as reusable blueprints for project creation:
 
 ---
 
-### 3.9 Accounting & General Ledger
+### 3.9 Accounting & General Ledger  [in-scope]
 
 **Purpose:** Chart of accounts, journal entries, ledger balances, posting queues, and category-account mappings.
 
@@ -1324,7 +1380,7 @@ Unique constraint: `(tenant_id, source_company_id, target_company_id)`
 
 ---
 
-### 3.10 Cashflow & Profitability
+### 3.10 Cashflow & Profitability  [in-scope]
 
 **Purpose:** Track money flowing in (AR receipts) and money flowing out (AP payments, actual costs) at the project level. Provide real-time profitability analysis, margin tracking, and cashflow forecasting to enable project managers and CFOs to make informed financial decisions.
 
@@ -1487,7 +1543,7 @@ These views are created in each tenant schema at provisioning time and updated v
 
 ---
 
-### 3.11 Reporting & Views
+### 3.11 Reporting & Views  [in-scope]
 
 **Purpose:** Pre-computed SQL views for dashboards and data export.
 
@@ -1525,7 +1581,7 @@ These views are created in each tenant schema at provisioning time and updated v
 
 ---
 
-### 3.12 Match Review Logs
+### 3.12 Match Review Logs  [in-scope]
 
 **Purpose:** Audit trail for BOM vendor SKU matching decisions.
 
@@ -1544,15 +1600,17 @@ These views are created in each tenant schema at provisioning time and updated v
 
 ---
 
-### 3.13 Tenant-Scoped Numbering System
+### 3.13 Tenant-Scoped Numbering System  [in-scope]
 
-**Purpose:** Configurable, transaction-safe auto-numbering for all business entities. Separates internal PKs (UUIDs) from human-readable business identifiers. Supports per-tenant formatting, optional sub-scope (e.g., legal entity for invoices), and period-based counter reset.
+**Purpose:** Configurable, transaction-safe auto-numbering for all business entities. Separates internal PKs (UUIDs) from human-readable business identifiers. Supports per-tenant formatting, optional sub-scope (e.g., per company for invoices), and period-based counter reset.
+
+> **Terminology:** in this product, **companies are the legal entities** under a tenant — there is no separate `legal_entities` table. Section 3.13 uses `scope_type = company` for invoices; earlier wording that used `legal_entity` as a distinct scope was redundant and has been collapsed.
 
 #### 3.13.1 Design Principles
 
 1. Database primary keys (UUID) are not business identifiers
 2. Business numbers are generated per tenant (never global)
-3. Invoice numbers are generated per legal entity (scope_type = `legal_entity`)
+3. Invoice numbers are generated **per company** (`scope_type = 'company'`); each company under a tenant gets its own running invoice sequence
 4. Reset behavior is implemented using a `period_key`, not by restarting sequences
 5. Display formatting is independent of serial allocation logic
 6. Issued invoice numbers are immutable
@@ -1573,7 +1631,7 @@ These views are created in each tenant schema at provisioning time and updated v
 | `padding`    | integer     | Zero-pad width (e.g., 4 →`0001`)                                                            |
 | `separator`  | varchar(4)  | Joins display parts (e.g.,`-`)                                                               |
 | `uppercase`  | boolean     | Apply uppercase to final display ID                                                            |
-| `scope_type` | varchar(32) | `none`, `legal_entity`, `company`, `project`                                           |
+| `scope_type` | varchar(32) | `none`, `company`, `project` (companies are the legal entities — see §3.13 terminology note) |
 | `is_enabled` | boolean     | Enables auto-numbering for this entity type                                                    |
 
 **Unique Constraint:** `(tenant_id, id_type)` — one config row per entity type per tenant.
@@ -1634,8 +1692,8 @@ Example (yearly reset): 2025 → `period_key = '2025'`, serial 000001; 2026 → 
 | Client      | `CLT`  | 4       | none      | never      | tenant       |
 | Contact     | `CON`  | 4       | none      | never      | tenant       |
 | Project     | `PRJ`  | 4       | none      | never      | tenant       |
-| AR Invoice  | `INV`  | 5       | year      | yearly     | legal_entity |
-| AP Invoice  | `BILL` | 5       | year      | yearly     | legal_entity |
+| AR Invoice  | `INV`  | 5       | year      | yearly     | company      |
+| AP Invoice  | `BILL` | 5       | year      | yearly     | company      |
 
 All configs are seeded with `is_enabled = false` during tenant provisioning. Tenants opt in via the Settings UI. When numbering is first enabled for an entity type, existing records with `code IS NULL` are backfilled in `created_at` order.
 
@@ -1665,11 +1723,11 @@ The backfill runs atomically in a single transaction using the same `allocateNum
 
 ---
 
-## 4. Standard API Patterns
+## 4. Standard API Patterns  [in-scope]
 
 All API routes are built from scratch using pg-schemata's TableModel and QueryModel as the data layer.
 
-### 4.1 CRUD Operations
+### 4.1 CRUD Operations  [in-scope]
 
 Every resource entity uses `createRouter` to generate a consistent REST API backed by pg-schemata:
 
@@ -1691,7 +1749,7 @@ Every resource entity uses `createRouter` to generate a consistent REST API back
 
 > **Note:** `withMeta` is not auto-applied by `createRouter` — each router passes it via per-method middleware arrays (e.g., `getMiddlewares: [meta]`). `rbac()` is not included in the standard CRUD chain; it must be explicitly added on custom endpoints that need per-action permission level checks. All standard routes can be individually disabled via `disable*` flags (e.g., `disablePost: true`).
 
-### 4.2 Pagination
+### 4.2 Pagination  [in-scope]
 
 Keyset-based pagination via pg-schemata's `findAfterCursor()`:
 
@@ -1701,15 +1759,15 @@ Keyset-based pagination via pg-schemata's `findAfterCursor()`:
 - `columnWhitelist`: Restrict returned columns
 - `includeDeactivated`: Include soft-deleted records
 
-### 4.3 Audit Fields
+### 4.3 Audit Fields  [in-scope]
 
 Most models define `hasAuditFields: { enabled: true, userFields: { type: 'uuid' } }`. Exceptions: `policy_catalog` (`hasAuditFields: { enabled: false }` — seed-only reference data). pg-schemata manages `created_at`/`updated_at` timestamps automatically. The `addAuditFields` Express middleware injects `created_by`/`updated_by` from `req.user.id` into `req.body` before the controller runs. On POST requests, the middleware additionally injects `tenant_code` and `tenant_id` from `req.user` (with skip logic for tenant creation and user registration routes).
 
-### 4.4 Soft Deletes
+### 4.4 Soft Deletes  [in-scope]
 
 Most models define `softDelete: true`. Exceptions: `roles` (`softDelete: false`), `ledger_balances` and `posting_queues` (`softDelete: false` — append-only), `policy_catalog` (`softDelete: false`). pg-schemata automatically excludes records where `deactivated_at IS NOT NULL` from all read queries. Archive and restore are implemented manually in `BaseController` using `model.updateWhere()` — setting or clearing `deactivated_at` directly rather than using pg-schemata's `removeWhere()`/`restoreWhere()` methods.
 
-### 4.5 Validation
+### 4.5 Validation  [in-scope]
 
 pg-schemata auto-generates Zod validators from schema definitions:
 
@@ -1717,7 +1775,7 @@ pg-schemata auto-generates Zod validators from schema definitions:
 - Update validation: excludes `immutable` columns, partial validation
 - Custom validators can be attached per-column via `colProps.validator`
 
-### 4.6 Excel Import/Export
+### 4.6 Excel Import/Export  [in-scope]
 
 > **ADR Reference:** [ADR-0023](./decisions/0023-excel-import-export.md)
 
@@ -1725,7 +1783,14 @@ Built into pg-schemata's TableModel and exposed as a full-stack feature across a
 
 #### 4.6.1 Backend (pg-schemata + Controller Layer)
 
-- **Import**: `importFromSpreadsheet(filePath, sheetIndex, callbackFn?)` — parses XLSX, validates against schema, bulk inserts with audit fields. `BaseController.importXls()` handles file upload via multer (`/tmp/uploads/`), injects `tenant_code` and `created_by` via the callback, and returns `{ inserted: number }`.
+- **Import**: `importFromSpreadsheet(filePath, sheetIndex, callbackFn?, _returning?, { previewOnly })` — parses XLSX, validates against schema, bulk inserts with audit fields. `BaseController.importXls()` handles file upload via multer (`/tmp/uploads/`), injects `tenant_code` and `created_by` via the callback. Default commit return shape is `{ inserted: number }` (legacy single-sheet) or `{ inserted, updated, ... }` (flat-format importers).
+- **Import preview mode (`?preview=1`)**: Importers that go through `importSimpleTable` (in `lib/spreadsheetHelpers.js`) or the flat combined / multi-sheet paths honor `previewOnly` and return a **counts-only classification payload** without writing:
+
+  ```json
+  { "preview": true, "inserts": 0, "updates": 0, "noops": 0, "omitted": 0, "errors": [] }
+  ```
+
+  Flat-combined and multi-sheet variants extend the shape with `restores`, `phones`, `addresses`, `taxIds`, `appUserSkipped` where relevant. `BaseController.importXls` toggles preview when the request carries `?preview=1` or `?preview=true`. Validation errors short-circuit to a 422 with the same `errors` array — preview and commit see identical row classification, so a clean preview commits without surprises. Preview is honored by ~16 entities currently on the `importSimpleTable` path plus the Vendors flat-combined path and the Tenants importer; multi-sheet legacy importers that have not been migrated still write on `?preview=1` (a no-op flag for them).
 - **Export**: `exportToSpreadsheet(filePath, where?, joinType?, options?)` — queries with filtering, writes to XLSX. `ViewController.exportXls()` generates a temp file, sends it via `res.download()`, and cleans up the temp file after transfer. Accepts optional `where` array and `joinType` (`AND`/`OR`) in the request body for filtered exports.
 
 **Core Entity Override — Multi-Sheet Import/Export:**
@@ -1801,9 +1866,9 @@ All resources using `createRouter` have import/export endpoints. The following p
 
 ---
 
-## 5. Database Design
+## 5. Database Design  [in-scope]
 
-### 5.1 Common Columns
+### 5.1 Common Columns  [in-scope]
 
 Aggregate-root tables include (managed by pg-schemata schema definitions):
 
@@ -1817,14 +1882,14 @@ Aggregate-root tables include (managed by pg-schemata schema definitions):
 
 > **Column listing conventions in §3:** Many tables in §3 omit `id` (uuid PK) and `tenant_id` (uuid, not null, immutable) from their column listings for brevity — these columns are present in the actual schema files. The `id` column follows the standard pattern: `{ name: 'id', type: 'uuid', default: 'gen_random_uuid()', notNull: true, immutable: true, colProps: { cnd: true } }`. Check the actual schema file for the definitive column list.
 
-### 5.2 Naming Conventions
+### 5.2 Naming Conventions  [in-scope]
 
 - Tables: plural `snake_case` (e.g., `vendor_skus`)
 - Columns: `snake_case`
 - Foreign keys: must specify `onDelete` behavior in schema definition
 - All FK columns are indexed via schema `constraints.indexes`
 
-### 5.3 Generated Columns
+### 5.3 Generated Columns  [in-scope]
 
 Generated columns are deliberately excluded from pg-schemata schema definitions (to keep them out of INSERT/UPDATE ColumnSets) and added via `ALTER TABLE ... ADD COLUMN ... GENERATED ALWAYS AS ... STORED` in migration files:
 
@@ -1832,7 +1897,7 @@ Generated columns are deliberately excluded from pg-schemata schema definitions 
 - `cost_lines.amount = quantity * unit_price`
 - `cost_items.amount = quantity * unit_cost`
 
-### 5.4 Schema Management & Migrations
+### 5.4 Schema Management & Migrations  [in-scope]
 
 **Table Creation:**
 
@@ -1865,9 +1930,9 @@ Generated columns are deliberately excluded from pg-schemata schema definitions 
 
 ---
 
-## 6. UI Components & Theming
+## 6. UI Components & Theming  [in-scope]
 
-### 6.1 Theme System
+### 6.1 Theme System  [in-scope]
 
 Dual-mode theming with automatic OS preference detection:
 
@@ -1978,7 +2043,7 @@ All MUI component overrides defined in `theme.js`:
 | `MuiAvatar`         | named variant `"header"`    | 32 × 32, primary colours, cursor pointer, 0.8rem bold                                                                                                                                                                                                                                               |
 | `MuiDataGrid`       | defaultProps + styleOverrides | `density: compact`, token `rowHeight`, `columnHeaderHeight: 40`, `disableColumnMenu: false`; border, transparent bg, token fontSize, focus ring, `.row-archived { opacity: 0.5 }`, row-actions kebab hidden until hover, header bg/border, row hover/selected, cell padding, footer border |
 
-### 6.2 Navigation System
+### 6.2 Navigation System  [in-scope]
 
 Navigation is configured via `navigationConfig.js` with capability-based filtering. Each top-level nav group has an icon, label, optional `capability` guard, and an array of child items with `path` and optional per-item `capability`.
 
@@ -1997,7 +2062,7 @@ Primary Group -> Leaf items
 
 Extensible design: add new groups/modules to `NAV_ITEMS` array with optional `capability` guards and `rootTenantOnly` flag. Groups with `rootTenantOnly: true` are only visible to Axerra users. The example above shows only 2 of 14 nav groups — see §7 for the complete navigation structure.
 
-### 6.3 Module Bar (Dynamic Toolbar)
+### 6.3 Module Bar (Dynamic Toolbar)  [in-scope]
 
 The Module Bar has two zones:
 
@@ -2007,7 +2072,7 @@ The Module Bar has two zones:
   - **Filters**: Text fields or select dropdowns
   - **Primary Actions**: Action buttons (Create, Edit, Archive, Restore, Import, Export, etc.)
 
-### 6.4 Dependencies (Client)
+### 6.4 Dependencies (Client)  [in-scope]
 
 | Package                   | Version  | Purpose                                                  |
 | ------------------------- | -------- | -------------------------------------------------------- |
@@ -2022,7 +2087,7 @@ The Module Bar has two zones:
 | `@tanstack/react-query` | ^5.28.0  | Server state management                                  |
 | `react-router-dom`      | ^7.9.6   | Client-side routing                                      |
 
-### 6.5 Reusable Component Patterns
+### 6.5 Reusable Component Patterns  [in-scope]
 
 Guidelines for maintaining consistency as the UI grows:
 
@@ -2069,7 +2134,7 @@ All DataGrid CRUD pages use `useListSelection` + `DataTable` as the standard sel
 
 ---
 
-## 7. Navigation Structure
+## 7. Navigation Structure  [in-scope]
 
 Based on the sidebar navigation config (`navigationConfig.js`) and client-side routes (`App.jsx`):
 
@@ -2100,7 +2165,7 @@ Based on the sidebar navigation config (`navigationConfig.js`) and client-side r
 
 ---
 
-## 8. Environment Configuration
+## 8. Environment Configuration  [in-scope]
 
 | Variable                       | Purpose                                                                         | Default                   |
 | ------------------------------ | ------------------------------------------------------------------------------- | ------------------------- |
@@ -2128,7 +2193,7 @@ Based on the sidebar navigation config (`navigationConfig.js`) and client-side r
 
 ---
 
-## 9. Testing Strategy
+## 9. Testing Strategy  [in-scope]
 
 | Suite                 | Location               | Purpose                                                                  |
 | --------------------- | ---------------------- | ------------------------------------------------------------------------ |
@@ -2141,9 +2206,9 @@ All tests use Vitest with dependency injection for controllers. `tests/setup.js`
 
 ---
 
-## 10. Coding Standards & Best Practices
+## 10. Coding Standards & Best Practices  [in-scope]
 
-### 10.1 Naming Conventions
+### 10.1 Naming Conventions  [in-scope]
 
 | Context                               | Convention                                             | Example                                                             |
 | ------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------- |
@@ -2160,7 +2225,7 @@ All tests use Vitest with dependency injection for controllers. `tests/setup.js`
 | **Boolean variables**           | `is`/`has`/`can`/`should` prefix               | `isActive`, `hasPermission`, `canApprove`                     |
 | **Enums / status values**       | snake_case strings                                     | `'in_progress'`, `'change_order'`, `'pending'`                |
 
-### 10.1.1 Single Canonical Names (No Aliases)
+### 10.1.1 Single Canonical Names (No Aliases)  [in-scope]
 
 Every concept, variable, parameter, and config key must have **exactly one name** throughout the codebase. Never accept multiple synonyms for the same value or create alias maps to normalize variant spellings. Ambiguity in naming is a bug factory.
 
@@ -2199,7 +2264,7 @@ const { max_by_groups } = rule;
 - Never silently accept misspellings or abbreviations; fail loudly so the caller fixes the source
 - Environment variables, config keys, and request parameters each have exactly one accepted name
 
-### 10.2 File & Module Structure
+### 10.2 File & Module Structure  [in-scope]
 
 **Keep modules small and focused.** Each file should have a single, clear responsibility.
 
@@ -2268,7 +2333,7 @@ src/
 - Maximum ~200–300 lines per file; refactor if larger
 - Group related exports via barrel `index.js` files at the module level
 
-### 10.3 Copyright & File Headers
+### 10.3 Copyright & File Headers  [in-scope]
 
 Every source file must include a copyright header as the first content:
 
@@ -2291,7 +2356,7 @@ Every source file must include a copyright header as the first content:
 -- Copyright (c) 2025 – present Axerra LLC. All rights reserved.
 ```
 
-### 10.4 Code Reuse & DRY Principles
+### 10.4 Code Reuse & DRY Principles  [in-scope]
 
 **Function reuse hierarchy (prefer higher over lower):**
 
@@ -2307,7 +2372,7 @@ Every source file must include a copyright header as the first content:
 - Reimplementing CRUD — use `createRouter`; only override specific routes when business rules differ
 - Inline SQL strings in controllers — use model methods or named service functions
 
-### 10.5 Classes vs Functions
+### 10.5 Classes vs Functions  [in-scope]
 
 | Use Case                    | Pattern                                                               | Rationale                                                                                                                                                 |
 | --------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -2325,7 +2390,7 @@ Every source file must include a copyright header as the first content:
 - `class` for React components (use function components exclusively)
 - Singletons beyond `DB.init()` (use dependency injection instead)
 
-### 10.6 Error Handling
+### 10.6 Error Handling  [in-scope]
 
 **Server-side:**
 
@@ -2349,7 +2414,7 @@ Every source file must include a copyright header as the first content:
 - Toast/snackbar notifications for user-facing errors
 - Never swallow errors silently — always log or display
 
-### 10.7 Import & Export Style
+### 10.7 Import & Export Style  [in-scope]
 
 **ES Modules only** (no CommonJS):
 
@@ -2374,14 +2439,14 @@ import { rbac } from '../../middleware/rbac.js';
 import { vendorsSchema } from '../schemas/vendorsSchema.js';
 ```
 
-### 10.8 Comments & Documentation
+### 10.8 Comments & Documentation  [in-scope]
 
 - **JSDoc** on all exported functions with `@param`, `@returns`, and `@throws` tags
 - **Inline comments** only for *why*, never *what* — the code should be self-documenting
 - **TODO comments** must include a ticket/issue reference: `// TODO(AXERRA-123): Add retainage support`
 - **No commented-out code** — use version control instead
 
-### 10.9 Async & Concurrency
+### 10.9 Async & Concurrency  [in-scope]
 
 - All database operations are `async/await` — never use raw `.then()` chains
 - Use `Promise.all()` for independent concurrent operations (e.g., parallel queries)
@@ -2389,7 +2454,7 @@ import { vendorsSchema } from '../schemas/vendorsSchema.js';
 - pg-schemata bulk operations (`bulkInsert`, `bulkUpdate`, `bulkUpsert`) are automatically transaction-wrapped — do not wrap them in an additional transaction
 - For multi-step business transactions (e.g., posting an invoice + creating GL entries), use pg-promise's `db.tx()` to ensure atomicity
 
-### 10.10 Security Practices
+### 10.10 Security Practices  [in-scope]
 
 - Never log sensitive data (passwords, tokens, PII) — redact before logging
 - Always use parameterized queries (pg-schemata handles this automatically)
@@ -2403,9 +2468,9 @@ import { vendorsSchema } from '../schemas/vendorsSchema.js';
 
 ---
 
-## 11. Developer Tooling
+## 11. Developer Tooling  [in-scope]
 
-### 11.1 ESLint
+### 11.1 ESLint  [in-scope]
 
 **Version:** ESLint 9 with flat config (`eslint.config.js` at monorepo root)
 
@@ -2428,7 +2493,7 @@ import { vendorsSchema } from '../schemas/vendorsSchema.js';
 
 **Run:** `npm run lint` (root) or `npm run lint` (per-workspace)
 
-### 11.2 Prettier
+### 11.2 Prettier  [in-scope]
 
 **Version:** Prettier 3
 
@@ -2453,7 +2518,7 @@ import { vendorsSchema } from '../schemas/vendorsSchema.js';
 
 **Ignored paths (`.prettierignore`):** `node_modules`, `dist`, `build`, `coverage`, lockfiles, framework output directories, large assets
 
-### 11.3 EditorConfig
+### 11.3 EditorConfig  [in-scope]
 
 **File:** `.editorconfig` at monorepo root
 
@@ -2463,7 +2528,7 @@ Ensures consistent whitespace across all editors/IDEs:
 - Markdown: trailing whitespace preserved (significant for line breaks)
 - Makefiles: tab indentation (required by Make)
 
-### 11.4 Husky & Git Hooks
+### 11.4 Husky & Git Hooks  [in-scope]
 
 **Version:** Husky 9
 
@@ -2480,7 +2545,7 @@ Ensures consistent whitespace across all editors/IDEs:
 
 **Setup:** `npm run prepare` installs Husky hooks via the `prepare` lifecycle script
 
-### 11.5 VSCode Workspace
+### 11.5 VSCode Workspace  [in-scope]
 
 **File:** `axerra.code-workspace` (single-root workspace — one folder entry pointing to the monorepo root)
 
@@ -2491,7 +2556,7 @@ Ensures consistent whitespace across all editors/IDEs:
 
 > **Note:** The workspace file does not currently include an `extensions.recommendations` block. Install extensions manually per §12.4.
 
-### 11.6 Vitest (Testing)
+### 11.6 Vitest (Testing)  [in-scope]
 
 **Version:** Vitest 3 with `@vitest/coverage-v8`
 
@@ -2518,7 +2583,7 @@ Ensures consistent whitespace across all editors/IDEs:
 | `test:rbac`        | RBAC tests only                        | Permission resolution              |
 | `test:coverage`    | All tests + HTML coverage              | Coverage reporting                 |
 
-### 11.7 Vite (Client Build)
+### 11.7 Vite (Client Build)  [in-scope]
 
 **Version:** Vite 7 with `@vitejs/plugin-react`
 
@@ -2529,7 +2594,7 @@ Ensures consistent whitespace across all editors/IDEs:
 - API proxy: `/api` requests forwarded to `http://localhost:3000` (Express backend)
 - Build: source maps enabled for debugging
 
-### 11.8 npm Workspaces
+### 11.8 npm Workspaces  [in-scope]
 
 **Monorepo structure managed by npm workspaces:**
 
@@ -2565,7 +2630,7 @@ Ensures consistent whitespace across all editors/IDEs:
 | `seed:rbac`       | Seed RBAC roles and policies            |
 | `start`           | Production server start                 |
 
-### 11.9 Logging
+### 11.9 Logging  [in-scope]
 
 **Server-side logging via Winston + Morgan:**
 
@@ -2575,7 +2640,7 @@ Ensures consistent whitespace across all editors/IDEs:
 - Production: `info` and above; Development: `debug` and above
 - pg-schemata accepts an optional `logger` parameter on initialization for query-level logging
 
-### 11.10 Environment Management
+### 11.10 Environment Management  [in-scope]
 
 **`.env` files (gitignored):**
 
@@ -2589,9 +2654,9 @@ Ensures consistent whitespace across all editors/IDEs:
 
 ---
 
-## 12. Project Setup Guide
+## 12. Project Setup Guide  [in-scope]
 
-### 12.1 Prerequisites
+### 12.1 Prerequisites  [in-scope]
 
 Install these before starting:
 
@@ -2610,7 +2675,7 @@ Install these before starting:
 - **pgAdmin** or **DBeaver** — Visual database browser
 - **Redis Insight** — Visual Redis browser
 
-### 12.2 GitHub Repository Setup
+### 12.2 GitHub Repository Setup  [in-scope]
 
 #### Create the repository
 
@@ -2659,7 +2724,7 @@ Or configure in GitHub → Settings → Branches → Branch protection rules:
 - Require branches to be up to date before merging
 - Do not allow bypassing the above settings
 
-### 12.3 Clone & Install
+### 12.3 Clone & Install  [in-scope]
 
 ```bash
 # 1. Clone the repository
@@ -2679,7 +2744,7 @@ chmod +x .husky/pre-commit
 - `apps/server/`
 - `packages/shared/`
 
-### 12.4 VSCode Configuration
+### 12.4 VSCode Configuration  [in-scope]
 
 #### Open the workspace
 
@@ -2734,7 +2799,7 @@ Add to your workspace settings (in `axerra.code-workspace`) or user `settings.js
 }
 ```
 
-### 12.5 Environment Setup
+### 12.5 Environment Setup  [in-scope]
 
 ```bash
 # 1. Copy the example env file (create one if it doesn't exist)
@@ -2778,7 +2843,7 @@ VITE_ROOT_EMAIL_DOMAIN=axerra.io
 node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 ```
 
-### 12.6 Database Setup
+### 12.6 Database Setup  [in-scope]
 
 ```bash
 # 1. Create PostgreSQL user and databases
@@ -2803,7 +2868,7 @@ npm -w apps/server run seed
 npm -w apps/server run seed:rbac
 ```
 
-### 12.7 Start Development
+### 12.7 Start Development  [in-scope]
 
 ```bash
 # Start both server (port 3000) and client (port 5173) concurrently
@@ -2820,7 +2885,7 @@ npm run dev:client    # Vite React on http://localhost:5173
 2. Log in with the `ROOT_EMAIL` / `ROOT_PASSWORD` from your `.env`
 3. Test the API directly: `curl http://localhost:3000/api/auth/check`
 
-### 12.8 Run Tests
+### 12.8 Run Tests  [in-scope]
 
 ```bash
 # Full test suite
@@ -2836,7 +2901,7 @@ npm -w apps/server run test:rbac
 npm -w apps/server run test:coverage
 ```
 
-### 12.9 Daily Development Workflow
+### 12.9 Daily Development Workflow  [in-scope]
 
 ```bash
 # 1. Pull latest changes
@@ -2900,7 +2965,7 @@ chore(deps): bump pg-schemata to 1.3.1
 docs: update PRD with cashflow module specification
 ```
 
-### 12.10 Husky Commit Rules
+### 12.10 Husky Commit Rules  [in-scope]
 
 The pre-commit hook enforces:
 
@@ -2925,7 +2990,7 @@ The pre-commit hook enforces:
    ```
 3. **lint-staged** — If configured, runs ESLint and Prettier on staged files only (fast)
 
-### 12.11 Recommended `.nvmrc`
+### 12.11 Recommended `.nvmrc`  [in-scope]
 
 Create a `.nvmrc` at the monorepo root to pin the Node version:
 
@@ -2935,7 +3000,7 @@ Create a `.nvmrc` at the monorepo root to pin the Node version:
 
 Then any developer can run `nvm use` to switch to the correct version automatically.
 
-### 12.12 `.env.example` Reference
+### 12.12 `.env.example` Reference  [in-scope]
 
 The `.env.example` file exists at the monorepo root. Keep it in version control as a developer reference:
 
@@ -2976,13 +3041,15 @@ VITE_ROOT_EMAIL_DOMAIN=axerra.io
 
 ---
 
-## 13. Design Decision Records
+## 13. Design Decision Records  [in-scope]
 
-### 13.1 Purpose
+> All decisions captured here serve the product positioning defined in §1.1: AXERRA is a horizontal, project-native, multi-entity ERP. Phase 1 delivers the base ERP core; Phase 2 delivers construction as the reference vertical module.
+
+### 13.1 Purpose  [in-scope]
 
 Design decisions capture the *why* behind architectural and technical choices. Code shows *what* was built; commit messages show *when*; design decisions explain *why one approach was chosen over alternatives*. Without this, future developers (or your future self) will waste time reverse-engineering intent, or worse, undo a deliberate choice without understanding the consequences.
 
-### 13.2 Location
+### 13.2 Location  [in-scope]
 
 Design decisions live in a `docs/decisions/` directory at the monorepo root:
 
@@ -3023,7 +3090,7 @@ axerra/
 - Decisions are **append-only** — never edit a past decision; supersede it with a new one
 - Decisions are **committed to the repo** — they travel with the code, not in a wiki or Notation
 
-### 13.3 Template
+### 13.3 Template  [in-scope]
 
 Every design decision follows a lightweight ADR (Architecture Decision Record) format:
 
@@ -3055,7 +3122,7 @@ What are the implications of this decision — both positive and negative?
 What trade-offs were accepted?
 ```
 
-### 13.4 When to Write a Decision Record
+### 13.4 When to Write a Decision Record  [in-scope]
 
 Write a decision record when:
 
@@ -3071,7 +3138,7 @@ Do **not** write a decision record for:
 - Implementation details that are easily changed later
 - Bug fixes or routine feature work
 
-### 13.5 Initial Decisions to Document
+### 13.5 Initial Decisions to Document  [in-scope]
 
 The following decisions should be captured as the project is built from scratch:
 
@@ -3090,7 +3157,7 @@ The following decisions should be captured as the project is built from scratch:
 | 0011 | Monorepo with npm workspaces over separate repos                | Shared code; unified tooling; atomic cross-package changes                           |
 | 0012 | pgvector embeddings for SKU matching over fuzzy string matching | Semantic similarity; language-agnostic; scales with catalog size                     |
 
-### 13.6 Referencing Decisions
+### 13.6 Referencing Decisions  [in-scope]
 
 When code implements a non-obvious pattern that traces back to a design decision, reference it:
 

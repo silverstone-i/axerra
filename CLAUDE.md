@@ -1,4 +1,6 @@
-# CLAUDE.md — Project Instructions for Claude Code
+# Agent Instructions (Claude Code / Codex / other AI agents)
+
+> **Canonical source.** This file is the canonical agent-instructions file for AXERRA. `AGENTS.md` at the repo root is a symlink to this file. Edit `CLAUDE.md` only; the symlink propagates changes to `AGENTS.md` automatically. Resolves gap 4.1.
 
 ## Verify Working Directory Before Edits
 

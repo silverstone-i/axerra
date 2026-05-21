@@ -21,6 +21,19 @@ jobs:
       - run: npm ci
       - run: npm run lint
 
+  license-check:
+    name: License Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+      - run: npm ci
+      - name: Verify production dependency licenses are AGPL-compatible
+        run: node scripts/checkLicenses.js
+
   arch-check:
     name: Architecture Check
     runs-on: ubuntu-latest

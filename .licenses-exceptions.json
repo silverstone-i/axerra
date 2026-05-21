@@ -1,0 +1,10 @@
+{
+  "comment": "Production transitive deps whose package.json declares no license. Each entry is justified. Reviewed manually; promote to a proper license override if upstream is forked.",
+  "exceptions": {
+    "pause@0.0.1": {
+      "via": "passport@0.7.0",
+      "actual_license": "MIT",
+      "justification": "TJ Holowaychuk 2012-era package; missing license field upstream. Effectively MIT per author's other contemporaneous packages. Verified by reading repo source: https://github.com/expressjs/pause"
+    }
+  }
+}

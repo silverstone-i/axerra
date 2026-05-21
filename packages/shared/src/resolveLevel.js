@@ -3,7 +3,8 @@
  *       fallback chain in middleware/rbac.js
  * @module @axerra/shared/resolveLevel
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 /**

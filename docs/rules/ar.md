@@ -17,7 +17,7 @@ open → sent → paid → voided
 ```
 
 - **open**: Initial state; lines can be added/edited
-- **sent**: Invoice dispatched to client — auto-assigns `invoice_number` via numbering system (note: controller passes `legal_entity_id` to `allocateNumber` but this column is not in the schema — effectively passes `null`); triggers GL posting (debit AR Receivable, credit Revenue)
+- **sent**: Invoice dispatched to client — auto-assigns `invoice_number` via numbering system scoped to `company_id` per §3.13 (each company has its own running sequence; reconciled 2026-05-20 per gap 3.7 / 4.8); triggers GL posting (debit AR Receivable, credit Revenue)
 - **paid**: Fully settled — auto-transitions when remaining balance reaches zero
 - **voided**: Canceled (terminal); reachable from any prior status
 
