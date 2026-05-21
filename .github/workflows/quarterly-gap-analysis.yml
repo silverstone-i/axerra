@@ -33,22 +33,24 @@ jobs:
           Time for the quarterly doc-vs-code reconciliation pass.
 
           Goal: catch drift between PRD / ADRs / rules and the actual codebase
-          before it compounds. See `docs/PRD.md` (intended state), `docs/rules/`
-          (implementation guardrails), and `docs/gap-analysis.md` for the
-          schema. The prior pass produced the bulk of the current PRD body
-          (Phase A / Phase B; ADR-0027) — this is the rolling follow-up.
+          before it compounds. The canonical artifacts are `docs/PRD.md`
+          (intended product state) and `docs/rules/*.md` (per-module
+          implementation guardrails); the Phase A / Phase B reconciliation
+          (ADR-0027) retired the standalone `docs/gap-analysis.md` and
+          `docs/roadmap.md` scaffolding, so drift is detected directly
+          against PRD + rules now.
 
           ## Checklist
 
-          - [ ] Re-run gap-analysis Prompt 1 from `docs/PROMPTS.md` (or the equivalent), output to `docs/gap-analysis.md`.
-          - [ ] Compare the new run against the prior file; flag any new Section 1–4 items.
+          - [ ] Re-run the gap-analysis prompt from `docs/PROMPTS.md` against `docs/PRD.md` and `docs/rules/`; record findings inline in this issue.
+          - [ ] Spot-check each `docs/rules/<module>.md` against the corresponding `apps/server/src/modules/<module>/` (and the three system trees: `system/auth/`, `system/core/`, `system/tenants/`) for behavioral drift.
           - [ ] Confirm the doc-coverage CI check is still rejecting untouched-rules PRs by inspecting recent merges.
           - [ ] Confirm `scripts/checkLicenses.js` still passes — any new production deps should be in `.licenses-allowed.json`.
-          - [ ] If new items appear: open a Phase B-style PR or add roadmap entries.
+          - [ ] If new drift items appear: open targeted reconciliation PRs that edit PRD + the relevant rules file together.
 
           ## Anti-patterns
 
-          - Don't rewrite the gap-analysis from scratch — annotate the existing file so the trail of decisions stays auditable.
+          - Don't recreate a long-lived `docs/gap-analysis.md` — fold findings directly into PRD/rules edits the same way Phase A/B did.
           - Don't defer "needs manual review" items that a grep would resolve.
           EOF
           )

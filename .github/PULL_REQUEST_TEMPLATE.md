@@ -22,11 +22,11 @@ Tick every box that applies (multi-select — a change can touch PRD, ARDs, and 
 - [ ] **README / COLLABORATION.md / repo-level doc edited**
 - [ ] **No documentation impact** — reason: <!-- e.g. internal helper, no behavior change -->
 
-> CI's `doc-coverage` check fails when a PR touches `apps/server/src/modules/<X>/` without also touching `docs/rules/<X>.md`. Override by applying the `no-doc-change` label and explaining above.
+> CI's `doc-coverage` check fails when a PR touches a tracked code tree without also touching the matching `docs/rules/<name>.md`. Tracked trees: `apps/server/src/modules/<X>/` (the business modules) and `apps/server/src/system/{auth,core,tenants}/` (system surfaces). See `scripts/checkDocCoverage.js` for the authoritative mapping. Override by applying the `no-doc-change` label and explaining above.
 
-## Linked issues / gap-analysis IDs
+## Linked issues
 
-<!-- e.g. Closes #123, resolves gap 3.7, addresses roadmap item 12 -->
+<!-- e.g. Closes #123, resolves the drift noted in the last quarterly review -->
 
 ## Test plan
 
