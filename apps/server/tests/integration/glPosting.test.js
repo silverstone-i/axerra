@@ -2,7 +2,8 @@
  * @file Integration — GL posting: create journal entry → verify balance, double-entry validation
  * @module tests/integration/glPosting
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';

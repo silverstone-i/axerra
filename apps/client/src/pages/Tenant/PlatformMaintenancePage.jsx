@@ -6,7 +6,8 @@
  * operators can run. Currently exposes orphan portal_users cleanup; future
  * cross-tenant maintenance lands as additional cards on this page.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { useMemo, useState } from 'react';

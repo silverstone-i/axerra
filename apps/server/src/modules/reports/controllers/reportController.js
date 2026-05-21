@@ -6,7 +6,8 @@
  * handleError() for consistent error responses. No model binding — report
  * controllers use raw SQL via db.manyOrNone / db.oneOrNone against views.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import logger from '../../../lib/logger.js';

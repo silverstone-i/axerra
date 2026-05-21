@@ -19,7 +19,8 @@
  *   - Lock the portal_user iff that was its only active binding (so a
  *     multi-tenant user with a separately-active binding elsewhere stays up).
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import db from '../../../db/db.js';

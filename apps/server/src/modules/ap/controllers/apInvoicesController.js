@@ -5,7 +5,8 @@
  * Status workflow: open → approved → paid → voided
  * On approval: GL journal entry (debit Expense/WIP, credit AP Liability)
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import BaseController from '../../../lib/BaseController.js';
@@ -53,7 +54,10 @@ class ApInvoicesController extends BaseController {
             // Auto-assign invoice_number on approval (if enabled and not already set)
             if (!current.invoice_number) {
               try {
-                const numbering = await allocateNumber(schema, 'ap_invoice', current.legal_entity_id || null, new Date());
+                // In this product, companies are the legal entities. Scope
+                // numbering by company_id so each company gets its own
+                // running invoice sequence (PRD §3.13.1 / §3.7.1).
+                const numbering = await allocateNumber(schema, 'ap_invoice', current.company_id, new Date());
                 if (numbering) {
                   req.body.invoice_number = numbering.displayId;
                 }

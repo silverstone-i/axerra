@@ -6,7 +6,8 @@
  * charitable donations, etc.). Uses the polymorphic sources pattern with
  * source_type = 'contact' for linked addresses and phone numbers.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 /** @type {import('pg-schemata').TableSchema} */

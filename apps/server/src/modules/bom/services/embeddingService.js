@@ -5,7 +5,8 @@
  * Uses OpenAI text-embedding-3-large model (3072 dimensions) for generating
  * embeddings. Includes description normalization and batch processing.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import logger from '../../../lib/logger.js';

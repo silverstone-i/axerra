@@ -5,7 +5,8 @@
  * "Standalone" contacts are the miscellaneous payees on the Core > Contacts page,
  * distinct from vendor contacts which live under VendorsPage.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';

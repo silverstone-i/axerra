@@ -5,7 +5,8 @@
  * Replaces the per-entity `updateEmail`, `addEmail`, `removeEmail`
  * (and phone / address / taxId equivalents) boilerplate.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { useState, useCallback, useMemo } from 'react';

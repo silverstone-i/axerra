@@ -2,7 +2,8 @@
  * @file TenantNumberSequenceState model — extends TableModel for sequence counters
  * @module core/models/TenantNumberSequenceState
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { TableModel } from 'pg-schemata';

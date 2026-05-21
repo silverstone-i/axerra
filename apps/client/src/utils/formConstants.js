@@ -5,7 +5,8 @@
  * Centralises the default objects used by email, phone, address, and
  * tax-identifier sub-forms across Core entity pages.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 export const BLANK_EMAIL = { email: '', label: 'work', is_primary: false };

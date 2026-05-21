@@ -6,7 +6,8 @@
  * (or will create its own). Returns { serial, periodKey, displayId } or null
  * when numbering is disabled for the given id_type.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 /** Lazy-load db to avoid triggering DB.init() at module load (breaks unit tests) */

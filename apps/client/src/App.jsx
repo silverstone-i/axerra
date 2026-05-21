@@ -5,7 +5,8 @@
  * Public routes: /login
  * Protected routes: wrapped in LayoutShell (redirects to /login if unauthenticated)
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';

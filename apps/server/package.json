@@ -2,7 +2,7 @@
   "name": "@axerra/server",
   "version": "0.1.0",
   "description": "Axerra backend — project costing, profitability, and payments with double-entry accounting.",
-  "license": "MIT",
+  "license": "AGPL-3.0-or-later",
   "author": "Ian Silverstone",
   "type": "module",
   "main": "server.js",

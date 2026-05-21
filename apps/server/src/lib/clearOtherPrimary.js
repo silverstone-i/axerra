@@ -5,7 +5,8 @@
  * Used by child-entity controllers (emails, phone_numbers) to enforce the
  * single-primary-per-parent invariant before INSERT or UPDATE.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { pgp } from '../db/db.js';

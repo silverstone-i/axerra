@@ -2,7 +2,8 @@
  * @file RBAC tests — Layers 2-4 never expand beyond Layer 1
  * @module tests/rbac/denyOverride
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { describe, it, expect, vi } from 'vitest';

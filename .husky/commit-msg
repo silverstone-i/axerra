@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Enforce DCO sign-off on every commit. See COLLABORATION.md.
+msg_file="$1"
+
+# Strip comments before checking — git uses lines starting with # as scissors/help.
+if grep -vE '^[[:space:]]*#' "$msg_file" | grep -qE '^Signed-off-by: .+ <.+@.+\..+>$'; then
+  exit 0
+fi
+
+cat <<'EOF' >&2
+
+Missing DCO sign-off.
+
+Every commit must carry a Signed-off-by trailer asserting the Developer
+Certificate of Origin (DCO 1.1). See COLLABORATION.md.
+
+Add the trailer with:
+    git commit -s
+
+Or amend the current commit:
+    git commit --amend -s --no-edit
+
+EOF
+exit 1

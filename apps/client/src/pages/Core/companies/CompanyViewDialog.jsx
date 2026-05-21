@@ -2,7 +2,8 @@
  * @file Read-only Company detail dialog
  * @module client/pages/Core/companies/CompanyViewDialog
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import Box from '@mui/material/Box';

@@ -2,7 +2,8 @@
  * @file React Query hooks for cost lines
  * @module client/hooks/useCostLines
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';

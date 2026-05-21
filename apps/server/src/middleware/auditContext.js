@@ -12,7 +12,8 @@
  * No-op-safe when `req.user` is missing (e.g. routes that bypass auth) —
  * the store fields land `null` and the audit resolver returns `null`.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { requestContext } from '../lib/requestContext.js';

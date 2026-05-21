@@ -9,7 +9,8 @@
  *   2. Provisions the Axerra tenant schema (CREATE SCHEMA + tenant-scope migrations + RBAC)
  *   3. Seeds the root super user employee in the Axerra tenant schema and links it to admin.portal_users
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { resolve, dirname } from 'node:path';

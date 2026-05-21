@@ -7,7 +7,8 @@
  * so the rule is enforced everywhere a record is created or updated —
  * regardless of `is_app_user` state, so a roleless record never exists.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 // Lazy-load pgp to avoid module-load-order cycles with the pg-schemata

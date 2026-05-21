@@ -2,7 +2,8 @@
  * @file DB.init() singleton setup — initializes pg-schemata with all model repositories
  * @module server/db/db
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { resolve, dirname } from 'node:path';

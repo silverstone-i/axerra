@@ -7,7 +7,8 @@
  * The is_login flag marks the email used as the portal_users login credential
  * for entities with is_app_user = true.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 /** @type {import('pg-schemata').TableSchema} */

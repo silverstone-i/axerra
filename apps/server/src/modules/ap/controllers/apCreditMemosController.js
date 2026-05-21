@@ -6,7 +6,8 @@
  * Applied credit memos reduce the linked invoice's remaining balance.
  * When remaining balance reaches zero, invoice auto-transitions to 'paid'.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import BaseController from '../../../lib/BaseController.js';

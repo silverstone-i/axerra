@@ -12,7 +12,8 @@
  *     always be able to exit. Status reads only the caller's own
  *     session state and leaks no data beyond that.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { Router } from 'express';

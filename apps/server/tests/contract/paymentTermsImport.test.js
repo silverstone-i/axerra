@@ -11,7 +11,8 @@
  *   - Case-only edits on a varchar parent field are classified as updates and
  *     persist (the shim opts into `diffParent({ caseSensitive: true })`).
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';

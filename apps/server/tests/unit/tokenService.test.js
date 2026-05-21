@@ -2,7 +2,8 @@
  * @file Unit tests for JWT token service
  * @module tests/unit/tokenService
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { describe, test, expect, beforeAll } from 'vitest';

@@ -4,7 +4,8 @@
  *
  * Tests the middleware in isolation using mocked JWT and DB.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { describe, test, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest';

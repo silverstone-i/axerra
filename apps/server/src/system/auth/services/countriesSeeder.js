@@ -6,7 +6,8 @@
  * INSERT … ON CONFLICT (code) DO UPDATE so re-runs reconcile drift in the
  * canonical COUNTRIES list (e.g. a renamed country or a tweaked dial_code).
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { COUNTRIES } from '@axerra/shared';

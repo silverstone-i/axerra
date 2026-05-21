@@ -5,7 +5,8 @@
  * Displays all field group definitions grouped by module/router. Admins toggle
  * which groups are granted to the selected role. Default groups are always granted.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { useState, useMemo, useEffect, useCallback } from 'react';

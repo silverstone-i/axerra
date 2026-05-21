@@ -5,7 +5,8 @@
  * Mounts all project sub-routers under /v1/. Final paths are
  * /api/projects/v1/projects, /api/projects/v1/units, etc.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { Router } from 'express';

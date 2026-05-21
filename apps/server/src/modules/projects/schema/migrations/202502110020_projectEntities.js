@@ -10,7 +10,8 @@
  * Composite FK tasks_master(tenant_id, task_group_code) → task_groups(tenant_id, code)
  * is added via ALTER TABLE after all tables are created (non-PK unique target).
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { defineMigration } from '../../../../db/migrations/defineMigration.js';

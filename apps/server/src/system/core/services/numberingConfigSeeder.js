@@ -5,7 +5,8 @@
  * Called during tenant provisioning after policy catalog seeding.
  * Idempotent — safe to re-run on existing tenants.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import logger from '../../../lib/logger.js';

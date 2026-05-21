@@ -6,7 +6,8 @@
  * in admin.portal_users → archive employee → verify portal_user status=locked →
  * restore employee → verify portal_user restored.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';

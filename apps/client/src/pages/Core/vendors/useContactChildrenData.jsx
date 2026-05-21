@@ -5,7 +5,8 @@
  * Encapsulates the contact email/phone fetching, lookup map construction,
  * and contactColumns definition that were previously inline in VendorsPage.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';

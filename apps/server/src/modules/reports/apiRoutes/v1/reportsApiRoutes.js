@@ -2,7 +2,8 @@
  * @file Reports module route aggregator — mounts reports router under /api/reports
  * @module reports/apiRoutes/v1/reportsApiRoutes
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { Router } from 'express';

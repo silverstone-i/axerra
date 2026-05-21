@@ -76,13 +76,20 @@ Tenant records are spreadsheet-importable and -exportable per PRD §3.2.1:
 already carries its own `tenant_code`, so the upload callback only injects
 `created_by` from the authenticated user.
 
-**Known limitation:** the import path currently only inserts rows into
-`admin.tenants`. It does NOT run the full provisioning pipeline that
-`POST /tenants` does (schema create + tenant migrations + RBAC seed +
-admin user creation via `provisionNewTenant`). Imported tenants must be
-provisioned separately before they are usable. Track follow-up work to
-either route imports through `provisionNewTenant` or document a manual
-provisioning step.
+**Provisioning behavior (current, reconciled 2026-05-20 per gap 3.2):**
+
+- Rows **without** an `id` are treated as inserts and trigger a full
+  per-row `provisionNewTenant` call — schema create, tenant migrations,
+  RBAC seed, and admin portal user creation. The single XLSX upload
+  provisions every new tenant in the file.
+- Rows **with** an `id` are treated as updates against `admin.tenants`
+  (diff-as-DTO so round-trip re-imports are noops).
+- `previewOnly=true` runs all validation (per-row required-field /
+  format / password-strength checks, intra-file duplicate detection,
+  cross-table uniqueness against `admin.tenants` + `admin.portal_users`,
+  ROOT_TENANT archive protection) without writes.
+
+Source: `apps/server/src/system/auth/models/Tenants.js`.
 
 `portal_users` is **not** importable or exportable — users are created via
 `/register`. `portalUsersRouter` sets `disableImportXls`/`disableExportXls`

@@ -2,7 +2,8 @@
  * @file CostLines router — /api/activities/v1/cost-lines
  * @module activities/apiRoutes/v1/costLinesRouter
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import createRouter from '../../../../lib/createRouter.js';

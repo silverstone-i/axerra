@@ -6,7 +6,8 @@
  * the async handlers that loop over selectedRows, and ready-to-spread
  * ConfirmDialog props.
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { useState } from 'react';

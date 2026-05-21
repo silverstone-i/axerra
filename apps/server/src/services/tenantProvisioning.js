@@ -9,7 +9,8 @@
  *   4. Seeds default RBAC roles and policies
  *   5. Seeds policy catalog (permission discovery for role-config UI)
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { DB } from 'pg-schemata';

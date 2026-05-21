@@ -8,7 +8,8 @@
  * spreadsheet imports). Functions are pure of req/res — callers pass plain
  * arguments and a transaction handle (or `db` for outside-tx use).
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 // Lazy-load db/pgp to avoid module-load-order issues with the pg-schemata

@@ -11,7 +11,8 @@
  * reasons; the helpers are polymorphic and accept any entity_type that
  * binds to portal_users (employee, client, vendor_contact).
  *
- * Copyright (c) 2025 – present Axerra LLC. All rights reserved.
+ * Copyright (c) 2025–present Ian Silverstone.
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import logger from './logger.js';
