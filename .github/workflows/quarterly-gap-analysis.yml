@@ -40,21 +40,15 @@ jobs:
 
           ## Checklist
 
-          - [ ] Re-run gap-analysis Prompt 1 from `docs/PROMPTS.md` (or the
-                equivalent), output to `docs/gap-analysis.md`.
-          - [ ] Compare the new run against the prior file; flag any new
-                Section 1–4 items.
-          - [ ] Confirm the doc-coverage CI check is still rejecting
-                untouched-rules PRs by inspecting recent merges.
-          - [ ] Confirm `scripts/checkLicenses.js` still passes — any new
-                production deps should be in `.licenses-allowed.json`.
-          - [ ] If new items appear: open a Phase B-style PR or add roadmap
-                entries.
+          - [ ] Re-run gap-analysis Prompt 1 from `docs/PROMPTS.md` (or the equivalent), output to `docs/gap-analysis.md`.
+          - [ ] Compare the new run against the prior file; flag any new Section 1–4 items.
+          - [ ] Confirm the doc-coverage CI check is still rejecting untouched-rules PRs by inspecting recent merges.
+          - [ ] Confirm `scripts/checkLicenses.js` still passes — any new production deps should be in `.licenses-allowed.json`.
+          - [ ] If new items appear: open a Phase B-style PR or add roadmap entries.
 
           ## Anti-patterns
 
-          - Don't rewrite the gap-analysis from scratch — annotate the existing
-            file so the trail of decisions stays auditable.
+          - Don't rewrite the gap-analysis from scratch — annotate the existing file so the trail of decisions stays auditable.
           - Don't defer "needs manual review" items that a grep would resolve.
           EOF
           )

@@ -75,9 +75,11 @@ function isIgnored(p) {
 }
 
 const missing = new Map();
+let evaluated = 0;
 
 for (const file of changed) {
   if (isIgnored(file)) continue;
+  evaluated++;
   for (const m of MAP) {
     if (file.startsWith(m.prefix)) {
       if (!changed.includes(m.rules)) {
@@ -97,7 +99,9 @@ for (const file of changed) {
 }
 
 if (missing.size === 0) {
-  console.log(`doc-coverage: PASSED. Checked ${changed.length} changed files.`);
+  console.log(
+    `doc-coverage: PASSED. Evaluated ${evaluated} of ${changed.length} changed files (${changed.length - evaluated} ignored: tests/migrations/scripts/seeders).`,
+  );
   process.exit(0);
 }
 

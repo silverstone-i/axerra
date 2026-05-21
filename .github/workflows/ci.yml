@@ -57,7 +57,7 @@ jobs:
           BASE_REF: origin/${{ github.event.pull_request.base.ref }}
           SKIP_DOC_COVERAGE: ${{ steps.skipflag.outputs.skip }}
         run: |
-          git fetch origin "${{ github.event.pull_request.base.ref }}" --depth=1
+          git fetch origin "${{ github.event.pull_request.base.ref }}"
           node scripts/checkDocCoverage.js
 
   arch-check:
