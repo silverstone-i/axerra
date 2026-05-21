@@ -9,6 +9,7 @@
 | Employee | `employees` | Yes | Auto-creates sources record; manages portal_users lifecycle |
 | Contact | `contacts` | Yes | Auto-creates source; codes auto-numbered; no RBAC / no login |
 | Address | `addresses` | Via source_id | Linked to vendor/client/employee through sources |
+| Email | `emails` | Via source_id | Tenant-scoped polymorphic email store (replaces former `clients.email` / `employees.email` columns). One row per email per entity; `is_login = true` marks the email used as the linked `portal_users.email`. See PRD §3.14.1 / ADR-0025. |
 | Company | `companies` | Yes | Auto-creates source; `code` is required (not auto-numbered) |
 | Vendor Contact | `vendor_contacts` | Yes | Auto-creates source; manages portal_users lifecycle |
 | Payment Terms | `payment_terms` | No | Settings/lookup table for payment term definitions |

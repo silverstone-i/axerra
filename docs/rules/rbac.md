@@ -13,11 +13,19 @@
 ## Four-Layer Model
 
 ### Layer 1 — Capabilities
-- Resolution hierarchy (most specific wins):
-  `module::router::action` > `module::router::` > `module::::`
+- Resolution hierarchy (most specific wins, four fallback steps):
+  `module::router::action` > `module::router::` >
+  `module::::` > `::::` (empty-module wildcard, matches
+  the wildcard policy seeded for `admin` / `super_user`)
 - Default if no match: `none`
 - Multi-role merge: highest level wins
   (`full` > `view` > `none`)
+- Exact-match carve-out: catalog rows with
+  `policy_required: true` (the default for router-scoped
+  actions) skip the four-step fallback above and require
+  an exact `module::router::action` grant — see
+  `apps/server/src/middleware/rbac.js` `EXACT_MATCH_KEYS`
+  and PRD §3.1.2.
 
 ### Layer 2 — Data Scope
 - Scope hierarchy: `all_projects` > `assigned_companies` >

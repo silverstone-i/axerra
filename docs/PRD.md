@@ -218,13 +218,22 @@ The UI follows a four-zone layout architecture:
 ```
 Browser -> Vite Dev Proxy (/api -> :3000) -> Express
   -> CORS -> express.json() -> express.urlencoded() -> cookieParser() -> Morgan logging
+  -> auditContext() [AsyncLocalStorage request context]
   -> authRedis() [JWT verify, tenant resolve, permission load]
   -> /api/<module>/v1/<resource>
-  -> [addAuditFields (mutations only)] -> [withMeta (user-supplied)] -> [moduleEntitlement (auto-appended)] -> Controller -> pg-schemata Model (schema-aware)
+  -> [requireRootTenant (admin routes)] -> [addAuditFields (mutations only)] -> [withMeta (user-supplied)] -> [moduleEntitlement (auto-appended)] -> [rbac() (auto on import/export; opt-in elsewhere)] -> Controller -> pg-schemata Model (schema-aware)
+  -> errorHandler() [unified Express 5 error mapping]
   -> Response
 ```
 
-> **Note:** `createRouter` automatically prepends `addAuditFields` on mutation routes (POST, PUT, DELETE, PATCH) and appends `moduleEntitlement` on all routes — with two exceptions: `/ping` has no middleware, and `POST /export-xls` uses read-level middleware (no `addAuditFields`). The `withMeta` middleware is passed by each router via per-method middleware arrays. `rbac()` is auto-applied on `/import-xls` (`rbac('full')`) and `/export-xls` (`rbac('view')`) routes with action overrides (`setImportAction` / `setExportAction`). For other routes, `rbac()` must be explicitly added (currently `employees/:id/reset-password` and `ar-invoices/approve`).
+> **Note:** `createRouter` automatically prepends `addAuditFields` on mutation routes (POST, PUT, DELETE, PATCH) and appends `moduleEntitlement` on all routes — with two exceptions: `/ping` has no middleware, and `POST /export-xls` uses read-level middleware (no `addAuditFields`). The `withMeta` middleware is passed by each router via per-method middleware arrays. `rbac()` is auto-applied on `/import-xls` (`rbac('full')`) and `/export-xls` (`rbac('view')`) routes with action overrides (`setImportAction` / `setExportAction`). For other routes, `rbac()` must be explicitly added (e.g. `portalUsersRouter` per-method arrays, `employees/:id/reset-password`, `ar-invoices/approve`).
+
+> **Middleware reference (as of 2026-05-21, gaps 2.10 / 2.11 / 2.21):**
+>
+> - `apps/server/src/middleware/requireRootTenant.js` — gates admin / tenant-management routes. Returns 403 unless `req.user.tenant_code === process.env.ROOT_TENANT_CODE` (default `AXERRA`).
+> - `apps/server/src/middleware/auditContext.js` — wraps each request in AsyncLocalStorage carrying the audit identity for model-layer hooks (paired with `lib/requestContext.js` and `lib/registerAuditResolver.js` — see §4.3).
+> - `apps/server/src/middleware/errorHandler.js` — unified Express 5 error handler; maps Zod errors → 400, pg-schemata violations → 422, auth errors → 401/403, and falls back to 500 with structured logging.
+> - `apps/server/src/services/{permCacheInvalidator,rbacQueryContext,permissionLoader}.js` — Redis cache invalidator (busts `perm:{userId}:{tenantCode}` on role/policy mutations), RBAC query context builder, and the permission loader that reads canon from DB on cache miss. See §3.1.2 and `rules/rbac.md`.
 
 ---
 
@@ -241,7 +250,7 @@ Browser -> Vite Dev Proxy (/api -> :3000) -> Express
 1. User submits email/password on `LoginPage`
 2. Client calls `POST /api/auth/login` via `authApi.login()`
 3. Server validates via Passport Local Strategy (bcrypt hash comparison against `admin.portal_users`)
-4. Server resolves the user's **home tenant** via `admin.portal_user_tenants` binding (oldest active binding). Login is refused with *"Tenant is inactive."* if the home tenant is not active.
+4. Server resolves the user's **home tenant** via `admin.portal_user_tenants` binding (oldest active binding). Login is refused with *"Tenant is inactive."* if the home tenant is not active (see `passportService.js:54`; resolves gap 1.14, 2026-05-21).
 5. Server loads RBAC permissions for the home tenant and **gates token issuance** on the result. A user with no usable permissions (no entity, no roles, or roles that resolve to no policies) is refused with 403 — credentials were valid but the account is unusable.
 6. Server computes `ph` (permissions hash) from the resolved permission canon, signs `auth_token` (15min) and `refresh_token` (7-day) JWTs, and sets them as httpOnly cookies. The permission canon is primed into the Redis cache so the user's first authenticated request does not re-load.
 7. Client calls `GET /api/auth/me` to hydrate user context.
@@ -322,6 +331,8 @@ RBAC uses a four-layer model where each layer narrows what the previous layer gr
 4. `::::` (empty-module wildcard — matches policies seeded with empty `module` for admin/super_user roles)
 5. Default: `none`
 
+**Exact-Match Carve-Out (`EXACT_MATCH_KEYS`, as of 2026-05-21):** Catalog entries with `policy_required: true` (the default for router-scoped actions) bypass the four-step fallback above and require an exact `module::router::action` grant. The set is derived at module load in `apps/server/src/middleware/rbac.js` from `CATALOG_ENTRIES` in `policyCatalogSeeder.js` (lines 27-37 explain the semantics). This keeps sensitive actions (password resets, approvals, etc.) out of router-level CRUD or wildcard grants — broader policies do NOT satisfy the check. Catalog rows with `policy_required: false` (e.g., most import actions, sub-record CRUD) continue to use the normal fallback resolver. See also `rules/rbac.md`. (Resolves gaps 2.7 / 4.28, 2026-05-21.)
+
 **Multi-role Merge:**
 
 - Layer 2 scope: most permissive wins — four-tier hierarchy: `all_projects` > `assigned_companies` > `assigned_projects` > `self`
@@ -352,7 +363,7 @@ All roles — including system roles — go through the full RBAC policy resolut
 
 - Canonical form: `{ caps, scope, projectIds, companyIds, entityType, entityId, stateFilters, fieldGroups }`
 - Stored at `perm:{userId}:{tenantCode}`
-- SHA-256 permission hash designed for JWT (`ph` claim) — currently hardcoded to `null` in `authController.js` (Phase 3 deferred). The `X-Token-Stale: 1` stale-detection logic exists in `authRedis` but never fires because `ph` is always falsy
+- SHA-256 permission hash designed for JWT (`ph` claim) — computed at login from the user's loaded permission canon (Phase 3, live as of commit `1ac6a21`, 2026-05-20). The `X-Token-Stale: 1` stale-detection logic exists in `authRedis` but is not yet wired (intended). (Resolves gap 4.24, 2026-05-21.)
 - `authRedis` middleware reads the `roles` array from the entity record (resolved via `portal_users.entity_type` + `entity_id`), then queries `policies` for matching role IDs — NOT from a `portal_users.role` column or `role_members` table
 - `entityType` and `entityId` are included in the canon for `self` scope resolution
 
@@ -360,8 +371,8 @@ All roles — including system roles — go through the full RBAC policy resolut
 
 - `admin.tenants.allowed_modules` (jsonb array of module names) controls which modules a tenant can access
 - Enforced by middleware after auth and before RBAC: if `req.resource.module` is not in the tenant's `allowed_modules`, return 403
-- Cached in Redis alongside tenant metadata
-- Default: empty array means **all modules allowed** — entitlement enforcement activates per-tenant as their `allowed_modules` arrays are populated
+- Source of truth at request time: `moduleEntitlement` reads from `req.ctx.tenant.allowed_modules` (populated by `authRedis`). There is no separate Redis key for `allowed_modules`. (Reconciled per gaps 4.14 / 2.24, 2026-05-21.)
+- Default: empty array (or missing field) means **all modules allowed** — this is an allow-when-unset policy, NOT a deny-by-default whitelist. Entitlement enforcement activates per-tenant as their `allowed_modules` arrays are populated. See ADR-0018.
 - Managed by Axerra `super_user` / `support` via tenant management UI
 
 **Enforcement:**
@@ -375,6 +386,19 @@ All roles — including system roles — go through the full RBAC policy resolut
 - When a new module is added to the platform, its migration seeds `level: 'full'` policies for the `admin` role in every existing tenant schema
 - Ensures `admin` always has complete access without manual intervention
 - New tenant provisioning includes admin policies for all modules enabled by the tenant's `allowed_modules`
+
+> **State as of 2026-05-21 (gap 1.7):** The shipped behaviour is a simpler single `module: ''` wildcard `level: 'full'` grant for the `admin` role (`systemRoleSeeder.js:66`). The per-module retroactive seeder described above is the intended end-state and is tracked as roadmap item 10. Until that lands, admin access is delivered via the wildcard.
+
+**Policy-Catalog Carve-Outs (as of 2026-05-21):**
+
+- `tenants::portal-users::import|export` are intentionally NOT seeded in the policy catalog. `portalUsersRouter` sets `disableImportXls: true` / `disableExportXls: true`, and `policyCatalogSeeder.js` omits the rows. Rationale: users are created via `/register` only — see §3.2.2. (Resolves gap 3.26, 2026-05-21.)
+- `tenants::tenants::import|export` ARE seeded and gate the tenant XLSX import/export routes (see §3.2.1).
+
+**Policy-Catalog Reconciler & CLI (as of 2026-05-21, gap 2.8):**
+
+- `apps/server/src/system/core/services/policyCatalogReconciler.js` performs idempotent diff + apply between the in-code `CATALOG_ENTRIES` constant and the per-tenant `policy_catalog` table, so deployed tenants converge on the latest catalog without per-tenant manual reseeding.
+- Migrations `202603270016_reseedPolicyCatalog.js` and `202605040018_reseedTenantImportExportCatalog.js` invoke the reconciler.
+- CLI entry point: `apps/server/scripts/db/reconcilePolicyCatalog.js` — reseeds a single tenant or all tenants from the host shell. Useful when a hotfix changes the catalog without shipping a migration.
 
 **RBAC Management Endpoints (tenant-scope, under `/api/core/v1/`):**
 
@@ -391,7 +415,7 @@ All roles — including system roles — go through the full RBAC policy resolut
 
 > **Role Assignment:** Roles are managed via entity CRUD endpoints (update the `roles` array on the employee/vendor-contact/client/contact record). There is no separate `/role-members` endpoint.
 
-> All RBAC management routes use `createRouter` with `withMeta({ module: 'core', router: '<resource>' })`. `rbac()` is not currently applied on these routes — access control relies on `moduleEntitlement`. **Note:** `policyCatalogRouter` currently uses `withMeta({ module: 'core', router: 'roles' })` instead of `router: 'policy-catalog'` — entitlement resolves against the `roles` resource rather than `policy-catalog`.
+> All RBAC management routes use `createRouter` with `withMeta({ module: 'core', router: '<resource>' })`. `policyCatalogRouter` uses `withMeta({ module: 'core', router: 'policy-catalog' })` — entitlement resolves against the `policy-catalog` resource. (Stale footnote claiming `router: 'roles'` removed per gap 4.7, 2026-05-21.)
 
 **RBAC Management UI (`ManageRolesPage`):** The Manage Roles page at `/tenant/manage-roles` uses a master-detail layout. The left panel lists roles in a DataTable; the right panel has tabbed editors for the four RBAC layers:
 
@@ -427,7 +451,7 @@ Roles with `is_immutable = true` OR `is_system = true` are read-only across all 
 | `status`          | varchar(20)  | `active`, `trial`, `suspended`, `pending`                                  |
 | `tier`            | varchar(20)  | `enterprise`, `growth`, `starter`                                            |
 | `region`          | varchar(64)  | Geographic region                                                                  |
-| `allowed_modules` | jsonb        | Module access whitelist (enforced by module entitlement middleware — see §3.1.2) |
+| `allowed_modules` | jsonb        | Module access list enforced by `moduleEntitlement` — empty array (or missing) means **all modules allowed** (allow-when-unset, NOT deny-by-default per ADR-0018). See §3.1.2. |
 | `max_users`       | integer      | User limit (default 5)                                                             |
 | `notes`           | text         | Internal notes                                                                     |
 
@@ -438,6 +462,8 @@ Roles with `is_immutable = true` OR `is_system = true` are read-only across all 
 - `createMigrator` runs all pending migrations against the new schema (not `bootstrap()` or `MigrationManager`)
 - Seed data (default roles, chart of accounts templates) is inserted via `bulkInsert()`
 - **Admin User Creation:** Performed in a single transaction: (1) create an `employees` record in the tenant schema with `roles: ['admin']`, `is_app_user: true`, `is_primary_contact: true`, (2) create a `portal_users` login in `admin.portal_users` with `entity_type: 'employee'` and `entity_id` linking to the new employee. The employee must have `roles` assigned and `is_app_user = true` before the `portal_users` login is created. The admin employee is created with `code = NULL` because numbering is not yet configured; the code is backfilled when the tenant enables numbering via Settings (see §3.13.9).
+- **CLI entry point (as of 2026-05-21, gap 2.17):** `apps/server/scripts/db/provisionTenantCli.js` runs the same `provisionNewTenant` service from the host shell. Useful for headless bootstraps and tests that need a fresh tenant outside the HTTP flow.
+- **Root-entity seeder (gap 2.18):** `apps/server/src/services/seedRootEntity.js` is invoked during initial Axerra setup to create the `super_user` employee record under the Axerra tenant schema and link it to the bootstrap portal_user. It is idempotent and safe to re-run.
 - **Contact Designation:** Primary and billing contacts are designated via `employees.is_primary_contact` and `employees.is_billing_contact` flags — there is no `tenant_role` column on `portal_users`.
 
 **UI Requirements:**
@@ -517,7 +543,7 @@ Indexes:
 
 > **Removed from portal_users:** `tenant_code`, `user_name`, `full_name`, `tax_id`, `notes`, `role`, `tenant_role`, `employee_id`. The `employee_id` column has been replaced by the polymorphic `entity_type` + `entity_id` pair, supporting logins for employees, vendors, clients, and contacts. User identity data lives on the entity record. Roles are stored as a `roles` text array on the entity record (not in a `role_members` junction table). Contact designation (primary/billing) is via `employees.is_primary_contact` / `is_billing_contact`. The `axe_admin_phones` and `axe_admin_addresses` tables have been removed — phone numbers and addresses are stored on the linked entity via the polymorphic `sources` → `phone_numbers` / `addresses` pattern.
 
-**Access Control:** All portal-users routes are gated by `requireRootTenant` middleware and `withMeta({ module: 'tenants', router: 'portal-users' })`. `rbac()` is not currently applied — access control relies on `requireRootTenant` (restricts to Axerra users) and `moduleEntitlement`.
+**Access Control (as of 2026-05-21):** All portal-users routes are gated by `requireRootTenant` middleware and `withMeta({ module: 'tenants', router: 'portal-users' })`. `rbac()` IS applied per-method via the `portalUsersRouter` middleware arrays — `rbac('view')` on GET, `rbac('full')` on POST `/register`, PUT, DELETE, and PATCH. Spreadsheet import/export are disabled at the router (`disableImportXls: true`, `disableExportXls: true`), and the policy catalog intentionally does NOT seed `tenants::portal-users::import|export` — users are created via `/register` only (see permission-catalog cross-reference in §3.1.2). (Resolves gaps 3.10 / 4.23, 2026-05-21.)
 
 **Endpoints:**
 
@@ -555,6 +581,17 @@ Indexes:
 | `GET`  | `/api/tenants/v1/admin/impersonation-status` | Check current impersonation state                         |
 
 **Cross-tenant access:** Axerra users send `x-tenant-code` header to switch tenant context — handled by `authRedis` middleware, no dedicated endpoint needed. See [BR-RBAC-043](./rules/rbac.md#br-rbac-043).
+
+**Orphan portal-users (as of 2026-05-21, gap 2.4):**
+
+Bare `admin.portal_users` rows (no active `portal_user_tenants` binding and no tenant-schema entity) are surfaced and cleaned up via a dedicated admin router. Implementation under `apps/server/src/system/tenants/{controllers/orphanPortalUsersController.js, apiRoutes/v1/orphanPortalUsersRouter.js}`; SQL functions `admin.find_orphan_portal_users(p_limit)`, `admin.count_orphan_portal_users()`, and `admin.cleanup_orphan_portal_user(id)` are installed by migration `202605010001_orphanPortalUsersCleanup.js`.
+
+| Method | Path                                                       | Purpose                                                                                         |
+| ------ | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `GET`  | `/api/tenants/v1/orphan-portal-users/find_orphans`         | Preview up to N orphan rows + the total backlog count. Action `find_orphans`.                   |
+| `POST` | `/api/tenants/v1/orphan-portal-users/cleanup_orphans`      | Hard-delete a single orphan portal_user by id (transactional). Action `cleanup_orphans`.        |
+
+**Platform Maintenance UI:** `apps/client/src/pages/Tenant/PlatformMaintenancePage.jsx` (mounted under the Tenant admin nav group, Axerra-only) renders one card per maintenance operation. Orphan-portal-users find / cleanup is the first card; additional cross-tenant hygiene tools land here as separate cards. (Documented per gap 2.14, 2026-05-21.)
 
 **Impersonation Implementation:**
 
@@ -606,6 +643,8 @@ Each vendor contact gets its own `sources` record (with `source_type = 'vendor_c
 
 **Endpoint:** `/api/core/v1/vendor-contacts`
 
+**UI affordance:** `VendorContactsPanel.jsx` + `ContactFormDialog.jsx` (under `apps/client/src/pages/Core/vendors/`) render inside the Vendor edit dialog and provide create/edit/archive for the vendor's contacts. Standard XLSX import/export are wired at the router level (the router auto-applies `rbac('full')` on `/import-xls` and `rbac('view')` on `/export-xls`); a top-level Vendor Contacts page is intentionally not part of §4.6.3 today — import/export is driven from the parent Vendor panel. (Documented per gaps 2.3 / 2.16, 2026-05-21.)
+
 #### 3.3.1b Payment Terms
 
 | Field         | Type        | Description                                                   |
@@ -628,10 +667,11 @@ Each vendor contact gets its own `sources` record (with `source_type = 'vendor_c
 | `source_id`   | uuid         | FK to sources (CASCADE)                                                                                         |
 | `name`        | varchar(128) | Not null                                                                                                        |
 | `code`        | varchar(16)  | Unique per tenant                                                                                               |
-| `email`       | varchar(128) | Contact email                                                                                                   |
 | `roles`       | text[]       | RBAC role codes assigned to this client (default `'{}'`). References `roles.code`.                          |
 | `is_app_user` | boolean      | Default false. Must be true before a `portal_users` login can be created. Requires `roles` to be non-empty. |
 | `is_active`   | boolean      | Default true                                                                                                    |
+
+> **Email storage:** Client email addresses live in the polymorphic `emails` table (see §3.3.4 / §3.14.1) keyed by the client's `source_id`. There is no `email` column on `clients`. (Reconciled per gap 3.12 / 4.11, 2026-05-21.)
 
 **Endpoint:** `/api/core/v1/clients`
 
@@ -647,17 +687,25 @@ Each vendor contact gets its own `sources` record (with `source_type = 'vendor_c
 | `code`               | varchar(16)  | Unique per tenant                                                                                                  |
 | `position`           | varchar(64)  | Job title                                                                                                          |
 | `department`         | varchar(64)  | Department                                                                                                         |
-| `email`              | varchar(128) | Employee email (unique per tenant when non-null, partial index WHERE email IS NOT NULL AND deactivated_at IS NULL) |
 | `roles`              | text[]       | RBAC role codes assigned to this employee (default `'{}'`). References `roles.code`.                           |
 | `is_app_user`        | boolean      | Default false. Must be true before a `portal_users` login can be created. Requires `roles` to be non-empty.    |
 | `is_primary_contact` | boolean      | Default false. Designates this employee as the tenant's primary contact.                                           |
 | `is_billing_contact` | boolean      | Default false. Designates this employee as the tenant's billing contact.                                           |
+
+> **Email storage:** Employee email addresses live in the polymorphic `emails` table (see §3.3.4 / §3.14.1) keyed by the employee's `source_id`. There is no `email` column on `employees`; the per-tenant uniqueness invariant is enforced on `emails` instead. (Reconciled per gap 3.11 / 4.11, 2026-05-21.)
 
 > **Soft Delete:** Employees use the `deactivated_at` column (via pg-schemata `softDelete: true`) — there is no `is_active` boolean column. Vendors, clients, and contacts have BOTH `is_active` (boolean) AND `deactivated_at` (via `softDelete: true`) — a dual active/inactive mechanism. `is_active` is a user-facing toggle; `deactivated_at` is the pg-schemata soft-delete marker that filters records from read queries.
 
 > **Contact Designation:** Both `is_primary_contact` and `is_billing_contact` can be true on the same employee (e.g., small company owner is both primary and billing contact). Multiple employees can share the same flag. These flags replace the former `portal_users.tenant_role` designation. When the primary contact leaves the tenant (deactivated), the tenant's account executive is responsible for designating a new primary contact.
 
 **Edit Dialog:** The employee edit dialog (`maxWidth="md"`) includes phone number and address management sections below the employee fields. Phone numbers are rendered as repeatable inline rows (type select, number, is_primary checkbox, delete). Addresses are rendered as bordered cards with a 2-column grid of address fields. Changes are diffed and persisted via the polymorphic `sources` → `phone_numbers` / `addresses` pattern.
+
+**App-user provisioning libs (as of 2026-05-21, gap 2.9):** Shared helpers under `apps/server/src/lib/` coordinate the employee ↔ portal_user lifecycle:
+
+- `loginEmailSync.js` — keeps `portal_users.email` in sync with the entity's `is_login` email row in the `emails` table.
+- `employeeAppUserSync.js` — drives the provision / archive / restore branches when `employees.is_app_user` toggles (mirrored for clients and vendor_contacts).
+- `clearOtherPrimary.js` — enforces single-primary invariants on `is_primary_contact` / `is_billing_contact`.
+- `employeeRoleValidator.js` — rejects `is_app_user = true` saves where `roles` is empty.
 
 **Endpoints:**
 
@@ -751,7 +799,9 @@ Tax identification is handled by a dedicated `tax_identifiers` table linked via 
 
 Unique constraint: `(source_id, country_code, tax_type) WHERE deactivated_at IS NULL`
 
-**Endpoints:** `/api/core/v1/sources`, `/api/core/v1/contacts`, `/api/core/v1/addresses`, `/api/core/v1/phone-numbers`, `/api/core/v1/tax-identifiers`
+**Endpoints:** `/api/core/v1/sources`, `/api/core/v1/contacts`, `/api/core/v1/addresses`, `/api/core/v1/phone-numbers`, `/api/core/v1/tax-identifiers`, `/api/core/v1/emails`
+
+**Editable sections (client, as of 2026-05-21, gap 2.13):** Each entity edit dialog composes shared read/write components from `apps/client/src/components/shared/`: `EditableEmailsSection` / `EmailsSection` / `EmailRow`, `EditablePhoneNumbersSection` / `PhoneNumbersSection` / `PhoneRow`, `EditableAddressesSection` / `AddressesSection`, and `EditableTaxIdentifiersSection` / `TaxIdentifiersSection`. The Editable variants diff against the original state and persist add / update / archive against the polymorphic `sources` → child-table pattern.
 
 #### 3.3.5 Companies
 
@@ -1148,7 +1198,7 @@ Templates serve as reusable blueprints for project creation:
 | `ap_invoice_id` | uuid          | FK to ap_invoices (SET NULL)                                                               |
 | `payment_date`  | date          | Payment date                                                                               |
 | `amount`        | numeric(14,2) | Payment amount                                                                             |
-| `method`        | varchar(24)   | Intended values:`check`, `ach`, `wire` (no CHECK constraint — any varchar accepted) |
+| `method`        | varchar(24)   | One of `check`, `ach`, `wire`. Enforced by `paymentsController` (`VALID_METHODS = ['check', 'ach', 'wire']`) on create and update — values outside the allowlist return 400. Schema has no CHECK constraint; enforcement is controller-level. (Documented per gap 3.25, 2026-05-21.) |
 | `reference`     | varchar(64)   | Check number/reference                                                                     |
 | `notes`         | text          | Internal notes                                                                             |
 
@@ -1229,7 +1279,7 @@ Templates serve as reusable blueprints for project creation:
 | `ar_invoice_id` | uuid          | FK to ar_invoices (SET NULL)                                                               |
 | `receipt_date`  | date          | Receipt date                                                                               |
 | `amount`        | numeric(14,2) | Receipt amount                                                                             |
-| `method`        | varchar(24)   | Intended values:`check`, `ach`, `wire` (no CHECK constraint — any varchar accepted) |
+| `method`        | varchar(24)   | One of `check`, `ach`, `wire`. Enforced by `receiptsController` (`VALID_METHODS = ['check', 'ach', 'wire']`) on create and update — values outside the allowlist return 400. Schema has no CHECK constraint; enforcement is controller-level. (Documented per gap 3.25, 2026-05-21.) |
 | `reference`     | varchar(64)   | Reference number                                                                           |
 | `notes`         | text          | Internal notes                                                                             |
 
@@ -1508,7 +1558,7 @@ These views are created in each tenant schema at provisioning time and updated v
 | `GET` | `/api/reports/v1/ar-aging/:clientId`                   | AR aging for specific client                                |
 | `GET` | `/api/reports/v1/ap-aging`                             | AP aging report across all vendors                          |
 | `GET` | `/api/reports/v1/ap-aging/:vendorId`                   | AP aging for specific vendor                                |
-| `GET` | `/api/reports/v1/company-cashflow`                     | Aggregated cashflow across all projects for a company       |
+| `GET` | `/api/reports/v1/company-cashflow`                     | Aggregated cashflow across all projects for a company. UI lives under `/dashboard/cashflow` (Dashboard nav group), NOT `/reports/*` — see §7. (Reconciled per gaps 2.23 / 4.27, 2026-05-21.) |
 | `GET` | `/api/reports/v1/margin-analysis`                      | Cross-project margin comparison and trending                |
 
 #### 3.10.6 UI Requirements
@@ -1536,7 +1586,7 @@ These views are created in each tenant schema at provisioning time and updated v
 
 **AR/AP Aging Grids:**
 
-- Aging bucket columns: Current, 31-60, 61-90, 90+
+- Aging bucket columns: Current, 1-30, 31-60, 61-90, Over 90 (5 buckets — matches `vw_ar_aging` / `vw_ap_aging` view definitions in §3.10.4 and `rules/reports.md`). (Reconciled per gap 4.31, 2026-05-21.)
 - Grouped by client (AR) or vendor (AP)
 - Filterable by project
 - Summary row with totals
@@ -1723,6 +1773,72 @@ The backfill runs atomically in a single transaction using the same `allocateNum
 
 ---
 
+### 3.14 Tenant-First-Class Modules  [in-scope]
+
+**Purpose:** Tenant-scoped reference modules that did not fit cleanly into §3.3 *Core Entities* when the PRD was first written. Documented here for completeness. (Added per gaps 2.1, 2.2, 2.6, 4.26, 2026-05-21.)
+
+#### 3.14.1 Emails (first-class tenant-scoped table)
+
+The `emails` table is the canonical store for email addresses across vendors, clients, employees, contacts, and vendor contacts. It replaces the per-entity `email` column on `clients` and `employees`.
+
+| Field           | Type         | Description                                                                                                    |
+| --------------- | ------------ | -------------------------------------------------------------------------------------------------------------- |
+| `id`            | uuid         | PK                                                                                                             |
+| `tenant_id`     | uuid         | Not null, immutable                                                                                            |
+| `source_id`     | uuid         | FK to `sources` (CASCADE); polymorphic link to vendor / client / employee / contact / vendor_contact            |
+| `email`         | varchar(128) | Not null                                                                                                       |
+| `label`         | varchar(32)  | Optional ("work", "personal", etc.)                                                                            |
+| `is_primary`    | boolean      | Default false. Partial unique per `source_id` (one primary per entity).                                        |
+| `is_login`      | boolean      | Default false. Marks the email used as the linked `portal_users.email` for entities with `is_app_user = true`. Partial unique per `source_id` (one login email per entity). |
+
+Indexes / invariants:
+
+- Partial unique `(email) WHERE deactivated_at IS NULL` — tenant-wide email uniqueness for active rows (replaces the former `employees.email` partial unique).
+- Partial unique `(source_id) WHERE is_login = true AND deactivated_at IS NULL`.
+- Partial unique `(source_id) WHERE is_primary = true AND deactivated_at IS NULL`.
+- Partial unique `(source_id, label) WHERE deactivated_at IS NULL AND label IS NOT NULL` — at most one of each label per entity.
+
+**Endpoint:** `/api/core/v1/emails` (standard CRUD via `createRouter`).
+
+**Policy catalog entry:** `core::emails` (registered in `policyCatalogSeeder.js`).
+
+**Client UI:** `EmailsSection` / `EditableEmailsSection` / `EmailRow` components in `apps/client/src/components/shared/` render the email list inside each entity edit dialog (mirrors the Tax / Phone / Addresses sections — see §6.5 and §3.3.4).
+
+**ADR Reference:** [ADR-0025](./decisions/0025-import-dedup-partial-unique-indexes.md) audits the schema.
+
+#### 3.14.2 Tenant Preferences
+
+One row per tenant — tenant-scoped UI and behaviour preferences.
+
+| Field                | Type    | Description                                                       |
+| -------------------- | ------- | ----------------------------------------------------------------- |
+| `id`                 | uuid    | PK                                                                |
+| `tenant_id`          | uuid    | Not null, immutable, unique                                       |
+| `default_page_size`  | integer | Not null, default 25. CHECK: between 25 and 1000.                 |
+
+**Endpoint:** `/api/core/v1/tenant-preferences` (standard CRUD via `createRouter`).
+
+**Schema:** `apps/server/src/system/core/schemas/tenantPreferencesSchema.js`.
+
+**Migration:** `202603270015_tenantPreferences.js` (creates the table per tenant).
+
+**Seeder:** `apps/server/src/system/core/services/tenantPreferencesSeeder.js` inserts the default row during tenant provisioning.
+
+#### 3.14.3 Countries (admin reference table)
+
+ISO 3166-1 alpha-2 country reference list in the admin schema. Tenant-scope tables (`phone_numbers`, `addresses`, `tax_identifiers`) FK their `country_code` columns here so non-ISO inputs (`UK`, `Us`) are rejected at the database level.
+
+| Field         | Type         | Description                                |
+| ------------- | ------------ | ------------------------------------------ |
+| `code`        | char(2)      | PK; ISO 3166-1 alpha-2 code, immutable     |
+| `name`        | varchar(128) | Country name, not null                     |
+| `dial_code`   | varchar(8)   | International dialing prefix (e.g., `+1`)  |
+| `placeholder` | varchar(64)  | UI placeholder format hint                 |
+
+**Schema:** `apps/server/src/system/auth/schemas/countriesSchema.js`. Model: `apps/server/src/system/auth/models/Countries.js`. Seeder: `apps/server/src/system/auth/services/countriesSeeder.js`. No API surface — read directly by the client via the shared country list in `packages/shared`.
+
+---
+
 ## 4. Standard API Patterns  [in-scope]
 
 All API routes are built from scratch using pg-schemata's TableModel and QueryModel as the data layer.
@@ -1762,6 +1878,12 @@ Keyset-based pagination via pg-schemata's `findAfterCursor()`:
 ### 4.3 Audit Fields  [in-scope]
 
 Most models define `hasAuditFields: { enabled: true, userFields: { type: 'uuid' } }`. Exceptions: `policy_catalog` (`hasAuditFields: { enabled: false }` — seed-only reference data). pg-schemata manages `created_at`/`updated_at` timestamps automatically. The `addAuditFields` Express middleware injects `created_by`/`updated_by` from `req.user.id` into `req.body` before the controller runs. On POST requests, the middleware additionally injects `tenant_code` and `tenant_id` from `req.user` (with skip logic for tenant creation and user registration routes).
+
+**Request-context plumbing (as of 2026-05-21, gaps 2.9 / 2.11):**
+
+- `apps/server/src/middleware/auditContext.js` — wraps each request in an AsyncLocalStorage context carrying the audit identity, so model-layer code (including pg-schemata triggers) can resolve `created_by` / `updated_by` even when the controller never touched `req.body`.
+- `apps/server/src/lib/requestContext.js` + `apps/server/src/lib/registerAuditResolver.js` — register a tenant-aware resolver with pg-schemata that pulls the current user id from the request context.
+- Together with `addAuditFields`, this guarantees mutations always carry both the explicit body fields and the implicit context — direct model calls inside services do not need to thread the user id manually.
 
 ### 4.4 Soft Deletes  [in-scope]
 
@@ -1863,6 +1985,9 @@ All resources using `createRouter` have import/export endpoints. The following p
 | ArInvoicesPage       | ar         | ar-invoices       | `arInvoiceApi`       | `arInvoices`      |
 | ReceiptsPage         | ar         | receipts          | `receiptApi`         | `receipts`        |
 | CatalogPage          | bom        | catalog-skus      | `catalogSkuApi`      | `catalogSkus`     |
+| VendorContactsPanel  | core       | vendor-contacts   | `vendorContactApi`   | `vendorContacts`  |
+
+> **Vendor Contacts** are imported/exported from the parent Vendor edit dialog rather than a stand-alone page — see §3.3.1a. The router exposes `/api/core/v1/vendor-contacts/import-xls` and `/export-xls`.
 
 ---
 
@@ -1908,8 +2033,9 @@ Generated columns are deliberately excluded from pg-schemata schema definitions 
 **Migrations via custom `createMigrator`:**
 
 - AXERRA uses a custom `createMigrator({ modules })` system (in `src/db/migrations/createMigrator.js`), NOT pg-schemata's `MigrationManager`
-- Each module defines migrations via `defineMigration()` with `id`, `description`, and `up()` function
-- Module scope filtering (admin vs tenant) is handled programmatically by `moduleScopes.js` using the module registry's `scope` property — there are no separate migration directories
+- Each module defines migrations via `defineMigration()` (`src/db/migrations/defineMigration.js`) with `id`, `description`, and `up()` function
+- Module scope filtering (admin vs tenant) is handled programmatically by `src/db/migrations/moduleScopes.js` using the module registry's `scope` property — there are no separate migration directories
+- `src/db/migrations/modelPlanner.js` performs the topological FK sort over the resolved model set so `createTable()` runs in dependency order during migrations and tenant provisioning
 - Checksums are computed from `id + description` and stored in the history table, but are not validated on subsequent runs (modified migration bodies are not detected)
 - PostgreSQL advisory locks prevent concurrent migration runs
 - `pgschemata.migrations` table tracks applied migrations with primary key `(schema_name, module_name, migration_id)`
@@ -1927,6 +2053,14 @@ Generated columns are deliberately excluded from pg-schemata schema definitions 
 9. `202502110050` — AP tables (ap_invoices, ap_invoice_lines, payments, ap_credit_memos)
 10. `202502110060` — AR tables (ar_invoices, ar_invoice_lines, receipts). Note: `ar_clients` removed — AR invoices reference the unified `clients` table directly.
 11. `202502120080` — SQL views (export views, profitability views, cashflow views, aging views)
+12. `202603150013` — Import/export policy-catalog rows (`importExportCatalog`)
+13. `202603270015` — Tenant preferences table + seeder (`tenantPreferences`)
+14. `202603270016` — Reseed policy catalog (`reseedPolicyCatalog`) — invokes `policyCatalogReconciler`
+15. `202604270017` — Orphan `sources` cleanup (`orphanSourceCleanup`)
+16. `202605010001` — Orphan portal_users cleanup helpers (`orphanPortalUsersCleanup`) — admin-scope; installs the `admin.find_orphan_portal_users` / `admin.count_orphan_portal_users` / `admin.cleanup_orphan_portal_user` SQL functions
+17. `202605040018` — Reseed tenant import/export catalog rows (`reseedTenantImportExportCatalog`)
+
+> (List extended per gaps 2.19 / 2.20 / 4.15, 2026-05-21.)
 
 ---
 
@@ -2130,7 +2264,43 @@ All DataGrid CRUD pages use `useListSelection` + `DataTable` as the standard sel
 - Data-grid column definitions that repeat across modules should be centralised in a `columnDefs/` config folder.
 - Form field groupings that appear in multiple create/edit dialogs should become reusable form section components.
 
-**Shared Components (`components/shared/`):** The following reusable components exist but are not individually documented: `ChangePasswordDialog`, `ConfirmDialog`, `CurrencyCell`, `DataTable`, `FieldRow`, `FormDialog`, `ImportDialog`, `PasswordField`, `PatternTextField`, `PercentCell`, `ResetPasswordDialog`, `RowActionsMenu`, `SetPasswordPopover`, `StatusBadge`, `SummaryCard`. See their source files for usage patterns.
+**Shared Components (`apps/client/src/components/shared/`, as of 2026-05-21, gap 2.15):** Concrete inventory of shared components in use today. Additions land via PR — when extracting a new shared component, add it here.
+
+| Component                          | Purpose                                                                                  |
+| ---------------------------------- | ---------------------------------------------------------------------------------------- |
+| `AddressesSection`                 | Read-only address list inside detail dialogs                                             |
+| `ChangePasswordDialog`             | Self-service password change                                                             |
+| `CollectionSectionHeader`          | Section header used above polymorphic collections (emails, phones, addresses, taxes)     |
+| `ConfirmDialog`                    | Confirm / cancel dialog for destructive actions                                          |
+| `CurrencyCell`                     | Data Grid currency renderer                                                              |
+| `DataTable`                        | Standardised MUI X Data Grid v6 wrapper with `useListSelection` integration              |
+| `DetailDialog`                     | Read-only detail dialog (matches `FormDialog` styling)                                   |
+| `EditableAddressesSection`         | Diffed, persistable addresses editor                                                     |
+| `EditableEmailsSection`            | Diffed, persistable emails editor (writes to the `emails` table — see §3.14.1)           |
+| `EditablePhoneNumbersSection`      | Diffed, persistable phone numbers editor                                                 |
+| `EditableTaxIdentifiersSection`    | Diffed, persistable tax identifiers editor                                               |
+| `EmailRow`                         | Single-row email renderer used by Editable / read-only Emails sections                   |
+| `EmailsSection`                    | Read-only email list                                                                     |
+| `FieldRow`                         | Label/value field row for detail dialogs                                                 |
+| `FormDialog`                       | Single-step form dialog                                                                  |
+| `ImportDialog`                     | Shared XLSX file picker used by every import-enabled page                                |
+| `PasswordField`                    | Password input with strength rules feedback                                              |
+| `PatternTextField`                 | Masked / pattern-validated text input                                                    |
+| `PercentCell`                      | Data Grid percentage renderer                                                            |
+| `PhoneNumbersSection`              | Read-only phone numbers list                                                             |
+| `PhoneRow`                         | Single-row phone renderer                                                                |
+| `PrimaryButton` / `SecondaryButton` / `TertiaryButton` | Themed button variants matching the design system                    |
+| `ReadOnlyDataTable`                | Non-selectable variant of `DataTable`                                                    |
+| `ReportTablePage`                  | Standard layout for report pages (data grid + filters + export)                          |
+| `ResetPasswordDialog`              | Admin-initiated password reset                                                           |
+| `RowActionsMenu`                   | Per-row overflow menu (edit / archive / restore)                                         |
+| `SetPasswordPopover`               | Inline password set popover (first login flow)                                           |
+| `StatusBadge`                      | Chip renderer for entity status enums                                                    |
+| `StepperFormDialog`                | Multi-step form dialog (used by `CreateTenantWizard` and similar flows)                  |
+| `SummaryCard`                      | Dashboard summary card                                                                   |
+| `TaxIdentifiersSection`            | Read-only tax identifiers list                                                           |
+| `ToastSnackbar`                    | App-wide toast / snackbar host                                                           |
+| `Wordmark`                         | Axerra wordmark logo                                                                     |
 
 ---
 
@@ -2396,7 +2566,7 @@ Every source file must include a copyright header as the first content:
 
 - Use pg-schemata's `DatabaseError` and `SchemaDefinitionError` for data-layer errors
 - Controllers wrap operations in try/catch; pass errors to Express `next(err)`
-- Central error handler middleware maps error types to HTTP status codes:
+- The central error handler middleware lives at `apps/server/src/middleware/errorHandler.js` (gap 2.21) and is mounted as the terminal Express 5 error middleware in `server.js`. It maps error types to HTTP status codes:
 
 | Error Type                             | HTTP Status | Response                                                        |
 | -------------------------------------- | ----------- | --------------------------------------------------------------- |
@@ -3156,6 +3326,12 @@ The following decisions should be captured as the project is built from scratch:
 | 0010 | Conventional Commits over freeform messages                     | Parseable history; automated changelog potential; scope-based filtering              |
 | 0011 | Monorepo with npm workspaces over separate repos                | Shared code; unified tooling; atomic cross-package changes                           |
 | 0012 | pgvector embeddings for SKU matching over fuzzy string matching | Semantic similarity; language-agnostic; scales with catalog size                     |
+| 0024 | ModuleBar action contract                                       | Standardises toolbar registration / disable rules across CRUD pages                  |
+| 0025 | Import dedup via partial unique indexes (incl. `emails`)        | Database-enforced dedup avoids per-importer business-logic drift                     |
+| 0026 | Child restore via import                                        | Import path drives cascade-restore for child records under restored parents          |
+| 0027 | License, copyright, DCO, and dependency policy                  | AGPLv3 relicense + DCO sign-off + AGPL-incompatibility dependency gate                |
+
+> (List extended per gap 4.12, 2026-05-21. ADR-0027 also covers gap §5.3.)
 
 ### 13.6 Referencing Decisions  [in-scope]
 
