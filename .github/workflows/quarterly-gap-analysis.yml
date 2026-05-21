@@ -1,0 +1,67 @@
+name: Quarterly gap-analysis review
+
+# Opens a tracking issue every 13 weeks (90 days) reminding the
+# maintainer to re-run the doc-vs-code gap-analysis. The first quarterly
+# tick after merge of this workflow is the calibration baseline; subsequent
+# ticks open one issue each.
+#
+# Manual trigger also available from the Actions tab.
+
+on:
+  schedule:
+    # 09:00 UTC on the 1st of January, April, July, October.
+    - cron: '0 9 1 1,4,7,10 *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  open-tracking-issue:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Open quarterly gap-analysis issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          QUARTER="$(date -u +'%Y Q')$(( ( $(date -u +'%-m') - 1 ) / 3 + 1 ))"
+          TITLE="Quarterly gap-analysis review — ${QUARTER}"
+          BODY=$(cat <<'EOF'
+          Time for the quarterly doc-vs-code reconciliation pass.
+
+          Goal: catch drift between PRD / ADRs / rules and the actual codebase
+          before it compounds. See `docs/PRD.md` (intended state), `docs/rules/`
+          (implementation guardrails), and `docs/gap-analysis.md` for the
+          schema. The prior pass produced the bulk of the current PRD body
+          (Phase A / Phase B; ADR-0027) — this is the rolling follow-up.
+
+          ## Checklist
+
+          - [ ] Re-run gap-analysis Prompt 1 from `docs/PROMPTS.md` (or the
+                equivalent), output to `docs/gap-analysis.md`.
+          - [ ] Compare the new run against the prior file; flag any new
+                Section 1–4 items.
+          - [ ] Confirm the doc-coverage CI check is still rejecting
+                untouched-rules PRs by inspecting recent merges.
+          - [ ] Confirm `scripts/checkLicenses.js` still passes — any new
+                production deps should be in `.licenses-allowed.json`.
+          - [ ] If new items appear: open a Phase B-style PR or add roadmap
+                entries.
+
+          ## Anti-patterns
+
+          - Don't rewrite the gap-analysis from scratch — annotate the existing
+            file so the trail of decisions stays auditable.
+          - Don't defer "needs manual review" items that a grep would resolve.
+          EOF
+          )
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "$TITLE" \
+            --body "$BODY" \
+            --label "maintenance" || gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "$TITLE" \
+            --body "$BODY"

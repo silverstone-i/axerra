@@ -895,6 +895,60 @@ Ordered by dependency, then severity (Section 3), then PRD order (Section 1), th
   - Rules update: none.
   - Tests added/changed: none.
 
+### [x] 45. PR template enforcing doc-impact disclosure
+
+- **Tag:** [PROJECT]
+- **Complexity:** (S)
+- **PRD reference:** none (repo-level tooling).
+- **Source:** Phase C of `.claude/plans/i-asked-a-question-robust-horizon.md`.
+- **Details:**
+  - Scope (in): add `.github/PULL_REQUEST_TEMPLATE.md` with checkboxes for PRD section(s) edited, ARD added/updated, rules file edited, or explicit `no-doc-change` reason.
+  - Scope (out): branch protection rules (handled at the GitHub UI level).
+  - Files affected: `.github/PULL_REQUEST_TEMPLATE.md`.
+  - Dependencies: none.
+- **Definition of Done:**
+  - Code changes: none (repo-root only).
+  - PRD edits: none.
+  - ARD entry: none.
+  - Rules update: none.
+  - Tests added/changed: none.
+
+### [x] 46. CI doc-coverage check (modules ↔ rules files)
+
+- **Tag:** [PROJECT]
+- **Complexity:** (S)
+- **PRD reference:** none (CI tooling).
+- **Source:** Phase C.
+- **Details:**
+  - Scope (in): new `doc-coverage` job in `.github/workflows/ci.yml` invoking `scripts/checkDocCoverage.js`. The script maps each tracked server module directory to its rules file and fails the build when a PR touches code under a module without editing the matching `docs/rules/<module>.md`. The `no-doc-change` PR label overrides via `SKIP_DOC_COVERAGE=1`.
+  - Scope (out): doc-coverage for client-side modules (not currently mapped to rules files).
+  - Files affected: `.github/workflows/ci.yml`, `scripts/checkDocCoverage.js`.
+  - Dependencies: item 45 (PR template explains the override flow).
+- **Definition of Done:**
+  - Code changes: `scripts/checkDocCoverage.js`.
+  - PRD edits: none.
+  - ARD entry: none.
+  - Rules update: none.
+  - Tests added/changed: manual verification — open a test PR touching `apps/server/src/modules/ap/` without rules edits; job fails. Add the label or rules edit; job passes.
+
+### [x] 47. Quarterly gap-analysis review automation
+
+- **Tag:** [PROJECT]
+- **Complexity:** (S)
+- **PRD reference:** none.
+- **Source:** Phase C.
+- **Details:**
+  - Scope (in): scheduled GitHub Action (`.github/workflows/quarterly-gap-analysis.yml`) firing on the 1st of January, April, July, October at 09:00 UTC. The job opens a tracking issue with a checklist guiding the maintainer through a fresh gap-analysis pass.
+  - Scope (out): automating the gap-analysis run itself (still a human-in-the-loop activity).
+  - Files affected: `.github/workflows/quarterly-gap-analysis.yml`.
+  - Dependencies: none.
+- **Definition of Done:**
+  - Code changes: none.
+  - PRD edits: none.
+  - ARD entry: none.
+  - Rules update: none.
+  - Tests added/changed: manual — `workflow_dispatch` trigger opens a tracking issue.
+
 ---
 
 ## Deferred
@@ -963,3 +1017,5 @@ Ordered by dependency, then severity (Section 3), then PRD order (Section 1), th
 - 2026-05-20: Sanity-check fixes: added gap 2.15 item; reclassified gap 1.1 planned; annotated 5 code/doc splits; corrected tags on items 9, 34, 43; added [RULES] tag; fixed Item 40 DoD label.
 - 2026-05-21: Phase A (legal & project hygiene) shipped. Items 38, 41, 42 marked done. LICENSE → AGPL-3.0-or-later; copyright → Ian Silverstone with SPDX tags across 684 files; README rewritten for horizontal-ERP positioning; COLLABORATION.md created with DCO 1.1; husky `commit-msg` hook enforces sign-off; npm license-check job added to CI (`scripts/checkLicenses.js`, `.licenses-allowed.json`, `.licenses-exceptions.json`); ADR-0027 records license / copyright / DCO / dependency policy decisions; AGENTS.md is now a symlink to CLAUDE.md.
 - 2026-05-21: Phase B (bulk PRD + rules reconciliation) shipped. Items 14, 15, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 39, 44 marked done. PRD edits: removed `email` columns from §3.3.2 / §3.3.3 with `emails`-table pointers; refreshed §3.2.2 portal-users RBAC wording; documented `EXACT_MATCH_KEYS`, the policy-catalog reconciler + CLI, the `tenants::portal-users::import|export` carve-out, and the wildcard admin auto-seed reality in §3.1.2; added AP/AR payment-method allowlist notes; added new §3.14 (Emails / Tenant Preferences / Countries); extended §3.3.4 with editable sections; expanded §2.4 Request Flow + §4.3 Audit Fields with `auditContext` / `requestContext` / `errorHandler` / `permCacheInvalidator`; documented orphan portal-users admin surface, Platform Maintenance page, tenant provisioning CLI, `seedRootEntity`, and `modelPlanner` / `moduleScopes`; extended §5.4 migration list to entry 17; reconciled `/dashboard/cashflow` placement; replaced 4-bucket aging prose with 5 buckets in §3.10.6; appended ADR-0024 / 0025 / 0026 / 0027 to §13.5; replaced §6.5 "non-exhaustive" shared-component note with a concrete inventory; corrected `allowed_modules` source / "whitelist" wording; cleaned up stale `policyCatalogRouter` footnote. Rules edits: `rules/rbac.md` four-step fallback + EXACT_MATCH note; `rules/entities.md` lists `emails` as a first-class entity.
+- 2026-05-21: Phase B Copilot/Codex review: corrected §2.4 middleware order (authRedis before auditContext), `requireRootTenant` description (home_tenant lowercased), `errorHandler` mapping list, `X-Token-Stale` status (live), orphan portal-users endpoint paths (`/orphans/preview`, `/orphans/cleanup`), and `addAuditFields` description (no longer injects audit actor — handled by ALS resolver). Second pass split the request-flow diagram into GET vs mutation chains and added BR-RBAC-043 / 044 / 048 anchored sub-sections in `rules/rbac.md` so PRD cross-references resolve.
+- 2026-05-21: Phase C (anti-drift guardrails) shipped. Items 45, 46, 47 marked done. `.github/PULL_REQUEST_TEMPLATE.md` enforces doc-impact disclosure; new `doc-coverage` CI job (`scripts/checkDocCoverage.js`) fails PRs that touch a module without editing the matching `docs/rules/<module>.md`, overridable via the `no-doc-change` label; scheduled GitHub Action (`.github/workflows/quarterly-gap-analysis.yml`) opens a quarterly tracking issue with a gap-analysis re-run checklist.
