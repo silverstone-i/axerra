@@ -262,24 +262,23 @@ Ordered by dependency, then severity (Section 3), then PRD order (Section 1), th
   - Tests added/changed: none (client unit tests not standard in repo).
 - **Unknowns driving (L):** exact MUI X Charts API for stacked area with dashed forecast region; forecast vs actual data partitioning at the data-grid → chart boundary; design spec for toggle UX.
 
-### [ ] 10. Implement admin policy auto-seeding per documented mechanism (or rewrite docs)
+### [x] 10. Document the two-mechanism role-policy seeding model in PRD §3.1.2
 
-- **Tag:** [CODE][PRD]
-- **Complexity:** (M)
-- **PRD reference:** §3.1.2 *RBAC*.
-- **Source:** gap 1.7 (Section 1, silent-missing/major).
+- **Tag:** [PRD]
+- **Complexity:** (S)
+- **PRD reference:** §3.1.2 *RBAC* — "Policy Seeding by Role Class".
+- **Source:** gap 1.7 (Section 1, silent-missing/major). Decision recorded 2026-05-21: gap was framing-only — PRD described one mechanism for all roles when in fact two coexist by design. After the PRD rewrite, item 10 is no longer a drift item.
 - **Details:**
-  - Scope (in): decide between (a) implementing per-module retroactive seeder that adds `level:'full'` admin policies across existing tenant schemas when a new module ships, or (b) rewriting PRD §3.1.2 to document the actual wildcard mechanism (`systemRoleSeeder.js:66`, single `module:''` grant).
-  - Scope (out): broader RBAC redesign.
-  - Files affected: `apps/server/src/services/systemRoleSeeder.js` (if implementing) or `docs/PRD.md` §3.1.2 (if documenting reality).
-  - Dependencies: item 2.
+  - Scope (in): rewrite §3.1.2 to distinguish (a) idempotent roles (`super_user`, `admin`, `support`, `vendor_contact`, `client`) which use a wildcard `module:''` `'full'` policy at seed time — current code — and (b) all other roles (`accountant`, `ap_clerk`, `ar_clerk`, `project_manager`, `procurement`, `cfo`, custom roles) which receive explicit per-module policies and require a retroactive seeder when new modules ship. Mark the retroactive seeder paragraph `[intended]` so anyone reading the PRD sees the open work.
+  - Scope (out): building the per-module retroactive seeder itself (that's future implementation work, tracked by the `[intended]` tag on the PRD paragraph — no separate roadmap entry per the PRD-as-source-of-truth principle).
+  - Files affected: `docs/PRD.md` §3.1.2.
+  - Dependencies: item 2 (scope tags / status tags).
 - **Definition of Done:**
-  - Code changes: seeder updates if path (a), else none.
-  - PRD edits: §3.1.2 (either way).
+  - Code changes: none.
+  - PRD edits: §3.1.2 *Policy Seeding by Role Class*.
   - ARD entry: none.
-  - Rules update: `docs/rules/rbac.md` if behavior changes.
-  - Tests added/changed: rbac tests under `apps/server/src/__tests__/rbac/` for the new behavior, or none if doc-only.
-- **Open questions:** Is wildcard grant intentional and sufficient long-term?
+  - Rules update: none.
+  - Tests added/changed: none.
 
 ### [ ] 11. Fix duplicate / dead navigation links
 
