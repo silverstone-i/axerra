@@ -22,7 +22,9 @@ import { existsSync } from 'node:fs';
 const BASE_REF = process.env.BASE_REF || 'origin/main';
 const SKIP = process.env.SKIP_DOC_COVERAGE === '1';
 
-// Module directory → expected rules file. Order matters: longest prefix wins.
+// Module directory → expected rules file. First matching prefix wins (the
+// loop below breaks on first hit), so list more-specific prefixes before
+// any prefix that would also match them. Current entries do not overlap.
 const MAP = [
   { prefix: 'apps/server/src/modules/accounting/', rules: 'docs/rules/accounting.md' },
   { prefix: 'apps/server/src/modules/activities/', rules: 'docs/rules/activities.md' },

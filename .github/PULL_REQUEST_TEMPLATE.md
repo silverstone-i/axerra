@@ -14,7 +14,7 @@ Replace the placeholders below; remove this comment block.
 
 ## Documentation impact
 
-Tick every box that applies. If none apply, tick **No documentation impact** and state why.
+Tick every box that applies (multi-select — a change can touch PRD, ARDs, and rules at once). If none apply, tick **No documentation impact** instead and state why; do not combine it with the other boxes.
 
 - [ ] **PRD edited** — cite section(s): `docs/PRD.md` §_._
 - [ ] **ARD added or updated** — file: `docs/decisions/00NN-…md`

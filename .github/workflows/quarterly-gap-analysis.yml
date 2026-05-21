@@ -1,9 +1,10 @@
 name: Quarterly gap-analysis review
 
-# Opens a tracking issue every 13 weeks (90 days) reminding the
-# maintainer to re-run the doc-vs-code gap-analysis. The first quarterly
-# tick after merge of this workflow is the calibration baseline; subsequent
-# ticks open one issue each.
+# Opens a tracking issue on a calendar-quarterly cadence (09:00 UTC on
+# the 1st of January, April, July, and October) reminding the maintainer
+# to re-run the doc-vs-code gap-analysis. The first quarterly tick after
+# merge of this workflow is the calibration baseline; subsequent ticks
+# open one issue each.
 #
 # Manual trigger also available from the Actions tab.
 
