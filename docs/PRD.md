@@ -530,21 +530,6 @@ POST / PUT / DELETE / PATCH mutation routes (createRouter prepends addAuditField
 > - `apps/server/src/middleware/errorHandler.js` — unified Express 5 error handler; maps `SchemaDefinitionError` / `type === 'validation'` → 400, pg-schemata `DatabaseError` 23505 (unique) → 409, 23503 (FK) → 422, application errors carrying `err.status` are returned with that status, all other unhandled errors → 500 with structured logging (and `err.message` in non-prod).
 > - `apps/server/src/services/{permCacheInvalidator,rbacQueryContext,permissionLoader}.js` — Redis cache invalidator (busts `perm:{userId}:{tenantCode}` on role/policy mutations), RBAC query context builder, and the permission loader that reads canon from DB on cache miss. See §3.1.2 and `rules/rbac.md`.
 
-### 2.5 Vertical Add-on Modules  [in-scope]
-
-Vertical add-on modules (services, construction, production — see §3.0.2) are architecturally identical to core modules. They are not a different class of code, plugin system, or runtime extension.
-
-- The module registry [`apps/server/src/db/moduleRegistry.js`](../apps/server/src/db/moduleRegistry.js) is the source of truth for which modules exist.
-- `tenant.allowed_modules` (jsonb array on `admin.tenants`) controls which modules a given tenant may reach. Empty / null = all modules permitted (existing ADR-0018 semantic).
-- Enforcement is the `moduleEntitlement` middleware already auto-injected by `createRouter`. The chain remains: `authRedis → withMeta → moduleEntitlement → rbac → handler`.
-- Adding a vertical module is: implement the module under `apps/server/src/<module>/`, add an entry to `moduleRegistry.js`, populate `allowed_modules` for licensed tenants. The `arch:check` CI gate enforces that any module directory carrying schemas is registered.
-
-There is **no** event bus, subscription model, plugin loader, or inheritance hierarchy between core and vertical modules. Cross-module behaviour (e.g. the construction `contracts` module posting to GL) uses the existing cross-module posting contract (ADR-0019), not a new mechanism.
-
-Full rationale and trade-offs: [ADR-0028](./decisions/0028-vertical-module-architecture.md).
-
----
-
 ## 3. Module Reference  [in-scope]
 
 ### 3.0 Module Taxonomy  [in-scope]
@@ -1500,61 +1485,6 @@ All endpoints under `/api/activities/v1/` provide standard CRUD (§4.1).
 
 ---
 
-### 3.6 Bill of Materials (BOM)  [in-scope]
-
-**Purpose:** Manage material catalogs, vendor SKU matching (with AI-powered similarity search), and vendor pricing.
-
-#### 3.6.1 Catalog SKUs
-
-| Field                      | Type         | Description                              |
-| -------------------------- | ------------ | ---------------------------------------- |
-| `id`                     | uuid         | PK                                       |
-| `catalog_sku`            | varchar(64)  | Unique catalog SKU                       |
-| `description`            | text         | Full description                         |
-| `description_normalized` | text         | Normalized for matching                  |
-| `category`               | varchar(64)  | Material category                        |
-| `sub_category`           | varchar(64)  | Sub-category                             |
-| `model`                  | varchar(32)  | Embedding model used                     |
-| `embedding`              | vector(3072) | pgvector embedding for similarity search |
-
-**Endpoint:** `/api/bom/v1/catalog-skus`
-
-#### 3.6.2 Vendor SKUs
-
-| Field                      | Type         | Description                                       |
-| -------------------------- | ------------ | ------------------------------------------------- |
-| `id`                     | uuid         | PK                                                |
-| `vendor_id`              | uuid         | FK to vendors (RESTRICT)                          |
-| `vendor_sku`             | varchar(64)  | Vendor's SKU code                                 |
-| `description`            | text         | Vendor's description                              |
-| `description_normalized` | text         | Normalized description                            |
-| `catalog_sku_id`         | uuid         | FK to catalog_skus (matched, SET NULL)            |
-| `confidence`             | real         | Match confidence score (0.0-1.0)                  |
-| `model`                  | varchar(32)  | Embedding model (default: text-embedding-3-large) |
-| `embedding`              | vector(3072) | pgvector embedding                                |
-
-**Custom Methods:**
-
-- `findBySku(vendor_id, vendor_sku)`: Lookup by composite key
-- `getUnmatched()`: Get vendor SKUs without catalog matches
-- `refreshEmbeddings(batches)`: Batch update embeddings
-
-**Endpoint:** `/api/bom/v1/vendor-skus`
-
-#### 3.6.3 Vendor Pricing
-
-| Field              | Type          | Description                 |
-| ------------------ | ------------- | --------------------------- |
-| `id`             | uuid          | PK                          |
-| `vendor_sku_id`  | uuid          | FK to vendor_skus (CASCADE) |
-| `unit_price`     | numeric(12,4) | Price per unit              |
-| `unit`           | varchar(32)   | Unit of measure             |
-| `effective_date` | date          | Price effective date        |
-
-**Endpoint:** `/api/bom/v1/vendor-pricing`
-
----
-
 ### 3.5 Accounts Payable  [core]
 
 #### 3.5.1 Overview
@@ -2175,6 +2105,179 @@ Realistic volume for a mid-size homebuilder:
 ##### 3.11.2.5 Seed Script Reference
 
 `apps/server/scripts/seedDemoSRH.js`. Reproducible — drops and recreates the SRH tenant schema, then populates it from fixtures under `apps/server/scripts/fixtures/srh/`.
+
+---
+
+### 3.12 Bill of Materials (BOM)  [add-on]
+
+#### 3.12.1 Overview
+
+The BOM add-on manages material catalogs, vendor SKU matching with AI-powered similarity search, and vendor pricing. Catalog SKUs are tenant-curated reference items; vendor SKUs are pulled from vendor price lists and matched (manually or via pgvector similarity) back to catalog SKUs. Cost lines select a `(vendor, vendor_sku)` pair and inherit the pricing.
+
+#### 3.12.2 Data Tables
+
+##### 3.12.2.1 Catalog SKUs
+
+###### `catalog_skus`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `catalog_sku` | varchar(64) | Unique catalog SKU. |
+| `description` | text | Full description. |
+| `description_normalized` | text | Normalized for matching. |
+| `category` | varchar(64) | Material category. |
+| `sub_category` | varchar(64) | Sub-category. |
+| `model` | varchar(32) | Embedding model used. |
+| `embedding` | vector(3072) | pgvector embedding for similarity search. |
+
+##### 3.12.2.2 Vendor SKUs
+
+###### `vendor_skus`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `vendor_id` | uuid | FK to `vendors` (RESTRICT). |
+| `vendor_sku` | varchar(64) | Vendor's SKU code. |
+| `description` | text | Vendor's description. |
+| `description_normalized` | text | Normalized description. |
+| `catalog_sku_id` | uuid | FK to `catalog_skus` (SET NULL). The matched catalog SKU. |
+| `confidence` | real | Match confidence score (0.0–1.0). |
+| `model` | varchar(32) | Embedding model (default `text-embedding-3-large`). |
+| `embedding` | vector(3072) | pgvector embedding. |
+
+Custom model methods: `findBySku(vendor_id, vendor_sku)`, `getUnmatched()`, `refreshEmbeddings(batches)`.
+
+##### 3.12.2.3 Vendor Pricing
+
+###### `vendor_pricing`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `vendor_sku_id` | uuid | FK to `vendor_skus` (CASCADE). |
+| `unit_price` | numeric(12,4) | Price per unit. |
+| `unit` | varchar(32) | Unit of measure. |
+| `effective_date` | date | Price effective date. |
+
+#### 3.12.3 API
+
+All endpoints under `/api/bom/v1/` provide standard CRUD (§4.1).
+
+| Method | Path | Description |
+| --- | --- | --- |
+| CRUD | `/api/bom/v1/catalog-skus` | Manage catalog SKUs. |
+| CRUD | `/api/bom/v1/vendor-skus` | Manage vendor SKUs. |
+| CRUD | `/api/bom/v1/vendor-pricing` | Manage vendor pricing. |
+
+#### 3.12.4 Business Rules
+
+1. The BOM module loads only when `bom` appears in `tenants.allowed_modules` (see §3.0.2).
+2. Catalog SKUs are tenant-curated. Vendor SKUs originate from vendor price lists.
+3. Matching produces a `vendor_skus.catalog_sku_id` link with a `confidence` score. The match review log (§3.10.4) records every accept/reject/defer decision.
+4. Auto-match thresholds are tenant-configurable. Below the lower threshold, matches are deferred for manual review; above the upper threshold, matches auto-accept; in between, they queue for review.
+5. Cost lines select a `(vendor, vendor_sku)` pair to inherit pricing (§3.4.4).
+
+---
+
+### 3.13 Contracts  [add-on] [deferred]
+
+#### 3.13.1 Overview
+
+The Contracts add-on owns contract documents and their milestones: services Statements of Work (SOW), construction subdivision sales and closing statements, and production work orders. Milestones gate AR invoice generation and (in construction) closing-statement posting via the cross-module contract.
+
+#### 3.13.2 Data Tables
+
+Deferred — schema lands when the module graduates from spec to code.
+
+#### 3.13.3 API
+
+Deferred.
+
+#### 3.13.4 Business Rules
+
+Deferred. Construction closing statements post a single GL entry touching AR, WIP, inventory, and intercompany accounts (see §3.6.4 rule 8).
+
+---
+
+### 3.14 Scheduling  [add-on] [deferred]
+
+#### 3.14.1 Overview
+
+The Scheduling add-on owns resource, crew, and milestone scheduling across projects and units. It consumes tasks (§3.3.2.3) and produces a time-phased plan.
+
+#### 3.14.2 Data Tables
+
+Deferred.
+
+#### 3.14.3 API
+
+Deferred.
+
+#### 3.14.4 Business Rules
+
+Deferred.
+
+---
+
+### 3.15 Timesheets  [add-on] [deferred]
+
+#### 3.15.1 Overview
+
+The Timesheets add-on captures labor by employee, project, activity, and date. Approved timesheets generate cost lines on the labor cost path (§3.4.2.4).
+
+#### 3.15.2 Data Tables
+
+Deferred.
+
+#### 3.15.3 API
+
+Deferred.
+
+#### 3.15.4 Business Rules
+
+Deferred.
+
+---
+
+### 3.16 Procurement  [add-on] [deferred]
+
+#### 3.16.1 Overview
+
+The Procurement add-on owns purchase orders, vendor Requests for Quote (RFQs), and expediting. POs draw from BOM catalog and vendor SKUs and feed AP invoice three-way matching.
+
+#### 3.16.2 Data Tables
+
+Deferred.
+
+#### 3.16.3 API
+
+Deferred.
+
+#### 3.16.4 Business Rules
+
+Deferred.
+
+---
+
+### 3.17 Inventory & Warehousing  [add-on] [deferred]
+
+#### 3.17.1 Overview
+
+The Inventory & Warehousing add-on tracks on-hand stock, lot and serial numbers, and project issues. Construction closing statements debit inventory on unit sale (see §3.6.4).
+
+#### 3.17.2 Data Tables
+
+Deferred.
+
+#### 3.17.3 API
+
+Deferred.
+
+#### 3.17.4 Business Rules
+
+Deferred.
 
 ---
 
