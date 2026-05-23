@@ -523,7 +523,7 @@ POST / PUT / DELETE / PATCH mutation routes (createRouter prepends addAuditField
 
 > **Note:** `createRouter` automatically prepends `addAuditFields` on mutation routes (POST, PUT, DELETE, PATCH) and appends `moduleEntitlement` on all routes — with two exceptions: `/ping` has no middleware, and `POST /export-xls` uses read-level middleware (no `addAuditFields`). The `withMeta` middleware is passed by each router via per-method middleware arrays. `rbac()` is auto-applied on `/import-xls` (`rbac('full')`) and `/export-xls` (`rbac('view')`) routes with action overrides (`setImportAction` / `setExportAction`). For other routes, `rbac()` must be explicitly added (e.g. `portalUsersRouter` per-method arrays, `employees/:id/reset-password`, `ar-invoices/approve`).
 
-> **Middleware reference (as of 2026-05-21, gaps 2.10 / 2.11 / 2.21):**
+> **Middleware reference:**
 >
 > - `apps/server/src/middleware/requireRootTenant.js` — gates admin / tenant-management routes. Returns 403 unless `req.user.home_tenant?.toLowerCase()` equals `process.env.ROOT_TENANT_CODE` (default `axerra`, also lowercased). Comparison is case-insensitive.
 > - `apps/server/src/middleware/auditContext.js` — wraps each request in AsyncLocalStorage carrying the audit identity for model-layer hooks (paired with `lib/requestContext.js` and `lib/registerAuditResolver.js` — see §4.3).
@@ -599,7 +599,7 @@ Of the six listed, only `bom` is currently registered in `moduleRegistry.js`. Th
 
 #### 3.1.1 Authentication
 
-**Login Flow:** (Phase 3 — current as of 2026-05-20)
+**Login Flow:**
 
 1. User submits email/password on `LoginPage`
 2. Client calls `POST /api/auth/login` via `authApi.login()`
@@ -624,7 +624,7 @@ Of the six listed, only `bom` is currently registered in `moduleRegistry.js`. Th
 **Token Claims:**
 
 - `sub`: User UUID
-- `ph`: Permissions hash for cache validation — computed at login from the user's loaded permission canon (Phase 3, live as of commit `1ac6a21`)
+- `ph`: Permissions hash for cache validation — computed at login from the user's loaded permission canon
 - `iss`: Issuer (`'axerra-serv'`)
 - `aud`: Audience (`'axerra-serv-api'`)
 
@@ -685,7 +685,7 @@ RBAC uses a four-layer model where each layer narrows what the previous layer gr
 4. `::::` (empty-module wildcard — matches policies seeded with empty `module` for admin/super_user roles)
 5. Default: `none`
 
-**Exact-Match Carve-Out (`EXACT_MATCH_KEYS`, as of 2026-05-21):** Catalog entries with `policy_required: true` (the default for router-scoped actions) bypass the four-step fallback above and require an exact `module::router::action` grant. The set is derived at module load in `apps/server/src/middleware/rbac.js` from `CATALOG_ENTRIES` in `policyCatalogSeeder.js` (lines 27-37 explain the semantics). This keeps sensitive actions (password resets, approvals, etc.) out of router-level CRUD or wildcard grants — broader policies do NOT satisfy the check. Catalog rows with `policy_required: false` (e.g., most import actions, sub-record CRUD) continue to use the normal fallback resolver. See also `rules/rbac.md`. (Resolves gaps 2.7 / 4.28, 2026-05-21.)
+**Exact-Match Carve-Out (`EXACT_MATCH_KEYS`, as of 2026-05-21):** Catalog entries with `policy_required: true` (the default for router-scoped actions) bypass the four-step fallback above and require an exact `module::router::action` grant. The set is derived at module load in `apps/server/src/middleware/rbac.js` from `CATALOG_ENTRIES` in `policyCatalogSeeder.js` (lines 27-37 explain the semantics). This keeps sensitive actions (password resets, approvals, etc.) out of router-level CRUD or wildcard grants — broader policies do NOT satisfy the check. Catalog rows with `policy_required: false` (e.g., most import actions, sub-record CRUD) continue to use the normal fallback resolver. See also `rules/rbac.md`.
 
 **Multi-role Merge:**
 
@@ -717,7 +717,7 @@ All roles — including system roles — go through the full RBAC policy resolut
 
 - Canonical form: `{ caps, scope, projectIds, companyIds, entityType, entityId, stateFilters, fieldGroups }`
 - Stored at `perm:{userId}:{tenantCode}`
-- SHA-256 permission hash designed for JWT (`ph` claim) — computed at login from the user's loaded permission canon (Phase 3, live as of commit `1ac6a21`, 2026-05-20). `authRedis` re-computes the hash on every request from the loaded canon and sets `X-Token-Stale: 1` when the request's `ph` claim diverges (`apps/server/src/middleware/authRedis.js:198-200`). Client-side handling of the header is intended but not yet wired. (Resolves gap 4.24, 2026-05-21.)
+- SHA-256 permission hash designed for JWT (`ph` claim) — computed at login from the user's loaded permission canon (Phase 3). `authRedis` re-computes the hash on every request from the loaded canon and sets `X-Token-Stale: 1` when the request's `ph` claim diverges (`apps/server/src/middleware/authRedis.js:198-200`). Client-side handling of the header is intended but not yet wired.
 - `authRedis` middleware reads the `roles` array from the entity record (resolved via `portal_users.entity_type` + `entity_id`), then queries `policies` for matching role IDs — NOT from a `portal_users.role` column or `role_members` table
 - `entityType` and `entityId` are included in the canon for `self` scope resolution
 
@@ -757,14 +757,14 @@ All other roles — `accountant`, `ap_clerk`, `ar_clerk`, `project_manager`, `pr
 
 When a new module ships, every existing tenant schema must be backfilled with the new module's policy rows for every module-sensitive role that already exists in that tenant. This retroactive seeder runs from the module's migration, walks `admin.tenants`, and inserts the per-(role, module) policy set into each tenant schema. New tenant provisioning calls the same seeder for every module currently enabled in the tenant's `allowed_modules`.
 
-The retroactive seeder is NOT yet built. Tenants stood up before a module ships will lack policies for that module until the seeder lands; in the interim, tenant admins can add policies manually via the RBAC management endpoints. (Tracked via the `[intended]` status tag on this paragraph — anyone scanning §3.1.2 sees the open work directly. Resolves gap 1.7 by accurately documenting the two-mechanism design, 2026-05-21.)
+The retroactive seeder is NOT yet built. Tenants stood up before a module ships will lack policies for that module until the seeder lands; in the interim, tenant admins can add policies manually via the RBAC management endpoints. (Tracked via the `[intended]` status tag on this paragraph.)
 
-**Policy-Catalog Carve-Outs (as of 2026-05-21):**
+**Policy-Catalog Carve-Outs:**
 
-- `tenants::portal-users::import|export` are intentionally NOT seeded in the policy catalog. `portalUsersRouter` sets `disableImportXls: true` / `disableExportXls: true`, and `policyCatalogSeeder.js` omits the rows. Rationale: users are created via `/register` only — see §3.2.2. (Resolves gap 3.26, 2026-05-21.)
+- `tenants::portal-users::import|export` are intentionally NOT seeded in the policy catalog. `portalUsersRouter` sets `disableImportXls: true` / `disableExportXls: true`, and `policyCatalogSeeder.js` omits the rows. Rationale: users are created via `/register` only — see §3.2.2.
 - `tenants::tenants::import|export` ARE seeded and gate the tenant XLSX import/export routes (see §3.2.1).
 
-**Policy-Catalog Reconciler & CLI (as of 2026-05-21, gap 2.8):**
+**Policy-Catalog Reconciler & CLI:**
 
 - `apps/server/src/system/core/services/policyCatalogReconciler.js` performs idempotent diff + apply between the in-code `CATALOG_ENTRIES` constant and the per-tenant `policy_catalog` table, so deployed tenants converge on the latest catalog without per-tenant manual reseeding.
 - Migrations `202603270016_reseedPolicyCatalog.js` and `202605040018_reseedTenantImportExportCatalog.js` invoke the reconciler.
@@ -832,7 +832,7 @@ Roles with `is_immutable = true` OR `is_system = true` are read-only across all 
 - `createMigrator` runs all pending migrations against the new schema (not `bootstrap()` or `MigrationManager`)
 - Seed data (default roles, chart of accounts templates) is inserted via `bulkInsert()`
 - **Admin User Creation:** Performed in a single transaction: (1) create an `employees` record in the tenant schema with `roles: ['admin']`, `is_app_user: true`, `is_primary_contact: true`, (2) create a `portal_users` login in `admin.portal_users` with `entity_type: 'employee'` and `entity_id` linking to the new employee. The employee must have `roles` assigned and `is_app_user = true` before the `portal_users` login is created. The admin employee is created with `code = NULL` because numbering is not yet configured; the code is backfilled when the tenant enables numbering via Settings (see §3.13.9).
-- **CLI entry point (as of 2026-05-21, gap 2.17):** `apps/server/scripts/db/provisionTenantCli.js` runs the same `provisionNewTenant` service from the host shell. Useful for headless bootstraps and tests that need a fresh tenant outside the HTTP flow.
+- **CLI entry point:** `apps/server/scripts/db/provisionTenantCli.js` runs the same `provisionNewTenant` service from the host shell. Useful for headless bootstraps and tests that need a fresh tenant outside the HTTP flow.
 - **Root-entity seeder (gap 2.18):** `apps/server/src/services/seedRootEntity.js` is invoked during initial Axerra setup to create the `super_user` employee record under the Axerra tenant schema and link it to the bootstrap portal_user. It is idempotent and safe to re-run.
 - **Contact Designation:** Primary and billing contacts are designated via `employees.is_primary_contact` and `employees.is_billing_contact` flags — there is no `tenant_role` column on `portal_users`.
 
@@ -913,7 +913,7 @@ Indexes:
 
 > **Removed from portal_users:** `tenant_code`, `user_name`, `full_name`, `tax_id`, `notes`, `role`, `tenant_role`, `employee_id`. The `employee_id` column has been replaced by the polymorphic `entity_type` + `entity_id` pair, supporting logins for employees, vendors, clients, and contacts. User identity data lives on the entity record. Roles are stored as a `roles` text array on the entity record (not in a `role_members` junction table). Contact designation (primary/billing) is via `employees.is_primary_contact` / `is_billing_contact`. The `axe_admin_phones` and `axe_admin_addresses` tables have been removed — phone numbers and addresses are stored on the linked entity via the polymorphic `sources` → `phone_numbers` / `addresses` pattern.
 
-**Access Control (as of 2026-05-21):** All portal-users routes are gated by `requireRootTenant` middleware and `withMeta({ module: 'tenants', router: 'portal-users' })`. `rbac()` IS applied per-method via the `portalUsersRouter` middleware arrays — `rbac('view')` on GET, `rbac('full')` on POST `/register`, PUT, DELETE, and PATCH. Spreadsheet import/export are disabled at the router (`disableImportXls: true`, `disableExportXls: true`), and the policy catalog intentionally does NOT seed `tenants::portal-users::import|export` — users are created via `/register` only (see permission-catalog cross-reference in §3.1.2). (Resolves gaps 3.10 / 4.23, 2026-05-21.)
+**Access Control:** All portal-users routes are gated by `requireRootTenant` middleware and `withMeta({ module: 'tenants', router: 'portal-users' })`. `rbac()` IS applied per-method via the `portalUsersRouter` middleware arrays — `rbac('view')` on GET, `rbac('full')` on POST `/register`, PUT, DELETE, and PATCH. Spreadsheet import/export are disabled at the router (`disableImportXls: true`, `disableExportXls: true`), and the policy catalog intentionally does NOT seed `tenants::portal-users::import|export` — users are created via `/register` only (see permission-catalog cross-reference in §3.1.2).
 
 **Endpoints:**
 
@@ -952,7 +952,7 @@ Indexes:
 
 **Cross-tenant access:** Axerra users send `x-tenant-code` header to switch tenant context — handled by `authRedis` middleware, no dedicated endpoint needed. See [BR-RBAC-043](./rules/rbac.md#br-rbac-043).
 
-**Orphan portal-users (as of 2026-05-21, gap 2.4):**
+**Orphan portal-users:**
 
 Bare `admin.portal_users` rows (no active `portal_user_tenants` binding and no tenant-schema entity) are surfaced and cleaned up via a dedicated admin router. Implementation under `apps/server/src/system/tenants/{controllers/orphanPortalUsersController.js, apiRoutes/v1/orphanPortalUsersRouter.js}`; SQL functions `admin.find_orphan_portal_users(p_limit)`, `admin.count_orphan_portal_users()`, and `admin.cleanup_orphan_portal_user(id)` are installed by migration `202605010001_orphanPortalUsersCleanup.js`.
 
@@ -1070,7 +1070,7 @@ Each vendor contact gets its own `sources` record (with `source_type = 'vendor_c
 
 **Edit Dialog:** The employee edit dialog (`maxWidth="md"`) includes phone number and address management sections below the employee fields. Phone numbers are rendered as repeatable inline rows (type select, number, is_primary checkbox, delete). Addresses are rendered as bordered cards with a 2-column grid of address fields. Changes are diffed and persisted via the polymorphic `sources` → `phone_numbers` / `addresses` pattern.
 
-**App-user provisioning libs (as of 2026-05-21, gap 2.9):** Shared helpers under `apps/server/src/lib/` coordinate the employee ↔ portal_user lifecycle:
+**App-user provisioning libs:** Shared helpers under `apps/server/src/lib/` coordinate the employee ↔ portal_user lifecycle:
 
 - `loginEmailSync.js` — keeps `portal_users.email` in sync with the entity's `is_login` email row in the `emails` table.
 - `employeeAppUserSync.js` — drives the provision / archive / restore branches when `employees.is_app_user` toggles (mirrored for clients and vendor_contacts).
@@ -2302,7 +2302,7 @@ Keyset-based pagination via pg-schemata's `findAfterCursor()`:
 
 Most models define `hasAuditFields: { enabled: true, userFields: { type: 'uuid' } }`. Exceptions: `policy_catalog` (`hasAuditFields: { enabled: false }` — seed-only reference data). pg-schemata manages `created_at`/`updated_at` timestamps automatically. **Audit actor resolution** (`created_by` / `updated_by`) is handled by the ALS resolver registered through `registerAuditResolver` (see Request-context plumbing below) — these columns are no longer threaded through `req.body`. The `addAuditFields` Express middleware retains its name for historical reasons but now only injects **tenant context** (`tenant_code` and `tenant_id` from `req.user`) on POST requests, with skip logic for tenant creation and user registration. It still acts as the guard that rejects mutation requests with no user context.
 
-**Request-context plumbing (as of 2026-05-21, gaps 2.9 / 2.11):**
+**Request-context plumbing:**
 
 - `apps/server/src/middleware/auditContext.js` — wraps each request in an AsyncLocalStorage context carrying the audit identity. Runs after `authRedis` so `req.user` is hydrated before the store is populated.
 - `apps/server/src/lib/requestContext.js` + `apps/server/src/lib/registerAuditResolver.js` — register a tenant-aware resolver with pg-schemata that pulls the current user id from the ALS context. pg-schemata invokes this resolver for every insert/update, so `created_by`/`updated_by` are filled at the model layer regardless of whether the controller touched `req.body`.
@@ -3634,7 +3634,7 @@ VITE_ROOT_EMAIL_DOMAIN=axerra.io
 
 ---
 
-## 13. Design Decision Records  [in-scope]
+## 13. Architecture Decision Records  [in-scope]
 
 > All decisions captured here serve the product positioning defined in §1.1: AXERRA is a horizontal, project-native, multi-entity ERP. Phase 1 delivers the base ERP core; Phase 2 delivers construction as the reference vertical module.
 
