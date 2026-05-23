@@ -310,38 +310,23 @@ Glossary
 
 ## 1. Overview  [in-scope]
 
-### 1.1 Product Positioning  [in-scope]
+### 1.1 Product Overview  [in-scope]
 
-AXERRA is a **horizontal, project-native, multi-entity ERP**. The base ERP core — tenants and legal entities, master data, projects, activities, BOM, AP/AR, general-ledger accounting, cashflow and profitability — is industry-agnostic and ships as Phase 1. Industry-specific workflows are delivered as **add-on modules** layered on this core. Construction (property development, homebuilding, general contracting) is the reference vertical for **Phase 2** and is the first industry module to ship; additional verticals follow the same add-on pattern.
+AXERRA is a multi-tenant, project-native Enterprise Resource Planning (ERP) platform with double-entry accounting. It is built for organizations that run their business through projects — consulting firms, property developers, homebuilders, general contractors, and similar multi-entity operators — and need budgets, cost tracking, vendor and client management, Accounts Payable (AP), Accounts Receivable (AR), General Ledger (GL), intercompany operations, and project-level cashflow and profitability in one system. The base ERP is industry-agnostic; industry-specific workflows ship as opt-in add-on modules. AXERRA runs on schema-per-tenant PostgreSQL isolation via `pg-schemata` 1.3.0, an owned data layer that Axerra extends as product needs evolve.
 
-This framing supersedes earlier wording that described AXERRA as a "construction ERP." Construction is a reference workflow, not the product definition.
+### 1.2 Target Users  [in-scope]
 
-- **Phase 1 — Base ERP core:** multi-tenant infrastructure; RBAC; master data (vendors, clients, employees, contacts, companies); projects, activities, cost lines; BOM; AP/AR; accounting and GL; cashflow and profitability; reporting and views.
-- **Phase 2 — Construction reference module:** industry-specific workflows that extend the base core (e.g., construction-specific cost coding, unit/lot management nuance, draw schedules).
-- **Out-of-scope for both phases:** industry-vertical workflows beyond construction.
+AXERRA distinguishes **system roles** (built into the platform; their meaning is fixed) from **convenience roles** (created per tenant; named to match local job titles such as Controller, Project Manager, or AP Clerk). System roles carry hard-coded scope rules. Convenience roles inherit from policies the tenant chooses.
 
-This positioning is referenced from §13 and from each module section's intro.
+| User type | Kind | Description |
+| --- | --- | --- |
+| Super Admin | System | Platform operator. Full cross-tenant access, impersonation, and tenant lifecycle management. |
+| Platform Support | System | Cross-tenant access and impersonation for support tasks. No access to Axerra financial data. |
+| Tenant Staff | Convenience | Internal users of a tenant. Granted one or more tenant-defined roles (e.g., Administrator, Controller, Project Manager, AP/AR Clerk, BOM Manager, Financial Analyst). |
+| Vendor Contact | System | Portal user mapped to a vendor record. `self` scope — sees only their own vendor's data (invoices, payments, POs). |
+| Client | System | Portal user mapped to a client record. `self` scope — sees only their own invoices, statements, and receipts. |
 
-### 1.2 Product Vision  [in-scope]
-
-AXERRA is a **multi-tenant, modular project-native ERP** with double-entry accounting, designed to manage projects, budgets, cost tracking, vendor relationships, accounts payable/receivable, general ledger accounting, intercompany operations, and **project-level cashflow and profitability analysis** — all within a schema-isolated multi-tenant architecture. Construction is the Phase 2 reference vertical (see §1.1).
-
-> **Build Approach:** This application is built from scratch (greenfield). All server-side data access, schema management, migrations, and CRUD operations leverage **pg-schemata 1.3.0** — an owned, extensible PostgreSQL ORM layer. Since Axerra owns the pg-schemata repository, features can be added and bugs fixed as needed to support AXERRA requirements.
-
-### 1.3 Target Users  [in-scope]
-
-| Persona                             | Description                                                                                                  |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| **Axerra Super User**         | Platform operator with full access to Axerra data, cross-tenant access, impersonation, and tenant management |
-| **Axerra Support**            | Cross-tenant access, impersonation, and tenant management. No access to Axerra financial data                |
-| **Administrator**             | Full access within their tenant's data. Same role meaning in every schema                                    |
-| **Project Manager**           | Creates/manages projects, units, budgets, cost lines, change orders, and actual costs                        |
-| **Accountant / Controller**   | Manages chart of accounts, journal entries, AP/AR invoices, and intercompany transactions                    |
-| **AP/AR Clerk**               | Processes vendor invoices, payments, client invoices, and receipts                                           |
-| **Procurement / BOM Manager** | Manages catalog SKUs, vendor SKU matching, and vendor pricing                                                |
-| **CFO / Financial Analyst**   | Reviews cashflow dashboards, project profitability reports, and margin analysis                              |
-
-### 1.4 Technology Stack  [in-scope]
+### 1.3 Technology Stack  [in-scope]
 
 | Layer                      | Technology                                                                                                          |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------- |
@@ -355,7 +340,7 @@ AXERRA is a **multi-tenant, modular project-native ERP** with double-entry accou
 | **Testing**          | Vitest (unit, integration, contract, RBAC suites)                                                                   |
 | **Tooling**          | npm workspaces monorepo, ESLint 9 flat config (root-level, covers all workspaces), Prettier, Husky pre-commit hooks |
 
-### 1.5 Monorepo Structure  [in-scope]
+### 1.4 Monorepo Structure  [in-scope]
 
 ```
 axerra/
