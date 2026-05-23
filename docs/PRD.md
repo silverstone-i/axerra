@@ -1876,169 +1876,92 @@ All endpoints under `/api/accounting/v1/` provide standard CRUD (§4.1) unless n
 
 ---
 
-### 3.10 Cashflow & Profitability  [in-scope]
+### 3.8 Cashflow & Profitability  [core]
 
-**Purpose:** Track money flowing in (AR receipts) and money flowing out (AP payments, actual costs) at the project level. Provide real-time profitability analysis, margin tracking, and cashflow forecasting to enable project managers and CFOs to make informed financial decisions.
+#### 3.8.1 Overview
 
-#### 3.10.1 Data Linkage Model
+The Cashflow & Profitability module derives revenue, cost, and cash-position metrics directly from existing transactional data — there are no separate cashflow tables. It joins AR invoices, receipts, AP invoices, payments, actual costs, and journal entries on `project_id` to produce per-project profitability, monthly cashflow time series, category cost breakdowns, and aging reports. Project managers see real-time margin and budget variance; CFOs see consolidated company cashflow and forecasted cash position.
 
-Cashflow and profitability are derived from existing transactional data — no separate cashflow tables are needed. The system relies on `project_id` foreign keys present on AR invoices, AP invoices, actual costs, and journal entries.
+#### 3.8.2 Data Tables & Views
+
+##### 3.8.2.1 Data linkage model
 
 ```
 PROJECT PROFITABILITY = Revenue (AR) − Costs (AP + Actual Costs)
 
 Revenue Sources (Inflows):
-  ├── ar_invoices WHERE project_id = ? AND status IN ('sent','paid')
-  ├── receipts   JOIN ar_invoices WHERE project_id = ?
+  ├── ar_invoices         WHERE project_id = ? AND status IN ('sent','paid')
+  ├── receipts            JOIN ar_invoices WHERE project_id = ?
   └── journal_entry_lines WHERE account.type = 'income' AND entry.project_id = ?
 
 Cost Sources (Outflows):
-  ├── ap_invoices     WHERE project_id = ? AND status IN ('approved','paid')
-  ├── payments        JOIN ap_invoices WHERE project_id = ?
-  ├── actual_costs    WHERE project_id = ? AND approval_status = 'approved'
+  ├── ap_invoices         WHERE project_id = ? AND status IN ('approved','paid')
+  ├── payments            JOIN ap_invoices WHERE project_id = ?
+  ├── actual_costs        WHERE project_id = ? AND approval_status = 'approved'
   └── journal_entry_lines WHERE account.type = 'expense' AND entry.project_id = ?
 ```
 
-#### 3.10.2 Project Profitability Metrics
+##### 3.8.2.2 Metrics
 
-| Metric                                 | Calculation                                                                         | Description                   |
-| -------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------- |
-| **Contract Value**               | `projects.contract_amount`                                                        | Total client contract value   |
-| **Invoiced Revenue**             | SUM `ar_invoices.total_amount` WHERE project_id AND status IN ('sent','paid')     | Total billed to client        |
-| **Collected Revenue**            | SUM `receipts.amount` JOIN ar_invoices WHERE project_id                           | Cash actually received        |
-| **Outstanding AR**               | Invoiced Revenue − Collected Revenue                                               | Unpaid client invoices        |
-| **Total Budgeted Cost**          | SUM `cost_items.amount` + approved change orders                                  | Approved budget for project   |
-| **Committed Cost**               | SUM `ap_invoices.total_amount` WHERE project_id AND status IN ('approved','paid') | Vendor invoices committed     |
-| **Actual Spend**                 | SUM `actual_costs.amount` WHERE project_id AND approved                           | Confirmed expenditures        |
-| **Cash Out**                     | SUM `payments.amount` JOIN ap_invoices WHERE project_id                           | Cash actually paid to vendors |
-| **Gross Profit**                 | Invoiced Revenue − Committed Cost                                                  | Revenue minus committed costs |
-| **Gross Margin %**               | (Gross Profit / Invoiced Revenue) × 100                                            | Profitability percentage      |
-| **Net Cashflow**                 | Collected Revenue − Cash Out                                                       | Real cash position            |
-| **Budget Variance**              | Total Budgeted Cost − Actual Spend                                                 | Over/under budget             |
-| **Estimated Cost at Completion** | Actual Spend + Remaining Budget (uncommitted)                                       | Projected total cost          |
-| **Projected Profit**             | Contract Value − Estimated Cost at Completion                                      | Forecasted final profit       |
-| **Projected Margin %**           | (Projected Profit / Contract Value) × 100                                          | Forecasted final margin       |
+| Metric | Calculation |
+| --- | --- |
+| Contract Value | `projects.contract_amount` |
+| Invoiced Revenue | SUM `ar_invoices.total_amount` WHERE `project_id` AND status IN (`sent`, `paid`) |
+| Collected Revenue | SUM `receipts.amount` JOIN `ar_invoices` WHERE `project_id` |
+| Outstanding AR | Invoiced Revenue − Collected Revenue |
+| Total Budgeted Cost | SUM `cost_items.amount` + approved change orders |
+| Committed Cost | SUM `ap_invoices.total_amount` WHERE `project_id` AND status IN (`approved`, `paid`) |
+| Actual Spend | SUM `actual_costs.amount` WHERE `project_id` AND approved |
+| Cash Out | SUM `payments.amount` JOIN `ap_invoices` WHERE `project_id` |
+| Gross Profit | Invoiced Revenue − Committed Cost |
+| Gross Margin % | (Gross Profit / Invoiced Revenue) × 100 |
+| Net Cashflow | Collected Revenue − Cash Out |
+| Budget Variance | Total Budgeted Cost − Actual Spend |
+| Estimated Cost at Completion | Actual Spend + Remaining Budget (uncommitted) |
+| Projected Profit | Contract Value − Estimated Cost at Completion |
+| Projected Margin % | (Projected Profit / Contract Value) × 100 |
 
-#### 3.10.3 Cashflow Timeline
+##### 3.8.2.3 SQL views
 
-Track periodic inflows/outflows to understand cash timing:
+Each tenant schema gets these views at provisioning and updates them via migration.
 
-**Cashflow Summary (computed, not stored):**
+| View | Purpose |
+| --- | --- |
+| `vw_project_profitability` | Rolled-up profitability per project (every metric above). Joins projects, ar_invoices, receipts, ap_invoices, payments, actual_costs, cost_items, change_orders. |
+| `vw_project_cashflow_monthly` | Monthly inflow/outflow time series per project. Columns: `project_id`, `month`, `inflow`, `outflow`, `actual_cost`, `net_cashflow`, `cumulative_*`. |
+| `vw_project_cost_by_category` | Cost breakdown by activity category per project. Joins deliverable_assignments, budgets, activities, categories, actual_costs. |
+| `vw_ar_aging` | AR aging buckets per client — current, 1-30, 31-60, 61-90, over 90. |
+| `vw_ap_aging` | AP aging buckets per vendor — same five buckets. |
 
-| Dimension                  | Inflow Source                         | Outflow Source                        |
-| -------------------------- | ------------------------------------- | ------------------------------------- |
-| **By Month**         | `receipts.receipt_date`             | `payments.payment_date`             |
-| **By Quarter**       | Aggregated monthly                    | Aggregated monthly                    |
-| **By Project Phase** | AR invoices per deliverable           | AP invoices + actuals per deliverable |
-| **By Vendor**        | N/A                                   | `payments` grouped by `vendor_id` |
-| **By Client**        | `receipts` grouped by `client_id` | N/A                                   |
+#### 3.8.3 API
 
-**Forecast Inputs:**
+All endpoints under `/api/reports/v1/`.
 
-| Data Point           | Source                                                      |
-| -------------------- | ----------------------------------------------------------- |
-| Expected AR inflows  | `ar_invoices.due_date` WHERE status = 'sent' (unpaid)     |
-| Expected AP outflows | `ap_invoices.due_date` WHERE status = 'approved' (unpaid) |
-| Budget burn rate     | `actual_costs` trend over rolling 30/60/90-day windows    |
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/api/reports/v1/project-profitability` | List profitability for all active projects. |
+| GET | `/api/reports/v1/project-profitability/:projectId` | Detailed profitability for one project. |
+| GET | `/api/reports/v1/project-cashflow/:projectId` | Monthly cashflow time series for a project. |
+| GET | `/api/reports/v1/project-cashflow/:projectId/forecast` | Projected cashflow based on AR due dates and AP obligations. |
+| GET | `/api/reports/v1/project-cost-breakdown/:projectId` | Cost by category with budget vs. actual. |
+| GET | `/api/reports/v1/ar-aging` | AR aging across all clients. |
+| GET | `/api/reports/v1/ar-aging/:clientId` | AR aging for a specific client. |
+| GET | `/api/reports/v1/ap-aging` | AP aging across all vendors. |
+| GET | `/api/reports/v1/ap-aging/:vendorId` | AP aging for a specific vendor. |
+| GET | `/api/reports/v1/company-cashflow` | Cashflow aggregated across all projects for a company. UI lives under `/dashboard/cashflow`, not `/reports/*` (see §7). |
+| GET | `/api/reports/v1/margin-analysis` | Cross-project margin comparison and trending. |
 
-#### 3.10.4 SQL Views for Profitability
+#### 3.8.4 Business Rules
 
-These views are created in each tenant schema at provisioning time and updated via migrations:
-
-**`vw_project_profitability`:**
-
-```sql
--- Rolled-up profitability metrics per project
--- Joins: projects, ar_invoices, receipts, ap_invoices, payments, actual_costs, cost_items, change_orders
--- Columns: project_id, project_code, project_name, project_status, contract_amount,
---          invoiced_revenue, collected_revenue, outstanding_ar,
---          total_budgeted_cost, change_order_value, committed_cost, actual_spend, cash_out,
---          gross_profit, gross_margin_pct, net_cashflow,
---          budget_variance, est_cost_at_completion, projected_profit, projected_margin_pct
-```
-
-**`vw_project_cashflow_monthly`:**
-
-```sql
--- Monthly inflow/outflow time series per project
--- Columns: project_id, month, inflow (receipts), outflow (payments only),
---          actual_cost, net_cashflow (inflow − outflow, excludes actual_cost),
---          cumulative_inflow, cumulative_outflow, cumulative_net
-```
-
-**`vw_project_cost_by_category`:**
-
-```sql
--- Cost breakdown by activity category per project
--- Joins: deliverable_assignments, budgets, activities, categories, actual_costs
--- Columns: project_id, category_id, category_code, category_name, category_type,
---          budgeted_amount, actual_amount, variance
-```
-
-**`vw_ar_aging`:**
-
-```sql
--- AR aging buckets per client
--- Columns: client_id, client_name, client_code, invoice_count, total_balance,
---          current_bucket, bucket_1_30, bucket_31_60, bucket_61_90, bucket_over_90
-```
-
-**`vw_ap_aging`:**
-
-```sql
--- AP aging buckets per vendor
--- Columns: vendor_id, vendor_name, vendor_code, invoice_count, total_balance,
---          current_bucket, bucket_1_30, bucket_31_60, bucket_61_90, bucket_over_90
-```
-
-#### 3.10.5 API Endpoints
-
-| Method  | Path                                                     | Purpose                                                     |
-| ------- | -------------------------------------------------------- | ----------------------------------------------------------- |
-| `GET` | `/api/reports/v1/project-profitability`                | List profitability for all active projects                  |
-| `GET` | `/api/reports/v1/project-profitability/:projectId`     | Detailed profitability for single project                   |
-| `GET` | `/api/reports/v1/project-cashflow/:projectId`          | Monthly cashflow time series for project                    |
-| `GET` | `/api/reports/v1/project-cashflow/:projectId/forecast` | Projected cashflow based on AR due dates and AP obligations |
-| `GET` | `/api/reports/v1/project-cost-breakdown/:projectId`    | Cost by category with budget vs actual                      |
-| `GET` | `/api/reports/v1/ar-aging`                             | AR aging report across all clients                          |
-| `GET` | `/api/reports/v1/ar-aging/:clientId`                   | AR aging for specific client                                |
-| `GET` | `/api/reports/v1/ap-aging`                             | AP aging report across all vendors                          |
-| `GET` | `/api/reports/v1/ap-aging/:vendorId`                   | AP aging for specific vendor                                |
-| `GET` | `/api/reports/v1/company-cashflow`                     | Aggregated cashflow across all projects for a company. UI lives under `/dashboard/cashflow` (Dashboard nav group), NOT `/reports/*` — see §7. |
-| `GET` | `/api/reports/v1/margin-analysis`                      | Cross-project margin comparison and trending                |
-
-#### 3.10.6 UI Requirements
-
-**Project Profitability Dashboard:**
-
-- Summary cards: Contract Value, Invoiced Revenue, Gross Profit, Gross Margin %, Net Cashflow
-- Status indicators: green (on budget), yellow (approaching budget), red (over budget)
-- Drill-down from project list to individual project detail
-- MUI X Charts: bar chart comparing budget vs committed vs actual per category
-
-**Cashflow Timeline Chart:**
-
-- MUI X Charts: stacked area chart showing monthly inflows vs outflows
-- Cumulative net cashflow trend line
-- Forecast region (dashed lines) for upcoming AR/AP due dates
-- Toggle: actual vs forecast vs combined view
-
-**Profitability Table:**
-
-- MUI X Data Grid with all metrics from §3.10.2
-- Sortable by any metric column
-- Conditional formatting: red for negative margins, green for healthy margins
-- Export to Excel via `exportToSpreadsheet()`
-
-**AR/AP Aging Grids:**
-
-- Aging bucket columns: Current, 1-30, 31-60, 61-90, Over 90 (5 buckets — matches `vw_ar_aging` / `vw_ap_aging` view definitions in §3.10.4 and `rules/reports.md`).
-- Grouped by client (AR) or vendor (AP)
-- Filterable by project
-- Summary row with totals
+1. No cashflow data is persisted. Every metric is computed at request time from the underlying transactional tables.
+2. Revenue counts only `ar_invoices` with status `sent` or `paid`. Drafts and voided invoices are excluded.
+3. Cost counts only `ap_invoices` with status `approved` or `paid`. Pending and voided invoices are excluded.
+4. The cashflow forecast uses `ar_invoices.due_date` (unpaid `sent`) and `ap_invoices.due_date` (unpaid `approved`) plus a 30/60/90-day rolling actual-cost burn rate.
+5. The profitability dashboard renders summary cards (Contract Value, Invoiced Revenue, Gross Profit, Gross Margin %, Net Cashflow), MUI X bar charts for budget-vs-committed-vs-actual per category, and a status indicator (green / yellow / red) based on budget variance.
+6. The cashflow timeline renders a stacked-area chart of monthly inflows vs. outflows plus a cumulative net trend line, with a dashed forecast region for upcoming AR/AP due dates.
+7. Aging grids use five buckets (current / 1-30 / 31-60 / 61-90 / over 90) grouped by client (AR) or vendor (AP); they are filterable by project and include a totals summary row.
 
 ---
-
 ### 3.11 Reporting & Views  [in-scope]
 
 **Purpose:** Pre-computed SQL views for dashboards and data export.
