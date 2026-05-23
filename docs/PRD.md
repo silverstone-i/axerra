@@ -589,382 +589,389 @@ Add-on modules load only if the tenant lists them in `tenants.allowed_modules`. 
 
 Of the six add-ons, only `bom` is currently registered in `moduleRegistry.js`. The other five are planned — they will be registered when implemented.
 
-### 3.1 Authentication & Authorization (Core)  [in-scope]
+### 3.1 System — Auth, Tenant & RBAC  [core]
 
-#### 3.1.1 Authentication
+#### 3.1.1 Overview
 
-**Login Flow:**
+The System module owns identity, tenant lifecycle, and Role-Based Access Control (RBAC). It lives partly in the platform-wide `admin` schema (portal users, tenant records, impersonation audit) and partly in every tenant schema (roles, policies, scopes, field groups, numbering). Every other module depends on it. RBAC follows a four-layer model — policies → data scope → state filters → field groups — described in [ADR-0013](./decisions/0013-four-layer-scoped-rbac.md).
 
-1. User submits email/password on `LoginPage`
-2. Client calls `POST /api/auth/login` via `authApi.login()`
-3. Server validates via Passport Local Strategy (bcrypt hash comparison against `admin.portal_users`)
-4. Server resolves the user's **home tenant** via `admin.portal_user_tenants` binding (oldest active binding). Login is refused with *"Tenant is inactive."* if the home tenant is not active (see `passportService.js:54`; resolves gap 1.14, 2026-05-21).
-5. Server loads RBAC permissions for the home tenant and **gates token issuance** on the result. A user with no usable permissions (no entity, no roles, or roles that resolve to no policies) is refused with 403 — credentials were valid but the account is unusable.
-6. Server computes `ph` (permissions hash) from the resolved permission canon, signs `auth_token` (15min) and `refresh_token` (7-day) JWTs, and sets them as httpOnly cookies. The permission canon is primed into the Redis cache so the user's first authenticated request does not re-load.
-7. Client calls `GET /api/auth/me` to hydrate user context.
-8. `AuthContext` stores user state; `LayoutShell` guards authenticated routes.
+#### 3.1.2 Data Tables
 
-**Endpoints:**
+##### 3.1.2.1 portal_users
 
-| Method   | Path                          | Purpose                                                                   |
-| -------- | ----------------------------- | ------------------------------------------------------------------------- |
-| `POST` | `/api/auth/login`           | Authenticate with email/password                                          |
-| `POST` | `/api/auth/refresh`         | Rotate tokens (full rotation)                                             |
-| `POST` | `/api/auth/logout`          | Clear auth cookies                                                        |
-| `POST` | `/api/auth/change-password` | Change password (validates current password, enforces strength rules)     |
-| `GET`  | `/api/auth/me`              | Get current user context, tenant, roles, permissions, impersonation state |
-| `GET`  | `/api/auth/check`           | Lightweight session validation                                            |
+Four admin-schema tables form the identity cluster. They are owned by `admin`, shared across tenants, and accessed via the `requireRootTenant` middleware (except where noted).
 
-**Token Claims:**
+###### `admin.portal_users`
 
-- `sub`: User UUID
-- `ph`: Permissions hash for cache validation — computed at login from the user's loaded permission canon
-- `iss`: Issuer (`'axerra-serv'`)
-- `aud`: Audience (`'axerra-serv-api'`)
+Pure identity / authentication. All personal information (name, phone, address) lives on the linked entity record in the tenant schema via polymorphic `entity_type` + `entity_id`.
 
-> **Note:** Authentication is against `admin.portal_users` which contains only identity/auth fields (`id`, `tenant_id`, `entity_type`, `entity_id`, `email`, `password_hash`, `status`). Tenant context (`tenant_code`, `schema_name`) and roles are resolved at request time by the `authRedis` middleware via HTTP headers, Redis cache, and database lookup — they are NOT embedded in the JWT. Roles are read from the entity record's `roles` text array (resolved via `entity_type` + `entity_id`), not from a column on `portal_users`.
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Convenience pointer to the user's **home** tenant. Authoritative cross-tenant access lives in `portal_user_tenants`. |
+| `entity_type` | varchar(16) | `'employee'`, `'vendor_contact'`, or `'client'`. |
+| `entity_id` | uuid | Cross-schema reference to the entity record in the tenant schema (enforced by business logic, not FK). |
+| `email` | varchar(128) | Login identifier. Globally unique via partial index `WHERE deactivated_at IS NULL`. |
+| `password_hash` | text | bcrypt hash. Never returned in API responses. |
+| `status` | varchar(20) | `active`, `invited`, `locked`. |
 
-**Client-Side Auth:**
+Partial unique index `(entity_type, entity_id) WHERE deactivated_at IS NULL` prevents duplicate logins for the same entity.
 
-- `AuthContext` provides `{ user, loading, login, logout, refreshUser, tenant, isRootTenantUser, assumedTenant, assumeTenant, exitAssumption, impersonation, startImpersonation, endImpersonation }` via React context, where `tenant` is `null` or `{ tenant_code, schema_name }` (when an assumption is active, `tenant` also includes `company` and `is_assumed: true`)
-- `LayoutShell` renders loading spinner while `loading=true`, redirects to `/login` if `user=null`
-- All API calls use `credentials: 'include'` for cookie transmission
-- No tokens stored in localStorage — fully cookie-based
+###### `admin.portal_user_tenants`
 
-#### 3.1.2 Role-Based Access Control (RBAC)
+Authoritative cross-tenant binding table. One row per `(portal_user, tenant)` pair the user can access. The oldest active row is the user's home tenant.
 
-> **ADR Reference:** [ADR-0013](./decisions/0013-four-layer-scoped-rbac.md) (supersedes [ADR-0004](./decisions/0004-three-level-rbac.md))
-
-RBAC uses a four-layer model where each layer narrows what the previous layer grants. Layers 2-4 never expand access beyond what Layer 1 allows.
-
-| Layer                        | Question               | Mechanism                                                          |
-| ---------------------------- | ---------------------- | ------------------------------------------------------------------ |
-| **1 — Role Policies** | What can this role DO? | `policies` table — `none`/`view`/`full` levels            |
-| **2 — Data Scope**    | HOW MUCH data?         | `roles.scope` + `project_members` + `company_members` tables |
-| **3 — State Filters** | Which record STATES?   | `state_filters` table                                            |
-| **4 — Field Groups**  | Which COLUMNS?         | `field_group_definitions` + `field_group_grants` tables        |
-
-**Layer 1 — Role Policies:**
-
-- `roles`: Role definitions with `code`, `name`, `description` (optional), `is_system`, `is_immutable`, `scope` (`all_projects`, `assigned_companies`, `assigned_projects`, or `self`), plus `tenant_code`
-- `policies`: Permission grants with `(role_id, module, router, action, level)` dimensions, plus `tenant_code`
-
-> **Role Assignment:** Roles are stored as a `roles` text array directly on each entity table (employees, clients, vendor_contacts) — there is no `role_members` junction table. The permission loader reads the `roles` array from the entity record (resolved via `portal_users.entity_type` + `entity_id`), then queries `policies` for matching role IDs. A SQL view can reconstruct "members by role" across entity tables when needed for admin reporting.
-
-**Layer 2 — Data Scope:**
-
-- `project_members`: Maps `(project_id, user_id)` with a `role` label (e.g., `member`, `lead`). When `roles.scope = 'assigned_projects'`, only data from the user's assigned projects is visible.
-- `company_members`: Maps `(company_id, user_id)`. When `roles.scope = 'assigned_companies'`, only data from projects belonging to the user's assigned companies is visible. The permission loader eagerly resolves both `companyIds` and corresponding `projectIds`.
-- **`self` scope:** When `roles.scope = 'self'`, the permission loader reads `entity_type` and `entity_id` from `portal_users`. The canon includes `entityType` and `entityId`. `_applyRbacFilters()` maps the entity type to the appropriate FK column on the queried resource (e.g., `vendor_id` for AP invoices, `client_id` for AR invoices, `employee_id` for timecards). This enables portal access where vendors/clients see only their own records.
-- `policy_catalog`: Registry of valid `(module, router, action)` combinations for role configuration UI discovery. Includes `label` (varchar(128), human-readable name), `description` (varchar(512), optional explanation), `sort_order` (integer, display ordering), `valid_statuses` (text[], valid status values for state filter UI), `available_fields` (text[], columns available for field group UI), and `policy_required` (boolean, default true — whether a policy must exist for this combination). Seed-only reference data — no audit fields, no tenant_code.
-
-**Layer 3 — State Filters:**
-
-- `state_filters`: `(role_id, module, router, visible_statuses[])`. Restricts which record statuses are visible per role per resource. Empty = no filtering (all statuses visible).
-
-**Layer 4 — Field Groups:**
-
-- `field_group_definitions`: Named column groups per resource — e.g., `(module, router, group_name, columns[], is_default)`.
-- `field_group_grants`: Assigns field groups to roles. Definitions with `is_default = true` are granted to all roles automatically. Empty = all columns visible.
-
-> **RBAC Schema Storage:** RBAC tables are defined with `dbSchema: 'public'` as a placeholder, but pg-schemata dynamically overrides the schema at bootstrap/migration time. Each tenant schema gets its own copy of all RBAC tables.
-
-**Permission Levels (Layer 1):** `none` (0) < `view` (1) < `full` (2)
-
-**Policy Resolution (most specific to least):**
-
-1. `module::router::action` (e.g., `ar::ar-invoices::approve`)
-2. `module::router::` (e.g., `ar::ar-invoices::`)
-3. `module::::` (e.g., `ar::::`)
-4. `::::` (empty-module wildcard — matches policies seeded with empty `module` for admin/super_user roles)
-5. Default: `none`
-
-**Exact-Match Carve-Out (`EXACT_MATCH_KEYS`, as of 2026-05-21):** Catalog entries with `policy_required: true` (the default for router-scoped actions) bypass the four-step fallback above and require an exact `module::router::action` grant. The set is derived at module load in `apps/server/src/middleware/rbac.js` from `CATALOG_ENTRIES` in `policyCatalogSeeder.js` (lines 27-37 explain the semantics). This keeps sensitive actions (password resets, approvals, etc.) out of router-level CRUD or wildcard grants — broader policies do NOT satisfy the check. Catalog rows with `policy_required: false` (e.g., most import actions, sub-record CRUD) continue to use the normal fallback resolver. See also `rules/rbac.md`.
-
-**Multi-role Merge:**
-
-- Layer 2 scope: most permissive wins — four-tier hierarchy: `all_projects` > `assigned_companies` > `assigned_projects` > `self`
-- Layer 3 statuses: union of visible statuses across roles
-- Layer 4 columns: union of granted columns across roles
-
-**Built-in System Roles:**
-
-All roles — including system roles — go through the full RBAC policy resolution. There are no bypass or short-circuit paths in the middleware.
-
-- `super_user` (Axerra `axerra` schema only): Full access to all Axerra data + cross-tenant access + impersonation + tenant management. Seeded with `level: 'full'` policies for all modules plus cross-tenant and impersonation policies. Goes through full RBAC policy resolution — no bypass.
-- `admin` (all tenant schemas): Full access within that tenant's data. Seeded with `level: 'full'` policies for all modules. Same meaning in every schema. Goes through full RBAC policy resolution — no bypass.
-- `support` (Axerra `axerra` schema only): Cross-tenant access + impersonation + tenant management. No access to Axerra financial modules (accounting, AR, AP). Seeded with `level: 'none'` for financial modules + `level: 'full'` for non-financial modules + cross-tenant and impersonation policies. Goes through full RBAC policy resolution.
-
-> **No RBAC Bypass:** The middleware does NOT short-circuit for `super_user` or `admin`. All users are authorized through the same entity `roles` array → `policies` resolution path. This ensures all access is auditable, configurable, and consistent.
-
-**Seeded Tenant Roles:**
-
-- `admin`: Tenant-level administrator, `scope: 'all_projects'`. Seeded with explicit `level: 'full'` policies for ALL modules. When new modules are added to the platform, the module migration seeds admin policies for all existing tenants (see Admin Policy Auto-Seeding below).
-
-> **Note:** Only `admin`, `super_user`, and `support` are seeded by the system role seeder. Additional roles (e.g., `project_manager`, `controller`) are tenant-configurable and must be created by tenant admins via the ManageRolesPage UI.
-
-**Axerra-Only Policies:** Cross-tenant and impersonation policies are ONLY seeded in the `axerra` schema on `super_user` and `support` roles. These policies cannot be assigned to other tenants' schemas.
-
-**Tenant Configurability:** All roles except `super_user`, `admin`, and `support` are tenant-configurable. Tenants define their own roles, assign scopes, create state filters, and build field groups.
-
-**Permission Canon (cached in Redis):**
-
-- Canonical form: `{ caps, scope, projectIds, companyIds, entityType, entityId, stateFilters, fieldGroups }`
-- Stored at `perm:{userId}:{tenantCode}`
-- SHA-256 permission hash designed for JWT (`ph` claim) — computed at login from the user's loaded permission canon (Phase 3). `authRedis` re-computes the hash on every request from the loaded canon and sets `X-Token-Stale: 1` when the request's `ph` claim diverges (`apps/server/src/middleware/authRedis.js:198-200`). Client-side handling of the header is intended but not yet wired.
-- `authRedis` middleware reads the `roles` array from the entity record (resolved via `portal_users.entity_type` + `entity_id`), then queries `policies` for matching role IDs — NOT from a `portal_users.role` column or `role_members` table
-- `entityType` and `entityId` are included in the canon for `self` scope resolution
-
-**Module Entitlements:**
-
-- `admin.tenants.allowed_modules` (jsonb array of module names) controls which modules a tenant can access
-- Enforced by middleware after auth and before RBAC: if `req.resource.module` is not in the tenant's `allowed_modules`, return 403
-- Source of truth at request time: `moduleEntitlement` reads from `req.ctx.tenant.allowed_modules` (populated by `authRedis`). There is no separate Redis key for `allowed_modules`. (Reconciled per gaps 4.14 / 2.24, 2026-05-21.)
-- Default: empty array (or missing field) means **all modules allowed** — this is an allow-when-unset policy, NOT a deny-by-default whitelist. Entitlement enforcement activates per-tenant as their `allowed_modules` arrays are populated. See ADR-0018.
-- Managed by Axerra `super_user` / `support` via tenant management UI
-
-**Enforcement:**
-
-- **Module Entitlement (middleware):** `moduleEntitlement` is auto-applied by `createRouter` on all routes. Checks `tenants.allowed_modules` — if the tenant doesn't have the module enabled, returns 403 regardless of user permissions. Empty array means all modules allowed.
-- **Layer 1 (opt-in middleware):** `withMeta({ module, router, action })` annotates `req.resource`. `rbac(requiredLevel)` can be explicitly added to routes that need per-action permission checks — it resolves the user's policy level from `caps` and returns 403 if insufficient. GET/HEAD default to `view`; mutations default to `full`. `createRouter` auto-applies `rbac()` on import/export routes: `rbac('full')` on `/import-xls` (with `setImportAction` overriding `req.resource.action = 'import'`) and `rbac('view')` on `/export-xls` (with `setExportAction` overriding `req.resource.action = 'export'`). For custom endpoints, `rbac()` is manually added (e.g., `employees/:id/reset-password`, `ar-invoices/approve`). Standard CRUD routes (POST, GET, PUT, DELETE, PATCH) from `createRouter` do **not** include `rbac()` — they rely on `moduleEntitlement` for access control. Permissions are resolved from entity `roles` array → `policies` for ALL users — no role-based bypass or short-circuit.
-- **Layers 2-4 (service layer):** `ViewController._applyRbacFilters()` applies scope, state, and field filters. Controllers opt in via `this.rbacConfig = { module, router, scopeColumn, entityScopeColumns }`. The `entityScopeColumns` mapping tells the `self` scope which FK column to filter for each entity type (e.g., `{ vendor: 'vendor_id', client: 'client_id', employee: 'employee_id' }`).
-
-**Policy Seeding by Role Class:**
-
-Two mechanisms coexist by design. The choice is driven by whether the role is **idempotent** (its capability set is fixed and cannot change as new modules ship) or **module-sensitive** (its policies must grow when a new module is introduced).
-
-*Idempotent roles — wildcard policy at seed time* `[implemented]`
-
-Five system roles are idempotent and receive a single wildcard `level: 'full'` policy with `module: ''` (and the corresponding role-shaped scope rules) at tenant creation. Adding a new module does NOT require backfilling these roles — the wildcard already covers every module, present and future. Implementation: `apps/server/src/system/auth/services/systemRoleSeeder.js`.
-
-| Role | Scope | Why idempotent |
-| ---- | ----- | -------------- |
-| `super_user`    | Cross-tenant, Axerra-only | Platform operator; always full access across every tenant. |
-| `admin`         | All modules within their tenant | Always full access within the tenant; module set is irrelevant. |
-| `support`       | Cross-tenant, Axerra-only, excluding `FINANCIAL_MODULES` | Capability set fixed by Axerra; module changes don't alter the contract. |
-| `vendor_contact` | Vendor-shaped scope (their own vendor record + linked transactions) | Capability set fixed by the vendor-portal contract. |
-| `client`        | Client-shaped scope (their own projects + linked AR records) | Capability set fixed by the client-portal contract. |
-
-*Module-sensitive roles — per-module retroactive seeder* `[intended]`
-
-All other roles — `accountant`, `ap_clerk`, `ar_clerk`, `project_manager`, `procurement`, `cfo`, and any tenant-defined custom role — receive explicit per-module policy rows. Each role's policies enumerate the (module, router, action, level) tuples it can perform; the wildcard mechanism above is not available because these roles must be denyable on a per-module basis.
-
-When a new module ships, every existing tenant schema must be backfilled with the new module's policy rows for every module-sensitive role that already exists in that tenant. This retroactive seeder runs from the module's migration, walks `admin.tenants`, and inserts the per-(role, module) policy set into each tenant schema. New tenant provisioning calls the same seeder for every module currently enabled in the tenant's `allowed_modules`.
-
-The retroactive seeder is NOT yet built. Tenants stood up before a module ships will lack policies for that module until the seeder lands; in the interim, tenant admins can add policies manually via the RBAC management endpoints. (Tracked via the `[intended]` status tag on this paragraph.)
-
-**Policy-Catalog Carve-Outs:**
-
-- `tenants::portal-users::import|export` are intentionally NOT seeded in the policy catalog. `portalUsersRouter` sets `disableImportXls: true` / `disableExportXls: true`, and `policyCatalogSeeder.js` omits the rows. Rationale: users are created via `/register` only — see §3.2.2.
-- `tenants::tenants::import|export` ARE seeded and gate the tenant XLSX import/export routes (see §3.2.1).
-
-**Policy-Catalog Reconciler & CLI:**
-
-- `apps/server/src/system/core/services/policyCatalogReconciler.js` performs idempotent diff + apply between the in-code `CATALOG_ENTRIES` constant and the per-tenant `policy_catalog` table, so deployed tenants converge on the latest catalog without per-tenant manual reseeding.
-- Migrations `202603270016_reseedPolicyCatalog.js` and `202605040018_reseedTenantImportExportCatalog.js` invoke the reconciler.
-- CLI entry point: `apps/server/scripts/db/reconcilePolicyCatalog.js` — reseeds a single tenant or all tenants from the host shell. Useful when a hotfix changes the catalog without shipping a migration.
-
-**RBAC Management Endpoints (tenant-scope, under `/api/core/v1/`):**
-
-| Method        | Path                                     | Purpose                                                           |
-| ------------- | ---------------------------------------- | ----------------------------------------------------------------- |
-| Standard CRUD | `/api/core/v1/roles`                   | Manage tenant roles (code, name, scope, is_system, is_immutable)  |
-| Standard CRUD | `/api/core/v1/policies`                | Manage per-role permission grants (module, router, action, level) |
-| Standard CRUD | `/api/core/v1/policy-catalog`          | Read-only catalog of valid (module, router, action) combinations  |
-| Standard CRUD | `/api/core/v1/state-filters`           | Manage Layer 3 state visibility filters per role/resource         |
-| Standard CRUD | `/api/core/v1/field-group-definitions` | Manage Layer 4 named column groups per resource                   |
-| Standard CRUD | `/api/core/v1/field-group-grants`      | Assign field groups to roles                                      |
-| Standard CRUD | `/api/core/v1/project-members`         | Manage Layer 2 user↔project assignments                          |
-| Standard CRUD | `/api/core/v1/company-members`         | Manage Layer 2 user↔company assignments                          |
-
-> **Role Assignment:** Roles are managed via entity CRUD endpoints (update the `roles` array on the employee/vendor-contact/client/contact record). There is no separate `/role-members` endpoint.
-
-> All RBAC management routes use `createRouter` with `withMeta({ module: 'core', router: '<resource>' })`. `policyCatalogRouter` uses `withMeta({ module: 'core', router: 'policy-catalog' })` — entitlement resolves against the `policy-catalog` resource. (Stale footnote claiming `router: 'roles'` removed per gap 4.7, 2026-05-21.)
-
-**RBAC Management UI (`ManageRolesPage`):** The Manage Roles page at `/tenant/manage-roles` uses a master-detail layout. The left panel lists roles in a DataTable; the right panel has tabbed editors for the four RBAC layers:
-
-| Tab               | Component                      | Purpose                                                                                                                                    |
-| ----------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Policies          | `PolicyEditor`               | Accordion-based policy matrix — reads `policy_catalog` for structure, renders level selectors (none/view/full) per module/router/action |
-| State Filters     | `StateFilterEditor`          | Configure Layer 3 status visibility filters per role/resource — restrict which record statuses a role can see                             |
-| Field Groups      | `FieldGroupEditor`           | Toggle Layer 4 field group grants per role — displays all definitions grouped by module/router, admins toggle which groups are granted    |
-| Field Definitions | `FieldGroupDefinitionEditor` | CRUD for field group definitions — create/edit/delete named column groups per resource                                                    |
-
-Roles with `is_immutable = true` OR `is_system = true` are read-only across all detail tabs. Only `is_immutable` hides the row-level Edit action in the master list.
-
----
-
-### 3.2 Tenant Management  [in-scope]
-
-**Purpose:** Axerra operators manage customer organizations (tenants) and their users.
-
-**Access Control:** Restricted to Axerra employees via `requireRootTenant` middleware.
-
-**Root Tenant:** Axerra (tenant_code `AXERRA`) is the platform root tenant. It cannot be archived or deleted. The `super_user` and `support` system roles can only be assigned to users belonging to the Axerra tenant. The root tenant is created automatically during initial setup via the `202502110001_bootstrapAdmin` migration.
-
-#### 3.2.1 Manage Tenants
-
-**Data Model (`admin.tenants`):**
-
-| Field               | Type         | Description                                                                        |
-| ------------------- | ------------ | ---------------------------------------------------------------------------------- |
-| `id`              | uuid         | Primary key                                                                        |
-| `tenant_code`     | varchar(6)   | Unique short code (e.g.,`AXERRA`, `CAL`)                                       |
-| `company`         | varchar(128) | Company name                                                                       |
-| `schema_name`     | varchar(63)  | PostgreSQL schema name                                                             |
-| `status`          | varchar(20)  | `active`, `trial`, `suspended`, `pending`                                  |
-| `tier`            | varchar(20)  | `enterprise`, `growth`, `starter`                                            |
-| `region`          | varchar(64)  | Geographic region                                                                  |
-| `allowed_modules` | jsonb        | Module access list enforced by `moduleEntitlement` — empty array (or missing) means **all modules allowed** (allow-when-unset, NOT deny-by-default per ADR-0018). See §3.1.2. |
-| `max_users`       | integer      | User limit (default 5)                                                             |
-| `notes`           | text         | Internal notes                                                                     |
-
-**Tenant Provisioning:**
-
-- Raw `CREATE SCHEMA` DDL creates the new tenant schema
-- Extensions (e.g., `pgcrypto`, `vector`) are created per-schema as needed
-- `createMigrator` runs all pending migrations against the new schema (not `bootstrap()` or `MigrationManager`)
-- Seed data (default roles, chart of accounts templates) is inserted via `bulkInsert()`
-- **Admin User Creation:** Performed in a single transaction: (1) create an `employees` record in the tenant schema with `roles: ['admin']`, `is_app_user: true`, `is_primary_contact: true`, (2) create a `portal_users` login in `admin.portal_users` with `entity_type: 'employee'` and `entity_id` linking to the new employee. The employee must have `roles` assigned and `is_app_user = true` before the `portal_users` login is created. The admin employee is created with `code = NULL` because numbering is not yet configured; the code is backfilled when the tenant enables numbering via Settings (see §3.13.9).
-- **CLI entry point:** `apps/server/scripts/db/provisionTenantCli.js` runs the same `provisionNewTenant` service from the host shell. Useful for headless bootstraps and tests that need a fresh tenant outside the HTTP flow.
-- **Root-entity seeder (gap 2.18):** `apps/server/src/services/seedRootEntity.js` is invoked during initial Axerra setup to create the `super_user` employee record under the Axerra tenant schema and link it to the bootstrap portal_user. It is idempotent and safe to re-run.
-- **Contact Designation:** Primary and billing contacts are designated via `employees.is_primary_contact` and `employees.is_billing_contact` flags — there is no `tenant_role` column on `portal_users`.
-
-**UI Requirements:**
-
-- Data grid displaying: Code, Tenant Name, Status, Tier, Region, Active columns
-- Row selection with checkbox (single and multi-select)
-- Module Bar actions: **Create Tenant**, **View Details**, **Edit Tenant**, **Archive**, **Restore**
-- Status badge display with color coding
-- Create tenant form includes admin user fields: first name, last name, email, and password (used to create the tenant's Administrator user and linked employee record)
-- Pagination with configurable rows-per-page (powered by `findAfterCursor()`)
-- Archive cascades to deactivate all currently-active associated `portal_users` (sets `deactivated_at`, `status = 'locked'`, and `updated_by`) — works for both `?id=` and `?tenant_code=` query params.
-- The root tenant (Axerra, `AXERRA`) cannot be archived — server rejects the request with 403
-- Restore reactivates the tenant only — users remain archived and must be individually restored by an admin
-- **View Details dialog** (`maxWidth="md"`): displays tenant fields in a responsive 3-column grid of `FieldRow` components (label:value pairs). Fields: Code, Tier, Region, Status (rendered as `StatusBadge` chip), Max Users, Schema (monospace), Created, Updated, Notes (full-width). Below a divider, two `DataGrid` tables display **Primary Contacts** and **Billing Contacts** with Name, Email (mailto link), and Phone columns. Contact data is fetched via `useTenantContacts(tenantId)` hook.
-- The Module Bar exposes **Import** and **Export** XLSX actions for the tenants list, mirroring the toolbar contract used by every other resource page (see ADR-0024).
-
-**Endpoints:**
-
-| Method     | Path                                     | Purpose                                                                                                                  |
-| ---------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `POST`   | `/api/tenants/v1/tenants`              | Create tenant (provisions schema, creates employee with `roles: ['admin']` + portal_users login in single transaction) |
-| `GET`    | `/api/tenants/v1/tenants`              | List tenants (cursor-based pagination)                                                                                   |
-| `GET`    | `/api/tenants/v1/tenants/:id`          | Get tenant by ID                                                                                                         |
-| `PUT`    | `/api/tenants/v1/tenants/update`       | Update tenant                                                                                                            |
-| `DELETE` | `/api/tenants/v1/tenants/archive`      | Soft-delete tenant (cascades to users)                                                                                   |
-| `PATCH`  | `/api/tenants/v1/tenants/restore`      | Restore archived tenant                                                                                                  |
-| `GET`    | `/api/tenants/v1/tenants/:id/modules`  | Get tenant's allowed modules                                                                                             |
-| `GET`    | `/api/tenants/v1/tenants/:id/contacts` | Get primary and billing contacts with phone/address (cross-schema query into tenant's employees)                         |
-| `POST`   | `/api/tenants/v1/tenants/import-xls`   | Import tenants from XLSX (requires `tenants::tenants::import` = `full`). Each row carries its own `tenant_code`. Rows without an `id` trigger a **full per-row `provisionNewTenant` call** (schema create, migrations, RBAC seed, admin portal user creation). Rows with an `id` are treated as updates. Supports `previewOnly=true` for upfront validation (per-row required-field / format / password-strength checks, intra-file duplicate detection, cross-table uniqueness against `admin.tenants` + `admin.portal_users`, ROOT_TENANT archive protection) without writes. See `apps/server/src/system/auth/models/Tenants.js`. |
-| `POST`   | `/api/tenants/v1/tenants/export-xls`   | Export tenants to XLSX (requires `tenants::tenants::export` = `view`)                                                    |
-
-#### 3.2.2 Manage Users
-
-**Data Model (`admin.portal_users`):**
-
-`portal_users` is a pure identity/authentication table. All personal information (name, phone, address) lives on the linked entity record (employee, vendor, vendor contact, client, or contact) in the tenant schema. The link is polymorphic via `entity_type` + `entity_id`. Roles are stored as a `roles` text array on the entity record — there is no `role` column on `portal_users` and no `role_members` junction table.
-
-| Field             | Type         | Description                                                                                                 |
-| ----------------- | ------------ | ----------------------------------------------------------------------------------------------------------- |
-| `id`            | uuid         | Primary key                                                                                                 |
-| `tenant_id`     | uuid         | FK to tenants                                                                                               |
-| `entity_type`   | varchar(16)  | Entity kind:`'employee'`, `'vendor_contact'`, `'client'`                                              |
-| `entity_id`     | uuid         | Cross-schema reference to the tenant-schema entity record (not a database FK — enforced by business logic) |
-| `email`         | varchar(128) | Login identifier, globally unique (partial index WHERE deactivated_at IS NULL)                              |
-| `password_hash` | text         | bcrypt hash (never returned in API responses)                                                               |
-| `status`        | varchar(20)  | `active`, `invited`, `locked`                                                                         |
-
-Partial unique index: `(entity_type, entity_id) WHERE deactivated_at IS NULL` — prevents duplicate logins for the same entity.
-
-> **`portal_users.tenant_id`** is a convenience pointer to the user's **home** tenant. It is **not** the authoritative cross-tenant access list — see `admin.portal_user_tenants` below.
-
-**Data Model (`admin.portal_user_tenants`):**
-
-`portal_user_tenants` is the authoritative cross-tenant binding table. One row per `(portal_user, tenant)` pair the user can access. The oldest active row is the user's **home tenant** (resolved at login).
-
-| Field            | Type         | Description                                                                                              |
-| ---------------- | ------------ | -------------------------------------------------------------------------------------------------------- |
-| `id`             | uuid         | Primary key                                                                                              |
-| `portal_user_id` | uuid         | FK to `admin.portal_users` (CASCADE)                                                                     |
-| `tenant_id`      | uuid         | FK to `admin.tenants` (CASCADE)                                                                          |
-| `entity_type`    | varchar(16)  | `'employee'`, `'vendor_contact'`, `'client'`, or NULL for bare registrations                             |
-| `entity_id`      | uuid         | Cross-schema reference to the tenant-scoped entity record (NULL for bare registrations)                  |
-| `status`         | varchar(20)  | `'active'`, `'invited'`, `'locked'`                                                                      |
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `portal_user_id` | uuid | FK to `admin.portal_users` (CASCADE). |
+| `tenant_id` | uuid | FK to `admin.tenants` (CASCADE). |
+| `entity_type` | varchar(16) | `'employee'`, `'vendor_contact'`, `'client'`, or NULL for bare registrations. |
+| `entity_id` | uuid | Cross-schema reference. NULL for bare registrations. |
+| `status` | varchar(20) | `active`, `invited`, `locked`. |
 
 Indexes:
-
 - Partial unique `(portal_user_id, tenant_id) WHERE deactivated_at IS NULL` — at most one active binding per user per tenant.
-- Partial unique `(tenant_id, entity_type, entity_id) WHERE deactivated_at IS NULL AND entity_type IS NOT NULL` — preserves the "exactly one active portal_user per tenant-scoped entity" invariant.
+- Partial unique `(tenant_id, entity_type, entity_id) WHERE deactivated_at IS NULL AND entity_type IS NOT NULL` — at most one active portal_user per tenant-scoped entity.
 - Supporting indexes on `portal_user_id`, `tenant_id`, `(entity_type, entity_id)`.
 
-**Roles for the cross-tenant model:**
+###### `admin.tenants`
 
-- Employees and clients have exactly one active binding (their home tenant).
-- Vendor contacts may have one binding per tenant they service.
-- The login flow resolves the home tenant by oldest active binding and refuses login if the home tenant is inactive (see §3.1.1).
-- Cross-tenant requests (Axerra support / impersonation) use the `x-tenant-code` header to select a different active binding at request time.
+The tenant registry. Axerra (tenant_code `AXERRA`) is the root tenant and cannot be archived or deleted.
 
-> **Removed from portal_users:** `tenant_code`, `user_name`, `full_name`, `tax_id`, `notes`, `role`, `tenant_role`, `employee_id`. The `employee_id` column has been replaced by the polymorphic `entity_type` + `entity_id` pair, supporting logins for employees, vendors, clients, and contacts. User identity data lives on the entity record. Roles are stored as a `roles` text array on the entity record (not in a `role_members` junction table). Contact designation (primary/billing) is via `employees.is_primary_contact` / `is_billing_contact`. The `axe_admin_phones` and `axe_admin_addresses` tables have been removed — phone numbers and addresses are stored on the linked entity via the polymorphic `sources` → `phone_numbers` / `addresses` pattern.
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_code` | varchar(6) | Unique short code (e.g., `AXERRA`, `CAL`). |
+| `company` | varchar(128) | Company name. |
+| `schema_name` | varchar(63) | PostgreSQL schema for this tenant. |
+| `status` | varchar(20) | `active`, `trial`, `suspended`, `pending`. |
+| `tier` | varchar(20) | `enterprise`, `growth`, `starter`. |
+| `region` | varchar(64) | Geographic region. |
+| `allowed_modules` | jsonb | Add-on modules this tenant has licensed. Empty array (or missing) means no add-ons are loaded — see §3.0.2. |
+| `max_users` | integer | User limit (default 5). |
+| `notes` | text | Internal notes. |
 
-**Access Control:** All portal-users routes are gated by `requireRootTenant` middleware and `withMeta({ module: 'tenants', router: 'portal-users' })`. `rbac()` IS applied per-method via the `portalUsersRouter` middleware arrays — `rbac('view')` on GET, `rbac('full')` on POST `/register`, PUT, DELETE, and PATCH. Spreadsheet import/export are disabled at the router (`disableImportXls: true`, `disableExportXls: true`), and the policy catalog intentionally does NOT seed `tenants::portal-users::import|export` — users are created via `/register` only (see permission-catalog cross-reference in §3.1.2).
+###### `admin.impersonation_logs`
 
-**Endpoints:**
+Audit trail for cross-tenant impersonation by Axerra `super_user` / `support`.
 
-| Method     | Path                                      | Purpose                                                                                                                               |
-| ---------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST`   | `/api/tenants/v1/portal-users/register` | Register new user (accepts `tenant_code`, `email`, `password`; validates tenant is active)                                      |
-| `GET`    | `/api/tenants/v1/portal-users`          | List users                                                                                                                            |
-| `GET`    | `/api/tenants/v1/portal-users/:id`      | Get user by ID                                                                                                                        |
-| `PUT`    | `/api/tenants/v1/portal-users/update`   | Update user                                                                                                                           |
-| `DELETE` | `/api/tenants/v1/portal-users/archive`  | Soft-delete user — sets `status = 'locked'` and `deactivated_at`, cascades to archive linked entity (prevents self-archival)     |
-| `PATCH`  | `/api/tenants/v1/portal-users/restore`  | Restore user — sets `status = 'active'` and clears `deactivated_at`, cascades to restore linked entity (checks tenant is active) |
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `impersonator_id` | uuid | FK to `portal_users` (the operator). |
+| `target_user_id` | uuid | FK to `portal_users` (the user being impersonated). |
+| `target_tenant_code` | varchar(6) | Tenant being entered. |
+| `reason` | text | Operator-supplied reason. |
+| `started_at` | timestamptz | Session start. |
+| `ended_at` | timestamptz | Null while active. |
 
-**Business Rules:**
+Partial unique index `(impersonator_id) WHERE ended_at IS NULL` prevents concurrent sessions; a second open attempt returns `409 Conflict`.
 
-- Standard POST is disabled; users must be created via the `/register` endpoint
-- Spreadsheet import/export is **not** supported on `portal-users`. `portalUsersRouter` sets `disableImportXls: true` and `disableExportXls: true`, and `policyCatalogSeeder` does not emit `tenants::portal-users::import|export` rows. Users are created via `/register` only.
-- Registration collects: `tenant_code`, `email`, `password`. Validates the tenant exists and is active. Entity linkage (`entity_type`, `entity_id`) and entity pre-validation (roles assigned, `is_app_user = true`) are not yet enforced — these fields can be set via subsequent update
-- Password automatically hashed with bcrypt on registration
-- Email must be globally unique across all active users (enforced by partial unique index WHERE deactivated_at IS NULL)
-- Users cannot archive themselves (checked by both `id` and `email`)
-- Archiving a user sets `status = 'locked'` (in addition to `deactivated_at`) and cascades to soft-delete the linked entity record (employee/vendor/client/contact) in the tenant schema via `entity_type` + `entity_id`
-- Restoring a user sets `status = 'active'`, clears `deactivated_at`, and cascades to restore the linked entity record in the tenant schema
-- Restoring a user requires the parent tenant to be active — returns 403 if the tenant is deactivated
-- Axerra membership is determined by `tenant_code` comparison: server uses `requireRootTenant` middleware (checks `req.user.tenant_code` against `ROOT_TENANT_CODE` env var); client uses `isRootTenantUser` computed flag in `AuthContext` (checks `tenant_code` against `VITE_ROOT_TENANT_CODE`)
+##### 3.1.2.2 roles / policies / policy_catalog
 
-#### 3.2.3 Admin Operations
+These three tables define **Layer 1 — what a role can do**. They live in every tenant schema.
 
-**Endpoints:**
+###### `roles`
 
-| Method   | Path                                           | Purpose                                                   |
-| -------- | ---------------------------------------------- | --------------------------------------------------------- |
-| `GET`  | `/api/tenants/v1/admin/schemas`              | List all active tenants (Axerra users only)               |
-| `POST` | `/api/tenants/v1/admin/impersonate`          | Start impersonation session (requires `target_user_id`) |
-| `POST` | `/api/tenants/v1/admin/exit-impersonation`   | End active impersonation session                          |
-| `GET`  | `/api/tenants/v1/admin/impersonation-status` | Check current impersonation state                         |
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `code` | varchar(32) | Role code (e.g., `admin`, `project_manager`). |
+| `name` | varchar(64) | Display name. |
+| `description` | text | Optional. |
+| `is_system` | boolean | True for `super_user`, `admin`, `support`, `vendor_contact`, `client`. |
+| `is_immutable` | boolean | True if the role cannot be edited or deleted. |
+| `scope` | varchar(32) | `all_projects`, `assigned_companies`, `assigned_projects`, or `self`. |
+| `tenant_code` | varchar(6) | Tenant this role belongs to. |
 
-**Cross-tenant access:** Axerra users send `x-tenant-code` header to switch tenant context — handled by `authRedis` middleware, no dedicated endpoint needed. See [BR-RBAC-043](./rules/rbac.md#br-rbac-043).
+Roles are stored as a `roles` text array directly on each entity record (employees, clients, vendor_contacts). There is no `role_members` junction table.
 
-**Orphan portal-users:**
+###### `policies`
 
-Bare `admin.portal_users` rows (no active `portal_user_tenants` binding and no tenant-schema entity) are surfaced and cleaned up via a dedicated admin router. Implementation under `apps/server/src/system/tenants/{controllers/orphanPortalUsersController.js, apiRoutes/v1/orphanPortalUsersRouter.js}`; SQL functions `admin.find_orphan_portal_users(p_limit)`, `admin.count_orphan_portal_users()`, and `admin.cleanup_orphan_portal_user(id)` are installed by migration `202605010001_orphanPortalUsersCleanup.js`.
+Per-role permission grants.
 
-| Method | Path                                                       | Purpose                                                                                         |
-| ------ | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `GET`  | `/api/tenants/v1/orphan-portal-users/orphans/preview`      | Preview up to N orphan rows + the total backlog count. Action `find_orphans` (set via `withMeta`).   |
-| `POST` | `/api/tenants/v1/orphan-portal-users/orphans/cleanup`      | Hard-delete a single orphan portal_user by id (transactional). Action `cleanup_orphans` (set via `withMeta`). |
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `role_id` | uuid | FK to `roles`. |
+| `module` | varchar(32) | Module key. Empty string `''` for wildcard policies on idempotent roles. |
+| `router` | varchar(64) | Router name within the module. |
+| `action` | varchar(32) | Action name. |
+| `level` | varchar(8) | `none`, `view`, or `full`. |
+| `tenant_code` | varchar(6) | Tenant this policy belongs to. |
 
-**Platform Maintenance UI:** `apps/client/src/pages/Tenant/PlatformMaintenancePage.jsx` (mounted under the Tenant admin nav group, Axerra-only) renders one card per maintenance operation. Orphan-portal-users find / cleanup is the first card; additional cross-tenant hygiene tools land here as separate cards. (Documented per gap 2.14, 2026-05-21.)
+###### `policy_catalog`
 
-**Impersonation Implementation:**
+Read-only registry of valid `(module, router, action)` combinations. Drives the role-configuration UI and the exact-match carve-out in policy resolution.
 
-- Audit trail: `admin.impersonation_logs` table records `impersonator_id`, `target_user_id`, `target_tenant_code`, `reason`, `started_at`, `ended_at`
-- Session state: active impersonation stored in Redis at `imp:{userId}` with TTL
-- Session uniqueness: partial unique index on `impersonation_logs (impersonator_id) WHERE ended_at IS NULL` prevents concurrent sessions; attempting a second session returns `409 Conflict`
-- `authRedis` middleware detects active impersonation via Redis key and swaps `req.user` to the target user, setting `req.user.is_impersonating = true` and `req.user.impersonated_by`
-- `/auth/me` response includes `impersonation: { active, impersonated_by }` for client-side UI state
-- See [BR-RBAC-044](./rules/rbac.md#br-rbac-044), [BR-RBAC-048](./rules/rbac.md#br-rbac-048)
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `module` | varchar(32) | Module key. |
+| `router` | varchar(64) | Router name. |
+| `action` | varchar(32) | Action name. |
+| `label` | varchar(128) | Human-readable label. |
+| `description` | varchar(512) | Optional explanation. |
+| `sort_order` | integer | Display order in the UI. |
+| `valid_statuses` | text[] | Valid status values for the state-filter UI. |
+| `available_fields` | text[] | Columns available for the field-group UI. |
+| `policy_required` | boolean | Default `true`. If `true`, an exact `module::router::action` grant is required — wildcard fallbacks do not apply. |
+
+Seed-only reference data. No audit fields, no tenant_code.
+
+##### 3.1.2.3 state_filters / field_group_*
+
+These tables define **Layer 3 (record states)** and **Layer 4 (column visibility)**.
+
+###### `state_filters`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `role_id` | uuid | FK to `roles`. |
+| `module` | varchar(32) | Module key. |
+| `router` | varchar(64) | Router name. |
+| `visible_statuses` | text[] | Statuses this role may see. Empty = no filtering. |
+
+###### `field_group_definitions`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `module` | varchar(32) | Module key. |
+| `router` | varchar(64) | Router name. |
+| `group_name` | varchar(64) | Group name. |
+| `columns` | text[] | Columns in this group. |
+| `is_default` | boolean | If `true`, granted to every role automatically. |
+
+###### `field_group_grants`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `role_id` | uuid | FK to `roles`. |
+| `field_group_id` | uuid | FK to `field_group_definitions`. |
+
+Empty grants = all columns visible.
+
+##### 3.1.2.4 project_members / company_members
+
+These tables define **Layer 2 — data scope** for users with `assigned_projects` or `assigned_companies` scope.
+
+###### `project_members`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `project_id` | uuid | FK to `projects`. |
+| `user_id` | uuid | FK to `portal_users`. |
+| `role` | varchar(32) | Label (e.g., `member`, `lead`). |
+
+###### `company_members`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `company_id` | uuid | FK to `companies`. |
+| `user_id` | uuid | FK to `portal_users`. |
+
+When a user's role has `scope = 'assigned_companies'`, the permission loader resolves both `companyIds` and the corresponding `projectIds` from these tables.
+
+#### 3.1.3 API
+
+##### 3.1.3.1 Authentication Endpoints
+
+| Method | Path | Description |
+| --- | --- | --- |
+| POST | `/api/auth/login` | Authenticate with email and password. |
+| POST | `/api/auth/refresh` | Rotate auth and refresh tokens. |
+| POST | `/api/auth/logout` | Clear auth cookies. |
+| POST | `/api/auth/change-password` | Change the current user's password. Enforces strength rules. |
+| GET | `/api/auth/me` | Current user context — tenant, roles, permissions, impersonation state. |
+| GET | `/api/auth/check` | Lightweight session validation. |
+
+##### 3.1.3.2 Tenant Management Endpoints
+
+Restricted to Axerra staff via `requireRootTenant` middleware.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| POST | `/api/tenants/v1/tenants` | Create tenant. Provisions schema and creates the admin employee plus portal_users login in a single transaction. |
+| GET | `/api/tenants/v1/tenants` | List tenants (cursor-based pagination). |
+| GET | `/api/tenants/v1/tenants/:id` | Get tenant by id. |
+| PUT | `/api/tenants/v1/tenants/update` | Update tenant. |
+| DELETE | `/api/tenants/v1/tenants/archive` | Soft-delete tenant. Cascades to deactivate associated portal_users. |
+| PATCH | `/api/tenants/v1/tenants/restore` | Restore archived tenant. Users are not auto-restored. |
+| GET | `/api/tenants/v1/tenants/:id/modules` | Get the tenant's allowed add-on modules. |
+| GET | `/api/tenants/v1/tenants/:id/contacts` | Get primary and billing contacts (cross-schema query into the tenant's employees). |
+| POST | `/api/tenants/v1/tenants/import-xls` | Import tenants from XLSX. Rows without `id` trigger full per-row provisioning. |
+| POST | `/api/tenants/v1/tenants/export-xls` | Export tenants to XLSX. |
+| POST | `/api/tenants/v1/portal-users/register` | Register a new user (`tenant_code`, `email`, `password`). |
+| GET | `/api/tenants/v1/portal-users` | List portal users. |
+| GET | `/api/tenants/v1/portal-users/:id` | Get portal user by id. |
+| PUT | `/api/tenants/v1/portal-users/update` | Update portal user. |
+| DELETE | `/api/tenants/v1/portal-users/archive` | Soft-delete portal user. Cascades to linked entity. Self-archival blocked. |
+| PATCH | `/api/tenants/v1/portal-users/restore` | Restore portal user. Requires parent tenant active. |
+| GET | `/api/tenants/v1/admin/schemas` | List active tenants (Axerra only). |
+| POST | `/api/tenants/v1/admin/impersonate` | Start impersonation session (`target_user_id`). |
+| POST | `/api/tenants/v1/admin/exit-impersonation` | End the active impersonation session. |
+| GET | `/api/tenants/v1/admin/impersonation-status` | Check current impersonation state. |
+| GET | `/api/tenants/v1/orphan-portal-users/orphans/preview` | Preview orphan `portal_users` rows and backlog count. |
+| POST | `/api/tenants/v1/orphan-portal-users/orphans/cleanup` | Hard-delete a single orphan portal_user. |
+
+##### 3.1.3.3 RBAC / Policy Endpoints
+
+Tenant-scope, all under `/api/core/v1/`.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| CRUD | `/api/core/v1/roles` | Manage tenant roles. |
+| CRUD | `/api/core/v1/policies` | Manage per-role policy grants. |
+| GET | `/api/core/v1/policy-catalog` | Read-only catalog of valid `(module, router, action)` combinations. |
+| CRUD | `/api/core/v1/state-filters` | Manage Layer 3 state visibility filters. |
+| CRUD | `/api/core/v1/field-group-definitions` | Manage Layer 4 named column groups. |
+| CRUD | `/api/core/v1/field-group-grants` | Assign field groups to roles. |
+| CRUD | `/api/core/v1/project-members` | Manage Layer 2 user↔project assignments. |
+| CRUD | `/api/core/v1/company-members` | Manage Layer 2 user↔company assignments. |
+| CRUD | `/api/core/v1/numbering-config` | Manage per-entity-type numbering configuration (see §3.1.4.5). |
+
+Role assignment itself is done via the entity CRUD endpoints (update the `roles` array on the employee, vendor contact, or client record). There is no `/role-members` endpoint.
+
+#### 3.1.4 Business Rules
+
+##### 3.1.4.1 Login Flow & Token Lifecycle
+
+1. The user submits email and password on `LoginPage`.
+2. The client calls `POST /api/auth/login` via `authApi.login()`.
+3. The server validates credentials via Passport Local Strategy (bcrypt against `admin.portal_users.password_hash`).
+4. The server resolves the user's home tenant from `admin.portal_user_tenants` (oldest active binding). Login is refused with `"Tenant is inactive."` if the home tenant is not active.
+5. The server loads RBAC permissions for the home tenant and gates token issuance on the result. A user with no usable permissions is refused with `403` — credentials were valid but the account is unusable.
+6. The server computes `ph` (a SHA-256 hash of the resolved permission canon), signs the `auth_token` (15 minute TTL) and `refresh_token` (7 day TTL) as JWTs, and sets them as httpOnly cookies. The permission canon is primed into Redis so the first authenticated request does not re-load.
+7. The client calls `GET /api/auth/me` to hydrate user context, then `LayoutShell` admits the user to the app.
+8. JWT claims carry only `sub` (user UUID) and `ph` (permissions hash). Tenant context, roles, and permissions are resolved at request time by `authRedis` — they are not embedded in the token.
+9. `auth_token` rotates on every call to `POST /api/auth/refresh`; the refresh token rotates fully alongside it. Logout clears both cookies.
+10. All API calls use `credentials: 'include'`. No tokens are stored in `localStorage`.
+
+##### 3.1.4.2 Mid-Session Policy Refresh
+
+1. When a role's policies, scope, state filters, or field grants change, the server invalidates the Redis permission canon for every affected user (`perm:{userId}:{tenantCode}`).
+2. On the user's next authenticated request, `authRedis` reloads the canon from the database and recomputes `ph`.
+3. If the recomputed `ph` differs from the `ph` claim in the request's `auth_token`, the server sets the `X-Token-Stale: 1` response header. The client treats this as a signal to call `POST /api/auth/refresh`, which re-issues tokens with the fresh `ph`.
+4. The user does not need to log out and back in. The next request reflects the updated permissions automatically.
+
+##### 3.1.4.3 Four-Layer RBAC Resolution
+
+1. **Layer 1 — Policies.** Resolution walks from most specific to least specific: `module::router::action` → `module::router::` → `module::::` → `::::` (empty-module wildcard for idempotent roles) → default `none`.
+2. **Exact-match carve-out.** `policy_catalog` rows with `policy_required = true` bypass the fallback above and require an exact `module::router::action` grant. The carve-out set is built at module load in `apps/server/src/middleware/rbac.js` from `CATALOG_ENTRIES` in `policyCatalogSeeder.js`. This keeps sensitive actions out of router-level wildcards.
+3. **Layer 2 — Data scope.** `roles.scope` selects how much data the user sees: `all_projects` > `assigned_companies` > `assigned_projects` > `self`. `self` scope reads `entity_type` and `entity_id` from `portal_users` and maps to the resource's FK column (e.g., `vendor_id` on AP invoices).
+4. **Layer 3 — State filters.** `state_filters.visible_statuses` restricts which record statuses the role may see per `(module, router)`. Empty = no filtering.
+5. **Layer 4 — Field groups.** `field_group_grants` plus default definitions decide which columns are returned. Empty grants = all columns visible.
+6. **Multi-role merge.** When a user holds multiple roles, Layer 2 takes the most permissive scope; Layers 3 and 4 take the union of states and columns across roles.
+7. **No bypass.** The middleware does not short-circuit for `super_user` or `admin`. Every user resolves through the same `roles` array → `policies` path, so every grant is auditable.
+8. **Enforcement.** `moduleEntitlement` runs first and rejects requests whose module is not in `tenants.allowed_modules` for the tenant. `withMeta({ module, router, action })` annotates `req.resource`. `rbac(requiredLevel)` enforces Layer 1 at the route. `ViewController._applyRbacFilters()` enforces Layers 2–4 at the service layer.
+
+##### 3.1.4.4 System Roles (incl. vendor_contacts, clients)
+
+System roles are built into the platform. Their meaning is fixed across every tenant and they cannot be edited. They are distinct from **convenience roles** (e.g., `accountant`, `controller`, `project_manager`), which each tenant defines for itself.
+
+| Role | Scope | Notes |
+| --- | --- | --- |
+| `super_user` | Cross-tenant (Axerra only) | Full access to every tenant. Holds wildcard `level: 'full'` policy plus cross-tenant and impersonation grants. |
+| `admin` | `all_projects` (per tenant) | Full access within one tenant. Holds wildcard `level: 'full'` policy. Seeded in every tenant schema. |
+| `support` | Cross-tenant (Axerra only) | Cross-tenant access and impersonation, with `level: 'none'` on financial modules (`accounting`, `ap`, `ar`). |
+| `vendor_contact` | `self` | Vendor-portal user. Sees only their own vendor's records (AP invoices, payments, POs). |
+| `client` | `self` | Client-portal user. Sees only their own invoices, statements, and receipts. |
+
+Cross-tenant and impersonation policies are seeded only in the `axerra` schema, on `super_user` and `support`. They cannot be assigned in any other schema.
+
+The five system roles above receive a single wildcard policy at seed time. Adding a new module does not require backfilling them. Convenience roles enumerate per-module policies explicitly; when a new module ships, every tenant's convenience roles must be backfilled with the new module's rows. The retroactive seeder for this is not yet built — tenants must add the new policies manually until it lands.
+
+`tenants::portal-users::import` and `tenants::portal-users::export` are intentionally absent from `policy_catalog`. Users are created via `/register` only. `tenants::tenants::import|export` are seeded and gate the tenants XLSX endpoints.
+
+##### 3.1.4.5 Tenant Numbering System
+
+The numbering system generates human-readable business identifiers (e.g., `EMP-0045`, `INV-2026-00123`) separately from internal UUID primary keys. Configuration is per-tenant, optionally sub-scoped (e.g., per company for invoices), and supports period-based counter reset.
+
+###### Design principles
+
+1. UUID primary keys are not business identifiers.
+2. Business numbers are generated per tenant; never globally.
+3. Invoice numbers are generated per company (`scope_type = 'company'`); each company has its own invoice sequence.
+4. Reset is implemented via `period_key` partitioning, not by restarting sequences.
+5. Display formatting is independent of serial allocation.
+6. Issued numbers are immutable.
+
+###### Data: `tenant_numbering_config`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null, immutable. |
+| `id_type` | varchar(32) | `employee`, `vendor`, `client`, `contact`, `ar_invoice`, `ap_invoice`, `project`. |
+| `prefix` | varchar(16) | Display prefix. |
+| `suffix` | varchar(16) | Display suffix. |
+| `date_mode` | varchar(16) | `none`, `year`, `year_month`, `ymd`. |
+| `reset_mode` | varchar(16) | `never`, `yearly`, `monthly`, `daily`. |
+| `padding` | integer | Zero-pad width. |
+| `separator` | varchar(4) | Joins display parts. |
+| `uppercase` | boolean | Apply uppercase to the final display ID. |
+| `scope_type` | varchar(32) | `none`, `company`, or `project`. |
+| `is_enabled` | boolean | Enables auto-numbering for this entity type. |
+
+Unique constraint `(tenant_id, id_type)` — one config row per entity type per tenant. Changing configuration affects future numbers only; historical numbers are never rewritten.
+
+###### Data: `tenant_number_sequence_state`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null, immutable. |
+| `id_type` | varchar(32) | Entity type. |
+| `scope_id` | uuid | Scope entity UUID, or NIL UUID for global scope. |
+| `period_key` | varchar(16) | Derived from `reset_mode`: `never` → `global`, `yearly` → `YYYY`, `monthly` → `YYYY-MM`, `daily` → `YYYY-MM-DD`. |
+| `last_serial` | bigint | Current counter value. |
+
+Unique constraint `(tenant_id, id_type, scope_id, period_key)`.
+
+###### Allocation and display
+
+1. Determine `period_key` from `reset_mode` and current date.
+2. `BEGIN` transaction.
+3. `SELECT ... FROM tenant_number_sequence_state FOR UPDATE` (row lock).
+4. Insert with `last_serial = 1` if no row exists; otherwise increment `last_serial`.
+5. Assign the serial to the entity record.
+6. Compute `display_id = prefix + separator + date_part + separator + padded(serial) + separator + suffix`. Only non-empty components are included; uppercase applied if configured.
+7. `COMMIT`.
+
+Reset is achieved via `period_key` partitioning. For yearly reset, 2025 uses `period_key = '2025'` from serial 000001, and 2026 starts a new partition at 000001 automatically.
+
+###### Recommended defaults
+
+| Entity | Prefix | Padding | Date mode | Reset | Scope |
+| --- | --- | --- | --- | --- | --- |
+| Employee | `EMP` | 4 | none | never | tenant |
+| Vendor | `VND` | 4 | none | never | tenant |
+| Client | `CLT` | 4 | none | never | tenant |
+| Contact | `CON` | 4 | none | never | tenant |
+| Project | `PRJ` | 4 | none | never | tenant |
+| AR Invoice | `INV` | 5 | year | yearly | company |
+| AP Invoice | `BILL` | 5 | year | yearly | company |
+
+All configs are seeded with `is_enabled = false`. Tenants opt in via Settings → Numbering.
+
+###### Entity integration and backfill
+
+1. Auto-numbering populates the entity's code field only when the user does not supply one.
+2. AR invoices number on status transition to `sent`; AP invoices number on status transition to `approved`. Numbers are immutable after assignment.
+3. When numbering is enabled for an entity type for the first time, existing records with `code IS NULL AND deactivated_at IS NULL` are backfilled in `created_at` order, atomically, via the same `allocateNumber()` path used by normal creates. The response returns a `backfilledCodes` count for the UI.
+
+###### Impersonation
+
+1. The active impersonation session is stored in Redis at `imp:{userId}` with TTL.
+2. `authRedis` detects the session, swaps `req.user` to the target user, and sets `req.user.is_impersonating = true` plus `req.user.impersonated_by`.
+3. `/api/auth/me` includes `impersonation: { active, impersonated_by }` for client-side UI state.
+4. Each session inserts a row into `admin.impersonation_logs`. The partial unique index on `(impersonator_id) WHERE ended_at IS NULL` prevents concurrent sessions — a second open attempt returns `409 Conflict`.
 
 ---
 
@@ -1007,7 +1014,7 @@ Each vendor contact gets its own `sources` record (with `source_type = 'vendor_c
 
 **Endpoint:** `/api/core/v1/vendor-contacts`
 
-**UI affordance:** `VendorContactsPanel.jsx` + `ContactFormDialog.jsx` (under `apps/client/src/pages/Core/vendors/`) render inside the Vendor edit dialog and provide create/edit/archive for the vendor's contacts. Standard XLSX import/export are wired at the router level (the router auto-applies `rbac('full')` on `/import-xls` and `rbac('view')` on `/export-xls`); a top-level Vendor Contacts page is intentionally not part of §4.6.3 today — import/export is driven from the parent Vendor panel. (Documented per gaps 2.3 / 2.16, 2026-05-21.)
+**UI affordance:** `VendorContactsPanel.jsx` + `ContactFormDialog.jsx` (under `apps/client/src/pages/Core/vendors/`) render inside the Vendor edit dialog and provide create/edit/archive for the vendor's contacts. Standard XLSX import/export are wired at the router level (the router auto-applies `rbac('full')` on `/import-xls` and `rbac('view')` on `/export-xls`); a top-level Vendor Contacts page is intentionally not part of §4.6.3 today — import/export is driven from the parent Vendor panel.
 
 #### 3.3.1b Payment Terms
 
@@ -1035,7 +1042,7 @@ Each vendor contact gets its own `sources` record (with `source_type = 'vendor_c
 | `is_app_user` | boolean      | Default false. Must be true before a `portal_users` login can be created. Requires `roles` to be non-empty. |
 | `is_active`   | boolean      | Default true                                                                                                    |
 
-> **Email storage:** Client email addresses live in the polymorphic `emails` table (see §3.3.4 / §3.14.1) keyed by the client's `source_id`. There is no `email` column on `clients`. (Reconciled per gap 3.12 / 4.11, 2026-05-21.)
+> **Email storage:** Client email addresses live in the polymorphic `emails` table (see §3.3.4 / §3.14.1) keyed by the client's `source_id`. There is no `email` column on `clients`.
 
 **Endpoint:** `/api/core/v1/clients`
 
@@ -1056,7 +1063,7 @@ Each vendor contact gets its own `sources` record (with `source_type = 'vendor_c
 | `is_primary_contact` | boolean      | Default false. Designates this employee as the tenant's primary contact.                                           |
 | `is_billing_contact` | boolean      | Default false. Designates this employee as the tenant's billing contact.                                           |
 
-> **Email storage:** Employee email addresses live in the polymorphic `emails` table (see §3.3.4 / §3.14.1) keyed by the employee's `source_id`. There is no `email` column on `employees`; the per-tenant uniqueness invariant is enforced on `emails` instead. (Reconciled per gap 3.11 / 4.11, 2026-05-21.)
+> **Email storage:** Employee email addresses live in the polymorphic `emails` table (see §3.3.4 / §3.14.1) keyed by the employee's `source_id`. There is no `email` column on `employees`; the per-tenant uniqueness invariant is enforced on `emails` instead.
 
 > **Soft Delete:** Employees use the `deactivated_at` column (via pg-schemata `softDelete: true`) — there is no `is_active` boolean column. Vendors, clients, and contacts have BOTH `is_active` (boolean) AND `deactivated_at` (via `softDelete: true`) — a dual active/inactive mechanism. `is_active` is a user-facing toggle; `deactivated_at` is the pg-schemata soft-delete marker that filters records from read queries.
 
@@ -1562,7 +1569,7 @@ Templates serve as reusable blueprints for project creation:
 | `ap_invoice_id` | uuid          | FK to ap_invoices (SET NULL)                                                               |
 | `payment_date`  | date          | Payment date                                                                               |
 | `amount`        | numeric(14,2) | Payment amount                                                                             |
-| `method`        | varchar(24)   | One of `check`, `ach`, `wire`. Enforced by `paymentsController` (`VALID_METHODS = ['check', 'ach', 'wire']`) on create and update — values outside the allowlist return 400. Schema has no CHECK constraint; enforcement is controller-level. (Documented per gap 3.25, 2026-05-21.) |
+| `method`        | varchar(24)   | One of `check`, `ach`, `wire`. Enforced by `paymentsController` (`VALID_METHODS = ['check', 'ach', 'wire']`) on create and update — values outside the allowlist return 400. Schema has no CHECK constraint; enforcement is controller-level. |
 | `reference`     | varchar(64)   | Check number/reference                                                                     |
 | `notes`         | text          | Internal notes                                                                             |
 
@@ -1643,7 +1650,7 @@ Templates serve as reusable blueprints for project creation:
 | `ar_invoice_id` | uuid          | FK to ar_invoices (SET NULL)                                                               |
 | `receipt_date`  | date          | Receipt date                                                                               |
 | `amount`        | numeric(14,2) | Receipt amount                                                                             |
-| `method`        | varchar(24)   | One of `check`, `ach`, `wire`. Enforced by `receiptsController` (`VALID_METHODS = ['check', 'ach', 'wire']`) on create and update — values outside the allowlist return 400. Schema has no CHECK constraint; enforcement is controller-level. (Documented per gap 3.25, 2026-05-21.) |
+| `method`        | varchar(24)   | One of `check`, `ach`, `wire`. Enforced by `receiptsController` (`VALID_METHODS = ['check', 'ach', 'wire']`) on create and update — values outside the allowlist return 400. Schema has no CHECK constraint; enforcement is controller-level. |
 | `reference`     | varchar(64)   | Reference number                                                                           |
 | `notes`         | text          | Internal notes                                                                             |
 
@@ -1937,7 +1944,7 @@ These views are created in each tenant schema at provisioning time and updated v
 | `GET` | `/api/reports/v1/ar-aging/:clientId`                   | AR aging for specific client                                |
 | `GET` | `/api/reports/v1/ap-aging`                             | AP aging report across all vendors                          |
 | `GET` | `/api/reports/v1/ap-aging/:vendorId`                   | AP aging for specific vendor                                |
-| `GET` | `/api/reports/v1/company-cashflow`                     | Aggregated cashflow across all projects for a company. UI lives under `/dashboard/cashflow` (Dashboard nav group), NOT `/reports/*` — see §7. (Reconciled per gaps 2.23 / 4.27, 2026-05-21.) |
+| `GET` | `/api/reports/v1/company-cashflow`                     | Aggregated cashflow across all projects for a company. UI lives under `/dashboard/cashflow` (Dashboard nav group), NOT `/reports/*` — see §7. |
 | `GET` | `/api/reports/v1/margin-analysis`                      | Cross-project margin comparison and trending                |
 
 #### 3.10.6 UI Requirements
@@ -1965,7 +1972,7 @@ These views are created in each tenant schema at provisioning time and updated v
 
 **AR/AP Aging Grids:**
 
-- Aging bucket columns: Current, 1-30, 31-60, 61-90, Over 90 (5 buckets — matches `vw_ar_aging` / `vw_ap_aging` view definitions in §3.10.4 and `rules/reports.md`). (Reconciled per gap 4.31, 2026-05-21.)
+- Aging bucket columns: Current, 1-30, 31-60, 61-90, Over 90 (5 buckets — matches `vw_ar_aging` / `vw_ap_aging` view definitions in §3.10.4 and `rules/reports.md`).
 - Grouped by client (AR) or vendor (AP)
 - Filterable by project
 - Summary row with totals
@@ -2027,134 +2034,10 @@ These views are created in each tenant schema at provisioning time and updated v
 
 **Endpoint:** `/api/tenants/v1/match-review-logs`
 
----
-
-### 3.13 Tenant-Scoped Numbering System  [in-scope]
-
-**Purpose:** Configurable, transaction-safe auto-numbering for all business entities. Separates internal PKs (UUIDs) from human-readable business identifiers. Supports per-tenant formatting, optional sub-scope (e.g., per company for invoices), and period-based counter reset.
-
-> **Terminology:** in this product, **companies are the legal entities** under a tenant — there is no separate `legal_entities` table. Section 3.13 uses `scope_type = company` for invoices; earlier wording that used `legal_entity` as a distinct scope was redundant and has been collapsed.
-
-#### 3.13.1 Design Principles
-
-1. Database primary keys (UUID) are not business identifiers
-2. Business numbers are generated per tenant (never global)
-3. Invoice numbers are generated **per company** (`scope_type = 'company'`); each company under a tenant gets its own running invoice sequence
-4. Reset behavior is implemented using a `period_key`, not by restarting sequences
-5. Display formatting is independent of serial allocation logic
-6. Issued invoice numbers are immutable
-
-#### 3.13.2 Numbering Configuration
-
-**Data Model (`tenant_numbering_config`):**
-
-| Field          | Type        | Description                                                                                    |
-| -------------- | ----------- | ---------------------------------------------------------------------------------------------- |
-| `id`         | uuid        | PK                                                                                             |
-| `tenant_id`  | uuid        | Not null, immutable                                                                            |
-| `id_type`    | varchar(32) | `employee`, `vendor`, `client`, `contact`, `ar_invoice`, `ap_invoice`, `project` |
-| `prefix`     | varchar(16) | Display prefix (e.g.,`EMP`, `INV`)                                                         |
-| `suffix`     | varchar(16) | Display suffix                                                                                 |
-| `date_mode`  | varchar(16) | `none`, `year`, `year_month`, `ymd`                                                    |
-| `reset_mode` | varchar(16) | `never`, `yearly`, `monthly`, `daily`                                                  |
-| `padding`    | integer     | Zero-pad width (e.g., 4 →`0001`)                                                            |
-| `separator`  | varchar(4)  | Joins display parts (e.g.,`-`)                                                               |
-| `uppercase`  | boolean     | Apply uppercase to final display ID                                                            |
-| `scope_type` | varchar(32) | `none`, `company`, `project` (companies are the legal entities — see §3.13 terminology note) |
-| `is_enabled` | boolean     | Enables auto-numbering for this entity type                                                    |
-
-**Unique Constraint:** `(tenant_id, id_type)` — one config row per entity type per tenant.
-
-Changing configuration affects future numbers only. Historical numbers are never rewritten.
-
-#### 3.13.3 Sequence State (Counter Storage)
-
-**Data Model (`tenant_number_sequence_state`):**
-
-| Field           | Type        | Description                                                                                                                           |
-| --------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`          | uuid        | PK                                                                                                                                    |
-| `tenant_id`   | uuid        | Not null, immutable                                                                                                                   |
-| `id_type`     | varchar(32) | Entity type                                                                                                                           |
-| `scope_id`    | uuid        | Scope entity UUID, or NIL UUID for global scope                                                                                       |
-| `period_key`  | varchar(16) | Derived from `reset_mode`: `never` → `global`, `yearly` → `YYYY`, `monthly` → `YYYY-MM`, `daily` → `YYYY-MM-DD` |
-| `last_serial` | bigint      | Current counter value                                                                                                                 |
-
-**Unique Constraint:** `(tenant_id, id_type, scope_id, period_key)`
-
-#### 3.13.4 Display ID Construction
-
-`display_id = prefix + separator + date_part + separator + padded(serial) + separator + suffix`
-
-- Only non-empty components are included
-- Date part derived from `issued_at` timestamp using `date_mode`
-- Padding applied to serial (e.g., padding=6 → `000123`)
-- Uppercase transformation applied if configured
-
-**Examples:** `EMP-0045`, `INV-2026-00123`, `VND-2026-02-0004`
-
-#### 3.13.5 Transaction-Safe Allocation
-
-1. Determine `period_key` from `reset_mode` and current date
-2. `BEGIN` transaction
-3. `SELECT ... FROM tenant_number_sequence_state FOR UPDATE` (row lock)
-4. If row not found → `INSERT` with `last_serial = 1`
-5. Else → `INCREMENT last_serial`
-6. Assign serial to entity record
-7. Compute `display_id` from config
-8. `COMMIT`
-
-This prevents race conditions and duplicate numbers under concurrent requests.
-
-#### 3.13.6 Reset Strategy
-
-Reset is achieved via `period_key` partitioning — no sequence objects are restarted manually.
-
-Example (yearly reset): 2025 → `period_key = '2025'`, serial 000001; 2026 → `period_key = '2026'`, serial resets to 000001 automatically.
-
-#### 3.13.7 Recommended Defaults
-
-| Entity Type | Prefix   | Padding | Date Mode | Reset Mode | Scope        |
-| ----------- | -------- | ------- | --------- | ---------- | ------------ |
-| Employee    | `EMP`  | 4       | none      | never      | tenant       |
-| Vendor      | `VND`  | 4       | none      | never      | tenant       |
-| Client      | `CLT`  | 4       | none      | never      | tenant       |
-| Contact     | `CON`  | 4       | none      | never      | tenant       |
-| Project     | `PRJ`  | 4       | none      | never      | tenant       |
-| AR Invoice  | `INV`  | 5       | year      | yearly     | company      |
-| AP Invoice  | `BILL` | 5       | year      | yearly     | company      |
-
-All configs are seeded with `is_enabled = false` during tenant provisioning. Tenants opt in via the Settings UI. When numbering is first enabled for an entity type, existing records with `code IS NULL` are backfilled in `created_at` order.
-
-#### 3.13.8 Entity Integration
-
-Auto-numbering populates the entity's code/number field only when the user does not provide one. For AR invoices, numbering fires when `status` transitions to `sent`; for AP invoices, when `status` transitions to `approved` (immutable after assignment).
-
-| Entity     | Code Field         | Numbering Trigger           |
-| ---------- | ------------------ | --------------------------- |
-| Vendor     | `code`           | On create (if code is null) |
-| Client     | `code`           | On create (if code is null) |
-| Employee   | `code`           | On create (if code is null) |
-| Contact    | `code`           | On create (if code is null) |
-| Project    | `project_code`   | On create (if code is null) |
-| AR Invoice | `invoice_number` | On status →`sent`        |
-| AP Invoice | `invoice_number` | On status →`approved`    |
-
-#### 3.13.9 Backfill on Enable
-
-When a tenant enables numbering for an entity type (`is_enabled` transitions `false` → `true`), the system backfills all existing records of that type that have `code IS NULL AND deactivated_at IS NULL`, ordered by `created_at`. This ensures entities created before numbering was configured — including the admin employee created during tenant provisioning — receive codes matching the tenant's chosen pattern.
-
-The backfill runs atomically in a single transaction using the same `allocateNumber()` path as normal entity creation. The response includes `backfilledCodes` count so the UI can inform the user.
-
-**Endpoint:** `/api/core/v1/numbering-config`
-
-**UI:** Settings > Numbering — card-based configuration page with per-entity-type enable/disable, format fields, and live preview.
-
----
 
 ### 3.14 Tenant-First-Class Modules  [in-scope]
 
-**Purpose:** Tenant-scoped reference modules that did not fit cleanly into §3.3 *Core Entities* when the PRD was first written. Documented here for completeness. (Added per gaps 2.1, 2.2, 2.6, 4.26, 2026-05-21.)
+**Purpose:** Tenant-scoped reference modules that did not fit cleanly into §3.3 *Core Entities* when the PRD was first written. Documented here for completeness.
 
 #### 3.14.1 Emails (first-class tenant-scoped table)
 
