@@ -1555,160 +1555,172 @@ All endpoints under `/api/activities/v1/` provide standard CRUD (§4.1).
 
 ---
 
-### 3.7 Accounts Payable (AP)  [in-scope]
+### 3.5 Accounts Payable  [core]
 
-**Purpose:** Manage vendor invoices, invoice lines, payments, and credit memos.
+#### 3.5.1 Overview
 
-#### 3.7.1 AP Invoices
+Accounts Payable (AP) owns vendor invoices, invoice lines, payments, and credit memos. Approving an invoice posts to GL (AP Liability ↔ Expense/WIP) via the cross-module posting contract. When a project is linked, the invoice amount feeds into the project's cashflow outflow metrics.
 
-| Field              | Type          | Description                                                           |
-| ------------------ | ------------- | --------------------------------------------------------------------- |
-| `id`             | uuid          | PK                                                                    |
-| `company_id`     | uuid          | FK to companies (RESTRICT)                                            |
-| `vendor_id`      | uuid          | FK to vendors (RESTRICT)                                              |
-| `project_id`     | uuid          | FK to projects (SET NULL) — required for project cashflow tracking   |
-| `invoice_number` | varchar(64)   | Invoice number                                                        |
-| `invoice_date`   | date          | Invoice date                                                          |
-| `due_date`       | date          | Payment due date                                                      |
-| `total_amount`   | numeric(14,2) | Total amount                                                          |
-| `currency`       | varchar(3)    | Currency code (default `USD`)                                       |
-| `status`         | varchar(20)   | `open` -> `approved` -> `paid` -> `voided` (CHECK constraint) |
-| `notes`          | text          | Internal notes                                                        |
+#### 3.5.2 Data Tables
 
-**Business Rules:**
+##### 3.5.2.1 AP Invoices
 
-- Posting requires every line to map to a valid GL account and optionally a cost line
-- Posting updates vendor balances and creates GL entries (AP Liability <-> Expense/WIP)
-- When `project_id` is set, the invoice amount feeds into project cashflow outflow metrics
-- Remaining balance is computed as `total_amount − SUM(payments) − SUM(applied credit memos)` — not stored as a column
-- **Invoice numbering** is auto-assigned on `status` transition to `approved` (when no `invoice_number` was provided). The scope is `company_id` per §3.13 — each company under the tenant gets its own running sequence
+###### `ap_invoices`
 
-**Endpoint:** `/api/ap/v1/ap-invoices`
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `company_id` | uuid | FK to `companies` (RESTRICT). |
+| `vendor_id` | uuid | FK to `vendors` (RESTRICT). |
+| `project_id` | uuid | FK to `projects` (SET NULL). Required for project cashflow tracking. |
+| `invoice_number` | varchar(64) | Invoice number. Auto-numbered on transition to `approved` (see §3.1.4.5). |
+| `invoice_date` | date | Invoice date. |
+| `due_date` | date | Payment due date. |
+| `total_amount` | numeric(14,2) | Total amount. |
+| `currency` | varchar(3) | Currency code (default `USD`). |
+| `status` | varchar(20) | `open` → `approved` → `paid` → `voided`. |
+| `notes` | text | Internal notes. |
 
-#### 3.7.2 AP Invoice Lines
+##### 3.5.2.2 AP Invoice Lines
 
-| Field            | Type          | Description                        |
-| ---------------- | ------------- | ---------------------------------- |
-| `id`           | uuid          | PK                                 |
-| `invoice_id`   | uuid          | FK to ap_invoices (CASCADE)        |
-| `cost_line_id` | uuid          | FK to cost_lines (SET NULL)        |
-| `activity_id`  | uuid          | FK to activities (SET NULL)        |
-| `account_id`   | uuid          | FK to chart_of_accounts (RESTRICT) |
-| `description`  | text          | Line description                   |
-| `amount`       | numeric(12,2) | Line amount                        |
+###### `ap_invoice_lines`
 
-**Endpoint:** `/api/ap/v1/ap-invoice-lines`
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `invoice_id` | uuid | FK to `ap_invoices` (CASCADE). |
+| `cost_line_id` | uuid | FK to `cost_lines` (SET NULL). |
+| `activity_id` | uuid | FK to `activities` (SET NULL). |
+| `account_id` | uuid | FK to `chart_of_accounts` (RESTRICT). |
+| `description` | text | Line description. |
+| `amount` | numeric(12,2) | Line amount. |
 
-#### 3.7.3 Payments
+##### 3.5.2.3 Payments
 
-| Field             | Type          | Description                                                                                |
-| ----------------- | ------------- | ------------------------------------------------------------------------------------------ |
-| `id`            | uuid          | PK                                                                                         |
-| `vendor_id`     | uuid          | FK to vendors (RESTRICT)                                                                   |
-| `ap_invoice_id` | uuid          | FK to ap_invoices (SET NULL)                                                               |
-| `payment_date`  | date          | Payment date                                                                               |
-| `amount`        | numeric(14,2) | Payment amount                                                                             |
-| `method`        | varchar(24)   | One of `check`, `ach`, `wire`. Enforced by `paymentsController` (`VALID_METHODS = ['check', 'ach', 'wire']`) on create and update — values outside the allowlist return 400. Schema has no CHECK constraint; enforcement is controller-level. |
-| `reference`     | varchar(64)   | Check number/reference                                                                     |
-| `notes`         | text          | Internal notes                                                                             |
+###### `payments`
 
-**Endpoint:** `/api/ap/v1/payments`
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `vendor_id` | uuid | FK to `vendors` (RESTRICT). |
+| `ap_invoice_id` | uuid | FK to `ap_invoices` (SET NULL). |
+| `payment_date` | date | Payment date. |
+| `amount` | numeric(14,2) | Payment amount. |
+| `method` | varchar(24) | `check`, `ach`, or `wire`. Enforced by `paymentsController` (`VALID_METHODS`) — values outside the allowlist return 400. Controller-level enforcement; no CHECK constraint. |
+| `reference` | varchar(64) | Check number or external reference. |
+| `notes` | text | Internal notes. |
 
-#### 3.7.4 AP Credit Memos
+##### 3.5.2.4 Credit Memos
 
-| Field             | Type          | Description                                              |
-| ----------------- | ------------- | -------------------------------------------------------- |
-| `id`            | uuid          | PK                                                       |
-| `vendor_id`     | uuid          | FK to vendors (RESTRICT)                                 |
-| `ap_invoice_id` | uuid          | FK to ap_invoices (SET NULL)                             |
-| `credit_number` | varchar(64)   | Credit memo number                                       |
-| `credit_date`   | date          | Credit date                                              |
-| `amount`        | numeric(14,2) | Credit amount                                            |
-| `reason`        | text          | Reason for credit                                        |
-| `status`        | varchar(20)   | `open` -> `applied` -> `voided` (CHECK constraint) |
+###### `ap_credit_memos`
 
-**Endpoint:** `/api/ap/v1/ap-credit-memos`
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `vendor_id` | uuid | FK to `vendors` (RESTRICT). |
+| `ap_invoice_id` | uuid | FK to `ap_invoices` (SET NULL). |
+| `credit_number` | varchar(64) | Credit memo number. |
+| `credit_date` | date | Credit date. |
+| `amount` | numeric(14,2) | Credit amount. |
+| `reason` | text | Reason for credit. |
+| `status` | varchar(20) | `open` → `applied` → `voided`. |
+
+#### 3.5.3 API
+
+All endpoints under `/api/ap/v1/` provide standard CRUD (§4.1).
+
+| Method | Path | Description |
+| --- | --- | --- |
+| CRUD | `/api/ap/v1/ap-invoices` | Manage AP invoices. |
+| CRUD | `/api/ap/v1/ap-invoice-lines` | Manage AP invoice lines. |
+| CRUD | `/api/ap/v1/payments` | Manage vendor payments. |
+| CRUD | `/api/ap/v1/ap-credit-memos` | Manage AP credit memos. |
+
+#### 3.5.4 Business Rules
+
+1. Approving an invoice requires every line to map to a valid GL account and (optionally) a cost line.
+2. Approving an invoice posts to GL — debit Expense/WIP, credit AP Liability — via the cross-module posting contract (see [ADR-0019](./decisions/0019-cross-module-posting.md)) and updates the vendor balance.
+3. Invoice numbering is auto-assigned on `status` transition to `approved` if `invoice_number` is empty. The scope is `company_id` per §3.1.4.5 — each company has its own running sequence.
+4. Remaining balance is computed as `total_amount − SUM(payments) − SUM(applied credit memos)`. It is not stored.
+5. When `project_id` is set, the invoice amount feeds into project cashflow outflow metrics (§3.8).
+6. Payment `method` is restricted to `check`, `ach`, `wire` by controller-level allowlist — invalid values return 400.
+7. Credit memos may be applied against the originating invoice or held open and applied later; status `voided` removes them from open-credit calculations.
 
 ---
 
-### 3.8 Accounts Receivable (AR)  [in-scope]
+### 3.6 Accounts Receivable  [core]
 
-**Purpose:** Manage client invoices, invoice lines, and payment receipts. AR is the primary revenue source for project profitability tracking.
+#### 3.6.1 Overview
 
-> **Note:** The `ar_clients` table has been removed. The unified `clients` table (§3.3.2) with `email` field replaces it. Tax identifiers are managed via the `tax_identifiers` table (§3.3.4). Client addresses and phone numbers are available via the polymorphic `sources` pattern. AR invoices reference `clients.id` directly.
+Accounts Receivable (AR) owns client invoices, invoice lines, and receipts. AR is the primary revenue source for project profitability tracking. Approving an invoice (transition to `sent`) posts to GL — debit AR, credit Revenue — via the cross-module posting contract. Construction subdivision-sales workflows use closing statements in the `contracts` add-on, not AR invoices (see §3.13).
 
-#### 3.8.1 AR Invoices
+#### 3.6.2 Data Tables
+
+##### 3.6.2.1 AR Invoices
+
+###### `ar_invoices`
 
 | Field              | Type          | Description                                                        |
 | ------------------ | ------------- | ------------------------------------------------------------------ |
-| `id`             | uuid          | PK                                                                 |
-| `company_id`     | uuid          | FK to companies (RESTRICT)                                         |
-| `client_id`      | uuid          | FK to clients (RESTRICT)                                           |
-| `project_id`     | uuid          | FK to projects (SET NULL) — required for project revenue tracking |
-| `deliverable_id` | uuid          | FK to deliverables (SET NULL)                                      |
-| `invoice_number` | varchar(32)   | Invoice number                                                     |
-| `invoice_date`   | date          | Invoice date                                                       |
-| `due_date`       | date          | Due date                                                           |
-| `total_amount`   | numeric(14,2) | Total amount                                                       |
-| `currency`       | varchar(3)    | Currency code (default `USD`)                                    |
-| `status`         | varchar(20)   | `open` -> `sent` -> `paid` -> `voided` (CHECK constraint)  |
-| `notes`          | text          | Internal notes                                                     |
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `company_id` | uuid | FK to `companies` (RESTRICT). |
+| `client_id` | uuid | FK to `clients` (RESTRICT). |
+| `project_id` | uuid | FK to `projects` (SET NULL). Required for project revenue tracking. |
+| `deliverable_id` | uuid | FK to `deliverables` (SET NULL). |
+| `invoice_number` | varchar(32) | Invoice number. Auto-numbered on transition to `sent` (see §3.1.4.5). |
+| `invoice_date` | date | Invoice date. |
+| `due_date` | date | Due date. |
+| `total_amount` | numeric(14,2) | Total amount. |
+| `currency` | varchar(3) | Currency code (default `USD`). |
+| `status` | varchar(20) | `open` → `sent` → `paid` → `voided`. |
+| `notes` | text | Internal notes. |
 
-**Business Rules:**
+##### 3.6.2.2 AR Invoice Lines
 
-- Revenue recognition can depend on activity completion percentage or cost thresholds
-- Posting debits AR, credits revenue; payments reverse the entry
-- When `project_id` is set, the invoice feeds into project revenue/cashflow inflow metrics
-- Partial payments and retainage supported (see Cashflow module)
-- Remaining balance is computed as `total_amount − SUM(receipts)` — not stored as a column
-- **Invoice numbering** is auto-assigned on `status` transition to `sent` (when no `invoice_number` was provided). The scope is `company_id` per §3.13 — each company under the tenant gets its own running sequence
+###### `ar_invoice_lines`
 
-**Endpoints:**
+| Column | Type | Notes |
+| --- | --- | --- |
+| `invoice_id` | uuid | FK to `ar_invoices` (CASCADE). |
+| `account_id` | uuid | FK to `chart_of_accounts` (RESTRICT). |
+| `description` | text | Line description. |
+| `amount` | numeric(14,2) | Line amount. |
 
-| Method        | Path                               | Purpose                                                                                                         |
-| ------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Standard CRUD | `/api/ar/v1/ar-invoices`         | List, get, create, update, archive, restore                                                                     |
-| `PUT`       | `/api/ar/v1/ar-invoices/approve` | Approve invoice (sets status to `sent`). RBAC-gated: requires `ar::ar-invoices::approve` at `full` level. |
+##### 3.6.2.3 Receipts
 
-#### 3.8.2 AR Invoice Lines
+###### `receipts`
 
-| Field           | Type          | Description                        |
-| --------------- | ------------- | ---------------------------------- |
-| `invoice_id`  | uuid          | FK to ar_invoices (CASCADE)        |
-| `account_id`  | uuid          | FK to chart_of_accounts (RESTRICT) |
-| `description` | text          | Line description                   |
-| `amount`      | numeric(14,2) | Line amount                        |
+| Column | Type | Notes |
+| --- | --- | --- |
+| `client_id` | uuid | FK to `clients` (RESTRICT). |
+| `ar_invoice_id` | uuid | FK to `ar_invoices` (SET NULL). |
+| `receipt_date` | date | Receipt date. |
+| `amount` | numeric(14,2) | Receipt amount. |
+| `method` | varchar(24) | `check`, `ach`, or `wire`. Enforced by `receiptsController` (`VALID_METHODS`) — values outside the allowlist return 400. Controller-level enforcement; no CHECK constraint. |
+| `reference` | varchar(64) | Reference number. |
+| `notes` | text | Internal notes. |
 
-**Endpoint:** `/api/ar/v1/ar-invoice-lines`
+#### 3.6.3 API
 
-#### 3.8.3 Receipts
+| Method | Path | Description |
+| --- | --- | --- |
+| CRUD | `/api/ar/v1/ar-invoices` | Manage AR invoices. |
+| PUT | `/api/ar/v1/ar-invoices/approve` | Approve invoice (sets status to `sent`). RBAC-gated: `ar::ar-invoices::approve` at `full`. |
+| CRUD | `/api/ar/v1/ar-invoice-lines` | Manage AR invoice lines. |
+| CRUD | `/api/ar/v1/receipts` | Manage receipts. |
 
-| Field             | Type          | Description                                                                                |
-| ----------------- | ------------- | ------------------------------------------------------------------------------------------ |
-| `client_id`     | uuid          | FK to clients (RESTRICT)                                                                   |
-| `ar_invoice_id` | uuid          | FK to ar_invoices (SET NULL)                                                               |
-| `receipt_date`  | date          | Receipt date                                                                               |
-| `amount`        | numeric(14,2) | Receipt amount                                                                             |
-| `method`        | varchar(24)   | One of `check`, `ach`, `wire`. Enforced by `receiptsController` (`VALID_METHODS = ['check', 'ach', 'wire']`) on create and update — values outside the allowlist return 400. Schema has no CHECK constraint; enforcement is controller-level. |
-| `reference`     | varchar(64)   | Reference number                                                                           |
-| `notes`         | text          | Internal notes                                                                             |
+#### 3.6.4 Business Rules
 
-**Endpoint:** `/api/ar/v1/receipts`
-
-#### 3.8.4 AR Extensibility — Construction Closing Statements  [in-scope]
-
-Standard AR (milestone invoicing on AR invoices) lives in the core `ar` module and is unchanged by the construction vertical. Construction subdivision sales do **not** flow through `ar_invoices` — they use **closing statements**, which are owned by the `construction` vertical (the `contracts` module under the construction packaging).
-
-A closing statement posts a single normalised GL journal entry that touches, at minimum:
-
-- the **AR** account (revenue recognition for the unit sold),
-- the **WIP** account (clears project cost-to-date associated with the unit),
-- the **inventory** account (removes the sold unit from inventory),
-- and, where the holding-company structure requires it, the **intercompany** accounts.
-
-The core `ar` module is **not** modified to support this — the construction module acts on AR exclusively via the cross-module posting contract (ADR-0019), the same contract that AP and AR use to post to GL. This keeps construction-specific semantics out of `ar` and out of `accounting`.
-
-The exact mapping between WIP, inventory, and project-level cost accounts is **deferred to the implementation phase**, when the `inventory` and `projects` modules graduate from spec to code. The relationships are recorded here as an architectural intent, not a finalised data model.
+1. Approving an invoice (`PUT /approve`) transitions status to `sent`, posts the GL entry (debit AR, credit Revenue) via the cross-module posting contract, and triggers invoice numbering if `invoice_number` is empty.
+2. Invoice numbering scope is `company_id` (§3.1.4.5) — each company has its own running sequence.
+3. Revenue recognition can depend on activity completion percentage or cost thresholds (configured per tenant).
+4. Remaining balance is computed as `total_amount − SUM(receipts)`. It is not stored.
+5. When `project_id` is set, the invoice feeds into project revenue and cashflow inflow metrics (§3.8).
+6. Partial payments and retainage are supported through `receipts` plus the cashflow module's recognition rules.
+7. Receipt `method` is restricted to `check`, `ach`, `wire` by controller-level allowlist — invalid values return 400.
+8. Construction subdivision sales do **not** flow through `ar_invoices`. They use closing statements owned by the `contracts` add-on, which post a single GL entry touching AR, WIP, inventory, and (where applicable) intercompany accounts via the same cross-module contract. The core `ar` module is not modified — see [ADR-0019](./decisions/0019-cross-module-posting.md).
 
 ---
 
