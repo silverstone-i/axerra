@@ -1189,144 +1189,168 @@ All endpoints are under `/api/core/v1/` and provide standard CRUD (see §4.1) un
 
 ---
 
-### 3.4 Project Management  [in-scope]
+### 3.3 Projects  [core]
 
-**Purpose:** Manage construction projects, units (deliverables), tasks, cost items, and change orders. Supports template-based project creation.
+#### 3.3.1 Overview
 
-#### 3.4.1 Projects
+The Projects module owns the project lifecycle: projects themselves, the units (deliverables) under each project, the tasks that drive schedule, the cost items that drive estimate, change orders that adjust scope, and templates for reusable project blueprints. Every cost line, AP invoice line, AR invoice line, and journal entry posted by another module ultimately rolls up to a project here.
 
-**Data Model:**
+#### 3.3.2 Data Tables
 
-| Field               | Type          | Description                                                                                     |
-| ------------------- | ------------- | ----------------------------------------------------------------------------------------------- |
-| `id`              | uuid          | PK                                                                                              |
-| `tenant_id`       | uuid          | Not null                                                                                        |
-| `company_id`      | uuid          | FK to companies (RESTRICT)                                                                      |
-| `address_id`      | uuid          | FK to addresses (SET NULL)                                                                      |
-| `project_code`    | varchar(32)   | Unique per tenant                                                                               |
-| `name`            | varchar(255)  | Project name                                                                                    |
-| `description`     | text          | Description                                                                                     |
-| `notes`           | text          | Internal notes                                                                                  |
-| `status`          | varchar(20)   | `planning` -> `budgeting` -> `released` -> `complete` (CHECK also includes `on_hold`) |
-| `contract_amount` | numeric(14,2) | Total contract value from client (for profitability)                                            |
+##### 3.3.2.1 Projects
 
-**Endpoint:** `/api/projects/v1/projects`
+###### `projects`
 
-**Project Clients (Junction Table):**
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null. |
+| `company_id` | uuid | FK to `companies` (RESTRICT). |
+| `address_id` | uuid | FK to `addresses` (SET NULL). |
+| `project_code` | varchar(32) | Unique per tenant. Auto-numbered when numbering is enabled. |
+| `name` | varchar(255) | Project name. |
+| `description` | text | Description. |
+| `notes` | text | Internal notes. |
+| `status` | varchar(20) | `planning` → `budgeting` → `released` → `complete`. CHECK also allows `on_hold`. |
+| `contract_amount` | numeric(14,2) | Total contract value from clients (used for profitability). |
 
-Associates multiple clients with a project contract. Replaces the former single `client_id` FK on projects.
+###### `project_clients`
 
-| Field          | Type        | Description                                 |
-| -------------- | ----------- | ------------------------------------------- |
-| `id`         | uuid        | PK                                          |
-| `project_id` | uuid        | FK to projects (CASCADE)                    |
-| `client_id`  | uuid        | FK to clients (RESTRICT)                    |
-| `role`       | varchar(32) | e.g.,`buyer`, `co-buyer`, `guarantor` |
-| `is_primary` | boolean     | Primary client on the contract              |
+Junction table associating multiple clients with a project (replaces a single `client_id` FK).
 
-Unique constraint: `(project_id, client_id)`
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `project_id` | uuid | FK to `projects` (CASCADE). |
+| `client_id` | uuid | FK to `clients` (RESTRICT). |
+| `role` | varchar(32) | e.g., `buyer`, `co-buyer`, `guarantor`. |
+| `is_primary` | boolean | Primary client on the contract. |
 
-**Endpoint:** `/api/projects/v1/project-clients`
+Unique `(project_id, client_id)`.
 
-#### 3.4.2 Units
+##### 3.3.2.2 Units
 
-| Field                | Type         | Description                               |
-| -------------------- | ------------ | ----------------------------------------- |
-| `id`               | uuid         | PK                                        |
-| `project_id`       | uuid         | FK to projects (CASCADE)                  |
-| `template_unit_id` | uuid         | FK to template_units (SET NULL)           |
-| `version_used`     | integer      | Template version used                     |
-| `name`             | varchar(128) | Unit name                                 |
-| `unit_code`        | varchar(32)  | Unique per project                        |
-| `status`           | varchar(20)  | `draft` -> `released` -> `complete` |
+###### `units`
 
-**Endpoint:** `/api/projects/v1/units`
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `project_id` | uuid | FK to `projects` (CASCADE). |
+| `template_unit_id` | uuid | FK to `template_units` (SET NULL). |
+| `version_used` | integer | Template version used at creation. |
+| `name` | varchar(128) | Unit name. |
+| `unit_code` | varchar(32) | Unique per project. |
+| `status` | varchar(20) | `draft` → `released` → `complete`. |
 
-#### 3.4.3 Tasks & Task Groups
+##### 3.3.2.3 Tasks & Task Groups
 
-**Task Groups:**
+###### `task_groups`
 
-| Field           | Type        | Description               |
-| --------------- | ----------- | ------------------------- |
-| `id`          | uuid        | PK                        |
-| `tenant_id`   | uuid        | Not null, immutable       |
-| `code`        | varchar(16) | Unique per tenant         |
-| `name`        | varchar(64) | Group name                |
-| `description` | text        | Description               |
-| `sort_order`  | integer     | Display order (default 0) |
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null, immutable. |
+| `code` | varchar(16) | Unique per tenant. |
+| `name` | varchar(64) | Group name. |
+| `description` | text | Description. |
+| `sort_order` | integer | Display order (default 0). |
 
-**Tasks Master (Library):**
+###### `tasks_master`
 
-| Field                     | Type         | Description                                                                                                          |
-| ------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------- |
-| `id`                    | uuid         | PK                                                                                                                   |
-| `tenant_id`             | uuid         | Not null, immutable                                                                                                  |
-| `code`                  | varchar(16)  | Unique per tenant                                                                                                    |
-| `task_group_code`       | varchar(16)  | Composite FK `(tenant_id, task_group_code)` → `task_groups(tenant_id, code)` added via ALTER TABLE in migration |
-| `name`                  | varchar(128) | Task name                                                                                                            |
-| `default_duration_days` | integer      | Default duration                                                                                                     |
+Tenant-level library of task definitions.
 
-**Tasks (Unit-level instances):**
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null, immutable. |
+| `code` | varchar(16) | Unique per tenant. |
+| `task_group_code` | varchar(16) | Composite FK `(tenant_id, task_group_code)` → `task_groups(tenant_id, code)` (added via ALTER TABLE in migration). |
+| `name` | varchar(128) | Task name. |
+| `default_duration_days` | integer | Default duration. |
 
-| Field              | Type         | Description                                                                      |
-| ------------------ | ------------ | -------------------------------------------------------------------------------- |
-| `id`             | uuid         | PK                                                                               |
-| `unit_id`        | uuid         | FK to units (CASCADE)                                                            |
-| `task_code`      | varchar(16)  | Reference to master task                                                         |
-| `name`           | varchar(128) | Task name                                                                        |
-| `duration_days`  | integer      | Duration                                                                         |
-| `status`         | varchar(20)  | `pending` -> `in_progress` -> `complete` (CHECK also includes `on_hold`) |
-| `parent_task_id` | uuid         | Self-referential for hierarchy                                                   |
+###### `tasks`
 
-**Endpoints:** `/api/projects/v1/tasks`, `/api/projects/v1/task-groups`, `/api/projects/v1/tasks-master`
+Unit-level task instances.
 
-#### 3.4.4 Cost Items
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `unit_id` | uuid | FK to `units` (CASCADE). |
+| `task_code` | varchar(16) | Reference to `tasks_master`. |
+| `name` | varchar(128) | Task name. |
+| `duration_days` | integer | Duration. |
+| `status` | varchar(20) | `pending` → `in_progress` → `complete`. CHECK also allows `on_hold`. |
+| `parent_task_id` | uuid | Self-referential for hierarchy. |
 
-| Field           | Type          | Description                                                        |
-| --------------- | ------------- | ------------------------------------------------------------------ |
-| `id`          | uuid          | PK                                                                 |
-| `task_id`     | uuid          | FK to tasks (CASCADE)                                              |
-| `item_code`   | varchar(16)   | Cost item code                                                     |
-| `description` | varchar(255)  | Description                                                        |
-| `cost_class`  | varchar(16)   | `labor`, `material`, `subcontract`, `equipment`, `other` |
-| `cost_source` | varchar(16)   | `budget`, `change_order`                                       |
-| `quantity`    | numeric(12,4) | Quantity                                                           |
-| `unit_cost`   | numeric(12,4) | Unit cost                                                          |
-| `amount`      | numeric(12,2) | **GENERATED** (quantity * unit_cost)                         |
+##### 3.3.2.4 Cost Items
 
-**Endpoint:** `/api/projects/v1/cost-items`
+###### `cost_items`
 
-#### 3.4.5 Change Orders
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `task_id` | uuid | FK to `tasks` (CASCADE). |
+| `item_code` | varchar(16) | Cost item code. |
+| `description` | varchar(255) | Description. |
+| `cost_class` | varchar(16) | `labor`, `material`, `subcontract`, `equipment`, `other`. |
+| `cost_source` | varchar(16) | `budget`, `change_order`. |
+| `quantity` | numeric(12,4) | Quantity. |
+| `unit_cost` | numeric(12,4) | Unit cost. |
+| `amount` | numeric(12,2) | GENERATED — `quantity * unit_cost`. |
 
-| Field            | Type          | Description                                               |
-| ---------------- | ------------- | --------------------------------------------------------- |
-| `id`           | uuid          | PK                                                        |
-| `unit_id`      | uuid          | FK to units (CASCADE)                                     |
-| `co_number`    | varchar(16)   | Change order number                                       |
-| `title`        | varchar(128)  | Title                                                     |
-| `reason`       | text          | Justification                                             |
-| `status`       | varchar(20)   | `draft` -> `submitted` -> `approved` / `rejected` |
-| `total_amount` | numeric(12,2) | Total change amount                                       |
+##### 3.3.2.5 Change Orders
 
-**Business Rules:**
+###### `change_orders`
 
-- Change order lines reference base `cost_line_id` when modifying existing scope
-- Approved change orders adjust remaining budget and variance metrics
-- Negative quantities/costs represent scope reductions
-- Posting fires GL hooks with explicit references
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `unit_id` | uuid | FK to `units` (CASCADE). |
+| `co_number` | varchar(16) | Change order number. |
+| `title` | varchar(128) | Title. |
+| `reason` | text | Justification. |
+| `status` | varchar(20) | `draft` → `submitted` → `approved` / `rejected`. |
+| `total_amount` | numeric(12,2) | Total change amount. |
 
-**Endpoint:** `/api/projects/v1/change-orders`
+##### 3.3.2.6 Templates
 
-#### 3.4.6 Templates
+Templates are reusable blueprints used to create new projects.
 
-Templates serve as reusable blueprints for project creation:
+| Table | Purpose |
+| --- | --- |
+| `template_units` | Blueprint units (`name`, `version`, `status`). |
+| `template_tasks` | Blueprint tasks (`task_code`, `name`, `duration_days`, `parent_code` hierarchy). |
+| `template_cost_items` | Blueprint cost items (cost class, source, quantity, unit cost, generated amount). |
+| `template_change_orders` | Blueprint change orders. |
 
-- **Template Units**: Blueprint for units with `name`, `version`, `status` (draft/active)
-- **Template Tasks**: Blueprint tasks with `task_code`, `name`, `duration_days`, `parent_code` hierarchy
-- **Template Cost Items**: Blueprint cost items with cost class, source, quantity, unit cost, and generated amount
-- **Template Change Orders**: Blueprint change orders
+#### 3.3.3 API
 
-**Endpoints:** `/api/projects/v1/template-units`, `/api/projects/v1/template-tasks`, `/api/projects/v1/template-cost-items`, `/api/projects/v1/template-change-orders`
+All endpoints under `/api/projects/v1/` use standard CRUD (§4.1) unless noted.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| CRUD | `/api/projects/v1/projects` | Manage projects. |
+| CRUD | `/api/projects/v1/project-clients` | Manage project ↔ client assignments. |
+| CRUD | `/api/projects/v1/units` | Manage units. |
+| CRUD | `/api/projects/v1/task-groups` | Manage task groups. |
+| CRUD | `/api/projects/v1/tasks-master` | Manage the tenant task library. |
+| CRUD | `/api/projects/v1/tasks` | Manage unit-level task instances. |
+| CRUD | `/api/projects/v1/cost-items` | Manage cost items. |
+| CRUD | `/api/projects/v1/change-orders` | Manage change orders. |
+| CRUD | `/api/projects/v1/template-units` | Manage blueprint units. |
+| CRUD | `/api/projects/v1/template-tasks` | Manage blueprint tasks. |
+| CRUD | `/api/projects/v1/template-cost-items` | Manage blueprint cost items. |
+| CRUD | `/api/projects/v1/template-change-orders` | Manage blueprint change orders. |
+
+#### 3.3.4 Business Rules
+
+1. A project's `status` advances through `planning` → `budgeting` → `released` → `complete`, with `on_hold` as an interrupt at any point.
+2. Units are project-scoped. Each unit has its own task tree and cost items.
+3. Tasks are created from `tasks_master` to inherit defaults; subsequent edits diverge from the master without affecting other units.
+4. Change order lines reference the base `cost_line_id` when modifying existing scope. Approved change orders adjust remaining budget and variance metrics. Negative quantities or costs represent scope reductions.
+5. Posting a change order fires GL hooks with explicit project, unit, and cost-line references — the cross-module posting contract from [ADR-0019](./decisions/0019-cross-module-posting.md).
+6. Templates produce snapshots at create time. `units.version_used` records which template version a unit was created from; subsequent template edits do not retroactively change live units.
+7. Project numbering uses `tenant_numbering_config.id_type = 'project'` (see §3.1.4.5).
 
 ---
 
