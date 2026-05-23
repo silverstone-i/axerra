@@ -975,217 +975,217 @@ All configs are seeded with `is_enabled = false`. Tenants opt in via Settings �
 
 ---
 
-### 3.3 Core Entities  [in-scope]
+### 3.2 Core Entities  [core]
 
-**Purpose:** Shared reference data used across all modules — vendors, clients, employees, contacts, addresses, phone numbers, and intercompany entities.
+#### 3.2.1 Overview
 
-#### 3.3.1 Vendors
+Core Entities are the shared reference records every other module reads from: vendors, vendor contacts, payment terms, clients, employees, companies, and the polymorphic supporting tables (sources, contacts, addresses, phone numbers, tax identifiers, emails). All entity types use a single `sources` discriminated-union table so that addresses, phones, emails, and tax IDs can hang off any entity uniformly.
 
-| Field               | Type         | Description                    |
-| ------------------- | ------------ | ------------------------------ |
-| `id`              | uuid         | PK                             |
-| `tenant_id`       | uuid         | Not null                       |
-| `source_id`       | uuid         | FK to sources (CASCADE)        |
-| `name`            | varchar(128) | Not null                       |
-| `code`            | varchar(16)  | Unique per tenant              |
-| `payment_term_id` | uuid         | FK to payment_terms (SET NULL) |
-| `is_active`       | boolean      | Default true                   |
-| `notes`           | text         | Internal notes                 |
+#### 3.2.2 Data Tables
 
-**Endpoint:** `/api/core/v1/vendors`
+##### 3.2.2.1 Vendors & Vendor Contacts
 
-#### 3.3.1a Vendor Contacts
+###### `vendors`
 
-| Field           | Type        | Description                                                                                                     |
-| --------------- | ----------- | --------------------------------------------------------------------------------------------------------------- |
-| `id`          | uuid        | PK                                                                                                              |
-| `tenant_id`   | uuid        | Not null                                                                                                        |
-| `vendor_id`   | uuid        | FK to vendors (CASCADE)                                                                                         |
-| `source_id`   | uuid        | FK to sources (CASCADE)                                                                                         |
-| `first_name`  | varchar(64) | Not null                                                                                                        |
-| `last_name`   | varchar(64) | Not null                                                                                                        |
-| `position`    | varchar(64) | Job title                                                                                                       |
-| `department`  | varchar(64) | Department                                                                                                      |
-| `is_app_user` | boolean     | Default false. Must be true before a `portal_users` login can be created. Requires `roles` to be non-empty. |
-| `roles`       | text[]      | RBAC role codes assigned to this vendor contact (default `'{}'`). References `roles.code`.                  |
-| `is_primary`  | boolean     | Default false. Marks primary contact for the vendor.                                                            |
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null. |
+| `source_id` | uuid | FK to `sources` (CASCADE). |
+| `name` | varchar(128) | Not null. |
+| `code` | varchar(16) | Unique per tenant. Auto-numbered when numbering is enabled. |
+| `payment_term_id` | uuid | FK to `payment_terms` (SET NULL). |
+| `is_active` | boolean | Default true. |
+| `notes` | text | Internal notes. |
 
-Each vendor contact gets its own `sources` record (with `source_type = 'vendor_contact'`) for linked emails and phone numbers via the polymorphic sources pattern.
+###### `vendor_contacts`
 
-**Endpoint:** `/api/core/v1/vendor-contacts`
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null. |
+| `vendor_id` | uuid | FK to `vendors` (CASCADE). |
+| `source_id` | uuid | FK to `sources` (CASCADE). |
+| `first_name` | varchar(64) | Not null. |
+| `last_name` | varchar(64) | Not null. |
+| `position` | varchar(64) | Job title. |
+| `department` | varchar(64) | Department. |
+| `is_app_user` | boolean | Default false. Must be true before a `portal_users` login can be created. Requires `roles` to be non-empty. |
+| `roles` | text[] | RBAC role codes (default `'{}'`). References `roles.code`. |
+| `is_primary` | boolean | Default false. Marks the vendor's primary contact. |
 
-**UI affordance:** `VendorContactsPanel.jsx` + `ContactFormDialog.jsx` (under `apps/client/src/pages/Core/vendors/`) render inside the Vendor edit dialog and provide create/edit/archive for the vendor's contacts. Standard XLSX import/export are wired at the router level (the router auto-applies `rbac('full')` on `/import-xls` and `rbac('view')` on `/export-xls`); a top-level Vendor Contacts page is intentionally not part of §4.6.3 today — import/export is driven from the parent Vendor panel.
+Each vendor contact owns its own `sources` row (with `source_type = 'vendor_contact'`) so emails, phones, and addresses attach via the polymorphic pattern (see §3.2.2.5).
 
-#### 3.3.1b Payment Terms
+##### 3.2.2.2 Payment Terms
 
-| Field         | Type        | Description                                                   |
-| ------------- | ----------- | ------------------------------------------------------------- |
-| `id`        | uuid        | PK                                                            |
-| `tenant_id` | uuid        | Not null                                                      |
-| `label`     | varchar(64) | Not null. Human-readable label (e.g. "Net 30", "2/10 Net 30") |
-| `term`      | integer     | Not null, default 30. The numeric value of the payment term   |
-| `units`     | varchar(16) | Not null, default `'days'`. CHECK: `days` or `months`   |
-| `is_active` | boolean     | Default true                                                  |
+###### `payment_terms`
 
-**Endpoint:** `/api/core/v1/payment-terms`
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null. |
+| `label` | varchar(64) | Human-readable label (e.g., "Net 30", "2/10 Net 30"). |
+| `term` | integer | Not null, default 30. |
+| `units` | varchar(16) | Not null, default `days`. CHECK: `days` or `months`. |
+| `is_active` | boolean | Default true. |
 
-#### 3.3.2 Clients
+##### 3.2.2.3 Clients
 
-| Field           | Type         | Description                                                                                                     |
-| --------------- | ------------ | --------------------------------------------------------------------------------------------------------------- |
-| `id`          | uuid         | PK                                                                                                              |
-| `tenant_id`   | uuid         | Not null                                                                                                        |
-| `source_id`   | uuid         | FK to sources (CASCADE)                                                                                         |
-| `name`        | varchar(128) | Not null                                                                                                        |
-| `code`        | varchar(16)  | Unique per tenant                                                                                               |
-| `roles`       | text[]       | RBAC role codes assigned to this client (default `'{}'`). References `roles.code`.                          |
-| `is_app_user` | boolean      | Default false. Must be true before a `portal_users` login can be created. Requires `roles` to be non-empty. |
-| `is_active`   | boolean      | Default true                                                                                                    |
+###### `clients`
 
-> **Email storage:** Client email addresses live in the polymorphic `emails` table (see §3.3.4 / §3.14.1) keyed by the client's `source_id`. There is no `email` column on `clients`.
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null. |
+| `source_id` | uuid | FK to `sources` (CASCADE). |
+| `name` | varchar(128) | Not null. |
+| `code` | varchar(16) | Unique per tenant. Auto-numbered when numbering is enabled. |
+| `roles` | text[] | RBAC role codes (default `'{}'`). |
+| `is_app_user` | boolean | Default false. Must be true before a `portal_users` login can be created. |
+| `is_active` | boolean | Default true. |
 
-**Endpoint:** `/api/core/v1/clients`
+Email addresses live in the polymorphic `emails` table keyed by `clients.source_id`. There is no `email` column on `clients`.
 
-#### 3.3.3 Employees
+##### 3.2.2.4 Employees
 
-| Field                  | Type         | Description                                                                                                        |
-| ---------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------ |
-| `id`                 | uuid         | PK                                                                                                                 |
-| `tenant_id`          | uuid         | Not null                                                                                                           |
-| `source_id`          | uuid         | FK to sources (CASCADE)                                                                                            |
-| `first_name`         | varchar(64)  | Not null                                                                                                           |
-| `last_name`          | varchar(64)  | Not null                                                                                                           |
-| `code`               | varchar(16)  | Unique per tenant                                                                                                  |
-| `position`           | varchar(64)  | Job title                                                                                                          |
-| `department`         | varchar(64)  | Department                                                                                                         |
-| `roles`              | text[]       | RBAC role codes assigned to this employee (default `'{}'`). References `roles.code`.                           |
-| `is_app_user`        | boolean      | Default false. Must be true before a `portal_users` login can be created. Requires `roles` to be non-empty.    |
-| `is_primary_contact` | boolean      | Default false. Designates this employee as the tenant's primary contact.                                           |
-| `is_billing_contact` | boolean      | Default false. Designates this employee as the tenant's billing contact.                                           |
+###### `employees`
 
-> **Email storage:** Employee email addresses live in the polymorphic `emails` table (see §3.3.4 / §3.14.1) keyed by the employee's `source_id`. There is no `email` column on `employees`; the per-tenant uniqueness invariant is enforced on `emails` instead.
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null. |
+| `source_id` | uuid | FK to `sources` (CASCADE). |
+| `first_name` | varchar(64) | Not null. |
+| `last_name` | varchar(64) | Not null. |
+| `code` | varchar(16) | Unique per tenant. Auto-numbered when numbering is enabled. |
+| `position` | varchar(64) | Job title. |
+| `department` | varchar(64) | Department. |
+| `roles` | text[] | RBAC role codes (default `'{}'`). |
+| `is_app_user` | boolean | Default false. Must be true before a `portal_users` login can be created. Requires `roles` to be non-empty. |
+| `is_primary_contact` | boolean | Default false. Designates this employee as the tenant's primary contact. |
+| `is_billing_contact` | boolean | Default false. Designates this employee as the tenant's billing contact. |
 
-> **Soft Delete:** Employees use the `deactivated_at` column (via pg-schemata `softDelete: true`) — there is no `is_active` boolean column. Vendors, clients, and contacts have BOTH `is_active` (boolean) AND `deactivated_at` (via `softDelete: true`) — a dual active/inactive mechanism. `is_active` is a user-facing toggle; `deactivated_at` is the pg-schemata soft-delete marker that filters records from read queries.
+Email addresses live in the polymorphic `emails` table keyed by `employees.source_id`. The per-tenant uniqueness invariant is enforced on `emails` instead of on `employees`.
 
-> **Contact Designation:** Both `is_primary_contact` and `is_billing_contact` can be true on the same employee (e.g., small company owner is both primary and billing contact). Multiple employees can share the same flag. These flags replace the former `portal_users.tenant_role` designation. When the primary contact leaves the tenant (deactivated), the tenant's account executive is responsible for designating a new primary contact.
+Employees use `deactivated_at` (via pg-schemata `softDelete: true`) and do **not** have an `is_active` boolean. Vendors, clients, and contacts have both `is_active` (user-facing toggle) and `deactivated_at` (soft-delete marker).
 
-**Edit Dialog:** The employee edit dialog (`maxWidth="md"`) includes phone number and address management sections below the employee fields. Phone numbers are rendered as repeatable inline rows (type select, number, is_primary checkbox, delete). Addresses are rendered as bordered cards with a 2-column grid of address fields. Changes are diffed and persisted via the polymorphic `sources` → `phone_numbers` / `addresses` pattern.
+##### 3.2.2.5 Sources, Contacts, Addresses & Phones
 
-**App-user provisioning libs:** Shared helpers under `apps/server/src/lib/` coordinate the employee ↔ portal_user lifecycle:
+The `sources` table is a discriminated union — every entity that needs addresses, phones, emails, or tax IDs gets exactly one `sources` row. Children FK to `sources.id`, never to the entity directly.
 
-- `loginEmailSync.js` — keeps `portal_users.email` in sync with the entity's `is_login` email row in the `emails` table.
-- `employeeAppUserSync.js` — drives the provision / archive / restore branches when `employees.is_app_user` toggles (mirrored for clients and vendor_contacts).
-- `clearOtherPrimary.js` — enforces single-primary invariants on `is_primary_contact` / `is_billing_contact`.
-- `employeeRoleValidator.js` — rejects `is_app_user = true` saves where `roles` is empty.
+###### `sources`
 
-**Endpoints:**
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null. |
+| `table_id` | uuid | The parent entity's id. |
+| `source_type` | varchar(32) | `vendor`, `vendor_contact`, `client`, `employee`, `contact`, `company`. |
+| `label` | varchar(64) | Human-friendly label. |
 
-| Method        | Path                                          | Purpose                                                                    |
-| ------------- | --------------------------------------------- | -------------------------------------------------------------------------- |
-| Standard CRUD | `/api/core/v1/employees`                    | List, get, create, update, archive, restore                                |
-| `GET`       | `/api/core/v1/employees/:id/source-id`      | Resolve the polymorphic source record for phone/address lookups            |
-| `POST`      | `/api/core/v1/employees/:id/reset-password` | Admin-initiated password reset for an employee's linked portal_users login |
+###### `contacts`
 
-#### 3.3.4 Polymorphic Sources, Contacts, Addresses & Phone Numbers
+Standalone payees and receivable counterparties that are not vendors, clients, or employees (one-off commissions, donations, ad-hoc income). Cannot log in. No RBAC roles.
 
-The `sources` table implements a **discriminated union** pattern linking vendors, clients, employees, and contacts to shared addresses and phone numbers:
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null. |
+| `source_id` | uuid | FK to `sources` (CASCADE). |
+| `name` | varchar(128) | Not null. |
+| `code` | varchar(16) | Unique per tenant. |
+| `is_active` | boolean | Default true. |
 
-**Sources:**
+###### `addresses`
 
-| Field           | Type        | Description                                                                        |
-| --------------- | ----------- | ---------------------------------------------------------------------------------- |
-| `id`          | uuid        | PK                                                                                 |
-| `tenant_id`   | uuid        | Not null                                                                           |
-| `table_id`    | uuid        | References the parent entity                                                       |
-| `source_type` | varchar(32) | `vendor`, `vendor_contact`, `client`, `employee`, `contact`, `company` |
-| `label`       | varchar(64) | Human-friendly label                                                               |
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null, immutable. |
+| `source_id` | uuid | FK to `sources` (CASCADE), not null. |
+| `label` | varchar(32) | `billing`, `physical`, `mailing`. |
+| `address_line_1` | varchar(255) | Street or P.O. Box. |
+| `address_line_2` | varchar(255) | Apt, suite, unit, building, floor. |
+| `address_line_3` | varchar(255) | Additional line for international addresses. |
+| `city` | varchar(128) | City / locality. |
+| `state_province` | varchar(128) | State, province, region, prefecture, county. |
+| `postal_code` | varchar(20) | ZIP / postal code (any global format). |
+| `country_code` | char(2) | ISO 3166-1 alpha-2. |
+| `is_primary` | boolean | Primary address flag. |
 
-**Contacts (First-Class Entity — Miscellaneous Payees):**
+###### `phone_numbers`
 
-Contacts are standalone first-class entities representing miscellaneous payees and receivable counterparties that don't fall into vendor, client, or employee categories — e.g., one-off commission payments, charitable donations, or ad-hoc income sources. Contacts are dual-purpose (usable in both AP and AR modules) and cannot log in (no RBAC):
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null, immutable. |
+| `source_id` | uuid | FK to `sources` (CASCADE), not null. |
+| `phone_type` | varchar(16) | `cell`, `work`, `home`, `fax`, `other` (default `cell`). |
+| `country_code` | char(2) | ISO 3166-1 alpha-2 (default `US`). |
+| `phone_number` | varchar(32) | Not null. |
+| `is_primary` | boolean | Default false. |
 
-| Field         | Type         | Description             |
-| ------------- | ------------ | ----------------------- |
-| `id`        | uuid         | PK                      |
-| `tenant_id` | uuid         | Not null                |
-| `source_id` | uuid         | FK to sources (CASCADE) |
-| `name`      | varchar(128) | Not null                |
-| `code`      | varchar(16)  | Unique per tenant       |
-| `is_active` | boolean      | Default true            |
+###### `tax_identifiers`
 
-> **Note:** Contacts use the polymorphic `sources` pattern (with `source_type = 'contact'`) for linked emails, addresses, phone numbers, and tax identifiers, just like vendors, clients, and employees. Contacts cannot be app users and have no RBAC roles.
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null, immutable. |
+| `source_id` | uuid | FK to `sources` (CASCADE), not null. |
+| `country_code` | char(2) | ISO country code, not null. |
+| `tax_type` | varchar(16) | `EIN`, `SSN`, `VAT`, etc. — not null. |
+| `tax_value` | varchar(64) | The identifier value, not null. |
+| `is_primary` | boolean | Default false. |
 
-**Addresses:**
+Unique constraint `(source_id, country_code, tax_type) WHERE deactivated_at IS NULL`.
 
-| Field              | Type         | Description                                                   |
-| ------------------ | ------------ | ------------------------------------------------------------- |
-| `id`             | uuid         | PK                                                            |
-| `tenant_id`      | uuid         | Not null, immutable                                           |
-| `source_id`      | uuid         | FK to sources (CASCADE), not null                             |
-| `label`          | varchar(32)  | `billing`, `physical`, `mailing`                        |
-| `address_line_1` | varchar(255) | Street address or P.O. Box                                    |
-| `address_line_2` | varchar(255) | Apt, suite, unit, building, floor, etc.                       |
-| `address_line_3` | varchar(255) | Additional line (international addresses)                     |
-| `city`           | varchar(128) | City / locality / town                                        |
-| `state_province` | varchar(128) | State, province, region, prefecture, county                   |
-| `postal_code`    | varchar(20)  | ZIP / postal code (supports all global formats)               |
-| `country_code`   | char(2)      | ISO 3166-1 alpha-2 country code (e.g.,`US`, `GB`, `JP`) |
-| `is_primary`     | boolean      | Primary address flag                                          |
+##### 3.2.2.6 Companies
 
-**Phone Numbers:**
+###### `companies`
 
-| Field            | Type        | Description                                                                           |
-| ---------------- | ----------- | ------------------------------------------------------------------------------------- |
-| `id`           | uuid        | PK                                                                                    |
-| `tenant_id`    | uuid        | Not null, immutable                                                                   |
-| `source_id`    | uuid        | FK to sources (CASCADE), not null                                                     |
-| `phone_type`   | varchar(16) | `cell`, `work`, `home`, `fax`, `other` (default `cell`)                   |
-| `country_code` | char(2)     | ISO 3166-1 alpha-2 country code (default `US`) — used to derive the dialing prefix |
-| `phone_number` | varchar(32) | Not null                                                                              |
-| `is_primary`   | boolean     | Default false                                                                         |
+Companies are the legal entities under a tenant. There is no separate `legal_entities` table.
 
-> **Note:** Phone numbers are available to vendors, clients, employees, and contacts via the polymorphic `sources` pattern.
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null. |
+| `source_id` | uuid | FK to `sources` (CASCADE). |
+| `code` | varchar(16) | Required, unique per tenant. Not auto-numbered — operators choose the code. |
+| `name` | varchar(128) | Company name. |
+| `is_active` | boolean | Default true. |
 
-> **Global Address Best Practices:** The `addresses` table follows an internationally flexible schema:
->
-> - Three address lines accommodate any country's format without rigid field assumptions
-> - `state_province` is a generic region field (US states, UK counties, Japanese prefectures, etc.)
-> - `country_code` uses ISO 3166-1 alpha-2 for reliable lookup and localization
-> - `postal_code` as varchar(20) covers all known formats (US ZIP+4, UK postcodes, etc.)
-> - **Mailing label generation:** Concatenate non-empty address lines, then `city + state_province + postal_code` on one line, then country name (resolved from `country_code`). Country-specific formatting rules (e.g., Japanese address order reversal) can be applied via a locale-aware formatter.
+#### 3.2.3 API
 
-**Tax Identifiers:**
+All endpoints are under `/api/core/v1/` and provide standard CRUD (see §4.1) unless noted.
 
-Tax identification is handled by a dedicated `tax_identifiers` table linked via the polymorphic `sources` pattern, replacing the former `tax_id` column on entity tables:
+| Method | Path | Description |
+| --- | --- | --- |
+| CRUD | `/api/core/v1/vendors` | Manage vendors. |
+| CRUD | `/api/core/v1/vendor-contacts` | Manage vendor contacts. |
+| CRUD | `/api/core/v1/payment-terms` | Manage payment terms. |
+| CRUD | `/api/core/v1/clients` | Manage clients. |
+| CRUD | `/api/core/v1/employees` | Manage employees. |
+| GET | `/api/core/v1/employees/:id/source-id` | Resolve the polymorphic source record for phone/address lookups. |
+| POST | `/api/core/v1/employees/:id/reset-password` | Admin-initiated password reset for the employee's `portal_users` login. |
+| CRUD | `/api/core/v1/contacts` | Manage standalone contacts. |
+| CRUD | `/api/core/v1/companies` | Manage companies. |
+| CRUD | `/api/core/v1/sources` | Manage polymorphic source rows (rarely called directly). |
+| CRUD | `/api/core/v1/addresses` | Manage addresses keyed by `source_id`. |
+| CRUD | `/api/core/v1/phone-numbers` | Manage phone numbers keyed by `source_id`. |
+| CRUD | `/api/core/v1/tax-identifiers` | Manage tax identifiers keyed by `source_id`. |
+| CRUD | `/api/core/v1/emails` | Manage email addresses keyed by `source_id` (see §3.10). |
 
-| Field            | Type        | Description                                |
-| ---------------- | ----------- | ------------------------------------------ |
-| `id`           | uuid        | PK                                         |
-| `tenant_id`    | uuid        | Not null, immutable                        |
-| `source_id`    | uuid        | FK to sources (CASCADE), not null          |
-| `country_code` | char(2)     | ISO country code, not null                 |
-| `tax_type`     | varchar(16) | e.g.,`EIN`, `SSN`, `VAT` — not null |
-| `tax_value`    | varchar(64) | Tax identifier value, not null             |
-| `is_primary`   | boolean     | Default false                              |
+#### 3.2.4 Business Rules
 
-Unique constraint: `(source_id, country_code, tax_type) WHERE deactivated_at IS NULL`
-
-**Endpoints:** `/api/core/v1/sources`, `/api/core/v1/contacts`, `/api/core/v1/addresses`, `/api/core/v1/phone-numbers`, `/api/core/v1/tax-identifiers`, `/api/core/v1/emails`
-
-**Editable sections (client, as of 2026-05-21, gap 2.13):** Each entity edit dialog composes shared read/write components from `apps/client/src/components/shared/`: `EditableEmailsSection` / `EmailsSection` / `EmailRow`, `EditablePhoneNumbersSection` / `PhoneNumbersSection` / `PhoneRow`, `EditableAddressesSection` / `AddressesSection`, and `EditableTaxIdentifiersSection` / `TaxIdentifiersSection`. The Editable variants diff against the original state and persist add / update / archive against the polymorphic `sources` → child-table pattern.
-
-#### 3.3.5 Companies
-
-| Field         | Type         | Description                                       |
-| ------------- | ------------ | ------------------------------------------------- |
-| `id`        | uuid         | PK                                                |
-| `tenant_id` | uuid         | Not null                                          |
-| `source_id` | uuid         | FK to sources (CASCADE)                           |
-| `code`      | varchar(16)  | Unique company code, required (not auto-numbered) |
-| `name`      | varchar(128) | Company name                                      |
-| `is_active` | boolean      | Default true                                      |
-
-**Endpoint:** `/api/core/v1/companies`
+1. Every entity that owns addresses, phones, emails, or tax IDs has exactly one `sources` row. Children FK to `sources.id`.
+2. `is_app_user = true` requires a non-empty `roles` array. The `employeeRoleValidator.js` lib rejects saves that violate this rule.
+3. Creating a `portal_users` login from an entity is a single transaction: write the `portal_users` row, then sync the `is_login` email on the polymorphic `emails` table via `loginEmailSync.js`.
+4. `employeeAppUserSync.js` (and parallel libs for clients and vendor contacts) drives the provision / archive / restore branches when `is_app_user` toggles.
+5. `clearOtherPrimary.js` enforces single-primary invariants on `is_primary_contact` and `is_billing_contact`. Both flags may be true on the same employee; they may also be true on different employees independently.
+6. Vendor contacts are managed inside the parent Vendor edit dialog (`VendorContactsPanel.jsx` + `ContactFormDialog.jsx`). There is no top-level Vendor Contacts page — XLSX import/export is wired at the router level (auto-applied `rbac('full')` on `/import-xls`, `rbac('view')` on `/export-xls`) and driven from the Vendor panel.
+7. Companies are the legal entities under a tenant. Invoices number per company (`scope_type = 'company'`) — see §3.1.4.5.
+8. Mailing labels concatenate non-empty `address_line_*` lines, then `city + state_province + postal_code`, then the country resolved from `country_code`. Country-specific formatting (e.g., Japanese order reversal) is applied via a locale-aware formatter.
+9. Editable sections in entity dialogs (`EditableEmailsSection`, `EditablePhoneNumbersSection`, `EditableAddressesSection`, `EditableTaxIdentifiersSection`) diff against the original state and persist add/update/archive against the polymorphic pattern.
 
 ---
 
