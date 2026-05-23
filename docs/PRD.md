@@ -318,11 +318,11 @@ Glossary
 
 ### 1.1 Product Overview  [in-scope]
 
-AXERRA is a multi-tenant, project-native Enterprise Resource Planning (ERP) platform with double-entry accounting. It is built for organizations that run their business through projects — consulting firms, property developers, homebuilders, general contractors, and similar multi-entity operators — and need budgets, cost tracking, vendor and client management, Accounts Payable (AP), Accounts Receivable (AR), General Ledger (GL), intercompany operations, and project-level cashflow and profitability in one system. The base ERP is industry-agnostic; industry-specific workflows ship as opt-in add-on modules. AXERRA runs on schema-per-tenant PostgreSQL isolation via `pg-schemata` 1.3.0, an owned data layer that Axerra extends as product needs evolve.
+AXERRA is a multi-tenant, project-native Enterprise Resource Planning (ERP) platform with double-entry accounting. It is built for organizations that run their business through projects: consulting firms, property developers, homebuilders, general contractors, and similar multi-entity operators. One system covers budgets, cost tracking, vendor and client management, Accounts Payable (AP), Accounts Receivable (AR), General Ledger (GL), intercompany operations, and project-level cashflow and profitability. The base ERP is industry-agnostic. Industry-specific workflows ship as opt-in add-on modules. AXERRA runs on schema-per-tenant PostgreSQL isolation via `pg-schemata` 1.3.0. Axerra owns `pg-schemata` and extends it as product needs evolve.
 
 ### 1.2 Target Users  [in-scope]
 
-AXERRA distinguishes **system roles** (built into the platform; their meaning is fixed) from **convenience roles** (created per tenant; named to match local job titles such as Controller, Project Manager, or AP Clerk). System roles carry hard-coded scope rules. Convenience roles inherit from policies the tenant chooses.
+AXERRA distinguishes two kinds of role. **System roles** are built into the platform and their meaning is fixed. **Convenience roles** are created per tenant and named to match local job titles (e.g., Controller, Project Manager, AP Clerk). System roles carry hard-coded scope rules. Convenience roles inherit from policies the tenant chooses.
 
 | User type | Kind | Description |
 | --- | --- | --- |
@@ -368,9 +368,9 @@ AXERRA uses **PostgreSQL schema-per-tenant** isolation powered by pg-schemata:
 
 - **`admin` schema**: System-wide tables (`tenants`, `portal_users`, `portal_user_tenants`, `match_review_logs`, `impersonation_logs`)
 - **Tenant schemas** (e.g., `acme`, `axerra`): Each customer gets a dedicated PostgreSQL schema containing all business tables (vendors, projects, accounting, etc.)
-- **Cross-tenant access source of truth:** the `admin.portal_user_tenants` binding table — not `portal_users.tenant_id` alone. A portal user has one row per tenant they can access; the oldest active binding is treated as the **home tenant** (used at login). `portal_users.tenant_id` is retained as a convenience pointer to the home tenant but is **not** the authoritative cross-tenant list.
-- Tenant resolution is performed per-request: at login the home tenant is resolved from `portal_user_tenants`; subsequent requests may target any active binding via the `x-tenant-code` header (subject to RBAC).
-- All database access is schema-aware via pg-schemata's `setSchemaName()` — models bind queries to the correct tenant schema dynamically.
+- **Cross-tenant access source of truth:** the `admin.portal_user_tenants` binding table. A portal user has one row per tenant they can access. The oldest active binding is the **home tenant** (used at login). `portal_users.tenant_id` is a convenience pointer to the home tenant. It is **not** the authoritative cross-tenant list.
+- Tenant resolution runs per request. At login the home tenant resolves from `portal_user_tenants`. Subsequent requests may target any active binding via the `x-tenant-code` header (subject to RBAC).
+- All database access is schema-aware via pg-schemata's `setSchemaName()`. Models bind queries to the correct tenant schema dynamically.
 
 ### 2.2 pg-schemata Integration  [in-scope]
 
@@ -521,14 +521,20 @@ POST / PUT / DELETE / PATCH mutation routes (createRouter prepends addAuditField
   -> addAuditFields (auto-prepended) -> [requireRootTenant (admin routes)] -> [withMeta (user-supplied)] -> [moduleEntitlement (auto-appended)] -> [rbac('full') (auto on /import-xls; opt-in elsewhere)] -> Controller -> pg-schemata Model
 ```
 
-> **Note:** `createRouter` automatically prepends `addAuditFields` on mutation routes (POST, PUT, DELETE, PATCH) and appends `moduleEntitlement` on all routes — with two exceptions: `/ping` has no middleware, and `POST /export-xls` uses read-level middleware (no `addAuditFields`). The `withMeta` middleware is passed by each router via per-method middleware arrays. `rbac()` is auto-applied on `/import-xls` (`rbac('full')`) and `/export-xls` (`rbac('view')`) routes with action overrides (`setImportAction` / `setExportAction`). For other routes, `rbac()` must be explicitly added (e.g. `portalUsersRouter` per-method arrays, `employees/:id/reset-password`, `ar-invoices/approve`).
+**`createRouter` middleware rules.**
 
-> **Middleware reference:**
->
-> - `apps/server/src/middleware/requireRootTenant.js` — gates admin / tenant-management routes. Returns 403 unless `req.user.home_tenant?.toLowerCase()` equals `process.env.ROOT_TENANT_CODE` (default `axerra`, also lowercased). Comparison is case-insensitive.
-> - `apps/server/src/middleware/auditContext.js` — wraps each request in AsyncLocalStorage carrying the audit identity for model-layer hooks (paired with `lib/requestContext.js` and `lib/registerAuditResolver.js` — see §4.3).
-> - `apps/server/src/middleware/errorHandler.js` — unified Express 5 error handler; maps `SchemaDefinitionError` / `type === 'validation'` → 400, pg-schemata `DatabaseError` 23505 (unique) → 409, 23503 (FK) → 422, application errors carrying `err.status` are returned with that status, all other unhandled errors → 500 with structured logging (and `err.message` in non-prod).
-> - `apps/server/src/services/{permCacheInvalidator,rbacQueryContext,permissionLoader}.js` — Redis cache invalidator (busts `perm:{userId}:{tenantCode}` on role/policy mutations), RBAC query context builder, and the permission loader that reads canon from DB on cache miss. See §3.1.2 and `rules/rbac.md`.
+1. `addAuditFields` is auto-prepended on mutation routes (POST, PUT, DELETE, PATCH).
+2. `moduleEntitlement` is auto-appended on every route. Two exceptions: `/ping` has no middleware, and `POST /export-xls` uses read-level middleware (no `addAuditFields`).
+3. `withMeta` is passed by each router via per-method middleware arrays.
+4. `rbac()` is auto-applied on `/import-xls` (as `rbac('full')`) and `/export-xls` (as `rbac('view')`), with action overrides via `setImportAction` / `setExportAction`.
+5. For other routes, `rbac()` must be added explicitly (e.g., `portalUsersRouter` per-method arrays, `employees/:id/reset-password`, `ar-invoices/approve`).
+
+**Middleware reference.**
+
+- `apps/server/src/middleware/requireRootTenant.js` — gates admin and tenant-management routes. Returns 403 unless `req.user.home_tenant?.toLowerCase()` equals `process.env.ROOT_TENANT_CODE` (default `axerra`). Comparison is case-insensitive.
+- `apps/server/src/middleware/auditContext.js` — wraps each request in AsyncLocalStorage carrying the audit identity for model-layer hooks. Paired with `lib/requestContext.js` and `lib/registerAuditResolver.js` (see §4.3).
+- `apps/server/src/middleware/errorHandler.js` — unified Express 5 error handler. It maps `SchemaDefinitionError` and `type === 'validation'` → 400, pg-schemata `DatabaseError` 23505 (unique) → 409, 23503 (FK) → 422, application errors carrying `err.status` → that status, and all other unhandled errors → 500 with structured logging (and `err.message` in non-prod).
+- `apps/server/src/services/{permCacheInvalidator,rbacQueryContext,permissionLoader}.js` — Redis cache invalidator (busts `perm:{userId}:{tenantCode}` on role/policy mutations), RBAC query context builder, and the permission loader. The loader reads the canon from the database on cache miss. See §3.1.2 and `rules/rbac.md`.
 
 ## 3. Module Reference  [in-scope]
 
@@ -578,7 +584,7 @@ Of the six add-ons, only `bom` is currently registered in `moduleRegistry.js`. T
 
 #### 3.1.1 Overview
 
-The System module owns identity, tenant lifecycle, and Role-Based Access Control (RBAC). It lives partly in the platform-wide `admin` schema (portal users, tenant records, impersonation audit) and partly in every tenant schema (roles, policies, scopes, field groups, numbering). Every other module depends on it. RBAC follows a four-layer model — policies → data scope → state filters → field groups — described in [ADR-0013](./decisions/0013-four-layer-scoped-rbac.md).
+The System module owns identity, tenant lifecycle, and Role-Based Access Control (RBAC). It lives in two places. The platform-wide `admin` schema holds portal users, tenant records, and the impersonation audit. Every tenant schema holds the tenant's own roles, policies, scopes, field groups, and numbering. Every other module depends on it. RBAC follows a four-layer model: policies → data scope → state filters → field groups. See [ADR-0013](./decisions/0013-four-layer-scoped-rbac.md).
 
 #### 3.1.2 Data Tables
 
@@ -832,7 +838,7 @@ Role assignment itself is done via the entity CRUD endpoints (update the `roles`
 3. The server validates credentials via Passport Local Strategy (bcrypt against `admin.portal_users.password_hash`).
 4. The server resolves the user's home tenant from `admin.portal_user_tenants` (oldest active binding). Login is refused with `"Tenant is inactive."` if the home tenant is not active.
 5. The server loads RBAC permissions for the home tenant and gates token issuance on the result. A user with no usable permissions is refused with `403` — credentials were valid but the account is unusable.
-6. The server computes `ph` (a SHA-256 hash of the resolved permission canon), signs the `auth_token` (15 minute TTL) and `refresh_token` (7 day TTL) as JWTs, and sets them as httpOnly cookies. The permission canon is primed into Redis so the first authenticated request does not re-load.
+6. The server computes `ph`, a SHA-256 hash of the resolved permission canon. It signs the `auth_token` (15-minute TTL) and `refresh_token` (7-day TTL) as JWTs and sets them as httpOnly cookies. The permission canon is primed into Redis so the first authenticated request skips the reload.
 7. The client calls `GET /api/auth/me` to hydrate user context, then `LayoutShell` admits the user to the app.
 8. JWT claims carry only `sub` (user UUID) and `ph` (permissions hash). Tenant context, roles, and permissions are resolved at request time by `authRedis` — they are not embedded in the token.
 9. `auth_token` rotates on every call to `POST /api/auth/refresh`; the refresh token rotates fully alongside it. Logout clears both cookies.
@@ -842,19 +848,19 @@ Role assignment itself is done via the entity CRUD endpoints (update the `roles`
 
 1. When a role's policies, scope, state filters, or field grants change, the server invalidates the Redis permission canon for every affected user (`perm:{userId}:{tenantCode}`).
 2. On the user's next authenticated request, `authRedis` reloads the canon from the database and recomputes `ph`.
-3. If the recomputed `ph` differs from the `ph` claim in the request's `auth_token`, the server sets the `X-Token-Stale: 1` response header. The client treats this as a signal to call `POST /api/auth/refresh`, which re-issues tokens with the fresh `ph`.
+3. If the recomputed `ph` differs from the claim in the request's `auth_token`, the server sets the `X-Token-Stale: 1` response header. The client treats that header as a signal to call `POST /api/auth/refresh`. The refresh re-issues tokens with the fresh `ph`.
 4. The user does not need to log out and back in. The next request reflects the updated permissions automatically.
 
 ##### 3.1.4.3 Four-Layer RBAC Resolution
 
 1. **Layer 1 — Policies.** Resolution walks from most specific to least specific: `module::router::action` → `module::router::` → `module::::` → `::::` (empty-module wildcard for idempotent roles) → default `none`.
-2. **Exact-match carve-out.** `policy_catalog` rows with `policy_required = true` bypass the fallback above and require an exact `module::router::action` grant. The carve-out set is built at module load in `apps/server/src/middleware/rbac.js` from `CATALOG_ENTRIES` in `policyCatalogSeeder.js`. This keeps sensitive actions out of router-level wildcards.
-3. **Layer 2 — Data scope.** `roles.scope` selects how much data the user sees: `all_projects` > `assigned_companies` > `assigned_projects` > `self`. `self` scope reads `entity_type` and `entity_id` from `portal_users` and maps to the resource's FK column (e.g., `vendor_id` on AP invoices).
+2. **Exact-match carve-out.** `policy_catalog` rows with `policy_required = true` bypass the fallback. They require an exact `module::router::action` grant. The carve-out set is built at module load in `apps/server/src/middleware/rbac.js` from `CATALOG_ENTRIES` in `policyCatalogSeeder.js`. This keeps sensitive actions out of router-level wildcards.
+3. **Layer 2 — Data scope.** `roles.scope` selects how much data the user sees. The hierarchy is `all_projects` > `assigned_companies` > `assigned_projects` > `self`. `self` scope reads `entity_type` and `entity_id` from `portal_users`. It then maps to the resource's FK column (e.g., `vendor_id` on AP invoices).
 4. **Layer 3 — State filters.** `state_filters.visible_statuses` restricts which record statuses the role may see per `(module, router)`. Empty = no filtering.
 5. **Layer 4 — Field groups.** `field_group_grants` plus default definitions decide which columns are returned. Empty grants = all columns visible.
-6. **Multi-role merge.** When a user holds multiple roles, Layer 2 takes the most permissive scope; Layers 3 and 4 take the union of states and columns across roles.
-7. **No bypass.** The middleware does not short-circuit for `super_user` or `admin`. Every user resolves through the same `roles` array → `policies` path, so every grant is auditable.
-8. **Enforcement.** `moduleEntitlement` runs first and rejects requests whose module is not in `tenants.allowed_modules` for the tenant. `withMeta({ module, router, action })` annotates `req.resource`. `rbac(requiredLevel)` enforces Layer 1 at the route. `ViewController._applyRbacFilters()` enforces Layers 2–4 at the service layer.
+6. **Multi-role merge.** When a user holds multiple roles, Layer 2 takes the most permissive scope. Layers 3 and 4 take the union of states and columns across roles.
+7. **No bypass.** The middleware does not short-circuit for `super_user` or `admin`. Every user resolves through the same `roles` array → `policies` path. Every grant is auditable.
+8. **Enforcement.** Four pieces work in order. `moduleEntitlement` rejects requests whose module is not in `tenants.allowed_modules`. `withMeta({ module, router, action })` annotates `req.resource`. `rbac(requiredLevel)` enforces Layer 1 at the route. `ViewController._applyRbacFilters()` enforces Layers 2–4 at the service layer.
 
 ##### 3.1.4.4 System Roles (incl. vendor_contacts, clients)
 
@@ -870,7 +876,7 @@ System roles are built into the platform. Their meaning is fixed across every te
 
 Cross-tenant and impersonation policies are seeded only in the `axerra` schema, on `super_user` and `support`. They cannot be assigned in any other schema.
 
-The five system roles above receive a single wildcard policy at seed time. Adding a new module does not require backfilling them. Convenience roles enumerate per-module policies explicitly; when a new module ships, every tenant's convenience roles must be backfilled with the new module's rows. The retroactive seeder for this is not yet built — tenants must add the new policies manually until it lands.
+The five system roles above receive a single wildcard policy at seed time. Adding a new module does not require backfilling them. Convenience roles enumerate per-module policies explicitly. When a new module ships, every tenant's convenience roles must be backfilled with the new module's rows. The retroactive seeder for this is not yet built. Tenants must add the new policies manually until it lands.
 
 `tenants::portal-users::import` and `tenants::portal-users::export` are intentionally absent from `policy_catalog`. Users are created via `/register` only. `tenants::tenants::import|export` are seeded and gate the tenants XLSX endpoints.
 
@@ -948,15 +954,15 @@ All configs are seeded with `is_enabled = false`. Tenants opt in via Settings �
 ###### Entity integration and backfill
 
 1. Auto-numbering populates the entity's code field only when the user does not supply one.
-2. AR invoices number on status transition to `sent`; AP invoices number on status transition to `approved`. Numbers are immutable after assignment.
-3. When numbering is enabled for an entity type for the first time, existing records with `code IS NULL AND deactivated_at IS NULL` are backfilled in `created_at` order, atomically, via the same `allocateNumber()` path used by normal creates. The response returns a `backfilledCodes` count for the UI.
+2. AR invoices number on status transition to `sent`. AP invoices number on status transition to `approved`. Numbers are immutable after assignment.
+3. When numbering is enabled for an entity type for the first time, existing records with `code IS NULL AND deactivated_at IS NULL` are backfilled. The backfill runs atomically, in `created_at` order, via the same `allocateNumber()` path normal creates use. The response returns a `backfilledCodes` count for the UI.
 
 ###### Impersonation
 
 1. The active impersonation session is stored in Redis at `imp:{userId}` with TTL.
 2. `authRedis` detects the session, swaps `req.user` to the target user, and sets `req.user.is_impersonating = true` plus `req.user.impersonated_by`.
 3. `/api/auth/me` includes `impersonation: { active, impersonated_by }` for client-side UI state.
-4. Each session inserts a row into `admin.impersonation_logs`. The partial unique index on `(impersonator_id) WHERE ended_at IS NULL` prevents concurrent sessions — a second open attempt returns `409 Conflict`.
+4. Each session inserts a row into `admin.impersonation_logs`. The partial unique index on `(impersonator_id) WHERE ended_at IS NULL` prevents concurrent sessions. A second open attempt returns `409 Conflict`.
 
 ---
 
@@ -964,7 +970,7 @@ All configs are seeded with `is_enabled = false`. Tenants opt in via Settings �
 
 #### 3.2.1 Overview
 
-Core Entities are the shared reference records every other module reads from: vendors, vendor contacts, payment terms, clients, employees, companies, and the polymorphic supporting tables (sources, contacts, addresses, phone numbers, tax identifiers, emails). All entity types use a single `sources` discriminated-union table so that addresses, phones, emails, and tax IDs can hang off any entity uniformly.
+Core Entities are the shared reference records every other module reads from. They include vendors, vendor contacts, payment terms, clients, employees, and companies. Polymorphic supporting tables (sources, contacts, addresses, phone numbers, tax identifiers, emails) attach to every entity through a single `sources` discriminated-union table. That pattern lets addresses, phones, emails, and tax IDs hang off any entity uniformly.
 
 #### 3.2.2 Data Tables
 
@@ -1166,11 +1172,11 @@ All endpoints are under `/api/core/v1/` and provide standard CRUD (see §4.1) un
 2. `is_app_user = true` requires a non-empty `roles` array. The `employeeRoleValidator.js` lib rejects saves that violate this rule.
 3. Creating a `portal_users` login from an entity is a single transaction: write the `portal_users` row, then sync the `is_login` email on the polymorphic `emails` table via `loginEmailSync.js`.
 4. `employeeAppUserSync.js` (and parallel libs for clients and vendor contacts) drives the provision / archive / restore branches when `is_app_user` toggles.
-5. `clearOtherPrimary.js` enforces single-primary invariants on `is_primary_contact` and `is_billing_contact`. Both flags may be true on the same employee; they may also be true on different employees independently.
-6. Vendor contacts are managed inside the parent Vendor edit dialog (`VendorContactsPanel.jsx` + `ContactFormDialog.jsx`). There is no top-level Vendor Contacts page — XLSX import/export is wired at the router level (auto-applied `rbac('full')` on `/import-xls`, `rbac('view')` on `/export-xls`) and driven from the Vendor panel.
-7. Companies are the legal entities under a tenant. Invoices number per company (`scope_type = 'company'`) — see §3.1.4.5.
-8. Mailing labels concatenate non-empty `address_line_*` lines, then `city + state_province + postal_code`, then the country resolved from `country_code`. Country-specific formatting (e.g., Japanese order reversal) is applied via a locale-aware formatter.
-9. Editable sections in entity dialogs (`EditableEmailsSection`, `EditablePhoneNumbersSection`, `EditableAddressesSection`, `EditableTaxIdentifiersSection`) diff against the original state and persist add/update/archive against the polymorphic pattern.
+5. `clearOtherPrimary.js` enforces single-primary invariants on `is_primary_contact` and `is_billing_contact`. Both flags may be true on the same employee. They may also be true on different employees independently.
+6. Vendor contacts are managed inside the parent Vendor edit dialog (`VendorContactsPanel.jsx` + `ContactFormDialog.jsx`). There is no top-level Vendor Contacts page. XLSX import/export is wired at the router level (`rbac('full')` on `/import-xls`, `rbac('view')` on `/export-xls`) and driven from the Vendor panel.
+7. Companies are the legal entities under a tenant. Invoices number per company (`scope_type = 'company'`). See §3.1.4.5.
+8. Mailing labels concatenate non-empty `address_line_*` lines, then `city + state_province + postal_code`, then the country resolved from `country_code`. A locale-aware formatter applies country-specific rules (e.g., Japanese order reversal).
+9. Editable sections in entity dialogs diff against the original state and persist add/update/archive against the polymorphic pattern. The components are `EditableEmailsSection`, `EditablePhoneNumbersSection`, `EditableAddressesSection`, and `EditableTaxIdentifiersSection`.
 
 ---
 
@@ -1178,7 +1184,7 @@ All endpoints are under `/api/core/v1/` and provide standard CRUD (see §4.1) un
 
 #### 3.3.1 Overview
 
-The Projects module owns the project lifecycle: projects themselves, the units (deliverables) under each project, the tasks that drive schedule, the cost items that drive estimate, change orders that adjust scope, and templates for reusable project blueprints. Every cost line, AP invoice line, AR invoice line, and journal entry posted by another module ultimately rolls up to a project here.
+The Projects module owns the full project lifecycle. It covers projects, the units (deliverables) under each project, the tasks that drive schedule, the cost items that drive estimate, change orders that adjust scope, and templates that act as reusable project blueprints. Every cost line, AP invoice line, AR invoice line, and journal entry posted by another module ultimately rolls up to a project here.
 
 #### 3.3.2 Data Tables
 
@@ -1343,7 +1349,7 @@ All endpoints under `/api/projects/v1/` use standard CRUD (§4.1) unless noted.
 
 #### 3.4.1 Overview
 
-The Activities module owns categorical cost tracking. Categories and activities classify what work is being done; deliverables and assignments scope it to projects and people; budgets allocate spend per `(deliverable, activity)`; cost lines record planned spend; actual costs record what was incurred; and vendor parts hold the per-vendor pricing reference used to populate cost lines. Approving an actual cost posts to GL via the cross-module posting contract.
+The Activities module owns categorical cost tracking. Categories and activities classify what work is being done. Deliverables and assignments scope the work to projects and people. Budgets allocate spend per `(deliverable, activity)`. Cost lines record planned spend. Actual costs record what was incurred. Vendor parts hold the per-vendor pricing reference used to populate cost lines. Approving an actual cost posts to GL via the cross-module posting contract.
 
 #### 3.4.2 Data Tables
 
@@ -1582,7 +1588,7 @@ All endpoints under `/api/ap/v1/` provide standard CRUD (§4.1).
 
 #### 3.6.1 Overview
 
-Accounts Receivable (AR) owns client invoices, invoice lines, and receipts. AR is the primary revenue source for project profitability tracking. Approving an invoice (transition to `sent`) posts to GL — debit AR, credit Revenue — via the cross-module posting contract. Construction subdivision-sales workflows use closing statements in the `contracts` add-on, not AR invoices (see §3.13).
+Accounts Receivable (AR) owns client invoices, invoice lines, and receipts. AR is the primary revenue source for project profitability tracking. Approving an invoice (transition to `sent`) posts to GL via the cross-module contract: debit AR, credit Revenue. Construction subdivision-sales workflows use closing statements in the `contracts` add-on, not AR invoices. See §3.13.
 
 #### 3.6.2 Data Tables
 
@@ -1650,7 +1656,7 @@ Accounts Receivable (AR) owns client invoices, invoice lines, and receipts. AR i
 5. When `project_id` is set, the invoice feeds into project revenue and cashflow inflow metrics (§3.8).
 6. Partial payments and retainage are supported through `receipts` plus the cashflow module's recognition rules.
 7. Receipt `method` is restricted to `check`, `ach`, `wire` by controller-level allowlist — invalid values return 400.
-8. Construction subdivision sales do **not** flow through `ar_invoices`. They use closing statements owned by the `contracts` add-on, which post a single GL entry touching AR, WIP, inventory, and (where applicable) intercompany accounts via the same cross-module contract. The core `ar` module is not modified — see [ADR-0019](./decisions/0019-cross-module-posting.md).
+8. Construction subdivision sales do **not** flow through `ar_invoices`. They use closing statements owned by the `contracts` add-on. A closing statement posts a single GL entry touching AR, WIP, inventory, and (where applicable) intercompany accounts via the same cross-module contract. The core `ar` module is not modified. See [ADR-0019](./decisions/0019-cross-module-posting.md).
 
 ---
 
@@ -1658,7 +1664,7 @@ Accounts Receivable (AR) owns client invoices, invoice lines, and receipts. AR i
 
 #### 3.7.1 Overview
 
-The Accounting module owns the chart of accounts, journal entries and their lines, ledger balances, the posting queue, the category-to-account mapping, and intercompany accounting. Every other module that touches money (AP, AR, Activities, Contracts) posts here via the cross-module posting contract ([ADR-0019](./decisions/0019-cross-module-posting.md)); accounting itself does not source events from external systems.
+The Accounting module owns the chart of accounts, journal entries and lines, ledger balances, the posting queue, the category-to-account mapping, and intercompany accounting. Every other module that touches money (AP, AR, Activities, Contracts) posts here via the cross-module posting contract ([ADR-0019](./decisions/0019-cross-module-posting.md)). Accounting itself does not source events from external systems.
 
 #### 3.7.2 Data Tables
 
@@ -1810,7 +1816,7 @@ All endpoints under `/api/accounting/v1/` provide standard CRUD (§4.1) unless n
 
 #### 3.8.1 Overview
 
-The Cashflow & Profitability module derives revenue, cost, and cash-position metrics directly from existing transactional data — there are no separate cashflow tables. It joins AR invoices, receipts, AP invoices, payments, actual costs, and journal entries on `project_id` to produce per-project profitability, monthly cashflow time series, category cost breakdowns, and aging reports. Project managers see real-time margin and budget variance; CFOs see consolidated company cashflow and forecasted cash position.
+The Cashflow & Profitability module derives revenue, cost, and cash-position metrics from existing transactional data. There are no separate cashflow tables. It joins AR invoices, receipts, AP invoices, payments, actual costs, and journal entries on `project_id`. From those joins it produces per-project profitability, monthly cashflow time series, category cost breakdowns, and aging reports. Project managers see real-time margin and budget variance. CFOs see consolidated company cashflow and forecasted cash position.
 
 #### 3.8.2 Data Tables & Views
 
@@ -1896,7 +1902,7 @@ All endpoints under `/api/reports/v1/`.
 
 #### 3.9.1 Overview
 
-The Reporting module is a thin layer of SQL views and report endpoints that read across other modules' data. Export views provide consolidated, denormalized rows for spreadsheet export; financial views (covered in §3.8) drive dashboards. Reporting itself owns no transactional data.
+The Reporting module is a thin layer of SQL views and report endpoints that read across other modules' data. Export views provide consolidated, denormalized rows for spreadsheet export. Financial views (covered in §3.8) drive dashboards. Reporting itself owns no transactional data.
 
 #### 3.9.2 Data Tables & Views
 
@@ -2112,7 +2118,7 @@ Realistic volume for a mid-size homebuilder:
 
 #### 3.12.1 Overview
 
-The BOM add-on manages material catalogs, vendor SKU matching with AI-powered similarity search, and vendor pricing. Catalog SKUs are tenant-curated reference items; vendor SKUs are pulled from vendor price lists and matched (manually or via pgvector similarity) back to catalog SKUs. Cost lines select a `(vendor, vendor_sku)` pair and inherit the pricing.
+The BOM add-on manages material catalogs, vendor SKU matching, and vendor pricing. Catalog SKUs are tenant-curated reference items. Vendor SKUs are pulled from vendor price lists. Each vendor SKU is matched back to a catalog SKU, either manually or via pgvector similarity search. Cost lines select a `(vendor, vendor_sku)` pair and inherit the pricing.
 
 #### 3.12.2 Data Tables
 
@@ -2185,7 +2191,7 @@ All endpoints under `/api/bom/v1/` provide standard CRUD (§4.1).
 
 #### 3.13.1 Overview
 
-The Contracts add-on owns contract documents and their milestones: services Statements of Work (SOW), construction subdivision sales and closing statements, and production work orders. Milestones gate AR invoice generation and (in construction) closing-statement posting via the cross-module contract.
+The Contracts add-on owns contract documents and their milestones. Document types include services Statements of Work (SOW), construction subdivision sales, closing statements, and production work orders. Milestones gate AR invoice generation. In construction, they also gate closing-statement posting via the cross-module contract.
 
 #### 3.13.2 Data Tables
 
@@ -2305,7 +2311,7 @@ Every resource entity uses `createRouter` to generate a consistent REST API back
 | `DELETE /archive`   | Soft-delete                       | `addAuditFields`, `moduleEntitlement`                                                    | `model.updateWhere()` (manually sets `deactivated_at = new Date()`)                         |                    |
 | `PATCH /restore`    | Restore soft-deleted record       | `addAuditFields`, `moduleEntitlement`                                                    | `model.updateWhere()` (manually clears `deactivated_at`, with `includeDeactivated: true`) |                    |
 
-> **Note:** `withMeta` is not auto-applied by `createRouter` — each router passes it via per-method middleware arrays (e.g., `getMiddlewares: [meta]`). `rbac()` is not included in the standard CRUD chain; it must be explicitly added on custom endpoints that need per-action permission level checks. All standard routes can be individually disabled via `disable*` flags (e.g., `disablePost: true`).
+`withMeta` is not auto-applied by `createRouter`. Each router passes it via per-method middleware arrays (e.g., `getMiddlewares: [meta]`). `rbac()` is not included in the standard CRUD chain. It must be added explicitly on custom endpoints that need per-action permission-level checks. Standard routes can be individually disabled via `disable*` flags (e.g., `disablePost: true`).
 
 ### 4.2 Pagination  [in-scope]
 
@@ -2319,13 +2325,13 @@ Keyset-based pagination via pg-schemata's `findAfterCursor()`:
 
 ### 4.3 Audit Fields  [in-scope]
 
-Most models define `hasAuditFields: { enabled: true, userFields: { type: 'uuid' } }`. Exceptions: `policy_catalog` (`hasAuditFields: { enabled: false }` — seed-only reference data). pg-schemata manages `created_at`/`updated_at` timestamps automatically. **Audit actor resolution** (`created_by` / `updated_by`) is handled by the ALS resolver registered through `registerAuditResolver` (see Request-context plumbing below) — these columns are no longer threaded through `req.body`. The `addAuditFields` Express middleware retains its name for historical reasons but now only injects **tenant context** (`tenant_code` and `tenant_id` from `req.user`) on POST requests, with skip logic for tenant creation and user registration. It still acts as the guard that rejects mutation requests with no user context.
+Most models define `hasAuditFields: { enabled: true, userFields: { type: 'uuid' } }`. The exception is `policy_catalog`, which uses `hasAuditFields: { enabled: false }` because it is seed-only reference data. pg-schemata manages `created_at` and `updated_at` automatically. **Audit actor resolution** (`created_by` / `updated_by`) is handled by the ALS resolver registered through `registerAuditResolver` (see Request-context plumbing below). These columns are no longer threaded through `req.body`. The `addAuditFields` Express middleware keeps its name for historical reasons. It now only injects **tenant context** (`tenant_code` and `tenant_id` from `req.user`) on POST requests, with skip logic for tenant creation and user registration. It still acts as the guard that rejects mutation requests with no user context.
 
 **Request-context plumbing:**
 
 - `apps/server/src/middleware/auditContext.js` — wraps each request in an AsyncLocalStorage context carrying the audit identity. Runs after `authRedis` so `req.user` is hydrated before the store is populated.
-- `apps/server/src/lib/requestContext.js` + `apps/server/src/lib/registerAuditResolver.js` — register a tenant-aware resolver with pg-schemata that pulls the current user id from the ALS context. pg-schemata invokes this resolver for every insert/update, so `created_by`/`updated_by` are filled at the model layer regardless of whether the controller touched `req.body`.
-- Direct model calls inside services therefore do not need to thread the user id manually — the ALS store carries it as long as the call originated inside an Express request.
+- `apps/server/src/lib/requestContext.js` + `apps/server/src/lib/registerAuditResolver.js` — register a tenant-aware resolver with pg-schemata that pulls the current user id from the ALS context. pg-schemata invokes the resolver for every insert and update. As a result, `created_by` and `updated_by` are filled at the model layer regardless of whether the controller touched `req.body`.
+- Direct model calls inside services do not need to thread the user id manually. The ALS store carries it as long as the call originated inside an Express request.
 
 ### 4.4 Soft Deletes  [in-scope]
 
@@ -2347,22 +2353,22 @@ Built into pg-schemata's TableModel and exposed as a full-stack feature across a
 
 #### 4.6.1 Backend
 
-- **Import**: `importFromSpreadsheet(filePath, sheetIndex, callbackFn?, _returning?, { previewOnly })` — parses XLSX, validates against schema, bulk inserts with audit fields. `BaseController.importXls()` handles file upload via multer (`/tmp/uploads/`), injects `tenant_code` and `created_by` via the callback. Default commit return shape is `{ inserted: number }` (legacy single-sheet) or `{ inserted, updated, ... }` (flat-format importers).
-- **Import preview mode (`?preview=1`)**: Importers that go through `importSimpleTable` (in `lib/spreadsheetHelpers.js`) or the flat combined / multi-sheet paths honor `previewOnly` and return a **counts-only classification payload** without writing:
+- **Import.** `importFromSpreadsheet(filePath, sheetIndex, callbackFn?, _returning?, { previewOnly })` parses XLSX, validates against schema, and bulk-inserts with audit fields. `BaseController.importXls()` handles file upload via multer (`/tmp/uploads/`) and injects `tenant_code` and `created_by` via the callback. The default commit return shape is `{ inserted: number }` for legacy single-sheet importers, or `{ inserted, updated, ... }` for flat-format importers.
+- **Import preview mode (`?preview=1`).** Importers that go through `importSimpleTable` (in `lib/spreadsheetHelpers.js`) or the flat-combined / multi-sheet paths honor `previewOnly`. They return a counts-only classification payload without writing:
 
   ```json
   { "preview": true, "inserts": 0, "updates": 0, "noops": 0, "omitted": 0, "errors": [] }
   ```
 
-  Flat-combined and multi-sheet variants extend the shape with `restores`, `phones`, `addresses`, `taxIds`, `appUserSkipped` where relevant. `BaseController.importXls` toggles preview when the request carries `?preview=1` or `?preview=true`. Validation errors short-circuit to a 422 with the same `errors` array — preview and commit see identical row classification, so a clean preview commits without surprises. Preview is honored by ~16 entities currently on the `importSimpleTable` path plus the Vendors flat-combined path and the Tenants importer; multi-sheet legacy importers that have not been migrated still write on `?preview=1` (a no-op flag for them).
-- **Export**: `exportToSpreadsheet(filePath, where?, joinType?, options?)` — queries with filtering, writes to XLSX. `ViewController.exportXls()` generates a temp file, sends it via `res.download()`, and cleans up the temp file after transfer. Accepts optional `where` array and `joinType` (`AND`/`OR`) in the request body for filtered exports.
+  Flat-combined and multi-sheet variants extend the shape with `restores`, `phones`, `addresses`, `taxIds`, `appUserSkipped` where relevant. `BaseController.importXls` toggles preview when the request carries `?preview=1` or `?preview=true`. Validation errors short-circuit to a 422 with the same `errors` array. Preview and commit see identical row classification, so a clean preview commits without surprises. Preview is honored by ~16 entities on the `importSimpleTable` path plus the Vendors flat-combined path and the Tenants importer. Multi-sheet legacy importers that have not been migrated still write on `?preview=1` (the flag is a no-op for them).
+- **Export.** `exportToSpreadsheet(filePath, where?, joinType?, options?)` queries with filtering and writes to XLSX. `ViewController.exportXls()` generates a temp file, sends it via `res.download()`, and cleans up the temp file after transfer. It accepts an optional `where` array and a `joinType` (`AND`/`OR`) in the request body for filtered exports.
 
 **Core Entity Override — Multi-Sheet Import/Export:**
 
 The 5 core entity models (Vendors, Clients, Employees, Contacts, Companies) override the default pg-schemata `importFromSpreadsheet()` / `exportToSpreadsheet()` methods with custom multi-sheet logic via `spreadsheetHelpers.js`. These entities use the polymorphic `sources` pattern with child tables (phone numbers, addresses, tax identifiers), which requires:
 
 - **Export** (`exportSourceEntity`): Queries the parent table, strips internal columns (audit fields, `tenant_id`, `source_id`, `deactivated_at`), appends a derived `status` column, and writes child data (phones, addresses, tax IDs) to separate sheets in a single XLSX workbook via `@nap-sft/tablsx` WorkbookBuilder.
-- **Import** (`importSourceEntity`): Parses multi-sheet workbooks, partitions rows into inserts vs updates (by `id` presence), executes updates with soft-delete/restore logic, bulk inserts new records with auto-generated source records and numbering-service codes, optionally provisions `portal_users` login records (when `appUserProvisioning` is enabled), and imports child sheets with delete-and-reinsert per parent. Returns an extended result: `{ inserted, updated, phones, addresses, taxIds, appUserSkipped }`.
+- **Import** (`importSourceEntity`): Parses multi-sheet workbooks and partitions rows into inserts vs. updates by `id` presence. Updates run with soft-delete/restore logic. New records bulk-insert with auto-generated source records and numbering-service codes. When `appUserProvisioning` is enabled, it also provisions `portal_users` login records. Child sheets import via delete-and-reinsert per parent. Returns `{ inserted, updated, phones, addresses, taxIds, appUserSkipped }`.
 - **Config-driven**: Each entity defines a `SourceEntityConfig` specifying `entityName`, `sheetName`, `sourceType`, `idType`, `buildLabel`, `boolCols`, `childSheets`, and `appUserProvisioning`.
 
 All other entities (non-source) use the default pg-schemata single-sheet import/export path.
