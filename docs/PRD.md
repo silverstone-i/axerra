@@ -1354,134 +1354,149 @@ All endpoints under `/api/projects/v1/` use standard CRUD (§4.1) unless noted.
 
 ---
 
-### 3.5 Activities & Cost Management  [in-scope]
+### 3.4 Activities & Cost Management  [core]
 
-**Purpose:** Categorical cost tracking with deliverables, budgets, cost lines, actual costs, and change orders.
+#### 3.4.1 Overview
 
-#### 3.5.1 Categories & Activities
+The Activities module owns categorical cost tracking. Categories and activities classify what work is being done; deliverables and assignments scope it to projects and people; budgets allocate spend per `(deliverable, activity)`; cost lines record planned spend; actual costs record what was incurred; and vendor parts hold the per-vendor pricing reference used to populate cost lines. Approving an actual cost posts to GL via the cross-module posting contract.
 
-**Categories:**
+#### 3.4.2 Data Tables
 
-| Field    | Type        | Description                                                        |
-| -------- | ----------- | ------------------------------------------------------------------ |
-| `id`   | uuid        | PK                                                                 |
-| `code` | varchar(16) | Unique code                                                        |
-| `name` | varchar(64) | Category name (e.g., "Framing", "Plumbing")                        |
-| `type` | varchar(16) | `labor`, `material`, `subcontract`, `equipment`, `other` |
+##### 3.4.2.1 Categories & Activities
 
-**Activities:**
+###### `categories`
 
-| Field           | Type        | Description                |
-| --------------- | ----------- | -------------------------- |
-| `id`          | uuid        | PK                         |
-| `category_id` | uuid        | FK to categories (CASCADE) |
-| `code`        | varchar(16) | Unique activity code       |
-| `name`        | varchar(64) | Activity name              |
-| `is_active`   | boolean     | Default true               |
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `code` | varchar(16) | Unique code. |
+| `name` | varchar(64) | Category name (e.g., "Framing", "Plumbing"). |
+| `type` | varchar(16) | `labor`, `material`, `subcontract`, `equipment`, `other`. |
 
-**Endpoints:** `/api/activities/v1/categories`, `/api/activities/v1/activities`
+###### `activities`
 
-#### 3.5.2 Deliverables & Assignments
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `category_id` | uuid | FK to `categories` (CASCADE). |
+| `code` | varchar(16) | Unique activity code. |
+| `name` | varchar(64) | Activity name. |
+| `is_active` | boolean | Default true. |
 
-**Deliverables:**
+##### 3.4.2.2 Deliverables & Assignments
 
-| Field                        | Type         | Description                                                 |
-| ---------------------------- | ------------ | ----------------------------------------------------------- |
-| `id`                       | uuid         | PK                                                          |
-| `name`                     | varchar(128) | Deliverable name                                            |
-| `description`              | text         | Description                                                 |
-| `status`                   | varchar(20)  | `pending` -> `released` -> `finished` -> `canceled` |
-| `start_date`, `end_date` | date         | Timeline                                                    |
+###### `deliverables`
 
-**Deliverable Assignments:**
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `name` | varchar(128) | Deliverable name. |
+| `description` | text | Description. |
+| `status` | varchar(20) | `pending` → `released` → `finished` → `canceled`. |
+| `start_date` | date | Timeline start. |
+| `end_date` | date | Timeline end. |
 
-| Field              | Type | Description                  |
-| ------------------ | ---- | ---------------------------- |
-| `deliverable_id` | uuid | FK to deliverables (CASCADE) |
-| `project_id`     | uuid | FK to projects (CASCADE)     |
-| `employee_id`    | uuid | FK to employees (SET NULL)   |
-| `notes`          | text | Assignment notes             |
+###### `deliverable_assignments`
 
-**Endpoints:** `/api/activities/v1/deliverables`, `/api/activities/v1/deliverable-assignments`
+| Column | Type | Notes |
+| --- | --- | --- |
+| `deliverable_id` | uuid | FK to `deliverables` (CASCADE). |
+| `project_id` | uuid | FK to `projects` (CASCADE). |
+| `employee_id` | uuid | FK to `employees` (SET NULL). |
+| `notes` | text | Assignment notes. |
 
-#### 3.5.3 Budgets
+##### 3.4.2.3 Budgets
 
-| Field               | Type             | Description                                                              |
-| ------------------- | ---------------- | ------------------------------------------------------------------------ |
-| `id`              | uuid             | PK                                                                       |
-| `deliverable_id`  | uuid             | FK to deliverables (CASCADE)                                             |
-| `activity_id`     | uuid             | FK to activities (CASCADE)                                               |
-| `budgeted_amount` | numeric(12,2)    | Amount                                                                   |
-| `version`         | integer          | Version number (default 1; no CHECK constraint enforcing > 0)            |
-| `is_current`      | boolean          | Default true                                                             |
-| `status`          | varchar(20)      | `draft` -> `submitted` -> `approved` -> `locked` -> `rejected` |
-| `submitted_by/at` | uuid/timestamptz | Submission audit                                                         |
-| `approved_by/at`  | uuid/timestamptz | Approval audit                                                           |
+###### `budgets`
 
-**Business Rules:**
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `deliverable_id` | uuid | FK to `deliverables` (CASCADE). |
+| `activity_id` | uuid | FK to `activities` (CASCADE). |
+| `budgeted_amount` | numeric(12,2) | Amount. |
+| `version` | integer | Default 1. |
+| `is_current` | boolean | Default true. |
+| `status` | varchar(20) | `draft` → `submitted` → `approved` → `locked` → `rejected`. |
+| `submitted_by` / `submitted_at` | uuid / timestamptz | Submission audit. |
+| `approved_by` / `approved_at` | uuid / timestamptz | Approval audit. |
 
-- Budgets must be approved before units can be marked `released`
-- Approved versions become read-only; new changes spawn another version
-- `remaining_budget` and `spent_to_date` updated by triggers/services
+##### 3.4.2.4 Cost Lines
 
-**Endpoint:** `/api/activities/v1/budgets`
+###### `cost_lines`
 
-#### 3.5.4 Cost Lines
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `company_id` | uuid | FK to `companies` (RESTRICT). |
+| `deliverable_id` | uuid | FK to `deliverables` (CASCADE). |
+| `vendor_id` | uuid | FK to `vendors` (SET NULL). |
+| `activity_id` | uuid | FK to `activities` (CASCADE). |
+| `budget_id` | uuid | FK to `budgets` (SET NULL). |
+| `tenant_sku` | varchar(64) | SKU reference. |
+| `source_type` | varchar(16) | `material` or `labor`. |
+| `quantity` | numeric(12,4) | Quantity. |
+| `unit_price` | numeric(12,4) | Unit price. |
+| `amount` | numeric(12,2) | GENERATED — `quantity * unit_price`. |
+| `markup_pct` | numeric(5,2) | Markup percentage. |
+| `status` | varchar(20) | `draft` → `locked` → `change_order`. |
 
-| Field              | Type          | Description                                                                                          |
-| ------------------ | ------------- | ---------------------------------------------------------------------------------------------------- |
-| `id`             | uuid          | PK                                                                                                   |
-| `company_id`     | uuid          | FK to companies (RESTRICT)                                                                           |
-| `deliverable_id` | uuid          | FK to deliverables (CASCADE)                                                                         |
-| `vendor_id`      | uuid          | FK to vendors (SET NULL)                                                                             |
-| `activity_id`    | uuid          | FK to activities (CASCADE)                                                                           |
-| `budget_id`      | uuid          | FK to budgets (SET NULL)                                                                             |
-| `tenant_sku`     | varchar(64)   | SKU reference                                                                                        |
-| `source_type`    | varchar(16)   | `material` or `labor`                                                                            |
-| `quantity`       | numeric(12,4) | Quantity                                                                                             |
-| `unit_price`     | numeric(12,4) | Unit price                                                                                           |
-| `amount`         | numeric(12,2) | **GENERATED** (quantity * unit_price)                                                          |
-| `markup_pct`     | numeric(5,2)  | Markup percentage                                                                                    |
-| `status`         | varchar(20)   | Workflow: `draft` -> `locked` -> `change_order`. CHECK allows `draft`, `locked`, `change_order`. |
+##### 3.4.2.5 Actual Costs
 
-**Endpoint:** `/api/activities/v1/cost-lines`
+###### `actual_costs`
 
-#### 3.5.5 Actual Costs
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `activity_id` | uuid | FK to `activities` (CASCADE). |
+| `project_id` | uuid | FK to `projects` (SET NULL). Links cost to project for profitability. |
+| `amount` | numeric(12,2) | Cost amount. |
+| `currency` | varchar(3) | Currency code. |
+| `reference` | text | Invoice or source reference. |
+| `approval_status` | varchar(20) | `pending` → `approved` → `rejected`. |
+| `incurred_on` | date | Date cost was incurred. |
 
-| Field               | Type          | Description                                                          |
-| ------------------- | ------------- | -------------------------------------------------------------------- |
-| `id`              | uuid          | PK                                                                   |
-| `activity_id`     | uuid          | FK to activities (CASCADE)                                           |
-| `project_id`      | uuid          | FK to projects (SET NULL) — links cost to project for profitability |
-| `amount`          | numeric(12,2) | Cost amount                                                          |
-| `currency`        | varchar(3)    | Currency code                                                        |
-| `reference`       | text          | Invoice/source reference                                             |
-| `approval_status` | varchar(20)   | `pending` -> `approved` -> `rejected`                          |
-| `incurred_on`     | date          | Date cost was incurred                                               |
+##### 3.4.2.6 Vendor Parts
 
-**Business Rules:**
+###### `vendor_parts`
 
-- Default state: `pending`; approval subject to budget/tolerance checks
-- Validation: unit must be `released`, cost line must exist and be approved
-- Amounts cannot exceed approved budget + tolerance unless covered by change orders
-- Approval triggers GL posting (debit expense/WIP, credit AP/accrual)
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `vendor_id` | uuid | FK to `vendors` (CASCADE). |
+| `vendor_sku` | varchar(64) | Vendor's SKU. |
+| `tenant_sku` | varchar(64) | Internal tenant SKU. |
+| `unit_cost` | numeric(12,4) | Unit cost. |
+| `currency` | varchar(3) | Currency code. |
+| `markup_pct` | numeric(5,2) | Markup percentage. |
+| `is_active` | boolean | Default true. |
 
-**Endpoint:** `/api/activities/v1/actual-costs`
+#### 3.4.3 API
 
-#### 3.5.6 Vendor Parts
+All endpoints under `/api/activities/v1/` provide standard CRUD (§4.1).
 
-| Field          | Type          | Description             |
-| -------------- | ------------- | ----------------------- |
-| `id`         | uuid          | PK                      |
-| `vendor_id`  | uuid          | FK to vendors (CASCADE) |
-| `vendor_sku` | varchar(64)   | Vendor's SKU            |
-| `tenant_sku` | varchar(64)   | Internal tenant SKU     |
-| `unit_cost`  | numeric(12,4) | Unit cost               |
-| `currency`   | varchar(3)    | Currency code           |
-| `markup_pct` | numeric(5,2)  | Markup percentage       |
-| `is_active`  | boolean       | Default true            |
+| Method | Path | Description |
+| --- | --- | --- |
+| CRUD | `/api/activities/v1/categories` | Manage categories. |
+| CRUD | `/api/activities/v1/activities` | Manage activities. |
+| CRUD | `/api/activities/v1/deliverables` | Manage deliverables. |
+| CRUD | `/api/activities/v1/deliverable-assignments` | Manage deliverable assignments. |
+| CRUD | `/api/activities/v1/budgets` | Manage budgets. |
+| CRUD | `/api/activities/v1/cost-lines` | Manage cost lines. |
+| CRUD | `/api/activities/v1/actual-costs` | Manage actual costs. |
+| CRUD | `/api/activities/v1/vendor-parts` | Manage vendor parts. |
 
-**Endpoint:** `/api/activities/v1/vendor-parts`
+#### 3.4.4 Business Rules
+
+1. Budgets must be approved before their parent unit can be marked `released`.
+2. Approved budget versions are read-only. New changes spawn a new version.
+3. `remaining_budget` and `spent_to_date` are maintained by triggers and services as cost lines and actual costs are added.
+4. Default actual-cost state is `pending`. Approval is subject to budget and tolerance checks.
+5. An actual cost can be approved only when its parent unit is `released` and its cost line exists and is approved.
+6. Amounts cannot exceed approved budget plus tolerance unless covered by an approved change order.
+7. Approving an actual cost triggers GL posting — debit expense / WIP, credit AP / accrual — via the cross-module posting contract (see [ADR-0019](./decisions/0019-cross-module-posting.md)).
+8. `cost_lines.amount` is a database-generated column; never set it directly.
+9. Vendor parts seed cost-line `unit_price` and `markup_pct` defaults when a buyer selects a `(vendor, vendor_sku)` pair.
 
 ---
 
