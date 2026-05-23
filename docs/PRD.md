@@ -2024,125 +2024,157 @@ Top-level reporting endpoints live under `/api/reports/v1/`. The cashflow- and p
 
 ---
 
-### 3.12 Match Review Logs  [in-scope]
+### 3.10 Shared Tables  [core]
 
-**Purpose:** Audit trail for BOM vendor SKU matching decisions.
+Tables that don't belong to any single business module — they're consumed by several. Grouped here for clarity.
 
-| Field           | Type        | Description                       |
-| --------------- | ----------- | --------------------------------- |
-| `id`          | uuid        | PK                                |
-| `entity_type` | varchar(32) | Entity being matched              |
-| `entity_id`   | uuid        | Entity ID                         |
-| `match_type`  | varchar(32) | Type of match                     |
-| `match_id`    | uuid        | Matched entity ID                 |
-| `reviewer_id` | uuid        | Reviewer user ID                  |
-| `decision`    | varchar(16) | `accept`, `reject`, `defer` |
-| `notes`       | text        | Reviewer notes                    |
+#### 3.10.1 Emails
 
-**Endpoint:** `/api/tenants/v1/match-review-logs`
+The `emails` table is the canonical store for email addresses across vendors, vendor contacts, clients, employees, and contacts. It replaces per-entity `email` columns.
 
+###### `emails`
 
-### 3.14 Tenant-First-Class Modules  [in-scope]
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null, immutable. |
+| `source_id` | uuid | FK to `sources` (CASCADE). Polymorphic link. |
+| `email` | varchar(128) | Not null. |
+| `label` | varchar(32) | Optional (`work`, `personal`, etc.). |
+| `is_primary` | boolean | Default false. Partial unique per `source_id`. |
+| `is_login` | boolean | Default false. Marks the email used as the linked `portal_users.email` for entities with `is_app_user = true`. Partial unique per `source_id`. |
 
-**Purpose:** Tenant-scoped reference modules that did not fit cleanly into §3.3 *Core Entities* when the PRD was first written. Documented here for completeness.
-
-#### 3.14.1 Emails (first-class tenant-scoped table)
-
-The `emails` table is the canonical store for email addresses across vendors, clients, employees, contacts, and vendor contacts. It replaces the per-entity `email` column on `clients` and `employees`.
-
-| Field           | Type         | Description                                                                                                    |
-| --------------- | ------------ | -------------------------------------------------------------------------------------------------------------- |
-| `id`            | uuid         | PK                                                                                                             |
-| `tenant_id`     | uuid         | Not null, immutable                                                                                            |
-| `source_id`     | uuid         | FK to `sources` (CASCADE); polymorphic link to vendor / client / employee / contact / vendor_contact            |
-| `email`         | varchar(128) | Not null                                                                                                       |
-| `label`         | varchar(32)  | Optional ("work", "personal", etc.)                                                                            |
-| `is_primary`    | boolean      | Default false. Partial unique per `source_id` (one primary per entity).                                        |
-| `is_login`      | boolean      | Default false. Marks the email used as the linked `portal_users.email` for entities with `is_app_user = true`. Partial unique per `source_id` (one login email per entity). |
-
-Indexes / invariants:
-
-- Partial unique `(email) WHERE deactivated_at IS NULL` — tenant-wide email uniqueness for active rows (replaces the former `employees.email` partial unique).
+Indexes and invariants:
+- Partial unique `(email) WHERE deactivated_at IS NULL` — tenant-wide email uniqueness for active rows.
 - Partial unique `(source_id) WHERE is_login = true AND deactivated_at IS NULL`.
 - Partial unique `(source_id) WHERE is_primary = true AND deactivated_at IS NULL`.
-- Partial unique `(source_id, label) WHERE deactivated_at IS NULL AND label IS NOT NULL` — at most one of each label per entity.
+- Partial unique `(source_id, label) WHERE deactivated_at IS NULL AND label IS NOT NULL`.
 
-**Endpoint:** `/api/core/v1/emails` (standard CRUD via `createRouter`).
+Endpoint: `/api/core/v1/emails` (standard CRUD). Policy catalog entry `core::emails`. See [ADR-0025](./decisions/0025-import-dedup-partial-unique-indexes.md).
 
-**Policy catalog entry:** `core::emails` (registered in `policyCatalogSeeder.js`).
+#### 3.10.2 Tenant Preferences
 
-**Client UI:** `EmailsSection` / `EditableEmailsSection` / `EmailRow` components in `apps/client/src/components/shared/` render the email list inside each entity edit dialog (mirrors the Tax / Phone / Addresses sections — see §6.5 and §3.3.4).
+One row per tenant. Tenant-scoped UI and behaviour preferences.
 
-**ADR Reference:** [ADR-0025](./decisions/0025-import-dedup-partial-unique-indexes.md) audits the schema.
+###### `tenant_preferences`
 
-#### 3.14.2 Tenant Preferences
-
-One row per tenant — tenant-scoped UI and behaviour preferences.
-
-| Field                | Type    | Description                                                       |
-| -------------------- | ------- | ----------------------------------------------------------------- |
-| `id`                 | uuid    | PK                                                                |
-| `tenant_id`          | uuid    | Not null, immutable, unique                                       |
-| `default_page_size`  | integer | Not null, default 25. CHECK: between 25 and 1000.                 |
-
-**Endpoint:** `/api/core/v1/tenant-preferences` (standard CRUD via `createRouter`).
-
-**Schema:** `apps/server/src/system/core/schemas/tenantPreferencesSchema.js`.
-
-**Migration:** `202603270015_tenantPreferences.js` (creates the table per tenant).
-
-**Seeder:** `apps/server/src/system/core/services/tenantPreferencesSeeder.js` inserts the default row during tenant provisioning.
-
-#### 3.14.3 Countries (admin reference table)
-
-ISO 3166-1 alpha-2 country reference list in the admin schema. Tenant-scope tables (`phone_numbers`, `addresses`, `tax_identifiers`) FK their `country_code` columns here so non-ISO inputs (`UK`, `Us`) are rejected at the database level.
-
-| Field         | Type         | Description                                |
-| ------------- | ------------ | ------------------------------------------ |
-| `code`        | char(2)      | PK; ISO 3166-1 alpha-2 code, immutable     |
-| `name`        | varchar(128) | Country name, not null                     |
-| `dial_code`   | varchar(8)   | International dialing prefix (e.g., `+1`)  |
-| `placeholder` | varchar(64)  | UI placeholder format hint                 |
-
-**Schema:** `apps/server/src/system/auth/schemas/countriesSchema.js`. Model: `apps/server/src/system/auth/models/Countries.js`. Seeder: `apps/server/src/system/auth/services/countriesSeeder.js`. No API surface — read directly by the client via the shared country list in `packages/shared`.
-
----
-
-### 3.15 Planned Integrations (Customer-Gated)  [deferred]
-
-The following integrations are recorded so they are not re-litigated, but **none will be built until a paying customer requires them**. Each is an integration into an existing third party, not a feature we own end-to-end.
-
-| Feature | Integration target | Notes |
+| Column | Type | Notes |
 | --- | --- | --- |
-| Bank reconciliation | Plaid | Feature lives in the `accounting` module. Plaid pulls transactions; matching logic in `accounting`. Not a separate module. |
-| Sales tax | Avalara or TaxJar (TBD) | Jurisdiction-specific; do not build in-house. |
-| Multi-currency / FX | TBD | Adds schema complexity across every monetary table; defer until forced. |
-| Expense claims | TBD | Relevant to every vertical; simple enough that we may eventually own it. |
-| HR / payroll | Gusto or ADP (TBD) | Regulated and complex; integrate only, never build. |
-| CRM | TBD | Out of scope; no vertical-driven need beyond the existing Clients + Contacts core data. |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null, immutable, unique. |
+| `default_page_size` | integer | Not null, default 25. CHECK: between 25 and 1000. |
 
-Bank reconciliation in particular is **inside `accounting`** — Plaid is the data source, and the reconciliation UI, matching rules, and journal-entry creation all belong to the `accounting` module. It is not a standalone module.
+Endpoint: `/api/core/v1/tenant-preferences` (standard CRUD). Seeded with the default row during tenant provisioning (`tenantPreferencesSeeder.js`).
+
+#### 3.10.3 Countries
+
+ISO 3166-1 alpha-2 country reference list in the **admin** schema. Tenant tables (`phone_numbers`, `addresses`, `tax_identifiers`) FK their `country_code` columns here so non-ISO inputs are rejected at the database level.
+
+###### `admin.countries`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `code` | char(2) | Primary key. ISO 3166-1 alpha-2. Immutable. |
+| `name` | varchar(128) | Country name, not null. |
+| `dial_code` | varchar(8) | International dialing prefix (e.g., `+1`). |
+| `placeholder` | varchar(64) | UI placeholder format hint. |
+
+No API surface. Read directly by the client via the shared country list in `packages/shared`.
+
+#### 3.10.4 Match Review Logs
+
+Audit trail for BOM vendor-SKU matching decisions.
+
+###### `match_review_logs`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `entity_type` | varchar(32) | Entity being matched. |
+| `entity_id` | uuid | Entity id. |
+| `match_type` | varchar(32) | Type of match. |
+| `match_id` | uuid | Matched entity id. |
+| `reviewer_id` | uuid | Reviewer user id. |
+| `decision` | varchar(16) | `accept`, `reject`, `defer`. |
+| `notes` | text | Reviewer notes. |
+
+Endpoint: `/api/tenants/v1/match-review-logs`.
 
 ---
 
-### 3.16 Demo Tenants  [in-scope]
+### 3.11 Demo Tenants  [in-scope]
 
-Two named demo tenants exercise the product surface area. They are referenced by name in screenshots, walkthroughs, and seed scripts.
+Two named demo tenants exercise the full product surface. Both are referenced by name in screenshots, walkthroughs, and seed scripts.
 
-#### 3.16.1 Meridian Group (consulting holding company)
+#### 3.11.1 Meridian Group (MG) — Consulting Use Case
 
-- **Modules exercised:** all core (`system`, `system/core`, `accounting`, `ap`, `ar`, `projects`, `activities`, `reports`).
-- **Vertical:** services — `contracts`, `timesheets`, `scheduling`.
-- **Structure:** holding company with three legal entities, so it exercises **intercompany accounting** (see §3.9.7).
-- **Does not require:** `bom`, `procurement`, `inventory`.
-- **Purpose:** prove the core product on a realistic multi-entity services book.
+##### 3.11.1.1 Profile
 
-#### 3.16.2 Sterling Ridge Homes (construction company)
+Holding company with three legal entities. Professional services and consulting. No construction. No manufacturing. Exists to prove out the core product on a realistic multi-entity services book and to exercise intercompany accounting (§3.7.2.6).
 
-- **Modules exercised:** all core plus the construction vertical.
-- **Vertical:** construction — `contracts`, `bom`, `procurement`, `inventory` (plus `scheduling`, `timesheets` where applicable).
-- **Workflows exercised:** AR closing statement flow (§3.8.4), WIP tracking, unit/lot management, draw schedules, vertical feature selection.
-- **Purpose:** drive out the construction-vertical requirements and stress-test architecture flexibility (vertical-specific contracts, GL posting from a vertical module, inventory/WIP/project account relationships).
+##### 3.11.1.2 Active Modules
+
+| Kind | Modules |
+| --- | --- |
+| Core | All ten core modules (§3.0.1). |
+| Add-on | `contracts`, `scheduling`, `timesheets`. |
+
+##### 3.11.1.3 Data Requirements
+
+Realistic volume for a mid-size consulting firm:
+
+- 3 companies (legal entities under one tenant).
+- 20+ projects across the three companies.
+- 50+ vendors, 30+ clients, 40+ employees.
+- 200+ AP invoices, 150+ AR invoices.
+- 500+ journal entries with realistic intercompany activity.
+
+##### 3.11.1.4 Key Workflows
+
+- Project budgeting through the budget approval gate.
+- Contract milestones (`contracts` add-on) gating AR invoice generation.
+- Timesheet entries flowing into cost lines via the labor cost path.
+- Intercompany billing between the three legal entities, with elimination on consolidation.
+
+##### 3.11.1.5 Seed Script Reference
+
+`apps/server/scripts/seedDemoMG.js`. Reproducible — drops and recreates the MG tenant schema, then populates it from fixtures under `apps/server/scripts/fixtures/mg/`.
+
+#### 3.11.2 Sterling Ridge Homes (SRH) — Construction Use Case
+
+##### 3.11.2.1 Profile
+
+Homebuilder and property developer with three companies. Uses construction-specific workflows: unit-level cost tracking, BOM-driven procurement, contracted draw schedules, and subcontractor AP with lien-waiver tracking. Exists to drive out the construction add-on requirements and stress-test the cross-module posting contract.
+
+##### 3.11.2.2 Active Modules
+
+| Kind | Modules |
+| --- | --- |
+| Core | All ten core modules (§3.0.1). |
+| Add-on | `bom`, `contracts`, `scheduling`, `timesheets`, `procurement`, `inventory`. |
+
+##### 3.11.2.3 Data Requirements
+
+Realistic volume for a mid-size homebuilder:
+
+- 3 companies.
+- 15+ projects (each with multiple units).
+- 80+ vendors, 20+ clients, 30+ employees.
+- 300+ AP invoices, 100+ AR invoices.
+- 500+ BOM catalog SKUs.
+- 200+ vendor SKUs mapped to catalog SKUs.
+
+##### 3.11.2.4 Key Workflows
+
+- Unit-level cost tracking and budget variance reporting.
+- BOM-to-PO flow: select catalog SKUs, resolve to vendor SKUs, issue purchase orders through the `procurement` add-on.
+- Draw schedule tied to contract deliverables (`contracts` add-on) gating AR closing statements.
+- Subcontractor AP with lien-waiver tracking attached to AP invoices.
+- Closing-statement posting (revenue, WIP, inventory, intercompany) via the cross-module contract.
+
+##### 3.11.2.5 Seed Script Reference
+
+`apps/server/scripts/seedDemoSRH.js`. Reproducible — drops and recreates the SRH tenant schema, then populates it from fixtures under `apps/server/scripts/fixtures/srh/`.
 
 ---
 
