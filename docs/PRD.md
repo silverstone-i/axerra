@@ -1962,41 +1962,65 @@ All endpoints under `/api/reports/v1/`.
 7. Aging grids use five buckets (current / 1-30 / 31-60 / 61-90 / over 90) grouped by client (AR) or vendor (AP); they are filterable by project and include a totals summary row.
 
 ---
-### 3.11 Reporting & Views  [in-scope]
+### 3.9 Reporting & Views  [core]
 
-**Purpose:** Pre-computed SQL views for dashboards and data export.
+#### 3.9.1 Overview
 
-**Core Export Views:**
+The Reporting module is a thin layer of SQL views and report endpoints that read across other modules' data. Export views provide consolidated, denormalized rows for spreadsheet export; financial views (covered in §3.8) drive dashboards. Reporting itself owns no transactional data.
 
-| View                              | Description                                                          |
-| --------------------------------- | -------------------------------------------------------------------- |
-| `vw_export_contacts`            | Unified contacts across vendors, clients, employees with source_type |
-| `vw_export_addresses`           | Unified addresses across all source types                            |
-| `vw_export_template_cost_items` | Template cost items with unit name, version, task hierarchy          |
-| `vw_template_tasks_export`      | Template tasks with unit name and version                            |
+#### 3.9.2 Data Tables & Views
 
-**Export View Endpoints:** Views are created by the `202502120080_sqlViews` migration. API routes are not yet implemented — views are queried directly by report controllers where needed.
+##### 3.9.2.1 Core export views
 
-**Financial Views (see §3.10.4):**
+Created by migration `202502120080_sqlViews` and queried directly by report controllers.
 
-| View                            | Description                                 |
-| ------------------------------- | ------------------------------------------- |
-| `vw_project_profitability`    | Rolled-up profitability metrics per project |
-| `vw_project_cashflow_monthly` | Monthly inflow/outflow time series          |
-| `vw_project_cost_by_category` | Cost breakdown by activity category         |
-| `vw_ar_aging`                 | AR aging buckets by client/project          |
-| `vw_ap_aging`                 | AP aging buckets by vendor/project          |
+| View | Description |
+| --- | --- |
+| `vw_export_contacts` | Unified contacts across vendors, clients, and employees with `source_type`. |
+| `vw_export_addresses` | Unified addresses across all source types. |
+| `vw_export_template_cost_items` | Template cost items with unit name, version, and task hierarchy. |
+| `vw_template_tasks_export` | Template tasks with unit name and version. |
 
-**Budget vs Actual Metrics:**
+##### 3.9.2.2 Financial views
 
-| Metric              | Calculation                                       |
-| ------------------- | ------------------------------------------------- |
-| Original Budget     | Sum of approved `cost_lines.total_cost`         |
-| Change Orders       | Sum of approved `change_order_lines.total_cost` |
-| Actual Costs        | Sum of `actual_costs.amount` (approved)         |
-| Total Exposure      | Original Budget + Change Orders                   |
-| Variance (Baseline) | Original Budget − Actual Costs                   |
-| Variance (Total)    | Total Exposure − Actual Costs                    |
+Owned by §3.8 (Cashflow & Profitability) and referenced here for convenience.
+
+| View | Description |
+| --- | --- |
+| `vw_project_profitability` | Rolled-up profitability metrics per project. |
+| `vw_project_cashflow_monthly` | Monthly inflow/outflow time series. |
+| `vw_project_cost_by_category` | Cost breakdown by activity category. |
+| `vw_ar_aging` | AR aging buckets per client. |
+| `vw_ap_aging` | AP aging buckets per vendor. |
+
+##### 3.9.2.3 Budget vs. actual metrics
+
+| Metric | Calculation |
+| --- | --- |
+| Original Budget | SUM approved `cost_lines.total_cost`. |
+| Change Orders | SUM approved `change_order_lines.total_cost`. |
+| Actual Costs | SUM `actual_costs.amount` (approved). |
+| Total Exposure | Original Budget + Change Orders. |
+| Variance (Baseline) | Original Budget − Actual Costs. |
+| Variance (Total) | Total Exposure − Actual Costs. |
+
+#### 3.9.3 API
+
+Top-level reporting endpoints live under `/api/reports/v1/`. The cashflow- and profitability-specific endpoints are documented in §3.8.3; this section lists only the non-financial export endpoints.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/api/reports/v1/export-contacts` | Export contacts CSV/XLSX from `vw_export_contacts`. |
+| GET | `/api/reports/v1/export-addresses` | Export addresses CSV/XLSX from `vw_export_addresses`. |
+| GET | `/api/reports/v1/export-template-cost-items` | Export template cost items. |
+| GET | `/api/reports/v1/export-template-tasks` | Export template tasks. |
+
+#### 3.9.4 Business Rules
+
+1. Reporting endpoints are read-only and do not write to underlying tables.
+2. Views are recreated by migration. Controllers do not modify view definitions at runtime.
+3. Budget-vs-actual calculations are based on **approved** records only. Drafts and rejected items are excluded.
+4. Cross-module financial reporting (cashflow, profitability) is owned by §3.8; this section's endpoints stop at exports and non-financial views.
 
 ---
 
