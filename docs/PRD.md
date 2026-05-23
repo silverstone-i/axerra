@@ -1724,146 +1724,155 @@ Accounts Receivable (AR) owns client invoices, invoice lines, and receipts. AR i
 
 ---
 
-### 3.9 Accounting & General Ledger  [in-scope]
+### 3.7 Accounting & General Ledger  [core]
 
-**Purpose:** Chart of accounts, journal entries, ledger balances, posting queues, and category-account mappings.
+#### 3.7.1 Overview
 
-#### 3.9.1 Chart of Accounts
+The Accounting module owns the chart of accounts, journal entries and their lines, ledger balances, the posting queue, the category-to-account mapping, and intercompany accounting. Every other module that touches money (AP, AR, Activities, Contracts) posts here via the cross-module posting contract ([ADR-0019](./decisions/0019-cross-module-posting.md)); accounting itself does not source events from external systems.
 
-| Field                   | Type        | Description                                                                                                                                     |
-| ----------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`                  | uuid        | PK                                                                                                                                              |
-| `code`                | varchar(16) | Account code                                                                                                                                    |
-| `name`                | varchar(64) | Account name                                                                                                                                    |
-| `type`                | varchar(16) | Intended values:`asset`, `liability`, `equity`, `income`, `expense`, `cash`, `bank` (no CHECK constraint — any varchar accepted) |
-| `is_active`           | boolean     | Default true                                                                                                                                    |
-| `cash_basis`          | boolean     | Default false                                                                                                                                   |
-| `bank_account_number` | varchar(32) | For cash/bank types                                                                                                                             |
-| `routing_number`      | varchar(16) | Bank routing                                                                                                                                    |
-| `bank_name`           | varchar(64) | Bank name                                                                                                                                       |
+#### 3.7.2 Data Tables
 
-**Endpoint:** `/api/accounting/v1/chart-of-accounts`
+##### 3.7.2.1 Chart of Accounts
 
-#### 3.9.2 Journal Entries
+###### `chart_of_accounts`
 
-| Field           | Type        | Description                                                    |
-| --------------- | ----------- | -------------------------------------------------------------- |
-| `id`          | uuid        | PK                                                             |
-| `company_id`  | uuid        | FK to companies (RESTRICT)                                     |
-| `project_id`  | uuid        | FK to projects (SET NULL) — enables project-level GL analysis |
-| `entry_date`  | date        | Entry date                                                     |
-| `description` | text        | Description                                                    |
-| `status`      | varchar(16) | `pending` -> `posted` -> `reversed` (CHECK constraint)   |
-| `source_type` | varchar(32) | `activity_actual`, `invoice`, `payment`, etc.            |
-| `source_id`   | uuid        | Reference to source record                                     |
-| `corrects_id` | uuid        | Self-ref FK for reversals (SET NULL)                           |
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `code` | varchar(16) | Account code. |
+| `name` | varchar(64) | Account name. |
+| `type` | varchar(16) | Intended values: `asset`, `liability`, `equity`, `income`, `expense`, `cash`, `bank`. No CHECK constraint; values are enforced by controller validation. |
+| `is_active` | boolean | Default true. |
+| `cash_basis` | boolean | Default false. |
+| `bank_account_number` | varchar(32) | For cash/bank account types. |
+| `routing_number` | varchar(16) | Bank routing. |
+| `bank_name` | varchar(64) | Bank name. |
 
-**Business Rules:**
+##### 3.7.2.2 Journal Entries & Lines
 
-- Entries must balance (sum debits = sum credits)
-- Fiscal period validation is planned but not yet implemented — the `fiscal_periods` table does not exist
-- Self-referential `corrects_id` supports reversal chains
+###### `journal_entries`
 
-**Endpoints:**
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `company_id` | uuid | FK to `companies` (RESTRICT). |
+| `project_id` | uuid | FK to `projects` (SET NULL). Enables project-level GL analysis. |
+| `entry_date` | date | Entry date. |
+| `description` | text | Description. |
+| `status` | varchar(16) | `pending` → `posted` → `reversed`. |
+| `source_type` | varchar(32) | `activity_actual`, `invoice`, `payment`, etc. |
+| `source_id` | uuid | Reference to the source record in the originating module. |
+| `corrects_id` | uuid | Self-ref FK for reversals (SET NULL). |
 
-| Method        | Path                                           | Purpose                                                               |
-| ------------- | ---------------------------------------------- | --------------------------------------------------------------------- |
-| Standard CRUD | `/api/accounting/v1/journal-entries`         | List, get, create, update, archive, restore                           |
-| `POST`      | `/api/accounting/v1/journal-entries/post`    | Post pending journal entries (sets status to `posted`)              |
-| `POST`      | `/api/accounting/v1/journal-entries/reverse` | Reverse posted entries (creates correcting entry via `corrects_id`) |
+###### `journal_entry_lines`
 
-#### 3.9.3 Journal Entry Lines
+| Column | Type | Notes |
+| --- | --- | --- |
+| `entry_id` | uuid | FK to `journal_entries` (CASCADE). |
+| `account_id` | uuid | FK to `chart_of_accounts` (RESTRICT). |
+| `debit` | numeric(12,2) | Debit amount (default 0). |
+| `credit` | numeric(12,2) | Credit amount (default 0). |
+| `memo` | text | Line memo. |
+| `related_table` | varchar(32) | Polymorphic reference table. |
+| `related_id` | uuid | Polymorphic reference id. |
 
-| Field             | Type          | Description                        |
-| ----------------- | ------------- | ---------------------------------- |
-| `entry_id`      | uuid          | FK to journal_entries (CASCADE)    |
-| `account_id`    | uuid          | FK to chart_of_accounts (RESTRICT) |
-| `debit`         | numeric(12,2) | Debit amount (default 0)           |
-| `credit`        | numeric(12,2) | Credit amount (default 0)          |
-| `memo`          | text          | Line memo                          |
-| `related_table` | varchar(32)   | Polymorphic reference table        |
-| `related_id`    | uuid          | Polymorphic reference ID           |
+##### 3.7.2.3 Ledger Balances
 
-**Endpoint:** `/api/accounting/v1/journal-entry-lines`
+###### `ledger_balances`
 
-#### 3.9.4 Ledger Balances
+| Column | Type | Notes |
+| --- | --- | --- |
+| `account_id` | uuid | FK to `chart_of_accounts` (RESTRICT). |
+| `as_of_date` | date | Balance date. |
+| `balance` | numeric(14,2) | Account balance. |
 
-| Field          | Type          | Description                        |
-| -------------- | ------------- | ---------------------------------- |
-| `account_id` | uuid          | FK to chart_of_accounts (RESTRICT) |
-| `as_of_date` | date          | Balance date                       |
-| `balance`    | numeric(14,2) | Account balance                    |
+##### 3.7.2.4 Posting Queues
 
-**Endpoint:** `/api/accounting/v1/ledger-balances`
+###### `posting_queues`
 
-#### 3.9.5 Posting Queues
+| Column | Type | Notes |
+| --- | --- | --- |
+| `journal_entry_id` | uuid | FK to `journal_entries` (CASCADE). |
+| `status` | varchar(16) | `pending` → `posted` → `failed`. |
+| `error_message` | text | Error details on failure. |
+| `processed_at` | timestamptz | Processing timestamp. |
 
-| Field                | Type        | Description                                                |
-| -------------------- | ----------- | ---------------------------------------------------------- |
-| `journal_entry_id` | uuid        | FK to journal_entries (CASCADE)                            |
-| `status`           | varchar(16) | `pending` -> `posted` -> `failed` (CHECK constraint) |
-| `error_message`    | text        | Error details on failure                                   |
-| `processed_at`     | timestamptz | Processing timestamp                                       |
+##### 3.7.2.5 Category-Account Map
 
-**Endpoint:** `/api/accounting/v1/posting-queues`
+###### `category_account_map`
 
-#### 3.9.6 Category-Account Map
+Maps cost categories to GL accounts with date-range validity.
 
-Maps cost categories to GL accounts with date-range validity:
+| Column | Type | Notes |
+| --- | --- | --- |
+| `category_id` | uuid | FK to `categories` (RESTRICT). |
+| `account_id` | uuid | FK to `chart_of_accounts` (RESTRICT). |
+| `valid_from` | date | Effective start date. |
+| `valid_to` | date | Effective end date. |
 
-| Field           | Type | Description                        |
-| --------------- | ---- | ---------------------------------- |
-| `category_id` | uuid | FK to categories (RESTRICT)        |
-| `account_id`  | uuid | FK to chart_of_accounts (RESTRICT) |
-| `valid_from`  | date | Effective start date               |
-| `valid_to`    | date | Effective end date                 |
+##### 3.7.2.6 Intercompany
 
-**Endpoint:** `/api/accounting/v1/category-account-map`
+###### `company_accounts`
 
-#### 3.9.7 Intercompany Accounting
+| Column | Type | Notes |
+| --- | --- | --- |
+| `source_company_id` | uuid | FK to `companies` (RESTRICT). |
+| `target_company_id` | uuid | FK to `companies` (RESTRICT). |
+| `inter_company_account_id` | uuid | FK to `chart_of_accounts` (RESTRICT). |
+| `is_active` | boolean | Default true. |
 
-**Company Accounts:**
+Unique `(tenant_id, source_company_id, target_company_id)`.
 
-| Field                        | Type    | Description                        |
-| ---------------------------- | ------- | ---------------------------------- |
-| `source_company_id`        | uuid    | FK to companies (RESTRICT)         |
-| `target_company_id`        | uuid    | FK to companies (RESTRICT)         |
-| `inter_company_account_id` | uuid    | FK to chart_of_accounts (RESTRICT) |
-| `is_active`                | boolean | Default true                       |
+###### `company_transactions`
 
-Unique constraint: `(tenant_id, source_company_id, target_company_id)`
+| Column | Type | Notes |
+| --- | --- | --- |
+| `source_company_id` | uuid | FK to `companies` (RESTRICT). |
+| `target_company_id` | uuid | FK to `companies` (RESTRICT). |
+| `source_journal_entry_id` | uuid | FK to `journal_entries` (SET NULL). |
+| `target_journal_entry_id` | uuid | FK to `journal_entries` (SET NULL). |
+| `module` | varchar(32) | Intended values: `ar`, `ap`, `je`. No CHECK constraint. |
+| `amount` | numeric(14,2) | Transaction amount (default 0). |
+| `status` | varchar(16) | `pending` → `posted` → `reversed` (default `pending`). |
+| `is_eliminated` | boolean | Elimination flag for consolidated reporting (default false). |
+| `description` | text | Transaction description. |
 
-**Company Transactions:**
+###### `internal_transfers`
 
-| Field                       | Type          | Description                                                                          |
-| --------------------------- | ------------- | ------------------------------------------------------------------------------------ |
-| `source_company_id`       | uuid          | FK to companies (RESTRICT)                                                           |
-| `target_company_id`       | uuid          | FK to companies (RESTRICT)                                                           |
-| `source_journal_entry_id` | uuid          | FK to journal_entries (SET NULL)                                                     |
-| `target_journal_entry_id` | uuid          | FK to journal_entries (SET NULL)                                                     |
-| `module`                  | varchar(32)   | Intended values:`ar`, `ap`, `je` (no CHECK constraint — any varchar accepted) |
-| `amount`                  | numeric(14,2) | Transaction amount (default 0)                                                       |
-| `status`                  | varchar(16)   | `pending` -> `posted` -> `reversed` (CHECK constraint; default `pending`)    |
-| `is_eliminated`           | boolean       | Elimination flag for consolidated reporting (default false)                          |
-| `description`             | text          | Transaction description                                                              |
+| Column | Type | Notes |
+| --- | --- | --- |
+| `from_account_id` | uuid | FK to `chart_of_accounts` (RESTRICT). |
+| `to_account_id` | uuid | FK to `chart_of_accounts` (RESTRICT). |
+| `transfer_date` | date | Transfer date. |
+| `amount` | numeric(12,2) | Transfer amount. |
+| `description` | text | Transfer description. |
 
-**Internal Transfers:**
+#### 3.7.3 API
 
-| Field               | Type          | Description                        |
-| ------------------- | ------------- | ---------------------------------- |
-| `from_account_id` | uuid          | FK to chart_of_accounts (RESTRICT) |
-| `to_account_id`   | uuid          | FK to chart_of_accounts (RESTRICT) |
-| `transfer_date`   | date          | Transfer date                      |
-| `amount`          | numeric(12,2) | Transfer amount                    |
-| `description`     | text          | Transfer description               |
+All endpoints under `/api/accounting/v1/` provide standard CRUD (§4.1) unless noted.
 
-**Business Rules:**
+| Method | Path | Description |
+| --- | --- | --- |
+| CRUD | `/api/accounting/v1/chart-of-accounts` | Manage the chart of accounts. |
+| CRUD | `/api/accounting/v1/journal-entries` | Manage journal entries. |
+| POST | `/api/accounting/v1/journal-entries/post` | Post pending journal entries (`status` → `posted`). |
+| POST | `/api/accounting/v1/journal-entries/reverse` | Reverse posted entries (creates correcting entry via `corrects_id`). |
+| CRUD | `/api/accounting/v1/journal-entry-lines` | Manage journal entry lines. |
+| CRUD | `/api/accounting/v1/ledger-balances` | Manage ledger balances. |
+| CRUD | `/api/accounting/v1/posting-queues` | Manage the posting queue. |
+| CRUD | `/api/accounting/v1/category-account-map` | Manage category → GL account mappings. |
+| CRUD | `/api/accounting/v1/company-accounts` | Manage intercompany account pairs. |
+| CRUD | `/api/accounting/v1/company-transactions` | Manage intercompany transactions. |
+| CRUD | `/api/accounting/v1/internal-transfers` | Manage internal transfers. |
 
-- Intercompany transactions create paired journal entries (due-to / due-from)
-- Carry elimination flags for consolidated reporting
-- Consolidation targets tenant-level P&L, balance sheet, and elimination reports
+#### 3.7.4 Business Rules
 
-**Endpoints:** `/api/accounting/v1/company-accounts`, `/api/accounting/v1/company-transactions`, `/api/accounting/v1/internal-transfers`
+1. Every journal entry must balance: `SUM(debit) = SUM(credit)`. Insertion of an unbalanced entry fails validation.
+2. Fiscal-period validation is planned but not yet implemented — the `fiscal_periods` table does not exist.
+3. `corrects_id` is self-referential and supports reversal chains. A reversal posts the inverse entry and links back to the original.
+4. The `category_account_map` resolves a `(category, date)` to the active `account_id`. Multiple rows per category may be active over time; lookup picks the row where `entry_date BETWEEN valid_from AND valid_to`.
+5. Intercompany transactions create paired journal entries (due-to / due-from) and carry an `is_eliminated` flag. Consolidation reporting eliminates flagged transactions from tenant-level P&L and balance sheet.
+6. The posting queue is the single asynchronous serialization point. Cross-module posters write to the queue; an accounting-side worker drains the queue, posts entries, and writes failures to `error_message` with a `failed` status for retry.
 
 ---
 
