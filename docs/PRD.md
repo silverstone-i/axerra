@@ -12,261 +12,263 @@ Status tags applied at the paragraph or bullet level (`[intended]`, `[implemente
 
 ## Table of Contents
 
-```
-Scope-tag Legend
-Glossary
+- [Scope-tag Legend](#scope-tag-legend)
 
-1. Overview
-   1.1 Product Overview
-   1.2 Target Users
-   1.3 Technology Stack
-   1.4 Monorepo Structure
+- [Glossary](#glossary)
 
-2. Architecture
-   2.1 Multi-Tenant Model
-   2.2 pg-schemata Integration
-       2.2.1 Core Capabilities
-       2.2.2 Query Operators
-       2.2.3 Model Definition Pattern
-       2.2.4 Database Initialization
-       2.2.5 Planned Enhancements
-   2.3 Application Layout
-   2.4 Request Flow
+- [1. Overview](#1-overview--in-scope)
+  - [1.1 Product Overview](#11-product-overview--in-scope)
+  - [1.2 Target Users](#12-target-users--in-scope)
+  - [1.3 Technology Stack](#13-technology-stack--in-scope)
+  - [1.4 Monorepo Structure](#14-monorepo-structure--in-scope)
 
-3. Module Reference
-   3.0 Module Taxonomy
-       3.0.1 Core Modules
-       3.0.2 Add-on Modules (loading rules)
-   3.1 System — Auth, Tenant & RBAC  [core]
-       3.1.1 Overview
-       3.1.2 Data Tables
-           3.1.2.1 portal_users
-           3.1.2.2 roles / policies / policy_catalog
-           3.1.2.3 state_filters / field_group_*
-           3.1.2.4 project_members / company_members
-       3.1.3 API
-           3.1.3.1 Authentication Endpoints
-           3.1.3.2 Tenant Management Endpoints
-           3.1.3.3 RBAC / Policy Endpoints
-       3.1.4 Business Rules
-           3.1.4.1 Login Flow & Token Lifecycle
-           3.1.4.2 Mid-Session Policy Refresh
-           3.1.4.3 Four-Layer RBAC Resolution
-           3.1.4.4 System Roles (incl. vendor_contacts, clients)
-           3.1.4.5 Tenant Numbering System
-   3.2 Core Entities  [core]
-       3.2.1 Overview
-       3.2.2 Data Tables
-           3.2.2.1 Vendors & Vendor Contacts
-           3.2.2.2 Payment Terms
-           3.2.2.3 Clients
-           3.2.2.4 Employees
-           3.2.2.5 Sources, Contacts, Addresses & Phones
-           3.2.2.6 Companies
-       3.2.3 API
-       3.2.4 Business Rules
-   3.3 Projects  [core]
-       3.3.1 Overview
-       3.3.2 Data Tables
-           3.3.2.1 Projects
-           3.3.2.2 Units
-           3.3.2.3 Tasks & Task Groups
-           3.3.2.4 Cost Items
-           3.3.2.5 Change Orders
-           3.3.2.6 Templates
-       3.3.3 API
-       3.3.4 Business Rules
-   3.4 Activities & Cost Management  [core]
-       3.4.1 Overview
-       3.4.2 Data Tables
-           3.4.2.1 Categories & Activities
-           3.4.2.2 Deliverables & Assignments
-           3.4.2.3 Budgets
-           3.4.2.4 Cost Lines
-           3.4.2.5 Actual Costs
-           3.4.2.6 Vendor Parts
-       3.4.3 API
-       3.4.4 Business Rules
-   3.5 Accounts Payable  [core]
-       3.5.1 Overview
-       3.5.2 Data Tables
-           3.5.2.1 AP Invoices
-           3.5.2.2 AP Invoice Lines
-           3.5.2.3 Payments
-           3.5.2.4 Credit Memos
-       3.5.3 API
-       3.5.4 Business Rules
-   3.6 Accounts Receivable  [core]
-       3.6.1 Overview
-       3.6.2 Data Tables
-           3.6.2.1 AR Invoices
-           3.6.2.2 AR Invoice Lines
-           3.6.2.3 Receipts
-       3.6.3 API
-       3.6.4 Business Rules
-   3.7 Accounting & General Ledger  [core]
-       3.7.1 Overview
-       3.7.2 Data Tables
-           3.7.2.1 Chart of Accounts
-           3.7.2.2 Journal Entries & Lines
-           3.7.2.3 Ledger Balances
-           3.7.2.4 Posting Queues
-           3.7.2.5 Category-Account Map
-           3.7.2.6 Intercompany
-       3.7.3 API
-       3.7.4 Business Rules
-   3.8 Cashflow & Profitability  [core]
-       3.8.1 Overview
-       3.8.2 Data Tables & Views
-       3.8.3 API
-       3.8.4 Business Rules
-   3.9 Reporting & Views  [core]
-       3.9.1 Overview
-       3.9.2 Data Tables & Views
-       3.9.3 API
-       3.9.4 Business Rules
-   3.10 Shared Tables  [core]
-       3.10.1 Emails
-       3.10.2 Tenant Preferences
-       3.10.3 Countries
-       3.10.4 Match Review Logs
-   3.11 Demo Tenants
-       3.11.1 Meridian Group (MG) — Consulting Use Case
-           3.11.1.1 Profile
-           3.11.1.2 Active Modules
-           3.11.1.3 Data Requirements
-           3.11.1.4 Key Workflows
-           3.11.1.5 Seed Script Reference
-       3.11.2 Sterling Ridge Homes (SRH) — Construction Use Case
-           3.11.2.1 Profile
-           3.11.2.2 Active Modules
-           3.11.2.3 Data Requirements
-           3.11.2.4 Key Workflows
-           3.11.2.5 Seed Script Reference
+- [2. Architecture](#2-architecture--in-scope)
+  - [2.1 Multi-Tenant Model](#21-multi-tenant-model--in-scope)
+  - [2.2 pg-schemata Integration](#22-pg-schemata-integration--in-scope)
+    - [2.2.1 Core Capabilities](#221-core-capabilities)
+    - [2.2.2 Query Operators](#222-query-operators)
+    - [2.2.3 Model Definition Pattern](#223-model-definition-pattern)
+    - [2.2.4 Database Initialization](#224-database-initialization)
+    - [2.2.5 Planned Enhancements](#225-planned-enhancements)
+  - [2.3 Application Layout](#23-application-layout--in-scope)
+  - [2.4 Request Flow](#24-request-flow--in-scope)
 
-   ── Add-on Modules ──────────────────────────────────────────────────
+- [3. Module Reference](#3-module-reference--in-scope)
+  - [3.0 Module Taxonomy](#30-module-taxonomy--in-scope)
+    - [3.0.1 Core Modules](#301-core-modules)
+    - [3.0.2 Add-on Modules (loading rules)](#302-add-on-modules-loading-rules)
+  - [3.1 System — Auth, Tenant & RBAC](#31-system--auth-tenant--rbac--core)
+    - [3.1.1 Overview](#311-overview)
+    - [3.1.2 Data Tables](#312-data-tables)
+      - [3.1.2.1 portal_users](#3121-portal_users)
+      - [3.1.2.2 roles / policies / policy_catalog](#3122-roles--policies--policy_catalog)
+      - [3.1.2.3 state_filters / field_group_*](#3123-state_filters--field_group_)
+      - [3.1.2.4 project_members / company_members](#3124-project_members--company_members)
+    - [3.1.3 API](#313-api)
+      - [3.1.3.1 Authentication Endpoints](#3131-authentication-endpoints)
+      - [3.1.3.2 Tenant Management Endpoints](#3132-tenant-management-endpoints)
+      - [3.1.3.3 RBAC / Policy Endpoints](#3133-rbac--policy-endpoints)
+    - [3.1.4 Business Rules](#314-business-rules)
+      - [3.1.4.1 Login Flow & Token Lifecycle](#3141-login-flow--token-lifecycle)
+      - [3.1.4.2 Mid-Session Policy Refresh](#3142-mid-session-policy-refresh)
+      - [3.1.4.3 Four-Layer RBAC Resolution](#3143-four-layer-rbac-resolution)
+      - [3.1.4.4 System Roles (incl. vendor_contacts, clients)](#3144-system-roles-incl-vendor_contacts-clients)
+      - [3.1.4.5 Tenant Numbering System](#3145-tenant-numbering-system)
+  - [3.2 Core Entities](#32-core-entities--core)
+    - [3.2.1 Overview](#321-overview)
+    - [3.2.2 Data Tables](#322-data-tables)
+      - [3.2.2.1 Vendors & Vendor Contacts](#3221-vendors--vendor-contacts)
+      - [3.2.2.2 Payment Terms](#3222-payment-terms)
+      - [3.2.2.3 Clients](#3223-clients)
+      - [3.2.2.4 Employees](#3224-employees)
+      - [3.2.2.5 Sources, Contacts, Addresses & Phones](#3225-sources-contacts-addresses--phones)
+      - [3.2.2.6 Companies](#3226-companies)
+    - [3.2.3 API](#323-api)
+    - [3.2.4 Business Rules](#324-business-rules)
+  - [3.3 Projects](#33-projects--core)
+    - [3.3.1 Overview](#331-overview)
+    - [3.3.2 Data Tables](#332-data-tables)
+      - [3.3.2.1 Projects](#3321-projects)
+      - [3.3.2.2 Units](#3322-units)
+      - [3.3.2.3 Tasks & Task Groups](#3323-tasks--task-groups)
+      - [3.3.2.4 Cost Items](#3324-cost-items)
+      - [3.3.2.5 Change Orders](#3325-change-orders)
+      - [3.3.2.6 Templates](#3326-templates)
+    - [3.3.3 API](#333-api)
+    - [3.3.4 Business Rules](#334-business-rules)
+  - [3.4 Activities & Cost Management](#34-activities--cost-management--core)
+    - [3.4.1 Overview](#341-overview)
+    - [3.4.2 Data Tables](#342-data-tables)
+      - [3.4.2.1 Categories & Activities](#3421-categories--activities)
+      - [3.4.2.2 Deliverables & Assignments](#3422-deliverables--assignments)
+      - [3.4.2.3 Budgets](#3423-budgets)
+      - [3.4.2.4 Cost Lines](#3424-cost-lines)
+      - [3.4.2.5 Actual Costs](#3425-actual-costs)
+      - [3.4.2.6 Vendor Parts](#3426-vendor-parts)
+    - [3.4.3 API](#343-api)
+    - [3.4.4 Business Rules](#344-business-rules)
+  - [3.5 Accounts Payable](#35-accounts-payable--core)
+    - [3.5.1 Overview](#351-overview)
+    - [3.5.2 Data Tables](#352-data-tables)
+      - [3.5.2.1 AP Invoices](#3521-ap-invoices)
+      - [3.5.2.2 AP Invoice Lines](#3522-ap-invoice-lines)
+      - [3.5.2.3 Payments](#3523-payments)
+      - [3.5.2.4 Credit Memos](#3524-credit-memos)
+    - [3.5.3 API](#353-api)
+    - [3.5.4 Business Rules](#354-business-rules)
+  - [3.6 Accounts Receivable](#36-accounts-receivable--core)
+    - [3.6.1 Overview](#361-overview)
+    - [3.6.2 Data Tables](#362-data-tables)
+      - [3.6.2.1 AR Invoices](#3621-ar-invoices)
+      - [3.6.2.2 AR Invoice Lines](#3622-ar-invoice-lines)
+      - [3.6.2.3 Receipts](#3623-receipts)
+    - [3.6.3 API](#363-api)
+    - [3.6.4 Business Rules](#364-business-rules)
+  - [3.7 Accounting & General Ledger](#37-accounting--general-ledger--core)
+    - [3.7.1 Overview](#371-overview)
+    - [3.7.2 Data Tables](#372-data-tables)
+      - [3.7.2.1 Chart of Accounts](#3721-chart-of-accounts)
+      - [3.7.2.2 Journal Entries & Lines](#3722-journal-entries--lines)
+      - [3.7.2.3 Ledger Balances](#3723-ledger-balances)
+      - [3.7.2.4 Posting Queues](#3724-posting-queues)
+      - [3.7.2.5 Category-Account Map](#3725-category-account-map)
+      - [3.7.2.6 Intercompany](#3726-intercompany)
+    - [3.7.3 API](#373-api)
+    - [3.7.4 Business Rules](#374-business-rules)
+  - [3.8 Cashflow & Profitability](#38-cashflow--profitability--core)
+    - [3.8.1 Overview](#381-overview)
+    - [3.8.2 Data Tables & Views](#382-data-tables--views)
+      - [3.8.2.1 Data linkage model](#3821-data-linkage-model)
+      - [3.8.2.2 Metrics](#3822-metrics)
+      - [3.8.2.3 SQL views](#3823-sql-views)
+    - [3.8.3 API](#383-api)
+    - [3.8.4 Business Rules](#384-business-rules)
+  - [3.9 Reporting & Views](#39-reporting--views--core)
+    - [3.9.1 Overview](#391-overview)
+    - [3.9.2 Data Tables & Views](#392-data-tables--views)
+      - [3.9.2.1 Core export views](#3921-core-export-views)
+      - [3.9.2.2 Financial views](#3922-financial-views)
+      - [3.9.2.3 Budget vs. actual metrics](#3923-budget-vs-actual-metrics)
+    - [3.9.3 API](#393-api)
+    - [3.9.4 Business Rules](#394-business-rules)
+  - [3.10 Shared Tables](#310-shared-tables--core)
+    - [3.10.1 Emails](#3101-emails)
+    - [3.10.2 Tenant Preferences](#3102-tenant-preferences)
+    - [3.10.3 Countries](#3103-countries)
+    - [3.10.4 Match Review Logs](#3104-match-review-logs)
+  - [3.11 Demo Tenants](#311-demo-tenants--in-scope)
+    - [3.11.1 Meridian Group (MG) — Consulting Use Case](#3111-meridian-group-mg--consulting-use-case)
+      - [3.11.1.1 Profile](#31111-profile)
+      - [3.11.1.2 Active Modules](#31112-active-modules)
+      - [3.11.1.3 Data Requirements](#31113-data-requirements)
+      - [3.11.1.4 Key Workflows](#31114-key-workflows)
+      - [3.11.1.5 Seed Script Reference](#31115-seed-script-reference)
+    - [3.11.2 Sterling Ridge Homes (SRH) — Construction Use Case](#3112-sterling-ridge-homes-srh--construction-use-case)
+      - [3.11.2.1 Profile](#31121-profile)
+      - [3.11.2.2 Active Modules](#31122-active-modules)
+      - [3.11.2.3 Data Requirements](#31123-data-requirements)
+      - [3.11.2.4 Key Workflows](#31124-key-workflows)
+      - [3.11.2.5 Seed Script Reference](#31125-seed-script-reference)
+  - [3.12 Bill of Materials (BOM)](#312-bill-of-materials-bom--add-on)
+    - [3.12.1 Overview](#3121-overview)
+    - [3.12.2 Data Tables](#3122-data-tables)
+      - [3.12.2.1 Catalog SKUs](#31221-catalog-skus)
+      - [3.12.2.2 Vendor SKUs](#31222-vendor-skus)
+      - [3.12.2.3 Vendor Pricing](#31223-vendor-pricing)
+    - [3.12.3 API](#3123-api)
+    - [3.12.4 Business Rules](#3124-business-rules)
+  - [3.13 Contracts](#313-contracts--add-on-deferred)
+    - [3.13.1 Overview](#3131-overview)
+    - [3.13.2 Data Tables](#3132-data-tables)
+    - [3.13.3 API](#3133-api)
+    - [3.13.4 Business Rules](#3134-business-rules)
+  - [3.14 Scheduling](#314-scheduling--add-on-deferred)
+    - [3.14.1 Overview](#3141-overview)
+    - [3.14.2 Data Tables](#3142-data-tables)
+    - [3.14.3 API](#3143-api)
+    - [3.14.4 Business Rules](#3144-business-rules)
+  - [3.15 Timesheets](#315-timesheets--add-on-deferred)
+    - [3.15.1 Overview](#3151-overview)
+    - [3.15.2 Data Tables](#3152-data-tables)
+    - [3.15.3 API](#3153-api)
+    - [3.15.4 Business Rules](#3154-business-rules)
+  - [3.16 Procurement](#316-procurement--add-on-deferred)
+    - [3.16.1 Overview](#3161-overview)
+    - [3.16.2 Data Tables](#3162-data-tables)
+    - [3.16.3 API](#3163-api)
+    - [3.16.4 Business Rules](#3164-business-rules)
+  - [3.17 Inventory & Warehousing](#317-inventory--warehousing--add-on-deferred)
+    - [3.17.1 Overview](#3171-overview)
+    - [3.17.2 Data Tables](#3172-data-tables)
+    - [3.17.3 API](#3173-api)
+    - [3.17.4 Business Rules](#3174-business-rules)
 
-   3.12 Bill of Materials (BOM)  [add-on]
-       3.12.1 Overview
-       3.12.2 Data Tables
-           3.12.2.1 Catalog SKUs
-           3.12.2.2 Vendor SKUs
-           3.12.2.3 Vendor Pricing
-       3.12.3 API
-       3.12.4 Business Rules
-   3.13 Contracts  [add-on]
-       3.13.1 Overview
-       3.13.2 Data Tables
-       3.13.3 API
-       3.13.4 Business Rules
-   3.14 Scheduling  [add-on]
-       3.14.1 Overview
-       3.14.2 Data Tables
-       3.14.3 API
-       3.14.4 Business Rules
-   3.15 Timesheets  [add-on]
-       3.15.1 Overview
-       3.15.2 Data Tables
-       3.15.3 API
-       3.15.4 Business Rules
-   3.16 Procurement  [add-on]
-       3.16.1 Overview
-       3.16.2 Data Tables
-       3.16.3 API
-       3.16.4 Business Rules
-   3.17 Inventory & Warehousing  [add-on]
-       3.17.1 Overview
-       3.17.2 Data Tables
-       3.17.3 API
-       3.17.4 Business Rules
+- [4. Standard API Patterns](#4-standard-api-patterns--in-scope)
+  - [4.1 CRUD Operations](#41-crud-operations--in-scope)
+  - [4.2 Pagination](#42-pagination--in-scope)
+  - [4.3 Audit Fields](#43-audit-fields--in-scope)
+  - [4.4 Soft Deletes](#44-soft-deletes--in-scope)
+  - [4.5 Validation](#45-validation--in-scope)
+  - [4.6 Excel Import / Export](#46-excel-import--export--in-scope)
+    - [4.6.1 Backend](#461-backend)
+    - [4.6.2 Frontend](#462-frontend)
+    - [4.6.3 Pages with Import / Export](#463-pages-with-import--export)
 
-4. Standard API Patterns
-   4.1 CRUD Operations
-   4.2 Pagination
-   4.3 Audit Fields
-   4.4 Soft Deletes
-   4.5 Validation
-   4.6 Excel Import / Export
-       4.6.1 Backend
-       4.6.2 Frontend
-       4.6.3 Pages with Import / Export
+- [5. Database Design](#5-database-design--in-scope)
+  - [5.1 Common Columns](#51-common-columns--in-scope)
+  - [5.2 Naming Conventions](#52-naming-conventions--in-scope)
+  - [5.3 Generated Columns](#53-generated-columns--in-scope)
+  - [5.4 Schema Management & Migrations](#54-schema-management--migrations--in-scope)
 
-5. Database Design
-   5.1 Common Columns
-   5.2 Naming Conventions
-   5.3 Generated Columns
-   5.4 Schema Management & Migrations
+- [6. UI Components & Theming](#6-ui-components--theming--in-scope)
+  - [6.1 Theme System](#61-theme-system--in-scope)
+    - [6.1.1 Component Override Strategy](#611-component-override-strategy)
+    - [6.1.2 Design Tokens](#612-design-tokens)
+    - [6.1.3 Theme Overrides Reference](#613-theme-overrides-reference)
+  - [6.2 Navigation System](#62-navigation-system--in-scope)
+  - [6.3 Module Bar](#63-module-bar--in-scope)
+  - [6.4 Client Dependencies](#64-client-dependencies--in-scope)
+  - [6.5 Reusable Component Patterns](#65-reusable-component-patterns--in-scope)
 
-6. UI Components & Theming
-   6.1 Theme System
-       6.1.1 Component Override Strategy
-       6.1.2 Design Tokens
-       6.1.3 Theme Overrides Reference
-   6.2 Navigation System
-   6.3 Module Bar
-   6.4 Client Dependencies
-   6.5 Reusable Component Patterns
+- [7. Navigation Structure](#7-navigation-structure--in-scope)
 
-7. Navigation Structure
+- [8. Environment Configuration](#8-environment-configuration--in-scope)
 
-8. Environment Configuration
+- [9. Testing Strategy](#9-testing-strategy--in-scope)
 
-9. Testing Strategy
+- [10. Coding Standards & Best Practices](#10-coding-standards--best-practices--in-scope)
+  - [10.1 Naming Conventions](#101-naming-conventions--in-scope)
+  - [10.1.1 Single Canonical Names](#1011-single-canonical-names--in-scope)
+  - [10.2 File & Module Structure](#102-file--module-structure--in-scope)
+  - [10.3 Copyright & File Headers](#103-copyright--file-headers--in-scope)
+  - [10.4 Code Reuse](#104-code-reuse--in-scope)
+  - [10.5 Classes vs Functions](#105-classes-vs-functions--in-scope)
+  - [10.6 Error Handling](#106-error-handling--in-scope)
+  - [10.7 Import & Export Style](#107-import--export-style--in-scope)
+  - [10.8 Comments & Documentation](#108-comments--documentation--in-scope)
+  - [10.9 Async & Concurrency](#109-async--concurrency--in-scope)
+  - [10.10 Security Practices](#1010-security-practices--in-scope)
 
-10. Coding Standards & Best Practices
-    10.1 Naming Conventions
-        10.1.1 Single Canonical Names
-    10.2 File & Module Structure
-    10.3 Copyright & File Headers
-    10.4 Code Reuse
-    10.5 Classes vs Functions
-    10.6 Error Handling
-    10.7 Import & Export Style
-    10.8 Comments & Documentation
-    10.9 Async & Concurrency
-    10.10 Security Practices
+- [11. Developer Tooling](#11-developer-tooling--in-scope)
+  - [11.1 ESLint](#111-eslint--in-scope)
+  - [11.2 Prettier](#112-prettier--in-scope)
+  - [11.3 EditorConfig](#113-editorconfig--in-scope)
+  - [11.4 Husky & Git Hooks](#114-husky--git-hooks--in-scope)
+  - [11.5 VSCode Workspace](#115-vscode-workspace--in-scope)
+  - [11.6 Vitest](#116-vitest--in-scope)
+  - [11.7 Vite](#117-vite--in-scope)
+  - [11.8 npm Workspaces](#118-npm-workspaces--in-scope)
+  - [11.9 Logging](#119-logging--in-scope)
+  - [11.10 Environment Management](#1110-environment-management--in-scope)
 
-11. Developer Tooling
-    11.1 ESLint
-    11.2 Prettier
-    11.3 EditorConfig
-    11.4 Husky & Git Hooks
-    11.5 VSCode Workspace
-    11.6 Vitest
-    11.7 Vite
-    11.8 npm Workspaces
-    11.9 Logging
-    11.10 Environment Management
+- [12. Project Setup Guide](#12-project-setup-guide--in-scope)
+  - [12.1 Prerequisites](#121-prerequisites--in-scope)
+  - [12.2 GitHub Repository Setup](#122-github-repository-setup--in-scope)
+  - [12.3 Clone & Install](#123-clone--install--in-scope)
+  - [12.4 VSCode Configuration](#124-vscode-configuration--in-scope)
+  - [12.5 Environment Setup](#125-environment-setup--in-scope)
+  - [12.6 Database Setup](#126-database-setup--in-scope)
+  - [12.7 Start Development](#127-start-development--in-scope)
+  - [12.8 Run Tests](#128-run-tests--in-scope)
+  - [12.9 Daily Workflow](#129-daily-workflow--in-scope)
+  - [12.10 Husky Commit Rules](#1210-husky-commit-rules--in-scope)
+  - [12.11 Recommended `.nvmrc`](#1211-recommended-nvmrc--in-scope)
+  - [12.12 `.env.example` Reference](#1212-envexample-reference--in-scope)
 
-12. Project Setup Guide
-    12.1 Prerequisites
-    12.2 GitHub Repository Setup
-    12.3 Clone & Install
-    12.4 VSCode Configuration
-    12.5 Environment Setup
-    12.6 Database Setup
-    12.7 Start Development
-    12.8 Run Tests
-    12.9 Daily Workflow
-    12.10 Husky Commit Rules
-    12.11 Recommended .nvmrc
-    12.12 .env.example Reference
+- [13. Architecture Decision Records](#13-architecture-decision-records--in-scope)
+  - [13.1 Purpose](#131-purpose--in-scope)
+  - [13.2 Location](#132-location--in-scope)
+  - [13.3 Template](#133-template--in-scope)
+  - [13.4 When to Write an ADR](#134-when-to-write-an-adr--in-scope)
+  - [13.5 Initial ADRs](#135-initial-adrs--in-scope)
+  - [13.6 Referencing ADRs](#136-referencing-adrs--in-scope)
 
-13. Architecture Decision Records
-    13.1 Purpose
-    13.2 Location
-    13.3 Template
-    13.4 When to Write an ADR
-    13.5 Initial ADRs
-    13.6 Referencing ADRs
-
-14. Scripts
-    14.1 Conventions
-    14.2 Migration Scripts
-    14.3 Bootstrap & Seed Scripts
-    14.4 Debugging & Diagnostic Scripts
-    14.5 CLI / Shell Utilities
-```
+- [14. Scripts](#14-scripts--in-scope)
+  - [14.1 Conventions](#141-conventions--in-scope)
+  - [14.2 Migration Scripts](#142-migration-scripts--in-scope)
+  - [14.3 Bootstrap & Seed Scripts](#143-bootstrap--seed-scripts--in-scope)
+  - [14.4 Debugging & Diagnostic Scripts](#144-debugging--diagnostic-scripts--in-scope)
+  - [14.5 CLI / Shell Utilities](#145-cli--shell-utilities--in-scope)
 
 ## Glossary
 
