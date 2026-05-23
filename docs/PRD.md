@@ -36,8 +36,7 @@ Glossary
 3. Module Reference
    3.0 Module Taxonomy
        3.0.1 Core Modules
-       3.0.2 Add-on Modules
-       3.0.3 Module Loading Rules
+       3.0.2 Add-on Modules (loading rules)
    3.1 System — Auth, Tenant & RBAC  [core]
        3.1.1 Overview
        3.1.2 Data Tables
@@ -260,6 +259,13 @@ Glossary
     13.4 When to Write an ADR
     13.5 Initial ADRs
     13.6 Referencing ADRs
+
+14. Scripts
+    14.1 Conventions
+    14.2 Migration Scripts
+    14.3 Bootstrap & Seed Scripts
+    14.4 Debugging & Diagnostic Scripts
+    14.5 CLI / Shell Utilities
 ```
 
 ## Glossary
