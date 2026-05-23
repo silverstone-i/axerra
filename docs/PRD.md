@@ -10,6 +10,304 @@ Every H2 (`##`) and H3 (`###`) heading in this document carries one of three sco
 
 Status tags applied at the paragraph or bullet level (`[intended]`, `[implemented]`, `[superseded]`) supplement the section scope tag where needed.
 
+## Table of Contents
+
+```
+Scope-tag Legend
+Glossary
+
+1. Overview
+   1.1 Product Overview
+   1.2 Target Users
+   1.3 Technology Stack
+   1.4 Monorepo Structure
+
+2. Architecture
+   2.1 Multi-Tenant Model
+   2.2 pg-schemata Integration
+       2.2.1 Core Capabilities
+       2.2.2 Query Operators
+       2.2.3 Model Definition Pattern
+       2.2.4 Database Initialization
+       2.2.5 Planned Enhancements
+   2.3 Application Layout
+   2.4 Request Flow
+
+3. Module Reference
+   3.0 Module Taxonomy
+       3.0.1 Core Modules
+       3.0.2 Add-on Modules
+       3.0.3 Module Loading Rules
+   3.1 System — Auth, Tenant & RBAC  [core]
+       3.1.1 Overview
+       3.1.2 Data Tables
+           3.1.2.1 portal_users
+           3.1.2.2 roles / policies / policy_catalog
+           3.1.2.3 state_filters / field_group_*
+           3.1.2.4 project_members / company_members
+       3.1.3 API
+           3.1.3.1 Authentication Endpoints
+           3.1.3.2 Tenant Management Endpoints
+           3.1.3.3 RBAC / Policy Endpoints
+       3.1.4 Business Rules
+           3.1.4.1 Login Flow & Token Lifecycle
+           3.1.4.2 Mid-Session Policy Refresh
+           3.1.4.3 Four-Layer RBAC Resolution
+           3.1.4.4 System Roles (incl. vendor_contacts, clients)
+           3.1.4.5 Tenant Numbering System
+   3.2 Core Entities  [core]
+       3.2.1 Overview
+       3.2.2 Data Tables
+           3.2.2.1 Vendors & Vendor Contacts
+           3.2.2.2 Payment Terms
+           3.2.2.3 Clients
+           3.2.2.4 Employees
+           3.2.2.5 Sources, Contacts, Addresses & Phones
+           3.2.2.6 Companies
+       3.2.3 API
+       3.2.4 Business Rules
+   3.3 Projects  [core]
+       3.3.1 Overview
+       3.3.2 Data Tables
+           3.3.2.1 Projects
+           3.3.2.2 Units
+           3.3.2.3 Tasks & Task Groups
+           3.3.2.4 Cost Items
+           3.3.2.5 Change Orders
+           3.3.2.6 Templates
+       3.3.3 API
+       3.3.4 Business Rules
+   3.4 Activities & Cost Management  [core]
+       3.4.1 Overview
+       3.4.2 Data Tables
+           3.4.2.1 Categories & Activities
+           3.4.2.2 Deliverables & Assignments
+           3.4.2.3 Budgets
+           3.4.2.4 Cost Lines
+           3.4.2.5 Actual Costs
+           3.4.2.6 Vendor Parts
+       3.4.3 API
+       3.4.4 Business Rules
+   3.5 Accounts Payable  [core]
+       3.5.1 Overview
+       3.5.2 Data Tables
+           3.5.2.1 AP Invoices
+           3.5.2.2 AP Invoice Lines
+           3.5.2.3 Payments
+           3.5.2.4 Credit Memos
+       3.5.3 API
+       3.5.4 Business Rules
+   3.6 Accounts Receivable  [core]
+       3.6.1 Overview
+       3.6.2 Data Tables
+           3.6.2.1 AR Invoices
+           3.6.2.2 AR Invoice Lines
+           3.6.2.3 Receipts
+       3.6.3 API
+       3.6.4 Business Rules
+   3.7 Accounting & General Ledger  [core]
+       3.7.1 Overview
+       3.7.2 Data Tables
+           3.7.2.1 Chart of Accounts
+           3.7.2.2 Journal Entries & Lines
+           3.7.2.3 Ledger Balances
+           3.7.2.4 Posting Queues
+           3.7.2.5 Category-Account Map
+           3.7.2.6 Intercompany
+       3.7.3 API
+       3.7.4 Business Rules
+   3.8 Cashflow & Profitability  [core]
+       3.8.1 Overview
+       3.8.2 Data Tables & Views
+       3.8.3 API
+       3.8.4 Business Rules
+   3.9 Reporting & Views  [core]
+       3.9.1 Overview
+       3.9.2 Data Tables & Views
+       3.9.3 API
+       3.9.4 Business Rules
+   3.10 Shared Tables  [core]
+       3.10.1 Emails
+       3.10.2 Tenant Preferences
+       3.10.3 Countries
+       3.10.4 Match Review Logs
+   3.11 Demo Tenants
+       3.11.1 Meridian Group (MG) — Consulting Use Case
+           3.11.1.1 Profile
+           3.11.1.2 Active Modules
+           3.11.1.3 Data Requirements
+           3.11.1.4 Key Workflows
+           3.11.1.5 Seed Script Reference
+       3.11.2 Sterling Ridge Homes (SRH) — Construction Use Case
+           3.11.2.1 Profile
+           3.11.2.2 Active Modules
+           3.11.2.3 Data Requirements
+           3.11.2.4 Key Workflows
+           3.11.2.5 Seed Script Reference
+
+   ── Add-on Modules ──────────────────────────────────────────────────
+
+   3.12 Bill of Materials (BOM)  [add-on]
+       3.12.1 Overview
+       3.12.2 Data Tables
+           3.12.2.1 Catalog SKUs
+           3.12.2.2 Vendor SKUs
+           3.12.2.3 Vendor Pricing
+       3.12.3 API
+       3.12.4 Business Rules
+   3.13 Contracts  [add-on]
+       3.13.1 Overview
+       3.13.2 Data Tables
+       3.13.3 API
+       3.13.4 Business Rules
+   3.14 Scheduling  [add-on]
+       3.14.1 Overview
+       3.14.2 Data Tables
+       3.14.3 API
+       3.14.4 Business Rules
+   3.15 Timesheets  [add-on]
+       3.15.1 Overview
+       3.15.2 Data Tables
+       3.15.3 API
+       3.15.4 Business Rules
+   3.16 Procurement  [add-on]
+       3.16.1 Overview
+       3.16.2 Data Tables
+       3.16.3 API
+       3.16.4 Business Rules
+   3.17 Inventory & Warehousing  [add-on]
+       3.17.1 Overview
+       3.17.2 Data Tables
+       3.17.3 API
+       3.17.4 Business Rules
+
+4. Standard API Patterns
+   4.1 CRUD Operations
+   4.2 Pagination
+   4.3 Audit Fields
+   4.4 Soft Deletes
+   4.5 Validation
+   4.6 Excel Import / Export
+       4.6.1 Backend
+       4.6.2 Frontend
+       4.6.3 Pages with Import / Export
+
+5. Database Design
+   5.1 Common Columns
+   5.2 Naming Conventions
+   5.3 Generated Columns
+   5.4 Schema Management & Migrations
+
+6. UI Components & Theming
+   6.1 Theme System
+       6.1.1 Component Override Strategy
+       6.1.2 Design Tokens
+       6.1.3 Theme Overrides Reference
+   6.2 Navigation System
+   6.3 Module Bar
+   6.4 Client Dependencies
+   6.5 Reusable Component Patterns
+
+7. Navigation Structure
+
+8. Environment Configuration
+
+9. Testing Strategy
+
+10. Coding Standards & Best Practices
+    10.1 Naming Conventions
+        10.1.1 Single Canonical Names
+    10.2 File & Module Structure
+    10.3 Copyright & File Headers
+    10.4 Code Reuse
+    10.5 Classes vs Functions
+    10.6 Error Handling
+    10.7 Import & Export Style
+    10.8 Comments & Documentation
+    10.9 Async & Concurrency
+    10.10 Security Practices
+
+11. Developer Tooling
+    11.1 ESLint
+    11.2 Prettier
+    11.3 EditorConfig
+    11.4 Husky & Git Hooks
+    11.5 VSCode Workspace
+    11.6 Vitest
+    11.7 Vite
+    11.8 npm Workspaces
+    11.9 Logging
+    11.10 Environment Management
+
+12. Project Setup Guide
+    12.1 Prerequisites
+    12.2 GitHub Repository Setup
+    12.3 Clone & Install
+    12.4 VSCode Configuration
+    12.5 Environment Setup
+    12.6 Database Setup
+    12.7 Start Development
+    12.8 Run Tests
+    12.9 Daily Workflow
+    12.10 Husky Commit Rules
+    12.11 Recommended .nvmrc
+    12.12 .env.example Reference
+
+13. Architecture Decision Records
+    13.1 Purpose
+    13.2 Location
+    13.3 Template
+    13.4 When to Write an ADR
+    13.5 Initial ADRs
+    13.6 Referencing ADRs
+```
+
+## Glossary
+
+- **ADR** — Architecture Decision Record.
+- **AGPL** — GNU Affero General Public License.
+- **AP** — Accounts Payable.
+- **AR** — Accounts Receivable.
+- **API** — Application Programming Interface.
+- **BOM** — Bill of Materials.
+- **CI** — Continuous Integration.
+- **CLI** — Command-Line Interface.
+- **CRUD** — Create, Read, Update, Delete.
+- **CSS** — Cascading Style Sheets.
+- **DDL** — Data Definition Language.
+- **DTO** — Data Transfer Object.
+- **ERP** — Enterprise Resource Planning.
+- **FK** — Foreign Key.
+- **GL** — General Ledger.
+- **HMR** — Hot Module Replacement.
+- **HTTP** — Hypertext Transfer Protocol.
+- **JSON** — JavaScript Object Notation.
+- **JWT** — JSON Web Token.
+- **LRU** — Least Recently Used (cache eviction policy).
+- **MG** — Meridian Group (demo tenant).
+- **MUI** — Material UI (React component library).
+- **ORM** — Object-Relational Mapper.
+- **PG** — PostgreSQL (also used as shorthand for `pg-schemata`).
+- **PII** — Personally Identifiable Information.
+- **PK** — Primary Key.
+- **PR** — Pull Request.
+- **PRD** — Product Requirements Document.
+- **RBAC** — Role-Based Access Control.
+- **REST** — Representational State Transfer.
+- **SKU** — Stock Keeping Unit.
+- **SOW** — Statement of Work.
+- **SPA** — Single-Page Application.
+- **SQL** — Structured Query Language.
+- **SRH** — Sterling Ridge Homes (demo tenant).
+- **SSN** — Social Security Number.
+- **TTL** — Time To Live.
+- **UI** — User Interface.
+- **URL** — Uniform Resource Locator.
+- **UUID** — Universally Unique Identifier.
+- **VAT** — Value Added Tax.
+- **XSS** — Cross-Site Scripting.
+- **XLSX** — Office Open XML Spreadsheet file format.
+
 ## 1. Overview  [in-scope]
 
 ### 1.1 Product Positioning  [in-scope]
@@ -241,11 +539,70 @@ POST / PUT / DELETE / PATCH mutation routes (createRouter prepends addAuditField
 > - `apps/server/src/middleware/errorHandler.js` — unified Express 5 error handler; maps `SchemaDefinitionError` / `type === 'validation'` → 400, pg-schemata `DatabaseError` 23505 (unique) → 409, 23503 (FK) → 422, application errors carrying `err.status` are returned with that status, all other unhandled errors → 500 with structured logging (and `err.message` in non-prod).
 > - `apps/server/src/services/{permCacheInvalidator,rbacQueryContext,permissionLoader}.js` — Redis cache invalidator (busts `perm:{userId}:{tenantCode}` on role/policy mutations), RBAC query context builder, and the permission loader that reads canon from DB on cache miss. See §3.1.2 and `rules/rbac.md`.
 
+### 2.5 Vertical Add-on Modules  [in-scope]
+
+Vertical add-on modules (services, construction, production — see §3.0.2) are architecturally identical to core modules. They are not a different class of code, plugin system, or runtime extension.
+
+- The module registry [`apps/server/src/db/moduleRegistry.js`](../apps/server/src/db/moduleRegistry.js) is the source of truth for which modules exist.
+- `tenant.allowed_modules` (jsonb array on `admin.tenants`) controls which modules a given tenant may reach. Empty / null = all modules permitted (existing ADR-0018 semantic).
+- Enforcement is the `moduleEntitlement` middleware already auto-injected by `createRouter`. The chain remains: `authRedis → withMeta → moduleEntitlement → rbac → handler`.
+- Adding a vertical module is: implement the module under `apps/server/src/<module>/`, add an entry to `moduleRegistry.js`, populate `allowed_modules` for licensed tenants. The `arch:check` CI gate enforces that any module directory carrying schemas is registered.
+
+There is **no** event bus, subscription model, plugin loader, or inheritance hierarchy between core and vertical modules. Cross-module behaviour (e.g. the construction `contracts` module posting to GL) uses the existing cross-module posting contract (ADR-0019), not a new mechanism.
+
+Full rationale and trade-offs: [ADR-0028](./decisions/0028-vertical-module-architecture.md).
+
 ---
 
 ## 3. Feature Modules  [in-scope]
 
 > Modules below are part of the Phase 1 base ERP core unless otherwise noted (see §1.1). Industry-vertical workflows — including construction — are layered as add-on modules in Phase 2 and beyond.
+
+### 3.0 Module Taxonomy  [in-scope]
+
+The May 2026 product scope review formalised the module taxonomy below. **Core modules** ship with every AXERRA instance; **vertical add-on modules** are licensed per tenant via `tenant.allowed_modules` (see ADR-0018 and ADR-0028).
+
+#### 3.0.1 Core modules (ship with every instance)
+
+| Module name | Notes |
+| --- | --- |
+| `system` | Auth, tenants, RBAC. Currently registered in [moduleRegistry.js](../apps/server/src/db/moduleRegistry.js) as `auth` (admin scope). |
+| `system/core` | Vendors, clients, employees, companies. Currently registered as `core`. |
+| `accounting` | General ledger, chart of accounts, journal entries, fiscal periods, bank reconciliation (via Plaid — see §3.15). Merged from the former `gl` and `accounting` skeletons. |
+| `ap` | Accounts payable. |
+| `ar` | Accounts receivable (milestone invoicing). Construction closing-statement workflow is documented in §3.8.4 and lives in the `contracts` vertical, not in `ar`. |
+| `projects` | Projects and sub-projects. |
+| `activities` | Cost tracking only. Deliverables move out to the new vertical `contracts` module (see §3.0.3). |
+| `reports` | Reporting and analytics. |
+
+All eight core modules above are either already registered in `moduleRegistry.js` (`auth`, `core`, `projects`, `activities`, `bom`, `accounting`, `ap`, `ar`, `reports`) or in scope for the same registry-based pattern. `bom` is registered today but is documented as a vertical add-on in §3.0.2 — it remains available to any tenant that licenses it.
+
+#### 3.0.2 Vertical add-on modules
+
+| Module name | Services | Construction | Production |
+| --- | --- | --- | --- |
+| `contracts` | ✓ | ✓ | ✓ |
+| `timesheets` | ✓ | ✓ | — |
+| `scheduling` | ✓ | ✓ | ✓ |
+| `bom` | — | ✓ | ✓ |
+| `procurement` | — | ✓ | ✓ |
+| `inventory` | — | ✓ | ✓ |
+
+Verticals are packaged per tenant. A consulting firm licensing the *services* vertical receives `contracts`, `timesheets`, and `scheduling`; a homebuilder licensing the *construction* vertical receives all six; a manufacturer licensing the *production* vertical receives `contracts`, `scheduling`, `bom`, `procurement`, and `inventory`.
+
+Of the six listed, only `bom` is currently registered in `moduleRegistry.js`. The remaining five (`contracts`, `timesheets`, `scheduling`, `procurement`, `inventory`) are **planned** — they will be added to the registry when implemented.
+
+#### 3.0.3 Module changes from the May 2026 review
+
+- **`gl` → `accounting` merge.** The earlier `gl` module is absorbed into `accounting`. Both were skeleton-only at the time of the merge, so there is no data risk. Going forward, `accounting` is the single home for general ledger, chart of accounts, journal entries, fiscal periods, and bank reconciliation.
+- **`activities` split.** Cost tracking stays in `activities`. Deliverables move to the new vertical `contracts` module, which is *not* part of the core. This keeps `activities` purely about cost while letting per-vertical contract semantics (services SOW deliverables, construction subdivision sales, production work orders) live where they belong.
+- **Five new vertical modules** — `contracts`, `scheduling`, `timesheets`, `procurement`, `inventory`. Brief scope:
+  - `contracts` — vertical-specific contract documents (services SOWs, construction subdivision sales / closing statements, production work orders).
+  - `scheduling` — resource and crew scheduling.
+  - `timesheets` — labour capture for services and construction.
+  - `procurement` — purchase orders, vendor RFQs, expediting.
+  - `inventory` — on-hand stock, lot/serial tracking, issues against projects.
+- **Implementation pattern.** New modules follow the same wiring as core modules: implement the module, register it in [moduleRegistry.js](../apps/server/src/db/moduleRegistry.js), and populate `tenant.allowed_modules` for licensed tenants. Access is gated by [moduleEntitlement middleware](../apps/server/src/middleware/moduleEntitlement.js) per [ADR-0018](./decisions/0018-module-entitlement-middleware.md). **No event bus, no subscription wiring, no inheritance hierarchy.** Architecture detail: ADR-0028 and §2.5.
 
 ### 3.1 Authentication & Authorization (Core)  [in-scope]
 
@@ -302,25 +659,25 @@ RBAC uses a four-layer model where each layer narrows what the previous layer gr
 | **3 — State Filters** | Which record STATES?   | `state_filters` table                                            |
 | **4 — Field Groups**  | Which COLUMNS?         | `field_group_definitions` + `field_group_grants` tables        |
 
-**Layer 1 — Data Model:**
+**Layer 1 — Role Policies:**
 
 - `roles`: Role definitions with `code`, `name`, `description` (optional), `is_system`, `is_immutable`, `scope` (`all_projects`, `assigned_companies`, `assigned_projects`, or `self`), plus `tenant_code`
 - `policies`: Permission grants with `(role_id, module, router, action, level)` dimensions, plus `tenant_code`
 
 > **Role Assignment:** Roles are stored as a `roles` text array directly on each entity table (employees, clients, vendor_contacts) — there is no `role_members` junction table. The permission loader reads the `roles` array from the entity record (resolved via `portal_users.entity_type` + `entity_id`), then queries `policies` for matching role IDs. A SQL view can reconstruct "members by role" across entity tables when needed for admin reporting.
 
-**Layer 2 — Data Model:**
+**Layer 2 — Data Scope:**
 
 - `project_members`: Maps `(project_id, user_id)` with a `role` label (e.g., `member`, `lead`). When `roles.scope = 'assigned_projects'`, only data from the user's assigned projects is visible.
 - `company_members`: Maps `(company_id, user_id)`. When `roles.scope = 'assigned_companies'`, only data from projects belonging to the user's assigned companies is visible. The permission loader eagerly resolves both `companyIds` and corresponding `projectIds`.
 - **`self` scope:** When `roles.scope = 'self'`, the permission loader reads `entity_type` and `entity_id` from `portal_users`. The canon includes `entityType` and `entityId`. `_applyRbacFilters()` maps the entity type to the appropriate FK column on the queried resource (e.g., `vendor_id` for AP invoices, `client_id` for AR invoices, `employee_id` for timecards). This enables portal access where vendors/clients see only their own records.
 - `policy_catalog`: Registry of valid `(module, router, action)` combinations for role configuration UI discovery. Includes `label` (varchar(128), human-readable name), `description` (varchar(512), optional explanation), `sort_order` (integer, display ordering), `valid_statuses` (text[], valid status values for state filter UI), `available_fields` (text[], columns available for field group UI), and `policy_required` (boolean, default true — whether a policy must exist for this combination). Seed-only reference data — no audit fields, no tenant_code.
 
-**Layer 3 — Data Model:**
+**Layer 3 — State Filters:**
 
 - `state_filters`: `(role_id, module, router, visible_statuses[])`. Restricts which record statuses are visible per role per resource. Empty = no filtering (all statuses visible).
 
-**Layer 4 — Data Model:**
+**Layer 4 — Field Groups:**
 
 - `field_group_definitions`: Named column groups per resource — e.g., `(module, router, group_name, columns[], is_default)`.
 - `field_group_grants`: Assigns field groups to roles. Definitions with `is_default = true` are granted to all roles automatically. Empty = all columns visible.
@@ -1307,6 +1664,21 @@ Templates serve as reusable blueprints for project creation:
 
 **Endpoint:** `/api/ar/v1/receipts`
 
+#### 3.8.4 AR Extensibility — Construction Closing Statements  [in-scope]
+
+Standard AR (milestone invoicing on AR invoices) lives in the core `ar` module and is unchanged by the construction vertical. Construction subdivision sales do **not** flow through `ar_invoices` — they use **closing statements**, which are owned by the `construction` vertical (the `contracts` module under the construction packaging).
+
+A closing statement posts a single normalised GL journal entry that touches, at minimum:
+
+- the **AR** account (revenue recognition for the unit sold),
+- the **WIP** account (clears project cost-to-date associated with the unit),
+- the **inventory** account (removes the sold unit from inventory),
+- and, where the holding-company structure requires it, the **intercompany** accounts.
+
+The core `ar` module is **not** modified to support this — the construction module acts on AR exclusively via the cross-module posting contract (ADR-0019), the same contract that AP and AR use to post to GL. This keeps construction-specific semantics out of `ar` and out of `accounting`.
+
+The exact mapping between WIP, inventory, and project-level cost accounts is **deferred to the implementation phase**, when the `inventory` and `projects` modules graduate from spec to code. The relationships are recorded here as an architectural intent, not a finalised data model.
+
 ---
 
 ### 3.9 Accounting & General Ledger  [in-scope]
@@ -1858,6 +2230,44 @@ ISO 3166-1 alpha-2 country reference list in the admin schema. Tenant-scope tabl
 | `placeholder` | varchar(64)  | UI placeholder format hint                 |
 
 **Schema:** `apps/server/src/system/auth/schemas/countriesSchema.js`. Model: `apps/server/src/system/auth/models/Countries.js`. Seeder: `apps/server/src/system/auth/services/countriesSeeder.js`. No API surface — read directly by the client via the shared country list in `packages/shared`.
+
+---
+
+### 3.15 Planned Integrations (Customer-Gated)  [deferred]
+
+The following integrations are recorded so they are not re-litigated, but **none will be built until a paying customer requires them**. Each is an integration into an existing third party, not a feature we own end-to-end.
+
+| Feature | Integration target | Notes |
+| --- | --- | --- |
+| Bank reconciliation | Plaid | Feature lives in the `accounting` module. Plaid pulls transactions; matching logic in `accounting`. Not a separate module. |
+| Sales tax | Avalara or TaxJar (TBD) | Jurisdiction-specific; do not build in-house. |
+| Multi-currency / FX | TBD | Adds schema complexity across every monetary table; defer until forced. |
+| Expense claims | TBD | Relevant to every vertical; simple enough that we may eventually own it. |
+| HR / payroll | Gusto or ADP (TBD) | Regulated and complex; integrate only, never build. |
+| CRM | TBD | Out of scope; no vertical-driven need beyond the existing Clients + Contacts core data. |
+
+Bank reconciliation in particular is **inside `accounting`** — Plaid is the data source, and the reconciliation UI, matching rules, and journal-entry creation all belong to the `accounting` module. It is not a standalone module.
+
+---
+
+### 3.16 Demo Tenants  [in-scope]
+
+Two named demo tenants exercise the product surface area. They are referenced by name in screenshots, walkthroughs, and seed scripts.
+
+#### 3.16.1 Meridian Group (consulting holding company)
+
+- **Modules exercised:** all core (`system`, `system/core`, `accounting`, `ap`, `ar`, `projects`, `activities`, `reports`).
+- **Vertical:** services — `contracts`, `timesheets`, `scheduling`.
+- **Structure:** holding company with three legal entities, so it exercises **intercompany accounting** (see §3.9.7).
+- **Does not require:** `bom`, `procurement`, `inventory`.
+- **Purpose:** prove the core product on a realistic multi-entity services book.
+
+#### 3.16.2 Sterling Ridge Homes (construction company)
+
+- **Modules exercised:** all core plus the construction vertical.
+- **Vertical:** construction — `contracts`, `bom`, `procurement`, `inventory` (plus `scheduling`, `timesheets` where applicable).
+- **Workflows exercised:** AR closing statement flow (§3.8.4), WIP tracking, unit/lot management, draw schedules, vertical feature selection.
+- **Purpose:** drive out the construction-vertical requirements and stress-test architecture flexibility (vertical-specific contracts, GL posting from a vertical module, inventory/WIP/project account relationships).
 
 ---
 
@@ -3271,6 +3681,11 @@ axerra/
       0021-architecture-ci-gates.md
       0022-eslint-module-boundaries.md
       0023-excel-import-export.md
+      0024-modulebar-action-contract.md
+      0025-import-dedup-partial-unique-indexes.md
+      0026-child-restore-via-import.md
+      0027-license-and-contribution.md
+      0028-vertical-module-architecture.md
     PRD.md                      # This file
 ```
 
@@ -3352,8 +3767,9 @@ The following decisions should be captured as the project is built from scratch:
 | 0025 | Import dedup via partial unique indexes (incl. `emails`)        | Database-enforced dedup avoids per-importer business-logic drift                     |
 | 0026 | Child restore via import                                        | Import path drives cascade-restore for child records under restored parents          |
 | 0027 | License, copyright, DCO, and dependency policy                  | AGPLv3 relicense + DCO sign-off + AGPL-incompatibility dependency gate                |
+| 0028 | Vertical add-on module architecture                             | Verticals are coded identically to core modules; `allowed_modules` + registry only — no event bus or plugin layer |
 
-> (List extended per gap 4.12, 2026-05-21. ADR-0027 also covers gap §5.3.)
+> (List extended per gap 4.12, 2026-05-21. ADR-0027 also covers gap §5.3. ADR-0028 added 2026-05-22 per May 2026 product scope review.)
 
 ### 13.6 Referencing Decisions  [in-scope]
 
