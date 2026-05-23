@@ -372,11 +372,11 @@ AXERRA uses **PostgreSQL schema-per-tenant** isolation powered by pg-schemata:
 - Tenant resolution is performed per-request: at login the home tenant is resolved from `portal_user_tenants`; subsequent requests may target any active binding via the `x-tenant-code` header (subject to RBAC).
 - All database access is schema-aware via pg-schemata's `setSchemaName()` — models bind queries to the correct tenant schema dynamically.
 
-### 2.2 pg-schemata Integration (Owned Dependency)  [in-scope]
+### 2.2 pg-schemata Integration  [in-scope]
 
 AXERRA is built entirely on **pg-schemata 1.3.0**. Since Axerra owns the pg-schemata repository, the library can be extended with new features or patched as AXERRA requirements evolve.
 
-#### 2.2.1 Core Capabilities Used
+#### 2.2.1 Core Capabilities
 
 | pg-schemata Feature           | AXERRA Usage                                                                                                                        |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
@@ -391,7 +391,7 @@ AXERRA is built entirely on **pg-schemata 1.3.0**. Since Axerra owns the pg-sche
 | **Excel Import/Export** | `importFromSpreadsheet()` / `exportToSpreadsheet()` built into TableModel                                                       |
 | **Error Classes**       | `DatabaseError` (PG error codes: 23505 unique, 23503 FK) and `SchemaDefinitionError`                                            |
 
-#### 2.2.2 WHERE Clause Query Operators
+#### 2.2.2 Query Operators
 
 All models inherit pg-schemata's rich query builder:
 
@@ -469,7 +469,7 @@ const rawDb = DB.getInstance();
 const db = createCallDb(rawDb);
 ```
 
-#### 2.2.5 Potential pg-schemata Enhancements (Owned Repo)
+#### 2.2.5 Planned Enhancements
 
 Features that may need to be added to pg-schemata to support AXERRA:
 
@@ -2339,13 +2339,13 @@ pg-schemata auto-generates Zod validators from schema definitions:
 - Update validation: excludes `immutable` columns, partial validation
 - Custom validators can be attached per-column via `colProps.validator`
 
-### 4.6 Excel Import/Export  [in-scope]
+### 4.6 Excel Import / Export  [in-scope]
 
 > **ADR Reference:** [ADR-0023](./decisions/0023-excel-import-export.md)
 
 Built into pg-schemata's TableModel and exposed as a full-stack feature across all `createRouter`-generated resources.
 
-#### 4.6.1 Backend (pg-schemata + Controller Layer)
+#### 4.6.1 Backend
 
 - **Import**: `importFromSpreadsheet(filePath, sheetIndex, callbackFn?, _returning?, { previewOnly })` — parses XLSX, validates against schema, bulk inserts with audit fields. `BaseController.importXls()` handles file upload via multer (`/tmp/uploads/`), injects `tenant_code` and `created_by` via the callback. Default commit return shape is `{ inserted: number }` (legacy single-sheet) or `{ inserted, updated, ... }` (flat-format importers).
 - **Import preview mode (`?preview=1`)**: Importers that go through `importSimpleTable` (in `lib/spreadsheetHelpers.js`) or the flat combined / multi-sheet paths honor `previewOnly` and return a **counts-only classification payload** without writing:
@@ -2375,7 +2375,7 @@ All other entities (non-source) use the default pg-schemata single-sheet import/
 
 **Disabling:** Individual resources can disable import/export via `disableImportXls: true` or `disableExportXls: true` in the `createRouter` options.
 
-#### 4.6.2 Frontend (Hooks + Components)
+#### 4.6.2 Frontend
 
 **Custom Hooks** (`hooks/useImportExport.js`):
 
@@ -2400,7 +2400,7 @@ All pages with import/export follow this pattern:
 
 > **Stability note**: Destructure `mutateAsync` directly from mutations (e.g., `const { mutateAsync: importAsync } = useImportXls(...)`) — `mutateAsync` is a stable reference. Never pass the whole mutation object as a `useCallback` dependency (causes infinite re-renders via the toolbar registration cycle).
 
-#### 4.6.3 Pages with Import/Export
+#### 4.6.3 Pages with Import / Export
 
 All resources using `createRouter` have import/export endpoints. The following pages have full client-side import/export wiring:
 
@@ -2542,7 +2542,7 @@ Styling decisions follow a three-tier hierarchy:
 | Is it a structural dimension or position for layout chrome? | Layout token   | ↓             |
 | Is it dynamic (depends on props, state, or route)?          | Inline `sx`  | Theme override |
 
-#### 6.1.2 Design Tokens (`tokens.js` + `layoutTokens.js`)
+#### 6.1.2 Design Tokens
 
 **Mode-independent tokens (`tokens.js`):**
 
@@ -2638,7 +2638,7 @@ Primary Group -> Leaf items
 
 Extensible design: add new groups/modules to `NAV_ITEMS` array with optional `capability` guards and `rootTenantOnly` flag. Groups with `rootTenantOnly: true` are only visible to Axerra users. The example above shows only 2 of 14 nav groups — see §7 for the complete navigation structure.
 
-### 6.3 Module Bar (Dynamic Toolbar)  [in-scope]
+### 6.3 Module Bar  [in-scope]
 
 The Module Bar has two zones:
 
@@ -2648,7 +2648,7 @@ The Module Bar has two zones:
   - **Filters**: Text fields or select dropdowns
   - **Primary Actions**: Action buttons (Create, Edit, Archive, Restore, Import, Export, etc.)
 
-### 6.4 Dependencies (Client)  [in-scope]
+### 6.4 Client Dependencies  [in-scope]
 
 | Package                   | Version  | Purpose                                                  |
 | ------------------------- | -------- | -------------------------------------------------------- |
@@ -2706,7 +2706,7 @@ All DataGrid CRUD pages use `useListSelection` + `DataTable` as the standard sel
 - Data-grid column definitions that repeat across modules should be centralised in a `columnDefs/` config folder.
 - Form field groupings that appear in multiple create/edit dialogs should become reusable form section components.
 
-**Shared Components (`apps/client/src/components/shared/`, as of 2026-05-21, gap 2.15):** Concrete inventory of shared components in use today. Additions land via PR — when extracting a new shared component, add it here.
+**Shared Components (`apps/client/src/components/shared/`):** Concrete inventory of shared components in use today. Additions land via PR — when extracting a new shared component, add it here.
 
 | Component                          | Purpose                                                                                  |
 | ---------------------------------- | ---------------------------------------------------------------------------------------- |
@@ -2837,7 +2837,7 @@ All tests use Vitest with dependency injection for controllers. `tests/setup.js`
 | **Boolean variables**           | `is`/`has`/`can`/`should` prefix               | `isActive`, `hasPermission`, `canApprove`                     |
 | **Enums / status values**       | snake_case strings                                     | `'in_progress'`, `'change_order'`, `'pending'`                |
 
-### 10.1.1 Single Canonical Names (No Aliases)  [in-scope]
+### 10.1.1 Single Canonical Names  [in-scope]
 
 Every concept, variable, parameter, and config key must have **exactly one name** throughout the codebase. Never accept multiple synonyms for the same value or create alias maps to normalize variant spellings. Ambiguity in naming is a bug factory.
 
@@ -2968,7 +2968,7 @@ Every source file must include a copyright header as the first content:
 -- Copyright (c) 2025 – present Axerra LLC. All rights reserved.
 ```
 
-### 10.4 Code Reuse & DRY Principles  [in-scope]
+### 10.4 Code Reuse  [in-scope]
 
 **Function reuse hierarchy (prefer higher over lower):**
 
@@ -3168,7 +3168,7 @@ Ensures consistent whitespace across all editors/IDEs:
 
 > **Note:** The workspace file does not currently include an `extensions.recommendations` block. Install extensions manually per §12.4.
 
-### 11.6 Vitest (Testing)  [in-scope]
+### 11.6 Vitest  [in-scope]
 
 **Version:** Vitest 3 with `@vitest/coverage-v8`
 
@@ -3195,7 +3195,7 @@ Ensures consistent whitespace across all editors/IDEs:
 | `test:rbac`        | RBAC tests only                        | Permission resolution              |
 | `test:coverage`    | All tests + HTML coverage              | Coverage reporting                 |
 
-### 11.7 Vite (Client Build)  [in-scope]
+### 11.7 Vite  [in-scope]
 
 **Version:** Vite 7 with `@vitejs/plugin-react`
 
@@ -3513,7 +3513,7 @@ npm -w apps/server run test:rbac
 npm -w apps/server run test:coverage
 ```
 
-### 12.9 Daily Development Workflow  [in-scope]
+### 12.9 Daily Workflow  [in-scope]
 
 ```bash
 # 1. Pull latest changes
@@ -3655,15 +3655,13 @@ VITE_ROOT_EMAIL_DOMAIN=axerra.io
 
 ## 13. Architecture Decision Records  [in-scope]
 
-> All decisions captured here serve the product positioning defined in §1.1: AXERRA is a horizontal, project-native, multi-entity ERP. Phase 1 delivers the base ERP core; Phase 2 delivers construction as the reference vertical module.
-
 ### 13.1 Purpose  [in-scope]
 
-Design decisions capture the *why* behind architectural and technical choices. Code shows *what* was built; commit messages show *when*; design decisions explain *why one approach was chosen over alternatives*. Without this, future developers (or your future self) will waste time reverse-engineering intent, or worse, undo a deliberate choice without understanding the consequences.
+Architecture Decision Records (ADRs) capture the *why* behind architectural and technical choices. Code shows *what* was built; commit messages show *when*; ADRs explain *why one approach was chosen over alternatives*. Without them, future developers waste time reverse-engineering intent, or worse, undo a deliberate choice without understanding the consequences.
 
 ### 13.2 Location  [in-scope]
 
-Design decisions live in a `docs/decisions/` directory at the monorepo root:
+ADRs live in `docs/decisions/` at the monorepo root:
 
 ```
 axerra/
@@ -3699,17 +3697,17 @@ axerra/
     PRD.md                      # This file
 ```
 
-> **Note:** ADR 0009 is absent from the sequence (skipped). ADRs are append-only and never renumbered.
+ADR 0009 is absent from the sequence (skipped). ADRs are append-only and never renumbered.
 
-**Rules:**
+Rules:
 
-- Decisions are **numbered sequentially** (`0001`, `0002`, ...) — never renumber
-- Decisions are **append-only** — never edit a past decision; supersede it with a new one
-- Decisions are **committed to the repo** — they travel with the code, not in a wiki or Notation
+1. ADRs are numbered sequentially (`0001`, `0002`, …) — never renumber.
+2. ADRs are append-only — never edit a past ADR; supersede it with a new one.
+3. ADRs are committed to the repo — they travel with the code, not in a wiki.
 
 ### 13.3 Template  [in-scope]
 
-Every design decision follows a lightweight ADR (Architecture Decision Record) format:
+Every ADR follows this lightweight format:
 
 ```markdown
 # <NUMBER>. <Title>
@@ -3739,25 +3737,25 @@ What are the implications of this decision — both positive and negative?
 What trade-offs were accepted?
 ```
 
-### 13.4 When to Write a Decision Record  [in-scope]
+### 13.4 When to Write an ADR  [in-scope]
 
-Write a decision record when:
+Write an ADR when:
 
-- Choosing between two or more viable approaches (e.g., ORM choice, auth strategy)
-- Adopting a pattern that will be used project-wide (e.g., soft deletes, audit fields)
-- Making a choice that would be non-obvious to a new developer reading the code
-- Reversing or changing a previous decision
-- Adding or removing a significant dependency
+- Choosing between two or more viable approaches (e.g., ORM choice, auth strategy).
+- Adopting a pattern that will be used project-wide (e.g., soft deletes, audit fields).
+- Making a choice that would be non-obvious to a new developer reading the code.
+- Reversing or changing a previous decision.
+- Adding or removing a significant dependency.
 
-Do **not** write a decision record for:
+Do **not** write an ADR for:
 
-- Obvious choices with no realistic alternatives
-- Implementation details that are easily changed later
-- Bug fixes or routine feature work
+- Obvious choices with no realistic alternatives.
+- Implementation details that are easily changed later.
+- Bug fixes or routine feature work.
 
-### 13.5 Initial Decisions to Document  [in-scope]
+### 13.5 Initial ADRs  [in-scope]
 
-The following decisions should be captured as the project is built from scratch:
+The following ADRs are captured under `docs/decisions/`:
 
 | #    | Decision                                                        | Key Rationale                                                                        |
 | ---- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
@@ -3777,18 +3775,16 @@ The following decisions should be captured as the project is built from scratch:
 | 0025 | Import dedup via partial unique indexes (incl. `emails`)        | Database-enforced dedup avoids per-importer business-logic drift                     |
 | 0026 | Child restore via import                                        | Import path drives cascade-restore for child records under restored parents          |
 | 0027 | License, copyright, DCO, and dependency policy                  | AGPLv3 relicense + DCO sign-off + AGPL-incompatibility dependency gate                |
-| 0028 | Vertical add-on module architecture                             | Verticals are coded identically to core modules; `allowed_modules` + registry only — no event bus or plugin layer |
+| 0028 | Add-on module architecture                                      | Add-ons are coded identically to core modules; `allowed_modules` + registry only — no event bus or plugin layer. |
 
-> (List extended per gap 4.12, 2026-05-21. ADR-0027 also covers gap §5.3. ADR-0028 added 2026-05-22 per May 2026 product scope review.)
+### 13.6 Referencing ADRs  [in-scope]
 
-### 13.6 Referencing Decisions  [in-scope]
-
-When code implements a non-obvious pattern that traces back to a design decision, reference it:
+When code implements a non-obvious pattern that traces back to an ADR, reference it:
 
 **In code comments:**
 
 ```javascript
-// See decision 0005: keyset pagination chosen over offset for stable large-set performance
+// See ADR-0005: keyset pagination chosen over offset for stable large-set performance
 const results = await model.findAfterCursor(cursor, limit, orderBy);
 ```
 
@@ -3809,3 +3805,117 @@ feat(serv): add tenant schema provisioning
 Implements ADR-0001 using pg-schemata bootstrap() for single-transaction
 schema creation with extension setup.
 ```
+
+---
+
+## 14. Scripts  [in-scope]
+
+### 14.1 Conventions  [in-scope]
+
+All operational scripts live under `apps/server/scripts/` and are invoked via the `apps/server` package.json `scripts` block. Three conventions apply:
+
+1. Every script is a top-level Node entry point — `import` from `apps/server/src/`, never required by application code.
+2. Every script walks up from `cwd` to find the monorepo `.env`. Run from the repo root or from `apps/server/`; either works.
+3. Every script wraps work in `runWithContext` (`apps/server/src/lib/requestContext.js`) so pg-schemata audit fields resolve to a known actor (`null` at boot).
+
+Execute scripts via the npm scripts in `apps/server/package.json` whenever one exists. Falling back to `node` direct invocation is supported but requires `cross-env NODE_ENV=…` set manually.
+
+### 14.2 Migration Scripts  [in-scope]
+
+###### `setupAdmin.js`
+
+- **Purpose.** Bootstrap the `admin` schema on a fresh database. Creates the schema, installs extensions (`pgcrypto`, `uuid-ossp`, `vector`), runs admin migrations, and seeds the root Axerra tenant plus the bootstrap `super_user`.
+- **Usage.** Run once per environment. Subsequent boots are idempotent and skip already-applied steps.
+- **Execute.**
+  ```bash
+  npm -w apps/server run setupAdmin:dev   # development DB
+  npm -w apps/server run setupAdmin:test  # test DB
+  ```
+
+###### `runMigrate.js`
+
+- **Purpose.** Drive pending migrations against the admin schema and every active tenant schema. Wraps `migrateTenants.js`.
+- **Usage.** Accepts an optional space-separated list of tenant schema names to limit scope. `--dry-run` reports pending migrations without applying them; `NODE_ENV=test` or `--test` implies `--dry-run`.
+- **Execute.**
+  ```bash
+  npm -w apps/server run migrate:dev                # all schemas, dev DB
+  npm -w apps/server run migrate:test               # all schemas, test DB (dry-run)
+  node apps/server/scripts/runMigrate.js axerra cal # only those two schemas
+  node apps/server/scripts/runMigrate.js --dry-run  # report only
+  ```
+
+###### `migrateTenants.js`
+
+- **Purpose.** Library used by `runMigrate.js`. Resolves the module set for each schema via `getModulesForSchema()` and runs only the migrations for those modules. Exported for programmatic use; not a CLI in its own right.
+
+### 14.3 Bootstrap & Seed Scripts  [in-scope]
+
+###### `seed.js`
+
+- **Purpose.** Seed development data into the dev database (companies, vendors, projects, sample invoices, chart of accounts).
+- **Usage.** Idempotent — re-running clears non-system tables and reseeds.
+- **Execute.**
+  ```bash
+  npm -w apps/server run seed
+  ```
+
+###### `seedRbac.js`
+
+- **Purpose.** Seed RBAC reference data (policy catalog, default roles, default policies) into a tenant schema. Re-runs the `policyCatalogReconciler` to sync the in-code `CATALOG_ENTRIES` constant.
+- **Usage.** Runs against `NODE_ENV=development` by default.
+- **Execute.**
+  ```bash
+  npm -w apps/server run seed:rbac
+  ```
+
+###### `seedDemoMG.js` *(planned)*
+
+- **Purpose.** Build the Meridian Group demo tenant (§3.11.1). Drops and recreates the MG schema, then loads fixtures from `apps/server/scripts/fixtures/mg/`.
+- **Execute.**
+  ```bash
+  node apps/server/scripts/seedDemoMG.js
+  ```
+
+###### `seedDemoSRH.js` *(planned)*
+
+- **Purpose.** Build the Sterling Ridge Homes demo tenant (§3.11.2). Drops and recreates the SRH schema, then loads fixtures from `apps/server/scripts/fixtures/srh/`.
+- **Execute.**
+  ```bash
+  node apps/server/scripts/seedDemoSRH.js
+  ```
+
+### 14.4 Debugging & Diagnostic Scripts  [in-scope]
+
+Debugging scripts live alongside other one-off operational tools and are intentionally undocumented in `package.json` — they're invoked directly. Each prints its own usage with `--help`.
+
+The current diagnostic surface is small; additional scripts land under `apps/server/scripts/diag/` as needs arise.
+
+### 14.5 CLI / Shell Utilities  [in-scope]
+
+###### `db/provisionTenantCli.js`
+
+- **Purpose.** Run `provisionNewTenant` from the host shell — the same service the HTTP `POST /api/tenants/v1/tenants` endpoint calls. Useful for headless bootstrap and tests that need a fresh tenant outside HTTP.
+- **Usage.** Required: `--tenant-code`, `--company`, plus the admin user fields. Optional: `--schema-name`, `--tier`, `--status`.
+- **Execute.**
+  ```bash
+  node apps/server/scripts/db/provisionTenantCli.js \
+    --tenant-code CAL \
+    --company "Caledonia Holdings" \
+    --schema-name cal \
+    --tier growth \
+    --status active \
+    --admin-email admin@caledonia.example \
+    --admin-password '…' \
+    --admin-first-name Jane \
+    --admin-last-name Doe
+  ```
+
+###### `db/reconcilePolicyCatalog.js`
+
+- **Purpose.** Run the policy-catalog reconciler against one tenant schema or all tenants. Performs an idempotent diff/apply between in-code `CATALOG_ENTRIES` and the per-tenant `policy_catalog` table. Use when a hotfix changes the catalog without shipping a migration.
+- **Usage.** `--schema <name>` targets a single tenant; omit to walk every active tenant. `--dry-run` reports the planned changes without writing.
+- **Execute.**
+  ```bash
+  node apps/server/scripts/db/reconcilePolicyCatalog.js --schema axerra
+  node apps/server/scripts/db/reconcilePolicyCatalog.js --dry-run
+  ```
