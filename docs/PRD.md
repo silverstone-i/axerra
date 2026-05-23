@@ -545,55 +545,49 @@ Full rationale and trade-offs: [ADR-0028](./decisions/0028-vertical-module-archi
 
 ---
 
-## 3. Feature Modules  [in-scope]
-
-> Modules below are part of the Phase 1 base ERP core unless otherwise noted (see §1.1). Industry-vertical workflows — including construction — are layered as add-on modules in Phase 2 and beyond.
+## 3. Module Reference  [in-scope]
 
 ### 3.0 Module Taxonomy  [in-scope]
 
-The May 2026 product scope review formalised the module taxonomy below. **Core modules** ship with every AXERRA instance; **vertical add-on modules** are licensed per tenant via `tenant.allowed_modules` (see ADR-0018 and ADR-0028).
+AXERRA splits functionality into two kinds of module: **core** and **add-on**. Core modules ship with every instance. Add-on modules are opt-in per tenant. Every module is wired through `apps/server/src/db/moduleRegistry.js` and gated by the `moduleEntitlement` middleware (see [ADR-0018](./decisions/0018-module-entitlement-middleware.md) and [ADR-0028](./decisions/0028-vertical-module-architecture.md)).
 
-#### 3.0.1 Core modules (ship with every instance)
+#### 3.0.1 Core Modules
 
-| Module name | Notes |
-| --- | --- |
-| `system` | Auth, tenants, RBAC. Currently registered in [moduleRegistry.js](../apps/server/src/db/moduleRegistry.js) as `auth` (admin scope). |
-| `system/core` | Vendors, clients, employees, companies. Currently registered as `core`. |
-| `accounting` | General ledger, chart of accounts, journal entries, fiscal periods, bank reconciliation (via Plaid — see §3.15). Merged from the former `gl` and `accounting` skeletons. |
-| `ap` | Accounts payable. |
-| `ar` | Accounts receivable (milestone invoicing). Construction closing-statement workflow is documented in §3.8.4 and lives in the `contracts` vertical, not in `ar`. |
-| `projects` | Projects and sub-projects. |
-| `activities` | Cost tracking only. Deliverables move out to the new vertical `contracts` module (see §3.0.3). |
-| `reports` | Reporting and analytics. |
+Core modules load on every tenant. No configuration is required. They are:
 
-All eight core modules above are either already registered in `moduleRegistry.js` (`auth`, `core`, `projects`, `activities`, `bom`, `accounting`, `ap`, `ar`, `reports`) or in scope for the same registry-based pattern. `bom` is registered today but is documented as a vertical add-on in §3.0.2 — it remains available to any tenant that licenses it.
+| Module | Description | PRD § |
+| --- | --- | --- |
+| `system` | Auth, tenant management, RBAC. | §3.1 |
+| `core` | Vendors, vendor contacts, clients, employees, companies, contacts, addresses, payment terms. | §3.2 |
+| `projects` | Projects, units, tasks, cost items, change orders, templates. | §3.3 |
+| `activities` | Categories, activities, deliverables, budgets, cost lines, actual costs, vendor parts. | §3.4 |
+| `ap` | Accounts Payable — invoices, payments, credit memos. | §3.5 |
+| `ar` | Accounts Receivable — invoices, receipts. | §3.6 |
+| `accounting` | Chart of Accounts, Journal Entries, Ledger Balances, Posting Queues, Intercompany. | §3.7 |
+| `cashflow` | Cashflow forecasts and project profitability views. | §3.8 |
+| `reports` | Reporting and analytics. | §3.9 |
+| `shared` | Cross-module tables — emails, tenant preferences, countries, match review logs. | §3.10 |
 
-#### 3.0.2 Vertical add-on modules
+#### 3.0.2 Add-on Modules (loading rules)
 
-| Module name | Services | Construction | Production |
-| --- | --- | --- | --- |
-| `contracts` | ✓ | ✓ | ✓ |
-| `timesheets` | ✓ | ✓ | — |
-| `scheduling` | ✓ | ✓ | ✓ |
-| `bom` | — | ✓ | ✓ |
-| `procurement` | — | ✓ | ✓ |
-| `inventory` | — | ✓ | ✓ |
+Add-on modules load only if the tenant lists them in `tenants.allowed_modules`. The full set of available add-ons is:
 
-Verticals are packaged per tenant. A consulting firm licensing the *services* vertical receives `contracts`, `timesheets`, and `scheduling`; a homebuilder licensing the *construction* vertical receives all six; a manufacturer licensing the *production* vertical receives `contracts`, `scheduling`, `bom`, `procurement`, and `inventory`.
+| Module | Description | PRD § |
+| --- | --- | --- |
+| `bom` | Bill of Materials — catalog SKUs, vendor SKUs, vendor pricing. | §3.12 |
+| `contracts` | Contract documents and milestones (services SOWs, construction sales, production work orders). | §3.13 |
+| `scheduling` | Resource, crew, and milestone scheduling. | §3.14 |
+| `timesheets` | Labour capture by employee, project, and activity. | §3.15 |
+| `procurement` | Purchase orders, vendor RFQs, expediting. | §3.16 |
+| `inventory` | On-hand stock, lot/serial tracking, project issues. | §3.17 |
 
-Of the six listed, only `bom` is currently registered in `moduleRegistry.js`. The remaining five (`contracts`, `timesheets`, `scheduling`, `procurement`, `inventory`) are **planned** — they will be added to the registry when implemented.
+**Loading rules.** Three rules govern add-on loading:
 
-#### 3.0.3 Module changes from the May 2026 review
+1. An add-on loads for a tenant only if its module key appears in `tenants.allowed_modules` for that tenant.
+2. An empty `tenants.allowed_modules` array means **no** add-ons load. Empty does not mean "all" — that behaviour was removed.
+3. Removing a module from `tenants.allowed_modules` disables its routes and middleware on the next request. Existing data is not deleted.
 
-- **`gl` → `accounting` merge.** The earlier `gl` module is absorbed into `accounting`. Both were skeleton-only at the time of the merge, so there is no data risk. Going forward, `accounting` is the single home for general ledger, chart of accounts, journal entries, fiscal periods, and bank reconciliation.
-- **`activities` split.** Cost tracking stays in `activities`. Deliverables move to the new vertical `contracts` module, which is *not* part of the core. This keeps `activities` purely about cost while letting per-vertical contract semantics (services SOW deliverables, construction subdivision sales, production work orders) live where they belong.
-- **Five new vertical modules** — `contracts`, `scheduling`, `timesheets`, `procurement`, `inventory`. Brief scope:
-  - `contracts` — vertical-specific contract documents (services SOWs, construction subdivision sales / closing statements, production work orders).
-  - `scheduling` — resource and crew scheduling.
-  - `timesheets` — labour capture for services and construction.
-  - `procurement` — purchase orders, vendor RFQs, expediting.
-  - `inventory` — on-hand stock, lot/serial tracking, issues against projects.
-- **Implementation pattern.** New modules follow the same wiring as core modules: implement the module, register it in [moduleRegistry.js](../apps/server/src/db/moduleRegistry.js), and populate `tenant.allowed_modules` for licensed tenants. Access is gated by [moduleEntitlement middleware](../apps/server/src/middleware/moduleEntitlement.js) per [ADR-0018](./decisions/0018-module-entitlement-middleware.md). **No event bus, no subscription wiring, no inheritance hierarchy.** Architecture detail: ADR-0028 and §2.5.
+Of the six add-ons, only `bom` is currently registered in `moduleRegistry.js`. The other five are planned — they will be registered when implemented.
 
 ### 3.1 Authentication & Authorization (Core)  [in-scope]
 
