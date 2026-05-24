@@ -40,10 +40,22 @@ Status tags applied at the paragraph or bullet level (`[intended]`, `[implemente
   - [3.1 System — Auth, Tenant & RBAC](#31-system--auth-tenant--rbac--core)
     - [3.1.1 Overview](#311-overview)
     - [3.1.2 Data Tables](#312-data-tables)
-      - [3.1.2.1 portal_users](#3121-portal_users)
-      - [3.1.2.2 roles / policies / policy_catalog](#3122-roles--policies--policy_catalog)
-      - [3.1.2.3 state_filters / field_group_*](#3123-state_filters--field_group_)
-      - [3.1.2.4 project_members / company_members](#3124-project_members--company_members)
+      - [3.1.2.1 Admin Schema Identity Tables](#3121-admin-schema-identity-tables)
+        - [3.1.2.1.1 `admin.portal_users`](#31211-adminportal_users)
+        - [3.1.2.1.2 `admin.portal_user_tenants`](#31212-adminportal_user_tenants)
+        - [3.1.2.1.3 `admin.tenants`](#31213-admintenants)
+        - [3.1.2.1.4 `admin.impersonation_logs`](#31214-adminimpersonation_logs)
+      - [3.1.2.2 RBAC Policy Tables](#3122-rbac-policy-tables)
+        - [3.1.2.2.1 `roles`](#31221-roles)
+        - [3.1.2.2.2 `policies`](#31222-policies)
+        - [3.1.2.2.3 `policy_catalog`](#31223-policy_catalog)
+      - [3.1.2.3 RBAC State and Field-Group Tables](#3123-rbac-state-and-field-group-tables)
+        - [3.1.2.3.1 `state_filters`](#31231-state_filters)
+        - [3.1.2.3.2 `field_group_definitions`](#31232-field_group_definitions)
+        - [3.1.2.3.3 `field_group_grants`](#31233-field_group_grants)
+      - [3.1.2.4 RBAC Membership Tables](#3124-rbac-membership-tables)
+        - [3.1.2.4.1 `project_members`](#31241-project_members)
+        - [3.1.2.4.2 `company_members`](#31242-company_members)
     - [3.1.3 API](#313-api)
       - [3.1.3.1 Authentication Endpoints](#3131-authentication-endpoints)
       - [3.1.3.2 Tenant Management Endpoints](#3132-tenant-management-endpoints)
@@ -54,25 +66,51 @@ Status tags applied at the paragraph or bullet level (`[intended]`, `[implemente
       - [3.1.4.3 Four-Layer RBAC Resolution](#3143-four-layer-rbac-resolution)
       - [3.1.4.4 System Roles (incl. vendor_contacts, clients)](#3144-system-roles-incl-vendor_contacts-clients)
       - [3.1.4.5 Tenant Numbering System](#3145-tenant-numbering-system)
+        - [3.1.4.5.1 Design principles](#31451-design-principles)
+        - [3.1.4.5.2 Data: `tenant_numbering_config`](#31452-data-tenant_numbering_config)
+        - [3.1.4.5.3 Data: `tenant_number_sequence_state`](#31453-data-tenant_number_sequence_state)
+        - [3.1.4.5.4 Allocation and display](#31454-allocation-and-display)
+        - [3.1.4.5.5 Recommended defaults](#31455-recommended-defaults)
+        - [3.1.4.5.6 Entity integration and backfill](#31456-entity-integration-and-backfill)
+      - [3.1.4.6 Impersonation](#3146-impersonation)
   - [3.2 Core Entities](#32-core-entities--core)
     - [3.2.1 Overview](#321-overview)
     - [3.2.2 Data Tables](#322-data-tables)
       - [3.2.2.1 Vendors & Vendor Contacts](#3221-vendors--vendor-contacts)
+        - [3.2.2.1.1 `vendors`](#32211-vendors)
+        - [3.2.2.1.2 `vendor_contacts`](#32212-vendor_contacts)
       - [3.2.2.2 Payment Terms](#3222-payment-terms)
+        - [3.2.2.2.1 `payment_terms`](#32221-payment_terms)
       - [3.2.2.3 Clients](#3223-clients)
+        - [3.2.2.3.1 `clients`](#32231-clients)
       - [3.2.2.4 Employees](#3224-employees)
+        - [3.2.2.4.1 `employees`](#32241-employees)
       - [3.2.2.5 Sources, Contacts, Addresses & Phones](#3225-sources-contacts-addresses--phones)
+        - [3.2.2.5.1 `sources`](#32251-sources)
+        - [3.2.2.5.2 `contacts`](#32252-contacts)
+        - [3.2.2.5.3 `addresses`](#32253-addresses)
+        - [3.2.2.5.4 `phone_numbers`](#32254-phone_numbers)
+        - [3.2.2.5.5 `tax_identifiers`](#32255-tax_identifiers)
       - [3.2.2.6 Companies](#3226-companies)
+        - [3.2.2.6.1 `companies`](#32261-companies)
     - [3.2.3 API](#323-api)
     - [3.2.4 Business Rules](#324-business-rules)
   - [3.3 Projects](#33-projects--core)
     - [3.3.1 Overview](#331-overview)
     - [3.3.2 Data Tables](#332-data-tables)
       - [3.3.2.1 Projects](#3321-projects)
+        - [3.3.2.1.1 `projects`](#33211-projects)
+        - [3.3.2.1.2 `project_clients`](#33212-project_clients)
       - [3.3.2.2 Units](#3322-units)
+        - [3.3.2.2.1 `units`](#33221-units)
       - [3.3.2.3 Tasks & Task Groups](#3323-tasks--task-groups)
+        - [3.3.2.3.1 `task_groups`](#33231-task_groups)
+        - [3.3.2.3.2 `tasks_master`](#33232-tasks_master)
+        - [3.3.2.3.3 `tasks`](#33233-tasks)
       - [3.3.2.4 Cost Items](#3324-cost-items)
+        - [3.3.2.4.1 `cost_items`](#33241-cost_items)
       - [3.3.2.5 Change Orders](#3325-change-orders)
+        - [3.3.2.5.1 `change_orders`](#33251-change_orders)
       - [3.3.2.6 Templates](#3326-templates)
     - [3.3.3 API](#333-api)
     - [3.3.4 Business Rules](#334-business-rules)
@@ -80,39 +118,63 @@ Status tags applied at the paragraph or bullet level (`[intended]`, `[implemente
     - [3.4.1 Overview](#341-overview)
     - [3.4.2 Data Tables](#342-data-tables)
       - [3.4.2.1 Categories & Activities](#3421-categories--activities)
+        - [3.4.2.1.1 `categories`](#34211-categories)
+        - [3.4.2.1.2 `activities`](#34212-activities)
       - [3.4.2.2 Deliverables & Assignments](#3422-deliverables--assignments)
+        - [3.4.2.2.1 `deliverables`](#34221-deliverables)
+        - [3.4.2.2.2 `deliverable_assignments`](#34222-deliverable_assignments)
       - [3.4.2.3 Budgets](#3423-budgets)
+        - [3.4.2.3.1 `budgets`](#34231-budgets)
       - [3.4.2.4 Cost Lines](#3424-cost-lines)
+        - [3.4.2.4.1 `cost_lines`](#34241-cost_lines)
       - [3.4.2.5 Actual Costs](#3425-actual-costs)
+        - [3.4.2.5.1 `actual_costs`](#34251-actual_costs)
       - [3.4.2.6 Vendor Parts](#3426-vendor-parts)
+        - [3.4.2.6.1 `vendor_parts`](#34261-vendor_parts)
     - [3.4.3 API](#343-api)
     - [3.4.4 Business Rules](#344-business-rules)
   - [3.5 Accounts Payable](#35-accounts-payable--core)
     - [3.5.1 Overview](#351-overview)
     - [3.5.2 Data Tables](#352-data-tables)
       - [3.5.2.1 AP Invoices](#3521-ap-invoices)
+        - [3.5.2.1.1 `ap_invoices`](#35211-ap_invoices)
       - [3.5.2.2 AP Invoice Lines](#3522-ap-invoice-lines)
+        - [3.5.2.2.1 `ap_invoice_lines`](#35221-ap_invoice_lines)
       - [3.5.2.3 Payments](#3523-payments)
+        - [3.5.2.3.1 `payments`](#35231-payments)
       - [3.5.2.4 Credit Memos](#3524-credit-memos)
+        - [3.5.2.4.1 `ap_credit_memos`](#35241-ap_credit_memos)
     - [3.5.3 API](#353-api)
     - [3.5.4 Business Rules](#354-business-rules)
   - [3.6 Accounts Receivable](#36-accounts-receivable--core)
     - [3.6.1 Overview](#361-overview)
     - [3.6.2 Data Tables](#362-data-tables)
       - [3.6.2.1 AR Invoices](#3621-ar-invoices)
+        - [3.6.2.1.1 `ar_invoices`](#36211-ar_invoices)
       - [3.6.2.2 AR Invoice Lines](#3622-ar-invoice-lines)
+        - [3.6.2.2.1 `ar_invoice_lines`](#36221-ar_invoice_lines)
       - [3.6.2.3 Receipts](#3623-receipts)
+        - [3.6.2.3.1 `receipts`](#36231-receipts)
     - [3.6.3 API](#363-api)
     - [3.6.4 Business Rules](#364-business-rules)
   - [3.7 Accounting & General Ledger](#37-accounting--general-ledger--core)
     - [3.7.1 Overview](#371-overview)
     - [3.7.2 Data Tables](#372-data-tables)
       - [3.7.2.1 Chart of Accounts](#3721-chart-of-accounts)
+        - [3.7.2.1.1 `chart_of_accounts`](#37211-chart_of_accounts)
       - [3.7.2.2 Journal Entries & Lines](#3722-journal-entries--lines)
+        - [3.7.2.2.1 `journal_entries`](#37221-journal_entries)
+        - [3.7.2.2.2 `journal_entry_lines`](#37222-journal_entry_lines)
       - [3.7.2.3 Ledger Balances](#3723-ledger-balances)
+        - [3.7.2.3.1 `ledger_balances`](#37231-ledger_balances)
       - [3.7.2.4 Posting Queues](#3724-posting-queues)
+        - [3.7.2.4.1 `posting_queues`](#37241-posting_queues)
       - [3.7.2.5 Category-Account Map](#3725-category-account-map)
+        - [3.7.2.5.1 `category_account_map`](#37251-category_account_map)
       - [3.7.2.6 Intercompany](#3726-intercompany)
+        - [3.7.2.6.1 `company_accounts`](#37261-company_accounts)
+        - [3.7.2.6.2 `company_transactions`](#37262-company_transactions)
+        - [3.7.2.6.3 `internal_transfers`](#37263-internal_transfers)
     - [3.7.3 API](#373-api)
     - [3.7.4 Business Rules](#374-business-rules)
   - [3.8 Cashflow & Profitability](#38-cashflow--profitability--core)
@@ -133,9 +195,13 @@ Status tags applied at the paragraph or bullet level (`[intended]`, `[implemente
     - [3.9.4 Business Rules](#394-business-rules)
   - [3.10 Shared Tables](#310-shared-tables--core)
     - [3.10.1 Emails](#3101-emails)
+      - [3.10.1.1 `emails`](#31011-emails)
     - [3.10.2 Tenant Preferences](#3102-tenant-preferences)
+      - [3.10.2.1 `tenant_preferences`](#31021-tenant_preferences)
     - [3.10.3 Countries](#3103-countries)
+      - [3.10.3.1 `admin.countries`](#31031-admincountries)
     - [3.10.4 Match Review Logs](#3104-match-review-logs)
+      - [3.10.4.1 `match_review_logs`](#31041-match_review_logs)
   - [3.11 Demo Tenants](#311-demo-tenants--in-scope)
     - [3.11.1 Meridian Group (MG) — Consulting Use Case](#3111-meridian-group-mg--consulting-use-case)
       - [3.11.1.1 Profile](#31111-profile)
@@ -153,8 +219,11 @@ Status tags applied at the paragraph or bullet level (`[intended]`, `[implemente
     - [3.12.1 Overview](#3121-overview)
     - [3.12.2 Data Tables](#3122-data-tables)
       - [3.12.2.1 Catalog SKUs](#31221-catalog-skus)
+        - [3.12.2.1.1 `catalog_skus`](#312211-catalog_skus)
       - [3.12.2.2 Vendor SKUs](#31222-vendor-skus)
+        - [3.12.2.2.1 `vendor_skus`](#312221-vendor_skus)
       - [3.12.2.3 Vendor Pricing](#31223-vendor-pricing)
+        - [3.12.2.3.1 `vendor_pricing`](#312231-vendor_pricing)
     - [3.12.3 API](#3123-api)
     - [3.12.4 Business Rules](#3124-business-rules)
   - [3.13 Contracts](#313-contracts--add-on-deferred)
@@ -266,9 +335,18 @@ Status tags applied at the paragraph or bullet level (`[intended]`, `[implemente
 - [14. Scripts](#14-scripts--in-scope)
   - [14.1 Conventions](#141-conventions--in-scope)
   - [14.2 Migration Scripts](#142-migration-scripts--in-scope)
+    - [14.2.1 `setupAdmin.js`](#1421-setupadminjs)
+    - [14.2.2 `runMigrate.js`](#1422-runmigratejs)
+    - [14.2.3 `migrateTenants.js`](#1423-migratetenantsjs)
   - [14.3 Bootstrap & Seed Scripts](#143-bootstrap--seed-scripts--in-scope)
+    - [14.3.1 `seed.js`](#1431-seedjs)
+    - [14.3.2 `seedRbac.js`](#1432-seedrbacjs)
+    - [14.3.3 `seedDemoMG.js` *(planned)*](#1433-seeddemomgjs-planned)
+    - [14.3.4 `seedDemoSRH.js` *(planned)*](#1434-seeddemosrhjs-planned)
   - [14.4 Debugging & Diagnostic Scripts](#144-debugging--diagnostic-scripts--in-scope)
   - [14.5 CLI / Shell Utilities](#145-cli--shell-utilities--in-scope)
+    - [14.5.1 `db/provisionTenantCli.js`](#1451-dbprovisiontenantclijs)
+    - [14.5.2 `db/reconcilePolicyCatalog.js`](#1452-dbreconcilepolicycatalogjs)
 
 ## Glossary
 
@@ -590,11 +668,11 @@ The System module owns identity, tenant lifecycle, and Role-Based Access Control
 
 #### 3.1.2 Data Tables
 
-##### 3.1.2.1 portal_users
+##### 3.1.2.1 Admin Schema Identity Tables
 
 Four admin-schema tables form the identity cluster. They are owned by `admin`, shared across tenants, and accessed via the `requireRootTenant` middleware (except where noted).
 
-###### `admin.portal_users`
+###### 3.1.2.1.1 `admin.portal_users`
 
 Pure identity / authentication. All personal information (name, phone, address) lives on the linked entity record in the tenant schema via polymorphic `entity_type` + `entity_id`.
 
@@ -610,7 +688,7 @@ Pure identity / authentication. All personal information (name, phone, address) 
 
 Partial unique index `(entity_type, entity_id) WHERE deactivated_at IS NULL` prevents duplicate logins for the same entity.
 
-###### `admin.portal_user_tenants`
+###### 3.1.2.1.2 `admin.portal_user_tenants`
 
 Authoritative cross-tenant binding table. One row per `(portal_user, tenant)` pair the user can access. The oldest active row is the user's home tenant.
 
@@ -628,7 +706,7 @@ Indexes:
 - Partial unique `(tenant_id, entity_type, entity_id) WHERE deactivated_at IS NULL AND entity_type IS NOT NULL` — at most one active portal_user per tenant-scoped entity.
 - Supporting indexes on `portal_user_id`, `tenant_id`, `(entity_type, entity_id)`.
 
-###### `admin.tenants`
+###### 3.1.2.1.3 `admin.tenants`
 
 The tenant registry. Axerra (tenant_code `AXERRA`) is the root tenant and cannot be archived or deleted.
 
@@ -645,7 +723,7 @@ The tenant registry. Axerra (tenant_code `AXERRA`) is the root tenant and cannot
 | `max_users` | integer | User limit (default 5). |
 | `notes` | text | Internal notes. |
 
-###### `admin.impersonation_logs`
+###### 3.1.2.1.4 `admin.impersonation_logs`
 
 Audit trail for cross-tenant impersonation by Axerra `super_user` / `support`.
 
@@ -661,11 +739,11 @@ Audit trail for cross-tenant impersonation by Axerra `super_user` / `support`.
 
 Partial unique index `(impersonator_id) WHERE ended_at IS NULL` prevents concurrent sessions; a second open attempt returns `409 Conflict`.
 
-##### 3.1.2.2 roles / policies / policy_catalog
+##### 3.1.2.2 RBAC Policy Tables
 
 These three tables define **Layer 1 — what a role can do**. They live in every tenant schema.
 
-###### `roles`
+###### 3.1.2.2.1 `roles`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -680,7 +758,7 @@ These three tables define **Layer 1 — what a role can do**. They live in every
 
 Roles are stored as a `roles` text array directly on each entity record (employees, clients, vendor_contacts). There is no `role_members` junction table.
 
-###### `policies`
+###### 3.1.2.2.2 `policies`
 
 Per-role permission grants.
 
@@ -694,7 +772,7 @@ Per-role permission grants.
 | `level` | varchar(8) | `none`, `view`, or `full`. |
 | `tenant_code` | varchar(6) | Tenant this policy belongs to. |
 
-###### `policy_catalog`
+###### 3.1.2.2.3 `policy_catalog`
 
 Read-only registry of valid `(module, router, action)` combinations. Drives the role-configuration UI and the exact-match carve-out in policy resolution.
 
@@ -713,11 +791,11 @@ Read-only registry of valid `(module, router, action)` combinations. Drives the 
 
 Seed-only reference data. No audit fields, no tenant_code.
 
-##### 3.1.2.3 state_filters / field_group_*
+##### 3.1.2.3 RBAC State and Field-Group Tables
 
 These tables define **Layer 3 (record states)** and **Layer 4 (column visibility)**.
 
-###### `state_filters`
+###### 3.1.2.3.1 `state_filters`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -727,7 +805,7 @@ These tables define **Layer 3 (record states)** and **Layer 4 (column visibility
 | `router` | varchar(64) | Router name. |
 | `visible_statuses` | text[] | Statuses this role may see. Empty = no filtering. |
 
-###### `field_group_definitions`
+###### 3.1.2.3.2 `field_group_definitions`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -738,7 +816,7 @@ These tables define **Layer 3 (record states)** and **Layer 4 (column visibility
 | `columns` | text[] | Columns in this group. |
 | `is_default` | boolean | If `true`, granted to every role automatically. |
 
-###### `field_group_grants`
+###### 3.1.2.3.3 `field_group_grants`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -748,11 +826,11 @@ These tables define **Layer 3 (record states)** and **Layer 4 (column visibility
 
 Empty grants = all columns visible.
 
-##### 3.1.2.4 project_members / company_members
+##### 3.1.2.4 RBAC Membership Tables
 
 These tables define **Layer 2 — data scope** for users with `assigned_projects` or `assigned_companies` scope.
 
-###### `project_members`
+###### 3.1.2.4.1 `project_members`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -761,7 +839,7 @@ These tables define **Layer 2 — data scope** for users with `assigned_projects
 | `user_id` | uuid | FK to `portal_users`. |
 | `role` | varchar(32) | Label (e.g., `member`, `lead`). |
 
-###### `company_members`
+###### 3.1.2.4.2 `company_members`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -886,7 +964,7 @@ The five system roles above receive a single wildcard policy at seed time. Addin
 
 The numbering system generates human-readable business identifiers (e.g., `EMP-0045`, `INV-2026-00123`) separately from internal UUID primary keys. Configuration is per-tenant, optionally sub-scoped (e.g., per company for invoices), and supports period-based counter reset.
 
-###### Design principles
+###### 3.1.4.5.1 Design principles
 
 1. UUID primary keys are not business identifiers.
 2. Business numbers are generated per tenant; never globally.
@@ -895,7 +973,7 @@ The numbering system generates human-readable business identifiers (e.g., `EMP-0
 5. Display formatting is independent of serial allocation.
 6. Issued numbers are immutable.
 
-###### Data: `tenant_numbering_config`
+###### 3.1.4.5.2 Data: `tenant_numbering_config`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -914,7 +992,7 @@ The numbering system generates human-readable business identifiers (e.g., `EMP-0
 
 Unique constraint `(tenant_id, id_type)` — one config row per entity type per tenant. Changing configuration affects future numbers only; historical numbers are never rewritten.
 
-###### Data: `tenant_number_sequence_state`
+###### 3.1.4.5.3 Data: `tenant_number_sequence_state`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -927,7 +1005,7 @@ Unique constraint `(tenant_id, id_type)` — one config row per entity type per 
 
 Unique constraint `(tenant_id, id_type, scope_id, period_key)`.
 
-###### Allocation and display
+###### 3.1.4.5.4 Allocation and display
 
 1. Determine `period_key` from `reset_mode` and current date.
 2. `BEGIN` transaction.
@@ -939,7 +1017,7 @@ Unique constraint `(tenant_id, id_type, scope_id, period_key)`.
 
 Reset is achieved via `period_key` partitioning. For yearly reset, 2025 uses `period_key = '2025'` from serial 000001, and 2026 starts a new partition at 000001 automatically.
 
-###### Recommended defaults
+###### 3.1.4.5.5 Recommended defaults
 
 | Entity | Prefix | Padding | Date mode | Reset | Scope |
 | --- | --- | --- | --- | --- | --- |
@@ -953,13 +1031,13 @@ Reset is achieved via `period_key` partitioning. For yearly reset, 2025 uses `pe
 
 All configs are seeded with `is_enabled = false`. Tenants opt in via Settings → Numbering.
 
-###### Entity integration and backfill
+###### 3.1.4.5.6 Entity integration and backfill
 
 1. Auto-numbering populates the entity's code field only when the user does not supply one.
 2. AR invoices number on status transition to `sent`. AP invoices number on status transition to `approved`. Numbers are immutable after assignment.
 3. When numbering is enabled for an entity type for the first time, existing records with `code IS NULL AND deactivated_at IS NULL` are backfilled. The backfill runs atomically, in `created_at` order, via the same `allocateNumber()` path normal creates use. The response returns a `backfilledCodes` count for the UI.
 
-###### Impersonation
+##### 3.1.4.6 Impersonation
 
 1. The active impersonation session is stored in Redis at `imp:{userId}` with TTL.
 2. `authRedis` detects the session, swaps `req.user` to the target user, and sets `req.user.is_impersonating = true` plus `req.user.impersonated_by`.
@@ -978,7 +1056,7 @@ Core Entities are the shared reference records every other module reads from. Th
 
 ##### 3.2.2.1 Vendors & Vendor Contacts
 
-###### `vendors`
+###### 3.2.2.1.1 `vendors`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -991,7 +1069,7 @@ Core Entities are the shared reference records every other module reads from. Th
 | `is_active` | boolean | Default true. |
 | `notes` | text | Internal notes. |
 
-###### `vendor_contacts`
+###### 3.2.2.1.2 `vendor_contacts`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1011,7 +1089,7 @@ Each vendor contact owns its own `sources` row (with `source_type = 'vendor_cont
 
 ##### 3.2.2.2 Payment Terms
 
-###### `payment_terms`
+###### 3.2.2.2.1 `payment_terms`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1024,7 +1102,7 @@ Each vendor contact owns its own `sources` row (with `source_type = 'vendor_cont
 
 ##### 3.2.2.3 Clients
 
-###### `clients`
+###### 3.2.2.3.1 `clients`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1041,7 +1119,7 @@ Email addresses live in the polymorphic `emails` table keyed by `clients.source_
 
 ##### 3.2.2.4 Employees
 
-###### `employees`
+###### 3.2.2.4.1 `employees`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1066,7 +1144,7 @@ Employees use `deactivated_at` (via pg-schemata `softDelete: true`) and do **not
 
 The `sources` table is a discriminated union — every entity that needs addresses, phones, emails, or tax IDs gets exactly one `sources` row. Children FK to `sources.id`, never to the entity directly.
 
-###### `sources`
+###### 3.2.2.5.1 `sources`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1076,7 +1154,7 @@ The `sources` table is a discriminated union — every entity that needs address
 | `source_type` | varchar(32) | `vendor`, `vendor_contact`, `client`, `employee`, `contact`, `company`. |
 | `label` | varchar(64) | Human-friendly label. |
 
-###### `contacts`
+###### 3.2.2.5.2 `contacts`
 
 Standalone payees and receivable counterparties that are not vendors, clients, or employees (one-off commissions, donations, ad-hoc income). Cannot log in. No RBAC roles.
 
@@ -1089,7 +1167,7 @@ Standalone payees and receivable counterparties that are not vendors, clients, o
 | `code` | varchar(16) | Unique per tenant. |
 | `is_active` | boolean | Default true. |
 
-###### `addresses`
+###### 3.2.2.5.3 `addresses`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1106,7 +1184,7 @@ Standalone payees and receivable counterparties that are not vendors, clients, o
 | `country_code` | char(2) | ISO 3166-1 alpha-2. |
 | `is_primary` | boolean | Primary address flag. |
 
-###### `phone_numbers`
+###### 3.2.2.5.4 `phone_numbers`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1118,7 +1196,7 @@ Standalone payees and receivable counterparties that are not vendors, clients, o
 | `phone_number` | varchar(32) | Not null. |
 | `is_primary` | boolean | Default false. |
 
-###### `tax_identifiers`
+###### 3.2.2.5.5 `tax_identifiers`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1134,7 +1212,7 @@ Unique constraint `(source_id, country_code, tax_type) WHERE deactivated_at IS N
 
 ##### 3.2.2.6 Companies
 
-###### `companies`
+###### 3.2.2.6.1 `companies`
 
 Companies are the legal entities under a tenant. There is no separate `legal_entities` table.
 
@@ -1192,7 +1270,7 @@ The Projects module owns the full project lifecycle. It covers projects, the uni
 
 ##### 3.3.2.1 Projects
 
-###### `projects`
+###### 3.3.2.1.1 `projects`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1207,7 +1285,7 @@ The Projects module owns the full project lifecycle. It covers projects, the uni
 | `status` | varchar(20) | `planning` → `budgeting` → `released` → `complete`. CHECK also allows `on_hold`. |
 | `contract_amount` | numeric(14,2) | Total contract value from clients (used for profitability). |
 
-###### `project_clients`
+###### 3.3.2.1.2 `project_clients`
 
 Junction table associating multiple clients with a project (replaces a single `client_id` FK).
 
@@ -1223,7 +1301,7 @@ Unique `(project_id, client_id)`.
 
 ##### 3.3.2.2 Units
 
-###### `units`
+###### 3.3.2.2.1 `units`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1237,7 +1315,7 @@ Unique `(project_id, client_id)`.
 
 ##### 3.3.2.3 Tasks & Task Groups
 
-###### `task_groups`
+###### 3.3.2.3.1 `task_groups`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1248,7 +1326,7 @@ Unique `(project_id, client_id)`.
 | `description` | text | Description. |
 | `sort_order` | integer | Display order (default 0). |
 
-###### `tasks_master`
+###### 3.3.2.3.2 `tasks_master`
 
 Tenant-level library of task definitions.
 
@@ -1261,7 +1339,7 @@ Tenant-level library of task definitions.
 | `name` | varchar(128) | Task name. |
 | `default_duration_days` | integer | Default duration. |
 
-###### `tasks`
+###### 3.3.2.3.3 `tasks`
 
 Unit-level task instances.
 
@@ -1277,7 +1355,7 @@ Unit-level task instances.
 
 ##### 3.3.2.4 Cost Items
 
-###### `cost_items`
+###### 3.3.2.4.1 `cost_items`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1293,7 +1371,7 @@ Unit-level task instances.
 
 ##### 3.3.2.5 Change Orders
 
-###### `change_orders`
+###### 3.3.2.5.1 `change_orders`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1357,7 +1435,7 @@ The Activities module owns categorical cost tracking. Categories and activities 
 
 ##### 3.4.2.1 Categories & Activities
 
-###### `categories`
+###### 3.4.2.1.1 `categories`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1366,7 +1444,7 @@ The Activities module owns categorical cost tracking. Categories and activities 
 | `name` | varchar(64) | Category name (e.g., "Framing", "Plumbing"). |
 | `type` | varchar(16) | `labor`, `material`, `subcontract`, `equipment`, `other`. |
 
-###### `activities`
+###### 3.4.2.1.2 `activities`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1378,7 +1456,7 @@ The Activities module owns categorical cost tracking. Categories and activities 
 
 ##### 3.4.2.2 Deliverables & Assignments
 
-###### `deliverables`
+###### 3.4.2.2.1 `deliverables`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1389,7 +1467,7 @@ The Activities module owns categorical cost tracking. Categories and activities 
 | `start_date` | date | Timeline start. |
 | `end_date` | date | Timeline end. |
 
-###### `deliverable_assignments`
+###### 3.4.2.2.2 `deliverable_assignments`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1400,7 +1478,7 @@ The Activities module owns categorical cost tracking. Categories and activities 
 
 ##### 3.4.2.3 Budgets
 
-###### `budgets`
+###### 3.4.2.3.1 `budgets`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1416,7 +1494,7 @@ The Activities module owns categorical cost tracking. Categories and activities 
 
 ##### 3.4.2.4 Cost Lines
 
-###### `cost_lines`
+###### 3.4.2.4.1 `cost_lines`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1436,7 +1514,7 @@ The Activities module owns categorical cost tracking. Categories and activities 
 
 ##### 3.4.2.5 Actual Costs
 
-###### `actual_costs`
+###### 3.4.2.5.1 `actual_costs`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1451,7 +1529,7 @@ The Activities module owns categorical cost tracking. Categories and activities 
 
 ##### 3.4.2.6 Vendor Parts
 
-###### `vendor_parts`
+###### 3.4.2.6.1 `vendor_parts`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1503,7 +1581,7 @@ Accounts Payable (AP) owns vendor invoices, invoice lines, payments, and credit 
 
 ##### 3.5.2.1 AP Invoices
 
-###### `ap_invoices`
+###### 3.5.2.1.1 `ap_invoices`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1521,7 +1599,7 @@ Accounts Payable (AP) owns vendor invoices, invoice lines, payments, and credit 
 
 ##### 3.5.2.2 AP Invoice Lines
 
-###### `ap_invoice_lines`
+###### 3.5.2.2.1 `ap_invoice_lines`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1535,7 +1613,7 @@ Accounts Payable (AP) owns vendor invoices, invoice lines, payments, and credit 
 
 ##### 3.5.2.3 Payments
 
-###### `payments`
+###### 3.5.2.3.1 `payments`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1550,7 +1628,7 @@ Accounts Payable (AP) owns vendor invoices, invoice lines, payments, and credit 
 
 ##### 3.5.2.4 Credit Memos
 
-###### `ap_credit_memos`
+###### 3.5.2.4.1 `ap_credit_memos`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1596,7 +1674,7 @@ Accounts Receivable (AR) owns client invoices, invoice lines, and receipts. AR i
 
 ##### 3.6.2.1 AR Invoices
 
-###### `ar_invoices`
+###### 3.6.2.1.1 `ar_invoices`
 
 | Field              | Type          | Description                                                        |
 | ------------------ | ------------- | ------------------------------------------------------------------ |
@@ -1617,7 +1695,7 @@ Accounts Receivable (AR) owns client invoices, invoice lines, and receipts. AR i
 
 ##### 3.6.2.2 AR Invoice Lines
 
-###### `ar_invoice_lines`
+###### 3.6.2.2.1 `ar_invoice_lines`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1628,7 +1706,7 @@ Accounts Receivable (AR) owns client invoices, invoice lines, and receipts. AR i
 
 ##### 3.6.2.3 Receipts
 
-###### `receipts`
+###### 3.6.2.3.1 `receipts`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1672,7 +1750,7 @@ The Accounting module owns the chart of accounts, journal entries and lines, led
 
 ##### 3.7.2.1 Chart of Accounts
 
-###### `chart_of_accounts`
+###### 3.7.2.1.1 `chart_of_accounts`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1688,7 +1766,7 @@ The Accounting module owns the chart of accounts, journal entries and lines, led
 
 ##### 3.7.2.2 Journal Entries & Lines
 
-###### `journal_entries`
+###### 3.7.2.2.1 `journal_entries`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1702,7 +1780,7 @@ The Accounting module owns the chart of accounts, journal entries and lines, led
 | `source_id` | uuid | Reference to the source record in the originating module. |
 | `corrects_id` | uuid | Self-ref FK for reversals (SET NULL). |
 
-###### `journal_entry_lines`
+###### 3.7.2.2.2 `journal_entry_lines`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1716,7 +1794,7 @@ The Accounting module owns the chart of accounts, journal entries and lines, led
 
 ##### 3.7.2.3 Ledger Balances
 
-###### `ledger_balances`
+###### 3.7.2.3.1 `ledger_balances`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1726,7 +1804,7 @@ The Accounting module owns the chart of accounts, journal entries and lines, led
 
 ##### 3.7.2.4 Posting Queues
 
-###### `posting_queues`
+###### 3.7.2.4.1 `posting_queues`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1737,7 +1815,7 @@ The Accounting module owns the chart of accounts, journal entries and lines, led
 
 ##### 3.7.2.5 Category-Account Map
 
-###### `category_account_map`
+###### 3.7.2.5.1 `category_account_map`
 
 Maps cost categories to GL accounts with date-range validity.
 
@@ -1750,7 +1828,7 @@ Maps cost categories to GL accounts with date-range validity.
 
 ##### 3.7.2.6 Intercompany
 
-###### `company_accounts`
+###### 3.7.2.6.1 `company_accounts`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1761,7 +1839,7 @@ Maps cost categories to GL accounts with date-range validity.
 
 Unique `(tenant_id, source_company_id, target_company_id)`.
 
-###### `company_transactions`
+###### 3.7.2.6.2 `company_transactions`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1775,7 +1853,7 @@ Unique `(tenant_id, source_company_id, target_company_id)`.
 | `is_eliminated` | boolean | Elimination flag for consolidated reporting (default false). |
 | `description` | text | Transaction description. |
 
-###### `internal_transfers`
+###### 3.7.2.6.3 `internal_transfers`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1970,7 +2048,7 @@ Tables that don't belong to any single business module — they're consumed by s
 
 The `emails` table is the canonical store for email addresses across vendors, vendor contacts, clients, employees, and contacts. It replaces per-entity `email` columns.
 
-###### `emails`
+##### 3.10.1.1 `emails`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1994,7 +2072,7 @@ Endpoint: `/api/core/v1/emails` (standard CRUD). Policy catalog entry `core::ema
 
 One row per tenant. Tenant-scoped UI and behaviour preferences.
 
-###### `tenant_preferences`
+##### 3.10.2.1 `tenant_preferences`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -2008,7 +2086,7 @@ Endpoint: `/api/core/v1/tenant-preferences` (standard CRUD). Seeded with the def
 
 ISO 3166-1 alpha-2 country reference list in the **admin** schema. Tenant tables (`phone_numbers`, `addresses`, `tax_identifiers`) FK their `country_code` columns here so non-ISO inputs are rejected at the database level.
 
-###### `admin.countries`
+##### 3.10.3.1 `admin.countries`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -2023,7 +2101,7 @@ No API surface. Read directly by the client via the shared country list in `pack
 
 Audit trail for BOM vendor-SKU matching decisions.
 
-###### `match_review_logs`
+##### 3.10.4.1 `match_review_logs`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -2126,7 +2204,7 @@ The BOM add-on manages material catalogs, vendor SKU matching, and vendor pricin
 
 ##### 3.12.2.1 Catalog SKUs
 
-###### `catalog_skus`
+###### 3.12.2.1.1 `catalog_skus`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -2141,7 +2219,7 @@ The BOM add-on manages material catalogs, vendor SKU matching, and vendor pricin
 
 ##### 3.12.2.2 Vendor SKUs
 
-###### `vendor_skus`
+###### 3.12.2.2.1 `vendor_skus`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -2159,7 +2237,7 @@ Custom model methods: `findBySku(vendor_id, vendor_sku)`, `getUnmatched()`, `ref
 
 ##### 3.12.2.3 Vendor Pricing
 
-###### `vendor_pricing`
+###### 3.12.2.3.1 `vendor_pricing`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -3830,7 +3908,7 @@ Execute scripts via the npm scripts in `apps/server/package.json` whenever one e
 
 ### 14.2 Migration Scripts  [in-scope]
 
-###### `setupAdmin.js`
+#### 14.2.1 `setupAdmin.js`
 
 - **Purpose.** Bootstrap the `admin` schema on a fresh database. Creates the schema, installs extensions (`pgcrypto`, `uuid-ossp`, `vector`), runs admin migrations, and seeds the root Axerra tenant plus the bootstrap `super_user`.
 - **Usage.** Run once per environment. Subsequent boots are idempotent and skip already-applied steps.
@@ -3840,7 +3918,7 @@ Execute scripts via the npm scripts in `apps/server/package.json` whenever one e
   npm -w apps/server run setupAdmin:test  # test DB
   ```
 
-###### `runMigrate.js`
+#### 14.2.2 `runMigrate.js`
 
 - **Purpose.** Drive pending migrations against the admin schema and every active tenant schema. Wraps `migrateTenants.js`.
 - **Usage.** Accepts an optional space-separated list of tenant schema names to limit scope. `--dry-run` reports pending migrations without applying them; `NODE_ENV=test` or `--test` implies `--dry-run`.
@@ -3852,13 +3930,13 @@ Execute scripts via the npm scripts in `apps/server/package.json` whenever one e
   node apps/server/scripts/runMigrate.js --dry-run  # report only
   ```
 
-###### `migrateTenants.js`
+#### 14.2.3 `migrateTenants.js`
 
 - **Purpose.** Library used by `runMigrate.js`. Resolves the module set for each schema via `getModulesForSchema()` and runs only the migrations for those modules. Exported for programmatic use; not a CLI in its own right.
 
 ### 14.3 Bootstrap & Seed Scripts  [in-scope]
 
-###### `seed.js`
+#### 14.3.1 `seed.js`
 
 - **Purpose.** Seed development data into the dev database (companies, vendors, projects, sample invoices, chart of accounts).
 - **Usage.** Idempotent — re-running clears non-system tables and reseeds.
@@ -3867,7 +3945,7 @@ Execute scripts via the npm scripts in `apps/server/package.json` whenever one e
   npm -w apps/server run seed
   ```
 
-###### `seedRbac.js`
+#### 14.3.2 `seedRbac.js`
 
 - **Purpose.** Seed RBAC reference data (policy catalog, default roles, default policies) into a tenant schema. Re-runs the `policyCatalogReconciler` to sync the in-code `CATALOG_ENTRIES` constant.
 - **Usage.** Runs against `NODE_ENV=development` by default.
@@ -3876,7 +3954,7 @@ Execute scripts via the npm scripts in `apps/server/package.json` whenever one e
   npm -w apps/server run seed:rbac
   ```
 
-###### `seedDemoMG.js` *(planned)*
+#### 14.3.3 `seedDemoMG.js` *(planned)*
 
 - **Purpose.** Build the Meridian Group demo tenant (§3.11.1). Drops and recreates the MG schema, then loads fixtures from `apps/server/scripts/fixtures/mg/`.
 - **Execute.**
@@ -3884,7 +3962,7 @@ Execute scripts via the npm scripts in `apps/server/package.json` whenever one e
   node apps/server/scripts/seedDemoMG.js
   ```
 
-###### `seedDemoSRH.js` *(planned)*
+#### 14.3.4 `seedDemoSRH.js` *(planned)*
 
 - **Purpose.** Build the Sterling Ridge Homes demo tenant (§3.11.2). Drops and recreates the SRH schema, then loads fixtures from `apps/server/scripts/fixtures/srh/`.
 - **Execute.**
@@ -3900,7 +3978,7 @@ The current diagnostic surface is small; additional scripts land under `apps/ser
 
 ### 14.5 CLI / Shell Utilities  [in-scope]
 
-###### `db/provisionTenantCli.js`
+#### 14.5.1 `db/provisionTenantCli.js`
 
 - **Purpose.** Run `provisionNewTenant` from the host shell — the same service the HTTP `POST /api/tenants/v1/tenants` endpoint calls. Useful for headless bootstrap and tests that need a fresh tenant outside HTTP.
 - **Usage.** Required: `--tenant-code`, `--company`, plus the admin user fields. Optional: `--schema-name`, `--tier`, `--status`.
@@ -3918,7 +3996,7 @@ The current diagnostic surface is small; additional scripts land under `apps/ser
     --admin-last-name Doe
   ```
 
-###### `db/reconcilePolicyCatalog.js`
+#### 14.5.2 `db/reconcilePolicyCatalog.js`
 
 - **Purpose.** Run the policy-catalog reconciler against one tenant schema or all tenants. Performs an idempotent diff/apply between in-code `CATALOG_ENTRIES` and the per-tenant `policy_catalog` table. Use when a hotfix changes the catalog without shipping a migration.
 - **Usage.** `--schema <name>` targets a single tenant; omit to walk every active tenant. `--dry-run` reports the planned changes without writing.
