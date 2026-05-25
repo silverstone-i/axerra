@@ -3828,6 +3828,7 @@ axerra/
       0027-license-and-contribution.md
       0028-vertical-module-architecture.md
       0029-tenant-restore-admin-reactivation.md
+      0030-roles-as-array-on-entity.md
     PRD.md                      # This file
 ```
 
@@ -3911,6 +3912,7 @@ The following ADRs are captured under `docs/decisions/`:
 | 0027 | License, copyright, DCO, and dependency policy                  | AGPLv3 relicense + DCO sign-off + AGPL-incompatibility dependency gate                |
 | 0028 | Add-on module architecture                                      | Add-ons are coded identically to core modules; `allowed_modules` + registry only — no event bus or plugin layer. |
 | 0029 | Tenant restore leaves users locked; admin reactivation is explicit | Restore clears `deactivated_at` on the cohort but not `status`; `POST /tenants/:id/provision-admin` is the only supported re-enable path. |
+| 0030 | Role assignments as `text[]` on the entity row                  | No `role_members` junction; assignments mutate via entity CRUD. Lists triggers (per-company role variance, time bounds, approval, audit history) that would justify a refactor. |
 
 ### 13.6 Referencing ADRs  [in-scope]
 
