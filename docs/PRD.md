@@ -872,8 +872,9 @@ Restricted to Axerra staff via `requireRootTenant` middleware.
 | GET | `/api/tenants/v1/tenants` | List tenants (cursor-based pagination). |
 | GET | `/api/tenants/v1/tenants/:id` | Get tenant by id. |
 | PUT | `/api/tenants/v1/tenants/update` | Update tenant. |
-| DELETE | `/api/tenants/v1/tenants/archive` | Soft-delete tenant. Cascades to deactivate associated portal_users. |
-| PATCH | `/api/tenants/v1/tenants/restore` | Restore archived tenant. Users are not auto-restored. |
+| DELETE | `/api/tenants/v1/tenants/archive` | Soft-delete tenant. Cascades to lock the tenant's `portal_user_tenants` bindings; locks each linked `portal_users` row only if the binding being archived is its last active one (multi-tenant vendors stay live elsewhere). See §3.1.4.7. |
+| PATCH | `/api/tenants/v1/tenants/restore` | Restore archived tenant. Reactivates the cohort of bindings and users archived at the same time (`deactivated_at` cleared). `status` is **not** modified — bindings and users remain `locked`. An Axerra root user must explicitly enable an admin via `provision-admin` before login is possible. See §3.1.4.7. |
+| POST | `/api/tenants/v1/tenants/:tenantId/provision-admin` | Enable an admin on a restored (or freshly active) tenant. Three branches keyed off the supplied email: no matching `portal_users` → create user + binding; existing user, no binding to this tenant → add a new `employee` binding; existing user with a locked `employee` binding to this tenant → unlock in place, re-invite. Returns `409` when the existing binding's `entity_type` is not `employee`. See §3.1.4.7. |
 | GET | `/api/tenants/v1/tenants/:id/modules` | Get the tenant's allowed add-on modules. |
 | GET | `/api/tenants/v1/tenants/:id/contacts` | Get primary and billing contacts (cross-schema query into the tenant's employees). |
 | POST | `/api/tenants/v1/tenants/import-xls` | Import tenants from XLSX. Rows without `id` trigger full per-row provisioning. |
@@ -1045,6 +1046,50 @@ All configs are seeded with `is_enabled = false`. Tenants opt in via Settings �
 2. `authRedis` detects the session, swaps `req.user` to the target user, and sets `req.user.is_impersonating = true` plus `req.user.impersonated_by`.
 3. `/api/auth/me` includes `impersonation: { active, impersonated_by }` for client-side UI state.
 4. Each session inserts a row into `admin.impersonation_logs`. The partial unique index on `(impersonator_id) WHERE ended_at IS NULL` prevents concurrent sessions. A second open attempt returns `409 Conflict`.
+
+##### 3.1.4.7 Tenant Archive, Restore, and Admin Reactivation
+
+The tenant lifecycle is **soft**: archive locks rows, restore reactivates them, no data is deleted. Restoring a tenant does **not** restore login capability on its own — by design, an Axerra root user must deliberately enable at least one admin via the `provision-admin` endpoint before the tenant becomes usable again.
+
+###### 3.1.4.7.1 Archive cascade
+
+`DELETE /api/tenants/v1/tenants/archive` runs in a single transaction:
+
+1. Sets `admin.tenants.deactivated_at = NOW()` on the tenant row.
+2. Bulk-updates every active `admin.portal_user_tenants` row for that tenant: `deactivated_at = NOW(), status = 'locked'`.
+3. For each affected `portal_users` row, locks it **only if** the just-archived binding was the user's last active one. Multi-tenant vendor contacts with other live bindings stay live and can keep logging in via those tenants.
+
+The root tenant (`AXERRA`) cannot be archived.
+
+###### 3.1.4.7.2 Restore cascade
+
+`PATCH /api/tenants/v1/tenants/restore` runs in a single transaction and uses a **cohort-by-MAX-timestamp** rule (`restoreTenantBindings` in `apps/server/src/system/auth/services/portalUserCascade.js`):
+
+1. Clears `admin.tenants.deactivated_at` on the tenant row.
+2. Finds the cohort of bindings whose `deactivated_at` equals the most recent `deactivated_at` for this tenant — i.e. the bindings archived **with** the tenant. Bindings deactivated at an earlier date for unrelated reasons are deliberately excluded.
+3. Clears `deactivated_at` on each cohort binding and on the referenced `portal_users` rows.
+4. **Does not modify `status`.** Bindings and users come out of restore as `locked` because the archive cascade set them to `locked` and the prior status is not preserved. This is intentional: a dormancy period invalidates the prior trust state, so re-enabling a login must be an explicit operator decision.
+
+After restore, no one can log in to the tenant until §3.1.4.7.3 is executed for at least one user.
+
+###### 3.1.4.7.3 Admin reactivation via `provision-admin`
+
+`POST /api/tenants/v1/tenants/:tenantId/provision-admin` is RBAC-guarded by `requireRootTenant`. The handler runs in a single transaction and follows the same shape as `vendorContactsController.#provisionAppUser` (the existing email-collision-tolerant provisioning pattern). It takes `{ email, firstName, lastName, phone, employeeId? }` and branches on what already exists:
+
+1. **No matching `portal_users` row.** Create the `portal_users` row, create the tenant-side `employees` row (or link to the supplied `employeeId` if it points at an existing employee), insert a `portal_user_tenants` binding with `entity_type='employee'`, `status='invited'`. Send invite email.
+2. **`portal_users` exists, no binding to this tenant.** Do not modify the existing `portal_users` row (the user is active in another tenant — typically a vendor contact, or an Axerra staff member taking interim admin duty). Create the tenant-side `employees` row, insert a new `(portal_user_id, tenantId, entity_type='employee', status='invited')` binding. Send invite email. The user keeps their existing credentials and reaches this tenant via the `x-tenant-code` header (see §3.1.4.x request flow).
+3. **`portal_users` exists AND a binding to this tenant exists with `entity_type='employee'`.** Unlock in place: clear any residual `deactivated_at`, set `status='invited'`, blank `password_hash`, link to the supplied employee row (or keep the existing `entity_id` if already populated). Send invite email.
+4. **`portal_users` exists with a binding to this tenant whose `entity_type` is `vendor_contact`, `client`, or `NULL` (bare).** Return `409 Conflict` with a descriptive error. The endpoint never silently rewrites the entity link — promoting a vendor contact or client to admin is a separate, explicit operation outside this endpoint's scope.
+
+All rows touched stamp `created_by` / `updated_by = req.user.id` for audit.
+
+###### 3.1.4.7.4 What `provision-admin` deliberately does **not** do
+
+- It does not bulk-unlock the original employee cohort. Each admin must be enabled deliberately.
+- It does not re-activate a tenant's `allowed_modules` or otherwise alter the tenant row. Restore handles tenant state; this endpoint handles user state.
+- It does not provide self-service. Forgotten-password recovery for portal users (any tenant, archived or active) is out of scope.
+
+See [ADR-0029](decisions/0029-tenant-restore-admin-reactivation.md) for the security rationale behind the lock-on-restore + deliberate-reactivation design.
 
 ---
 
@@ -3782,6 +3827,7 @@ axerra/
       0026-child-restore-via-import.md
       0027-license-and-contribution.md
       0028-vertical-module-architecture.md
+      0029-tenant-restore-admin-reactivation.md
     PRD.md                      # This file
 ```
 
@@ -3864,6 +3910,7 @@ The following ADRs are captured under `docs/decisions/`:
 | 0026 | Child restore via import                                        | Import path drives cascade-restore for child records under restored parents          |
 | 0027 | License, copyright, DCO, and dependency policy                  | AGPLv3 relicense + DCO sign-off + AGPL-incompatibility dependency gate                |
 | 0028 | Add-on module architecture                                      | Add-ons are coded identically to core modules; `allowed_modules` + registry only — no event bus or plugin layer. |
+| 0029 | Tenant restore leaves users locked; admin reactivation is explicit | Restore clears `deactivated_at` on the cohort but not `status`; `POST /tenants/:id/provision-admin` is the only supported re-enable path. |
 
 ### 13.6 Referencing ADRs  [in-scope]
 
