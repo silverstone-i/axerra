@@ -849,6 +849,28 @@ These tables define **Layer 2 — data scope** for users with `assigned_projects
 
 When a user's role has `scope = 'assigned_companies'`, the permission loader resolves both `companyIds` and the corresponding `projectIds` from these tables.
 
+##### 3.1.2.5 Approval Audit
+
+Cross-module approval workflow audit. The table is system-level (tenant-scoped, polymorphic) because approvals are a cross-cutting concern: projects (budget release, change orders), AP (payments, invoices, credit memos), AR (invoices), GL (manual journal entries), and add-on workflows all write rows to the same table.
+
+###### 3.1.2.5.1 `approvals`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `entity_type` | varchar(32) | The kind of thing being approved (e.g. `project`, `change_order`, `ap_payment`, `ap_invoice`, `ar_invoice`, `gl_journal`). |
+| `entity_id` | uuid | FK reference to the entity row. No DB-level FK (polymorphic). |
+| `action` | varchar(32) | `submit`, `approve`, `reject`, `post`. |
+| `prior_status` | varchar(20) | The entity's status before the action. |
+| `new_status` | varchar(20) | The entity's status after the action. |
+| `reason` | text | Optional rationale. Required on `reject`. |
+
+Standard audit fields apply: `created_by` is the actor who took the action, `created_at` is when it happened. `updated_by` / `updated_at` exist (per pg-schemata convention) but are unused — the table is append-only at the application layer; no PATCH/PUT endpoint is exposed.
+
+Indexes: `(entity_type, entity_id, created_at DESC)` for "latest action on this entity"; `(created_by, created_at)` for per-user audit.
+
+Each module owns its own workflow rules (valid actions, state transitions, gating permissions) and writes rows via its own action endpoints. The shared table provides the audit trail and a unified read surface (`GET /api/approvals/v1/approvals`).
+
 #### 3.1.3 API
 
 ##### 3.1.3.1 Authentication Endpoints
@@ -909,6 +931,16 @@ Tenant-scope, all under `/api/core/v1/`.
 | CRUD | `/api/core/v1/numbering-config` | Manage per-entity-type numbering configuration (see §3.1.4.5). |
 
 Role assignment itself is done via the entity CRUD endpoints (update the `roles` array on the employee, vendor contact, or client record). There is no `/role-members` endpoint.
+
+##### 3.1.3.4 Approval Audit Endpoint
+
+Tenant-scoped, cross-module read surface for the `approvals` table (§3.1.2.5).
+
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/api/approvals/v1/approvals` | List approval audit rows. Filterable by `entity_type`, `entity_id`, `created_by` (actor), `action`, date range. Gated by `system::approvals::view`. |
+
+Approval *actions* (submit, approve, reject, post) live on each module's own endpoints — `/api/projects/v1/projects/:id/approve-release`, future `/api/ap/v1/payments/:id/approve`, etc. This endpoint is read-only.
 
 #### 3.1.4 Business Rules
 
@@ -1434,31 +1466,9 @@ Unit-level task instances.
 | `posted_by` | uuid | FK to `portal_users`. Set when status transitions to `posted`. |
 | `posted_at` | timestamptz | Set when status transitions to `posted`. |
 
-Approval and rejection actors live in the `approvals` audit table (§3.3.2.6), not on this row — a CO can be rejected and re-submitted, and the audit table captures the full history.
+Approval and rejection actors live in the `approvals` audit table (§3.1.2.5) — a system-level table shared across modules. The CO row tracks the submitter and the eventual poster; everything in between is reconstructed from the audit table, which captures the full history including rejections and re-submissions.
 
-##### 3.3.2.6 Approvals
-
-###### 3.3.2.6.1 `approvals`
-
-Append-only audit log of approval-workflow state transitions. Tenant-scoped. Polymorphic by `(entity_type, entity_id)` — currently covers `project` (budget release) and `change_order`. Add-ons may write rows with their own `entity_type` values.
-
-| Column | Type | Notes |
-| --- | --- | --- |
-| `id` | uuid | Primary key. |
-| `entity_type` | varchar(32) | The kind of thing being approved (e.g. `project`, `change_order`). |
-| `entity_id` | uuid | FK reference to the entity row. No DB-level FK (polymorphic). |
-| `action` | varchar(32) | `submit`, `approve`, `reject`, `post`. |
-| `actor_id` | uuid | FK to `portal_users`. The user taking the action. |
-| `decided_at` | timestamptz | When the action happened. |
-| `prior_status` | varchar(20) | The entity's status before the action. |
-| `new_status` | varchar(20) | The entity's status after the action. |
-| `reason` | text | Optional rationale. Required on `reject`. |
-
-Indexes: `(entity_type, entity_id, decided_at DESC)` for "latest action on this entity"; `(actor_id, decided_at)` for per-user audit.
-
-The table has no `updated_by` / `updated_at` — it is append-only. Rows are never modified after insert.
-
-##### 3.3.2.7 Templates
+##### 3.3.2.6 Templates
 
 Templates are reusable blueprints used to create new projects.
 
@@ -1490,7 +1500,6 @@ All endpoints under `/api/projects/v1/` use standard CRUD (§4.1) unless noted.
 | POST | `/api/projects/v1/change-orders/:id/approve` | Approve CO (`submitted → approved`). Self-approval blocked. |
 | POST | `/api/projects/v1/change-orders/:id/reject` | Reject CO (`submitted → draft`). Requires `reason`. |
 | POST | `/api/projects/v1/change-orders/:id/post` | Post approved CO (`approved → posted`). Applies CO to budget and fires GL hooks per ADR-0019. Separate permission from approval. |
-| GET | `/api/projects/v1/approvals` | Read-only list of approval audit rows. Filterable by `entity_type`, `entity_id`, `actor_id`. |
 | CRUD | `/api/projects/v1/template-units` | Manage blueprint units. |
 | CRUD | `/api/projects/v1/template-tasks` | Manage blueprint tasks. |
 | CRUD | `/api/projects/v1/template-cost-items` | Manage blueprint cost items. |
@@ -1505,11 +1514,11 @@ All endpoints under `/api/projects/v1/` use standard CRUD (§4.1) unless noted.
 5. **Budgets are locked once released.** Direct edits to budget figures on a released project are not permitted. Budget changes flow only through approved-and-posted change orders.
 6. **Change order lifecycle.** A CO progresses through `draft → submitted → approved | rejected → posted`. Each transition is an explicit action with a dedicated endpoint and permission (see §3.3.3). Rejection returns the CO to `draft` for revision (transient, not terminal). Approval and posting are separate actions — approval validates the CO; posting (a distinct permission) applies it to the budget and fires GL hooks per [ADR-0019](./decisions/0019-cross-module-posting-contract.md). Self-approval is blocked.
 7. Change order lines reference the base `cost_line_id` when modifying existing scope. Posted change orders adjust remaining budget and variance metrics. Negative quantities or costs represent scope reductions.
-8. **Approval audit.** Every approval-workflow transition (submit, approve, reject, post) writes one row to the `approvals` table (§3.3.2.6) capturing actor, timestamp, prior and new status, and optional reason (required on reject). The table is append-only; rows are never modified after insert.
+8. **Approval audit.** Every approval-workflow transition (submit, approve, reject, post) writes one row to the system-level `approvals` table (§3.1.2.5) capturing actor (`created_by`), timestamp (`created_at`), prior and new status, and optional reason (required on reject). The table is append-only at the application layer; no PATCH/PUT endpoint is exposed.
 9. Templates produce snapshots at create time. `units.version_used` records which template version a unit was created from; subsequent template edits do not retroactively change live units.
 10. Project numbering uses `tenant_numbering_config.id_type = 'project'` (see §3.1.4.5).
 11. **Add-on hooks (architecture committed, implementation deferred).** Add-on modules may extend project and change-order workflows by registering synchronous in-process hooks at named transition points (e.g. `beforeChangeOrderPost`, `afterProjectRelease`). Hooks run inside the parent transaction; a hook that throws blocks the transition. The architectural decision is recorded in [ADR-0031](./decisions/0031-add-on-hooks.md), which partially supersedes ADR-0028 on the question of workflow extension. The concrete hook contract (registration API, hook-point catalogue, ordering rules) lands with the first add-on that requires a hook.
-12. **Notifications (future dependency).** The approval workflow is incomplete without (a) notifying approvers when a submission is awaiting them and (b) notifying submitters of approval/rejection outcomes. A tenant notification system does not yet exist. Until it does, approvers must check pending items manually via the `GET /api/projects/v1/approvals` list or a UI dashboard.
+12. **Notifications (future dependency).** The approval workflow is incomplete without (a) notifying approvers when a submission is awaiting them and (b) notifying submitters of approval/rejection outcomes. A tenant notification system does not yet exist. Until it does, approvers must check pending items manually via the `GET /api/approvals/v1/approvals` list (§3.1.3.4) or a UI dashboard.
 
 ---
 
