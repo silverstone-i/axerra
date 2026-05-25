@@ -931,6 +931,8 @@ Role assignment itself is done via the entity CRUD endpoints (update the `roles`
 3. If the recomputed `ph` differs from the claim in the request's `auth_token`, the server sets the `X-Token-Stale: 1` response header. The client treats that header as a signal to call `POST /api/auth/refresh`. The refresh re-issues tokens with the fresh `ph`.
 4. The user does not need to log out and back in. The next request reflects the updated permissions automatically.
 
+> **Implementation gap:** the server emits `X-Token-Stale: 1`, but the client does not yet read it — proactive token refresh on permission change is unimplemented, so a stale `ph` claim persists in the token until the next reactive refresh (up to 15 minutes, or until any 401).
+
 ##### 3.1.4.3 Four-Layer RBAC Resolution
 
 1. **Layer 1 — Policies.** Resolution walks from most specific to least specific: `module::router::action` → `module::router::` → `module::::` → `::::` (empty-module wildcard for idempotent roles) → default `none`.
@@ -1214,7 +1216,7 @@ Unique constraint `(source_id, country_code, tax_type) WHERE deactivated_at IS N
 
 ###### 3.2.2.6.1 `companies`
 
-Companies are the legal entities under a tenant. There is no separate `legal_entities` table.
+Companies are the legal entities under a tenant — the things that sign contracts, hold bank accounts, and file taxes.
 
 | Column | Type | Notes |
 | --- | --- | --- |
