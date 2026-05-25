@@ -860,7 +860,7 @@ Cross-module approval workflow audit. The table is system-level (tenant-scoped, 
 | `id` | uuid | Primary key. |
 | `entity_type` | varchar(32) | The kind of thing being approved (e.g. `project`, `change_order`, `ap_payment`, `ap_invoice`, `ar_invoice`, `gl_journal`). |
 | `entity_id` | uuid | FK reference to the entity row. No DB-level FK (polymorphic). |
-| `action` | varchar(32) | `submit`, `approve`, `reject`, `post`. |
+| `action` | varchar(32) | `submit`, `approve`, `reject`, `post`, `complete`. Add-ons may introduce additional action values. |
 | `prior_status` | varchar(20) | The entity's status before the action. |
 | `new_status` | varchar(20) | The entity's status after the action. |
 | `reason` | text | Optional rationale. Required on `reject`. |
@@ -1496,6 +1496,7 @@ All endpoints under `/api/projects/v1/` use standard CRUD (§4.1) unless noted.
 | POST | `/api/projects/v1/projects/:id/submit` | Submit a project budget for release approval (`budgeting → budgeting`; records submitter). |
 | POST | `/api/projects/v1/projects/:id/approve-release` | Approve the budget release (`budgeting → released`). Gated by `project::projects::approve-release`. Self-approval blocked. |
 | POST | `/api/projects/v1/projects/:id/reject-release` | Reject the budget release. Project returns to `budgeting`. Requires `reason`. |
+| POST | `/api/projects/v1/projects/:id/complete` | Mark project complete (`released → complete`). Gated by `project::projects::complete`. Permission-only — no two-step submit/approve. Locks future cost postings. Records a single audit row with `action='complete'`. |
 | POST | `/api/projects/v1/change-orders/:id/submit` | Submit CO for approval (`draft → submitted`). Records submitter. |
 | POST | `/api/projects/v1/change-orders/:id/approve` | Approve CO (`submitted → approved`). Self-approval blocked. |
 | POST | `/api/projects/v1/change-orders/:id/reject` | Reject CO (`submitted → draft`). Requires `reason`. |
@@ -1507,10 +1508,11 @@ All endpoints under `/api/projects/v1/` use standard CRUD (§4.1) unless noted.
 
 #### 3.3.4 Business Rules
 
-1. A project's `status` advances through `planning` → `budgeting` → `released` → `complete`, with `on_hold` as an interrupt at any point.
+1. A project's `status` advances through `planning` → `budgeting` → `released` → `complete`. The `budgeting → released` transition is approval-gated (see rule 4). The `released → complete` transition is permission-gated (see rule 4a). The `planning → budgeting` transition and `on_hold` interrupts are ungated.
 2. Units are project-scoped. Each unit has its own task tree and cost items.
 3. Tasks are created from `tasks_master` to inherit defaults; subsequent edits diverge from the master without affecting other units.
 4. **Budget release requires approval.** The `budgeting → released` transition is a two-step workflow. A user with `project::projects::submit` submits the budget; a user with `project::projects::approve-release` approves it. The submitter cannot also approve (self-approval blocked). On approval the project moves to `released` and the action is recorded in the `approvals` audit table. Rejection returns the project to `budgeting` with the rejection reason captured in the audit table.
+4a. **Project completion requires permission.** The `released → complete` transition is gated by the `project::projects::complete` permission but does not use the two-step submit/approve workflow — any user holding the permission may mark a project complete directly. The action is recorded in the `approvals` audit table for traceability (single row with `action='complete'`). Closing a project locks future cost postings against it. A future scheduling model may mark a project complete automatically when a specific milestone is reached; that path bypasses the manual permission check and records the system as actor in the audit row.
 5. **Budgets are locked once released.** Direct edits to budget figures on a released project are not permitted. Budget changes flow only through approved-and-posted change orders.
 6. **Change order lifecycle.** A CO progresses through `draft → submitted → approved | rejected → posted`. Each transition is an explicit action with a dedicated endpoint and permission (see §3.3.3). Rejection returns the CO to `draft` for revision (transient, not terminal). Approval and posting are separate actions — approval validates the CO; posting (a distinct permission) applies it to the budget and fires GL hooks per [ADR-0019](./decisions/0019-cross-module-posting-contract.md). Self-approval is blocked.
 7. Change order lines reference the base `cost_line_id` when modifying existing scope. Posted change orders adjust remaining budget and variance metrics. Negative quantities or costs represent scope reductions.
