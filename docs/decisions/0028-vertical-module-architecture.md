@@ -1,6 +1,6 @@
 # ADR-0028: Vertical Add-on Module Architecture
 
-**Status**: Accepted
+**Status**: Accepted; partially superseded by [ADR-0031](./0031-add-on-hooks.md) on the question of add-on extension of core workflows.
 **Date**: 2026-05-22
 
 ## Context
