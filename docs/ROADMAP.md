@@ -39,7 +39,8 @@ gantt
 
 ## Phase 2 — Accounting core 🟡
 
-- [~] `accounting` module — CoA, journal entries, journal entry lines, posting queues, company accounts present in `apps/server/src/modules/accounting/`. **Fiscal periods not yet modelled.**
+- [~] `accounting` module — CoA, journal entries, journal entry lines, posting queues, company accounts present in `apps/server/src/modules/accounting/`. Fiscal periods specified in the PRD (§3.7.2.7), pending implementation.
+  - [ ] Posting-queue worker — posting is currently synchronous (`postEntry()` runs inline on `POST /journal-entries/post` and `retry()`). The async drainer the PRD describes (§3.7.4.6), and the `failed`/`error_message` flow, are not yet built.
 - [x] AP (invoices, lines, payments, credit memos) — `apps/server/src/modules/ap/models/`
 - [~] AR (invoices, lines, receipts) — models present in `apps/server/src/modules/ar/models/`; milestone-invoicing workflow not yet validated end-to-end
 - [~] Cross-module posting contract operational (ADR-0019) — schema references exist (`companyTransactionsSchema`); explicit posting hooks from AP/AR into GL not yet wired
@@ -59,7 +60,7 @@ gantt
 - [ ] `contracts` (services SOWs and deliverables — receives deliverables migrated out of `activities`)
 - [ ] `timesheets`
 - [ ] `scheduling`
-- [ ] Meridian Group demo tenant exercised end-to-end (PRD §3.16.1)
+- [ ] Meridian Group demo tenant exercised end-to-end (PRD §5.1)
 - [ ] Intercompany accounting validated under services holding structure
 
 ## Phase 5 — Construction vertical ⚪
@@ -69,7 +70,7 @@ gantt
 - [ ] `procurement`
 - [ ] `inventory`
 - [ ] AR closing-statement flow (PRD §3.8.4) posting through ADR-0019
-- [ ] Sterling Ridge Homes demo tenant exercised end-to-end (PRD §3.16.2)
+- [ ] Sterling Ridge Homes demo tenant exercised end-to-end (PRD §5.2)
 
 ## Phase 6 — Production vertical ⚪
 
@@ -80,7 +81,7 @@ gantt
 
 ## Phase 7 — Planned integrations (customer-gated) ⚪
 
-> None of these are built without a paying customer. See PRD §3.15.
+> None of these are built without a paying customer. See PRD §4.
 > No references to Plaid, Avalara, TaxJar, Gusto, or ADP exist in the codebase today.
 
 - [ ] Plaid bank feed → bank reconciliation in `accounting`
