@@ -1475,7 +1475,7 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 - `uppercase` (Switch toggle)
 - Live preview display
 
-✅ No missing or extra fields detected. All PRD §3.13.2 fields present.
+✅ No missing or extra fields detected. All PRD §3.12.2 fields present.
 
 ---
 

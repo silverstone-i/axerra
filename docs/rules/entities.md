@@ -9,7 +9,7 @@
 | Employee | `employees` | Yes | Auto-creates sources record; manages portal_users lifecycle |
 | Contact | `contacts` | Yes | Auto-creates source; codes auto-numbered; no RBAC / no login |
 | Address | `addresses` | Via source_id | Linked to vendor/client/employee through sources |
-| Email | `emails` | Via source_id | Tenant-scoped polymorphic email store (replaces former `clients.email` / `employees.email` columns). One row per email per entity; `is_login = true` marks the email used as the linked `portal_users.email`. See PRD §3.14.1 / ADR-0025. |
+| Email | `emails` | Via source_id | Tenant-scoped polymorphic email store (replaces former `clients.email` / `employees.email` columns). One row per email per entity; `is_login = true` marks the email used as the linked `portal_users.email`. See PRD §3.10.1 / ADR-0025. |
 | Company | `companies` | Yes | Auto-creates source; `code` is required (not auto-numbered) |
 | Vendor Contact | `vendor_contacts` | Yes | Auto-creates source; manages portal_users lifecycle |
 | Payment Terms | `payment_terms` | No | Settings/lookup table for payment term definitions |
@@ -74,7 +74,7 @@ Vendors, clients, employees, and contacts have a nullable `code` column populate
 
 ### Backfill on Enable
 
-When a tenant first enables numbering for an entity type, all existing records with `code IS NULL AND deactivated_at IS NULL` are backfilled in `created_at` order. This includes the admin employee created during tenant provisioning. See PRD §3.13.9.
+When a tenant first enables numbering for an entity type, all existing records with `code IS NULL AND deactivated_at IS NULL` are backfilled in `created_at` order. This includes the admin employee created during tenant provisioning. See PRD §3.1.4.5.6.
 
 ## Soft Delete Convention
 
