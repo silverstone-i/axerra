@@ -1330,7 +1330,6 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 | Field                   | Type        | Expected Control                        | Notes                        |
 | ----------------------- | ----------- | --------------------------------------- | ---------------------------- |
 | `is_active`           | boolean     | Checkbox or Select                      | PRD §3.9.1 — default true  |
-| `cash_basis`          | boolean     | Checkbox                                | PRD §3.9.1 — default false |
 | `bank_account_number` | varchar(32) | TextField (conditional: type=cash/bank) | PRD §3.9.1                  |
 | `routing_number`      | varchar(16) | TextField (conditional: type=cash/bank) | PRD §3.9.1                  |
 | `bank_name`           | varchar(64) | TextField (conditional: type=cash/bank) | PRD §3.9.1                  |
@@ -1338,7 +1337,6 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 ### Fix Checklist
 
 - [ ] Add `is_active` as Checkbox or Select
-- [ ] Add `cash_basis` as Checkbox
 - [ ] Add `bank_account_number` as TextField (shown only when type is cash or bank)
 - [ ] Add `routing_number` as TextField (shown only when type is cash or bank)
 - [ ] Add `bank_name` as TextField (shown only when type is cash or bank)
@@ -1355,7 +1353,6 @@ Contacts are standalone miscellaneous payees (dual-purpose: AP and AR). No RBAC,
 - `code` (FieldRow)
 - `name` (FieldRow)
 - `type` (FieldRow)
-- `cash_basis` (FieldRow)
 - `status` (FieldRow + StatusBadge)
 - `created_at` (FieldRow)
 - `updated_at` (FieldRow)
