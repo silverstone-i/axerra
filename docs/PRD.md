@@ -143,6 +143,7 @@ Status tags applied at the paragraph or bullet level (`[intended]`, `[implemente
         - [3.5.2.2.1 `ap_invoice_lines`](#35221-ap_invoice_lines)
       - [3.5.2.3 Payments](#3523-payments)
         - [3.5.2.3.1 `payments`](#35231-payments)
+        - [3.5.2.3.2 `payment_allocations`](#35232-payment_allocations)
       - [3.5.2.4 Credit Memos](#3524-credit-memos)
         - [3.5.2.4.1 `ap_credit_memos`](#35241-ap_credit_memos)
     - [3.5.3 API](#353-api)
@@ -156,26 +157,35 @@ Status tags applied at the paragraph or bullet level (`[intended]`, `[implemente
         - [3.6.2.2.1 `ar_invoice_lines`](#36221-ar_invoice_lines)
       - [3.6.2.3 Receipts](#3623-receipts)
         - [3.6.2.3.1 `receipts`](#36231-receipts)
+        - [3.6.2.3.2 `receipt_allocations`](#36232-receipt_allocations)
     - [3.6.3 API](#363-api)
     - [3.6.4 Business Rules](#364-business-rules)
   - [3.7 Accounting & General Ledger](#37-accounting--general-ledger--core)
     - [3.7.1 Overview](#371-overview)
     - [3.7.2 Data Tables](#372-data-tables)
-      - [3.7.2.1 Chart of Accounts](#3721-chart-of-accounts)
-        - [3.7.2.1.1 `chart_of_accounts`](#37211-chart_of_accounts)
-      - [3.7.2.2 Journal Entries & Lines](#3722-journal-entries--lines)
-        - [3.7.2.2.1 `journal_entries`](#37221-journal_entries)
-        - [3.7.2.2.2 `journal_entry_lines`](#37222-journal_entry_lines)
-      - [3.7.2.3 Ledger Balances](#3723-ledger-balances)
-        - [3.7.2.3.1 `ledger_balances`](#37231-ledger_balances)
-      - [3.7.2.4 Posting Queues](#3724-posting-queues)
-        - [3.7.2.4.1 `posting_queues`](#37241-posting_queues)
-      - [3.7.2.5 Category-Account Map](#3725-category-account-map)
-        - [3.7.2.5.1 `category_account_map`](#37251-category_account_map)
-      - [3.7.2.6 Intercompany](#3726-intercompany)
-        - [3.7.2.6.1 `company_accounts`](#37261-company_accounts)
-        - [3.7.2.6.2 `company_transactions`](#37262-company_transactions)
-        - [3.7.2.6.3 `internal_transfers`](#37263-internal_transfers)
+      - [3.7.2.1 Ledgers](#3721-ledgers)
+        - [3.7.2.1.1 `ledgers`](#37211-ledgers)
+      - [3.7.2.2 Accounting Basis](#3722-accounting-basis)
+        - [3.7.2.2.1 `company_accounting_config`](#37221-company_accounting_config)
+      - [3.7.2.3 Chart of Accounts](#3723-chart-of-accounts)
+        - [3.7.2.3.1 `chart_of_accounts`](#37231-chart_of_accounts)
+      - [3.7.2.4 Journal Entries & Lines](#3724-journal-entries--lines)
+        - [3.7.2.4.1 `journal_entries`](#37241-journal_entries)
+        - [3.7.2.4.2 `journal_entry_lines`](#37242-journal_entry_lines)
+      - [3.7.2.5 Ledger Balances](#3725-ledger-balances)
+        - [3.7.2.5.1 `ledger_balances`](#37251-ledger_balances)
+      - [3.7.2.6 Posting Queues](#3726-posting-queues)
+        - [3.7.2.6.1 `posting_queues`](#37261-posting_queues)
+      - [3.7.2.7 Category-Account Map](#3727-category-account-map)
+        - [3.7.2.7.1 `category_account_map`](#37271-category_account_map)
+      - [3.7.2.8 Posting Rules](#3728-posting-rules)
+        - [3.7.2.8.1 `posting_rules`](#37281-posting_rules)
+      - [3.7.2.9 Intercompany](#3729-intercompany)
+        - [3.7.2.9.1 `company_accounts`](#37291-company_accounts)
+        - [3.7.2.9.2 `company_transactions`](#37292-company_transactions)
+        - [3.7.2.9.3 `internal_transfers`](#37293-internal_transfers)
+      - [3.7.2.10 Fiscal Periods](#37210-fiscal-periods)
+        - [3.7.2.10.1 `fiscal_periods`](#372101-fiscal_periods)
     - [3.7.3 API](#373-api)
     - [3.7.4 Business Rules](#374-business-rules)
   - [3.8 Cashflow & Profitability](#38-cashflow--profitability--core)
@@ -1687,7 +1697,7 @@ All endpoints under `/api/activities/v1/` provide standard CRUD (§6.1).
 4. Default actual-cost state is `pending`. Approval is subject to budget and tolerance checks.
 5. An actual cost can be approved only when its parent unit is `released` and its cost line exists and is approved.
 6. Amounts cannot exceed approved budget plus tolerance unless covered by an approved change order.
-7. Approving an actual cost triggers GL posting — debit expense / WIP, credit AP / accrual — via the cross-module posting contract (see [ADR-0019](./decisions/0019-cross-module-posting.md)).
+7. Approving an actual cost triggers GL posting via the cross-module posting contract (see [ADR-0019](./decisions/0019-cross-module-posting.md)). The credit is AP / accrual; the debit is governed by the company's `wip_policy` (§3.7.2.2.1) — under `capitalize_release` it resolves to WIP for build categories or Inventory for land / lot, under `expense_immediately` it resolves to Expense — through `category_account_map`.
 8. `cost_lines.amount` is a database-generated column; never set it directly.
 9. Vendor parts seed cost-line `unit_price` and `markup_pct` defaults when a buyer selects a `(vendor, vendor_sku)` pair.
 
@@ -1748,6 +1758,18 @@ Accounts Payable (AP) owns vendor invoices, invoice lines, payments, and credit 
 | `reference` | varchar(64) | Check number or external reference. |
 | `notes` | text | Internal notes. |
 
+The single `ap_invoice_id` is retained for the common one-invoice case but is superseded by `payment_allocations` for partial and split settlements, which are the source of truth for cash-ledger recognition.
+
+###### 3.5.2.3.2 `payment_allocations`
+
+Allocates a payment across one or more AP invoices, supporting partial and split settlement.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `payment_id` | uuid | FK to `payments` (CASCADE). |
+| `ap_invoice_id` | uuid | FK to `ap_invoices` (RESTRICT). |
+| `amount` | numeric(14,2) | Portion of the payment applied to this invoice. |
+
 ##### 3.5.2.4 Credit Memos
 
 ###### 3.5.2.4.1 `ap_credit_memos`
@@ -1777,7 +1799,7 @@ All endpoints under `/api/ap/v1/` provide standard CRUD (§6.1).
 #### 3.5.4 Business Rules
 
 1. Approving an invoice requires every line to map to a valid GL account and (optionally) a cost line.
-2. Approving an invoice posts to GL — debit Expense/WIP, credit AP Liability — via the cross-module posting contract (see [ADR-0019](./decisions/0019-cross-module-posting.md)) and updates the vendor balance.
+2. Approving an invoice posts to GL via the cross-module posting contract (see [ADR-0019](./decisions/0019-cross-module-posting.md)) and updates the vendor balance. The credit is AP Liability; the debit is governed by the company's `wip_policy` (§3.7.2.2.1) — WIP / Inventory under `capitalize_release`, Expense under `expense_immediately` — resolved through `category_account_map`.
 3. Invoice numbering is auto-assigned on `status` transition to `approved` if `invoice_number` is empty. The scope is `company_id` per §3.1.4.5 — each company has its own running sequence.
 4. Remaining balance is computed as `total_amount − SUM(payments) − SUM(applied credit memos)`. It is not stored.
 5. When `project_id` is set, the invoice amount feeds into project cashflow outflow metrics (§3.8).
@@ -1840,6 +1862,18 @@ Accounts Receivable (AR) owns client invoices, invoice lines, and receipts. AR i
 | `reference` | varchar(64) | Reference number. |
 | `notes` | text | Internal notes. |
 
+The single `ar_invoice_id` is retained for the common one-invoice case but is superseded by `receipt_allocations` for partial and split settlements, which are the source of truth for cash-ledger recognition.
+
+###### 3.6.2.3.2 `receipt_allocations`
+
+Allocates a receipt across one or more AR invoices, supporting partial and split settlement.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `receipt_id` | uuid | FK to `receipts` (CASCADE). |
+| `ar_invoice_id` | uuid | FK to `ar_invoices` (RESTRICT). |
+| `amount` | numeric(14,2) | Portion of the receipt applied to this invoice. |
+
 #### 3.6.3 API
 
 | Method | Path | Description |
@@ -1858,7 +1892,16 @@ Accounts Receivable (AR) owns client invoices, invoice lines, and receipts. AR i
 5. When `project_id` is set, the invoice feeds into project revenue and cashflow inflow metrics (§3.8).
 6. Partial payments and retainage are supported through `receipts` plus the cashflow module's recognition rules.
 7. Receipt `method` is restricted to `check`, `ach`, `wire` by controller-level allowlist — invalid values return 400.
-8. Construction subdivision sales do **not** flow through `ar_invoices`. They use closing statements owned by the `contracts` add-on. A closing statement posts a single GL entry touching AR, WIP, inventory, and (where applicable) intercompany accounts via the same cross-module contract. The core `ar` module is not modified. See [ADR-0019](./decisions/0019-cross-module-posting.md).
+8. Construction subdivision sales do **not** flow through `ar_invoices`. They use closing statements owned by the `contracts` add-on. Posting a closing statement is the unit's sale event: it fires `wip_release` (§3.7.2.8) and recognizes revenue under `completed_contract`. On the accrual ledger it resolves to a single balanced entry:
+
+   | Leg | DR | CR |
+   | --- | --- | --- |
+   | Recognize sale | A/R (sale price) | Revenue (sale price) |
+   | Relieve build cost (`wip_release`) | COGS | WIP |
+   | Relieve land / lot | COGS | Inventory |
+   | Intercompany funding, where applicable | due-to / due-from per §3.7.2.9 | |
+
+   On the cash ledger the closing statement is a credit sale, so its account roles are null and it posts nothing; cash-basis revenue recognizes later at receipt (DR Cash, CR Revenue), as the AR-receipt row already does (§3.7.2.8). WIP and Inventory are accrual-only and never appear in the cash ledger. The core `ar` module is not modified. See [ADR-0019](./decisions/0019-cross-module-posting.md).
 
 ---
 
@@ -1870,9 +1913,45 @@ The Accounting module owns the chart of accounts, journal entries and lines, led
 
 #### 3.7.2 Data Tables
 
-##### 3.7.2.1 Chart of Accounts
+##### 3.7.2.1 Ledgers
 
-###### 3.7.2.1.1 `chart_of_accounts`
+###### 3.7.2.1.1 `ledgers`
+
+A company keeps one ledger per accounting representation it must produce. AXERRA ships two bases — `accrual` (the internal backbone that drives project costing and profitability) and `cash` — plus a shared `common` ledger. Adding a ledger is a row insert, never DDL; the same registry generalizes to multi-GAAP later.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `company_id` | uuid | FK to `companies` (RESTRICT). |
+| `code` | varchar(16) | Unique per company. |
+| `name` | varchar(64) | Display name. |
+| `basis` | varchar(16) | `accrual`, `cash`, or `common`. Reports read `common` plus the requested basis. |
+| `accounting_principle` | varchar(16) | GAAP tag for future multi-GAAP ledgers. Default `corp`. `[deferred]` |
+| `parent_ledger_id` | uuid | Self-ref FK (SET NULL) for delta / extension ledgers. `[deferred]` |
+| `is_default` | boolean | The company's default `accrual` ledger. Default false. |
+| `status` | varchar(16) | `active` → `archived`. |
+
+Each `(company, ledger)` is an independently balanced, independently lockable book. Cash and bank account balances are identical across a company's ledgers — the reconciliation anchor; ledgers may differ only by the accrual-only accounts (A/R, A/P, WIP, inventory).
+
+##### 3.7.2.2 Accounting Basis
+
+###### 3.7.2.2.1 `company_accounting_config`
+
+Per-company election of which ledger is the authoritative book of record, plus the recognition policies that drive posting. One row per company.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `company_id` | uuid | FK to `companies` (RESTRICT). Unique per company. |
+| `book_basis` | varchar(16) | `accrual` or `cash`. Which ledger is the authoritative book of record. Allowed values depend on the company's jurisdiction and legal form — cash basis is a size / entity-gated concession, not universally available. |
+| `revenue_recognition_policy` | varchar(24) | `on_invoice`, `percent_complete`, or `completed_contract`. |
+| `wip_policy` | varchar(24) | `expense_immediately` or `capitalize_release`. |
+
+`wip_policy` decides where the debit lands when a cost is incurred. Under `expense_immediately` — the services / consulting default — actual-cost and AP-invoice approvals debit Expense as incurred and nothing accumulates on the balance sheet. Under `capitalize_release` — the construction default — those same approvals debit WIP (build categories) or Inventory (land / lot acquisition) instead, so unit costs accumulate as assets and reach the P&L only when a `wip_release` event relieves them to COGS (§3.7.2.8). `revenue_recognition_policy = completed_contract` pairs with `capitalize_release`: revenue and COGS are recognized together at the unit sale, never before.
+
+##### 3.7.2.3 Chart of Accounts
+
+###### 3.7.2.3.1 `chart_of_accounts`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1881,19 +1960,19 @@ The Accounting module owns the chart of accounts, journal entries and lines, led
 | `name` | varchar(64) | Account name. |
 | `type` | varchar(16) | Intended values: `asset`, `liability`, `equity`, `income`, `expense`, `cash`, `bank`. No CHECK constraint; values are enforced by controller validation. |
 | `is_active` | boolean | Default true. |
-| `cash_basis` | boolean | Default false. |
 | `bank_account_number` | varchar(32) | For cash/bank account types. |
 | `routing_number` | varchar(16) | Bank routing. |
 | `bank_name` | varchar(64) | Bank name. |
 
-##### 3.7.2.2 Journal Entries & Lines
+##### 3.7.2.4 Journal Entries & Lines
 
-###### 3.7.2.2.1 `journal_entries`
+###### 3.7.2.4.1 `journal_entries`
 
 | Column | Type | Notes |
 | --- | --- | --- |
 | `id` | uuid | Primary key. |
 | `company_id` | uuid | FK to `companies` (RESTRICT). |
+| `ledger_id` | uuid | FK to `ledgers` (RESTRICT). Not null. The book this entry belongs to. |
 | `project_id` | uuid | FK to `projects` (SET NULL). Enables project-level GL analysis. |
 | `entry_date` | date | Entry date. |
 | `description` | text | Description. |
@@ -1902,7 +1981,7 @@ The Accounting module owns the chart of accounts, journal entries and lines, led
 | `source_id` | uuid | Reference to the source record in the originating module. |
 | `corrects_id` | uuid | Self-ref FK for reversals (SET NULL). |
 
-###### 3.7.2.2.2 `journal_entry_lines`
+###### 3.7.2.4.2 `journal_entry_lines`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1914,19 +1993,22 @@ The Accounting module owns the chart of accounts, journal entries and lines, led
 | `related_table` | varchar(32) | Polymorphic reference table. |
 | `related_id` | uuid | Polymorphic reference id. |
 
-##### 3.7.2.3 Ledger Balances
+##### 3.7.2.5 Ledger Balances
 
-###### 3.7.2.3.1 `ledger_balances`
+###### 3.7.2.5.1 `ledger_balances`
 
 | Column | Type | Notes |
 | --- | --- | --- |
+| `ledger_id` | uuid | FK to `ledgers` (RESTRICT). |
 | `account_id` | uuid | FK to `chart_of_accounts` (RESTRICT). |
 | `as_of_date` | date | Balance date. |
 | `balance` | numeric(14,2) | Account balance. |
 
-##### 3.7.2.4 Posting Queues
+Unique `(ledger_id, account_id, as_of_date)`. Append-only.
 
-###### 3.7.2.4.1 `posting_queues`
+##### 3.7.2.6 Posting Queues
+
+###### 3.7.2.6.1 `posting_queues`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1935,9 +2017,11 @@ The Accounting module owns the chart of accounts, journal entries and lines, led
 | `error_message` | text | Error details on failure. |
 | `processed_at` | timestamptz | Processing timestamp. |
 
-##### 3.7.2.5 Category-Account Map
+The queued `journal_entry_id` carries the ledger via its entry; the queue is not ledger-specific.
 
-###### 3.7.2.5.1 `category_account_map`
+##### 3.7.2.7 Category-Account Map
+
+###### 3.7.2.7.1 `category_account_map`
 
 Maps cost categories to GL accounts with date-range validity.
 
@@ -1948,9 +2032,40 @@ Maps cost categories to GL accounts with date-range validity.
 | `valid_from` | date | Effective start date. |
 | `valid_to` | date | Effective end date. |
 
-##### 3.7.2.6 Intercompany
+##### 3.7.2.8 Posting Rules
 
-###### 3.7.2.6.1 `company_accounts`
+###### 3.7.2.8.1 `posting_rules`
+
+The rules engine that replaces hardcoded postings. For each business event the posting service evaluates the rules of every ledger belonging to the event's company and posts the resolved — possibly empty — balanced entry to each ledger.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `ledger_id` | uuid | FK to `ledgers` (RESTRICT). Which ledger this rule posts to. |
+| `event_type` | varchar(32) | `ap_invoice`, `ap_payment`, `ar_invoice`, `ar_receipt`, `actual_cost`, `wip_release`, etc. |
+| `debit_account_role` | varchar(32) | Account role to resolve, e.g. `expense`, `wip`, `ar_receivable`, `cash`. Null means emit no posting for this `(event, ledger)`. |
+| `credit_account_role` | varchar(32) | Account role to resolve, e.g. `revenue`, `ap_liability`, `accrual`, `cash`. |
+| `recognition_date` | varchar(16) | Which source date the entry takes: `invoice_date`, `payment_date`, or `incurred_on`. |
+| `valid_from` | date | Effective start date. |
+| `valid_to` | date | Effective end date. |
+
+Account roles resolve to concrete accounts through the role → account mapping (an extension of `category_account_map`, §3.7.2.7). A null account role is how the cash ledger records nothing for an invoice-issuance event. The same event therefore posts differently per ledger:
+
+The `wip_release` event is fired by posting a closing-statement document (§3.6.4 rule 8); there is no automatic release without it. Its leg is DR COGS, CR WIP (`debit_account_role = cogs`, `credit_account_role = wip`, `recognition_date` = the settlement date). It exists only on the accrual ledger — WIP is an accrual-only account, so the role is null on the cash ledger. The closing statement is a composite event whose other legs (inventory relief, A/R, revenue, intercompany) resolve alongside it into one balanced entry; see §3.6.4 rule 8 for the full recipe.
+
+| Event | Accrual ledger | Cash ledger |
+| --- | --- | --- |
+| AR invoice sent | DR A/R, CR Revenue (`invoice_date`) | — (no entry) |
+| AR receipt | DR Cash, CR A/R (`receipt_date`) | DR Cash, CR Revenue (`receipt_date`) |
+| AP invoice approved | DR Expense/WIP, CR A/P (`invoice_date`) | — (no entry) |
+| AP payment | DR A/P, CR Cash (`payment_date`) | DR Expense, CR Cash (`payment_date`) |
+| Cash sale (no invoice) | DR Cash, CR Revenue | DR Cash, CR Revenue (identical) |
+
+Entries identical in both bases — cash sales, expenses paid directly in cash, intercompany cash transfers — post once to the `common` ledger and are read by both the cash and accrual reports.
+
+##### 3.7.2.9 Intercompany
+
+###### 3.7.2.9.1 `company_accounts`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1961,7 +2076,7 @@ Maps cost categories to GL accounts with date-range validity.
 
 Unique `(tenant_id, source_company_id, target_company_id)`.
 
-###### 3.7.2.6.2 `company_transactions`
+###### 3.7.2.9.2 `company_transactions`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1975,7 +2090,7 @@ Unique `(tenant_id, source_company_id, target_company_id)`.
 | `is_eliminated` | boolean | Elimination flag for consolidated reporting (default false). |
 | `description` | text | Transaction description. |
 
-###### 3.7.2.6.3 `internal_transfers`
+###### 3.7.2.9.3 `internal_transfers`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -1985,16 +2100,17 @@ Unique `(tenant_id, source_company_id, target_company_id)`.
 | `amount` | numeric(12,2) | Transfer amount. |
 | `description` | text | Transfer description. |
 
-##### 3.7.2.7 Fiscal Periods
+##### 3.7.2.10 Fiscal Periods
 
-###### 3.7.2.7.1 `fiscal_periods`
+###### 3.7.2.10.1 `fiscal_periods`
 
-Accounting periods that gate GL posting. A journal entry may only post when its `entry_date` falls inside an `open` period for the entry's company.
+Accounting periods that gate GL posting. A journal entry may only post when its `entry_date` falls inside an `open` period for the entry's ledger. Each ledger closes and locks independently.
 
 | Column | Type | Notes |
 | --- | --- | --- |
 | `id` | uuid | Primary key. |
 | `company_id` | uuid | FK to `companies` (RESTRICT). |
+| `ledger_id` | uuid | FK to `ledgers` (RESTRICT). The book this period governs. |
 | `fiscal_year` | integer | Owning fiscal year, e.g. 2026. |
 | `period_number` | integer | Sequence within the fiscal year (1–12 for monthly calendars). |
 | `name` | varchar(32) | Display label, e.g. `2026-01`. |
@@ -2004,7 +2120,7 @@ Accounting periods that gate GL posting. A journal entry may only post when its 
 | `closed_at` | timestamptz | Set when the period transitions to `closed`. |
 | `locked_at` | timestamptz | Set when the period transitions to `locked`. |
 
-Unique `(tenant_id, company_id, fiscal_year, period_number)`. Date ranges for a given company must not overlap.
+Unique `(tenant_id, ledger_id, fiscal_year, period_number)`. Date ranges for a given ledger must not overlap.
 
 #### 3.7.3 API
 
@@ -2012,6 +2128,9 @@ All endpoints under `/api/accounting/v1/` provide standard CRUD (§6.1) unless n
 
 | Method | Path | Description |
 | --- | --- | --- |
+| CRUD | `/api/accounting/v1/ledgers` | Manage the ledger registry. |
+| CRUD | `/api/accounting/v1/company-accounting-config` | Manage per-company book basis and recognition policy. |
+| CRUD | `/api/accounting/v1/posting-rules` | Manage the per-ledger posting rules. |
 | CRUD | `/api/accounting/v1/chart-of-accounts` | Manage the chart of accounts. |
 | CRUD | `/api/accounting/v1/journal-entries` | Manage journal entries. |
 | POST | `/api/accounting/v1/journal-entries/post` | Post pending journal entries (`status` → `posted`). |
@@ -2031,11 +2150,17 @@ All endpoints under `/api/accounting/v1/` provide standard CRUD (§6.1) unless n
 #### 3.7.4 Business Rules
 
 1. Every journal entry must balance: `SUM(debit) = SUM(credit)`. Insertion of an unbalanced entry fails validation.
-2. Fiscal-period validation gates GL posting. A journal entry posts only when its `entry_date` falls within an `open` period for the entry's `company_id` (date-range lookup against `fiscal_periods`, picking the row where `entry_date BETWEEN start_date AND end_date`). Entries dated in a `closed` or `locked` period are rejected. Closing a period sets `status = closed` and `closed_at`; reopening (back to `open`) is permission-gated; locking sets `status = locked` and `locked_at` and is irreversible.
-3. `corrects_id` is self-referential and supports reversal chains. A reversal posts the inverse entry and links back to the original.
-4. The `category_account_map` resolves a `(category, date)` to the active `account_id`. Multiple rows per category may be active over time; lookup picks the row where `entry_date BETWEEN valid_from AND valid_to`.
-5. Intercompany transactions create paired journal entries (due-to / due-from) and carry an `is_eliminated` flag. Consolidation reporting eliminates flagged transactions from tenant-level P&L and balance sheet.
-6. The posting queue is the single asynchronous serialization point. Cross-module posters write to the queue; an accounting-side worker drains the queue, posts entries, and writes failures to `error_message` with a `failed` status for retry.
+2. Each business event is evaluated against the `posting_rules` of every ledger belonging to the event's company. The resolved entry — which may be empty when an account role is null — is posted to that ledger. Every ledger balances independently (`SUM(debit) = SUM(credit)` within the ledger).
+3. Cash and bank account balances must be identical across a company's ledgers, since a cash movement is recorded the same way on every basis. Ledgers may differ only by the accrual-only accounts (A/R, A/P, WIP, inventory), which never appear in the `cash` ledger.
+4. Entries identical in both bases are posted once to the `common` ledger. The accrual report reads `common` + `accrual`; the cash report reads `common` + `cash`. Reports select a basis by ledger, never by filtering account types.
+5. `company_accounting_config.book_basis` designates which ledger is the company's authoritative book of record. Accrual is always maintained because project costing and profitability require it.
+6. Fiscal-period validation gates GL posting per ledger. A journal entry posts only when its `entry_date` falls within an `open` period for the entry's `ledger_id` (date-range lookup against `fiscal_periods`, picking the row where `entry_date BETWEEN start_date AND end_date`). Entries dated in a `closed` or `locked` period are rejected. Closing a period sets `status = closed` and `closed_at`; reopening (back to `open`) is permission-gated; locking sets `status = locked` and `locked_at` and is irreversible.
+7. `corrects_id` is self-referential and supports reversal chains. A reversal posts the inverse entry and links back to the original.
+8. The `category_account_map` resolves a `(category, date)` to the active `account_id`. Multiple rows per category may be active over time; lookup picks the row where `entry_date BETWEEN valid_from AND valid_to`.
+9. Intercompany transactions create paired journal entries (due-to / due-from) and carry an `is_eliminated` flag. Consolidation reporting eliminates flagged transactions from tenant-level P&L and balance sheet.
+10. The posting queue is the single asynchronous serialization point. Cross-module posters write to the queue; an accounting-side worker drains the queue, posts entries, and writes failures to `error_message` with a `failed` status for retry.
+11. Multi-GAAP uses the same ledger and `posting_rules` machinery — additional ledgers distinguished by `accounting_principle`, each with its own rules and fiscal periods. `[deferred]`
+12. Under `wip_policy = capitalize_release` (§3.7.2.2.1) a unit's costs accumulate as WIP (build) and Inventory (land / lot) on the accrual ledger as they are incurred, never touching the P&L. Posting a closing-statement document (§3.6.4 rule 8) fires `wip_release`, relieving WIP and Inventory to COGS and recognizing revenue under `completed_contract` in one balanced accrual entry. Absent that document there is no automatic release. WIP and Inventory are accrual-only and never appear in the cash ledger.
 
 ---
 
@@ -2117,12 +2242,13 @@ All endpoints under `/api/reports/v1/`.
 #### 3.8.4 Business Rules
 
 1. No cashflow data is persisted. Every metric is computed at request time from the underlying transactional tables.
-2. Revenue counts only `ar_invoices` with status `sent` or `paid`. Drafts and voided invoices are excluded.
-3. Cost counts only `ap_invoices` with status `approved` or `paid`. Pending and voided invoices are excluded.
-4. The cashflow forecast uses `ar_invoices.due_date` (unpaid `sent`) and `ap_invoices.due_date` (unpaid `approved`) plus a 30/60/90-day rolling actual-cost burn rate.
-5. The profitability dashboard renders summary cards (Contract Value, Invoiced Revenue, Gross Profit, Gross Margin %, Net Cashflow), MUI X bar charts for budget-vs-committed-vs-actual per category, and a status indicator (green / yellow / red) based on budget variance.
-6. The cashflow timeline renders a stacked-area chart of monthly inflows vs. outflows plus a cumulative net trend line, with a dashed forecast region for upcoming AR/AP due dates.
-7. Aging grids use five buckets (current / 1-30 / 31-60 / 61-90 / over 90) grouped by client (AR) or vendor (AP); they are filterable by project and include a totals summary row.
+2. Reports are basis-aware. Each endpoint accepts an optional `basis` parameter (`accrual` — default — or `cash`). Statements read the matching ledger plus the `common` ledger (`WHERE ledger_id IN (…)`), never by filtering account types. The `cash` basis has no A/R, A/P, WIP, or inventory; those accounts exist only in the `accrual` ledger.
+3. Revenue counts only `ar_invoices` with status `sent` or `paid`. Drafts and voided invoices are excluded.
+4. Cost counts only `ap_invoices` with status `approved` or `paid`. Pending and voided invoices are excluded.
+5. The cashflow forecast uses `ar_invoices.due_date` (unpaid `sent`) and `ap_invoices.due_date` (unpaid `approved`) plus a 30/60/90-day rolling actual-cost burn rate.
+6. The profitability dashboard renders summary cards (Contract Value, Invoiced Revenue, Gross Profit, Gross Margin %, Net Cashflow), MUI X bar charts for budget-vs-committed-vs-actual per category, and a status indicator (green / yellow / red) based on budget variance.
+7. The cashflow timeline renders a stacked-area chart of monthly inflows vs. outflows plus a cumulative net trend line, with a dashed forecast region for upcoming AR/AP due dates.
+8. Aging grids use five buckets (current / 1-30 / 31-60 / 61-90 / over 90) grouped by client (AR) or vendor (AP); they are filterable by project and include a totals summary row.
 
 ---
 ### 3.9 Reporting & Views  [core]
@@ -2474,7 +2600,7 @@ Two named demo tenants exercise the full product surface. Both are referenced by
 
 #### 5.1.1 Profile
 
-Holding company with three legal entities. Professional services and consulting. No construction. No manufacturing. Exists to prove out the core product on a realistic multi-entity services book and to exercise intercompany accounting (§3.7.2.6).
+Holding company with three legal entities. Professional services and consulting. No construction. No manufacturing. Exists to prove out the core product on a realistic multi-entity services book and to exercise intercompany accounting (§3.7.2.9).
 
 #### 5.1.2 Active Modules
 
@@ -2752,9 +2878,9 @@ Generated columns are deliberately excluded from pg-schemata schema definitions 
 5. `202502110020` — Project tables (projects, project_clients, units, task_groups, tasks_master, tasks, cost_items, change_orders, template_units, template_tasks, template_cost_items, template_change_orders). Note: `projects.client_id` removed; replaced by `project_clients` junction table.
 6. `202502110040` — Activity tables (categories, activities, deliverables, deliverable_assignments, budgets, cost_lines, actual_costs, vendor_parts)
 7. `202502110030` — BOM tables (catalog_skus, vendor_skus, vendor_pricing) with pgvector
-8. `202502110070` — Accounting tables (chart_of_accounts, journal_entries, journal_entry_lines, ledger_balances, posting_queues, category_account_map, company_accounts, company_transactions, internal_transfers). Note: accounting runs before AP/AR because `ap_invoice_lines` and `ar_invoice_lines` FK to `chart_of_accounts`.
-9. `202502110050` — AP tables (ap_invoices, ap_invoice_lines, payments, ap_credit_memos)
-10. `202502110060` — AR tables (ar_invoices, ar_invoice_lines, receipts). Note: `ar_clients` removed — AR invoices reference the unified `clients` table directly.
+8. `202502110070` — Accounting tables (ledgers, company_accounting_config, chart_of_accounts, journal_entries, journal_entry_lines, ledger_balances, posting_queues, category_account_map, posting_rules, company_accounts, company_transactions, internal_transfers, fiscal_periods). Note: `ledgers` is created first because `journal_entries`, `fiscal_periods`, and `posting_rules` FK to it; accounting runs before AP/AR because `ap_invoice_lines` and `ar_invoice_lines` FK to `chart_of_accounts`.
+9. `202502110050` — AP tables (ap_invoices, ap_invoice_lines, payments, payment_allocations, ap_credit_memos)
+10. `202502110060` — AR tables (ar_invoices, ar_invoice_lines, receipts, receipt_allocations). Note: `ar_clients` removed — AR invoices reference the unified `clients` table directly.
 11. `202502120080` — SQL views (export views, profitability views, cashflow views, aging views)
 12. `202603150013` — Import/export policy-catalog rows (`importExportCatalog`)
 13. `202603270015` — Tenant preferences table + seeder (`tenantPreferences`)
@@ -3958,6 +4084,7 @@ axerra/
       0029-tenant-restore-admin-reactivation.md
       0030-roles-as-array-on-entity.md
       0031-add-on-hooks.md
+      0032-multi-ledger-cash-vs-accrual.md
     PRD.md                      # This file
 ```
 
@@ -4043,6 +4170,7 @@ The following ADRs are captured under `docs/decisions/`:
 | 0029 | Tenant restore leaves users locked; admin reactivation is explicit | Restore clears `deactivated_at` on the cohort but not `status`; `POST /tenants/:id/provision-admin` is the only supported re-enable path. |
 | 0030 | Role assignments as `text[]` on the entity row                  | No `role_members` junction; assignments mutate via entity CRUD. Lists triggers (per-company role variance, time bounds, approval, audit history) that would justify a refactor. |
 | 0031 | Synchronous hooks for add-on modules                            | Add-ons extend core workflows via named, in-transaction, throw-to-block hooks. Partially supersedes ADR-0028. Contract lands with the first add-on that needs a hook. |
+| 0032 | Multi-ledger architecture for cash vs accrual                   | `ledger_id` discriminator + data-driven posting rules; cash basis is a posted, lockable book, not derived. N-way for deferred multi-GAAP. |
 
 ### 15.6 Referencing ADRs  [in-scope]
 
