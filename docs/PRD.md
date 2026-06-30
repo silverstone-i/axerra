@@ -13,15 +13,12 @@ Status tags applied at the paragraph or bullet level (`[intended]`, `[implemente
 ## Table of Contents
 
 - [Scope-tag Legend](#scope-tag-legend)
-
 - [Glossary](#glossary)
-
 - [1. Overview](#1-overview--in-scope)
   - [1.1 Product Overview](#11-product-overview--in-scope)
   - [1.2 Target Users](#12-target-users--in-scope)
   - [1.3 Technology Stack](#13-technology-stack--in-scope)
   - [1.4 Monorepo Structure](#14-monorepo-structure--in-scope)
-
 - [2. Architecture](#2-architecture--in-scope)
   - [2.1 Multi-Tenant Model](#21-multi-tenant-model--in-scope)
   - [2.2 pg-schemata Integration](#22-pg-schemata-integration--in-scope)
@@ -32,7 +29,6 @@ Status tags applied at the paragraph or bullet level (`[intended]`, `[implemente
     - [2.2.5 Planned Enhancements](#225-planned-enhancements)
   - [2.3 Application Layout](#23-application-layout--in-scope)
   - [2.4 Request Flow](#24-request-flow--in-scope)
-
 - [3. Module Reference](#3-module-reference--in-scope)
   - [3.0 Module Taxonomy](#30-module-taxonomy--in-scope)
     - [3.0.1 Core Modules](#301-core-modules)
@@ -56,10 +52,13 @@ Status tags applied at the paragraph or bullet level (`[intended]`, `[implemente
       - [3.1.2.4 RBAC Membership Tables](#3124-rbac-membership-tables)
         - [3.1.2.4.1 `project_members`](#31241-project_members)
         - [3.1.2.4.2 `company_members`](#31242-company_members)
+      - [3.1.2.5 Approval Audit](#3125-approval-audit)
+        - [3.1.2.5.1 `approvals`](#31251-approvals)
     - [3.1.3 API](#313-api)
       - [3.1.3.1 Authentication Endpoints](#3131-authentication-endpoints)
       - [3.1.3.2 Tenant Management Endpoints](#3132-tenant-management-endpoints)
       - [3.1.3.3 RBAC / Policy Endpoints](#3133-rbac--policy-endpoints)
+      - [3.1.3.4 Approval Audit Endpoint](#3134-approval-audit-endpoint)
     - [3.1.4 Business Rules](#314-business-rules)
       - [3.1.4.1 Login Flow & Token Lifecycle](#3141-login-flow--token-lifecycle)
       - [3.1.4.2 Mid-Session Policy Refresh](#3142-mid-session-policy-refresh)
@@ -73,7 +72,13 @@ Status tags applied at the paragraph or bullet level (`[intended]`, `[implemente
         - [3.1.4.5.5 Recommended defaults](#31455-recommended-defaults)
         - [3.1.4.5.6 Entity integration and backfill](#31456-entity-integration-and-backfill)
       - [3.1.4.6 Impersonation](#3146-impersonation)
+      - [3.1.4.7 Tenant Archive, Restore, and Admin Reactivation](#3147-tenant-archive-restore-and-admin-reactivation)
+        - [3.1.4.7.1 Archive cascade](#31471-archive-cascade)
+        - [3.1.4.7.2 Restore cascade](#31472-restore-cascade)
+        - [3.1.4.7.3 Admin reactivation via `provision-admin`](#31473-admin-reactivation-via-provision-admin)
+        - [3.1.4.7.4 What `provision-admin` deliberately does **not** do](#31474-what-provision-admin-deliberately-does-not-do)
       - [3.1.4.8 Tenant Approval Settings](#3148-tenant-approval-settings)
+        - [3.1.4.8.1 Data: `tenant_approval_config`](#31481-data-tenant_approval_config)
   - [3.2 Core Entities](#32-core-entities--core)
     - [3.2.1 Overview](#321-overview)
     - [3.2.2 Data Tables](#322-data-tables)
@@ -158,6 +163,9 @@ Status tags applied at the paragraph or bullet level (`[intended]`, `[implemente
       - [3.6.2.3 Receipts](#3623-receipts)
         - [3.6.2.3.1 `receipts`](#36231-receipts)
         - [3.6.2.3.2 `receipt_allocations`](#36232-receipt_allocations)
+      - [3.6.2.4 Billing Agreements](#3624-billing-agreements)
+        - [3.6.2.4.1 `billing_agreements`](#36241-billing_agreements)
+        - [3.6.2.4.2 `billing_agreement_milestones`](#36242-billing_agreement_milestones)
     - [3.6.3 API](#363-api)
     - [3.6.4 Business Rules](#364-business-rules)
   - [3.7 Accounting & General Ledger](#37-accounting--general-ledger--core)
@@ -213,155 +221,139 @@ Status tags applied at the paragraph or bullet level (`[intended]`, `[implemente
       - [3.10.3.1 `admin.countries`](#31031-admincountries)
     - [3.10.4 Match Review Logs](#3104-match-review-logs)
       - [3.10.4.1 `match_review_logs`](#31041-match_review_logs)
-  - [3.11 Bill of Materials (BOM)](#311-bill-of-materials-bom--add-on)
-    - [3.11.1 Overview](#3111-overview)
-    - [3.11.2 Data Tables](#3112-data-tables)
-      - [3.11.2.1 Catalog SKUs](#31121-catalog-skus)
-        - [3.11.2.1.1 `catalog_skus`](#311211-catalog_skus)
-      - [3.11.2.2 Vendor SKUs](#31122-vendor-skus)
-        - [3.11.2.2.1 `vendor_skus`](#311221-vendor_skus)
-      - [3.11.2.3 Vendor Pricing](#31123-vendor-pricing)
-        - [3.11.2.3.1 `vendor_pricing`](#311231-vendor_pricing)
-    - [3.11.3 API](#3113-api)
-    - [3.11.4 Business Rules](#3114-business-rules)
-  - [3.12 Contracts](#312-contracts--add-on-deferred)
-    - [3.12.1 Overview](#3121-overview)
-    - [3.12.2 Data Tables](#3122-data-tables)
-    - [3.12.3 API](#3123-api)
-    - [3.12.4 Business Rules](#3124-business-rules)
-  - [3.13 Scheduling](#313-scheduling--add-on-deferred)
-    - [3.13.1 Overview](#3131-overview)
-    - [3.13.2 Data Tables](#3132-data-tables)
-    - [3.13.3 API](#3133-api)
-    - [3.13.4 Business Rules](#3134-business-rules)
-  - [3.14 Timesheets](#314-timesheets--add-on-deferred)
-    - [3.14.1 Overview](#3141-overview)
-    - [3.14.2 Data Tables](#3142-data-tables)
-    - [3.14.3 API](#3143-api)
-    - [3.14.4 Business Rules](#3144-business-rules)
-  - [3.15 Procurement](#315-procurement--add-on-deferred)
-    - [3.15.1 Overview](#3151-overview)
-    - [3.15.2 Data Tables](#3152-data-tables)
-    - [3.15.3 API](#3153-api)
-    - [3.15.4 Business Rules](#3154-business-rules)
-  - [3.16 Inventory & Warehousing](#316-inventory--warehousing--add-on-deferred)
-    - [3.16.1 Overview](#3161-overview)
-    - [3.16.2 Data Tables](#3162-data-tables)
-    - [3.16.3 API](#3163-api)
-    - [3.16.4 Business Rules](#3164-business-rules)
-
-- [4. Planned Integrations](#4-planned-integrations--in-scope)
-  - [4.1 Scope and order](#41-scope-and-order)
-  - [4.2 Architectural fit](#42-architectural-fit)
-  - [4.3 Vendor selection](#43-vendor-selection)
-- [5. Demo Tenants](#5-demo-tenants--in-scope)
-  - [5.1 Meridian Group (MG) — Consulting Use Case](#51-meridian-group-mg--consulting-use-case)
-    - [5.1.1 Profile](#511-profile)
-    - [5.1.2 Active Modules](#512-active-modules)
-    - [5.1.3 Data Requirements](#513-data-requirements)
-    - [5.1.4 Key Workflows](#514-key-workflows)
-    - [5.1.5 Seed Script Reference](#515-seed-script-reference)
-  - [5.2 Sterling Ridge Homes (SRH) — Construction Use Case](#52-sterling-ridge-homes-srh--construction-use-case)
-    - [5.2.1 Profile](#521-profile)
-    - [5.2.2 Active Modules](#522-active-modules)
-    - [5.2.3 Data Requirements](#523-data-requirements)
-    - [5.2.4 Key Workflows](#524-key-workflows)
-    - [5.2.5 Seed Script Reference](#525-seed-script-reference)
-- [6. Standard API Patterns](#6-standard-api-patterns--in-scope)
-  - [6.1 CRUD Operations](#61-crud-operations--in-scope)
-  - [6.2 Pagination](#62-pagination--in-scope)
-  - [6.3 Audit Fields](#63-audit-fields--in-scope)
-  - [6.4 Soft Deletes](#64-soft-deletes--in-scope)
-  - [6.5 Validation](#65-validation--in-scope)
-  - [6.6 Excel Import / Export](#66-excel-import--export--in-scope)
-    - [6.6.1 Backend](#661-backend)
-    - [6.6.2 Frontend](#662-frontend)
-    - [6.6.3 Pages with Import / Export](#663-pages-with-import--export)
-
-- [7. Database Design](#7-database-design--in-scope)
-  - [7.1 Common Columns](#71-common-columns--in-scope)
-  - [7.2 Naming Conventions](#72-naming-conventions--in-scope)
-  - [7.3 Generated Columns](#73-generated-columns--in-scope)
-  - [7.4 Schema Management & Migrations](#74-schema-management--migrations--in-scope)
-
-- [8. UI Components & Theming](#8-ui-components--theming--in-scope)
-  - [8.1 Theme System](#81-theme-system--in-scope)
-    - [8.1.1 Component Override Strategy](#811-component-override-strategy)
-    - [8.1.2 Design Tokens](#812-design-tokens)
-    - [8.1.3 Theme Overrides Reference](#813-theme-overrides-reference)
-  - [8.2 Navigation System](#82-navigation-system--in-scope)
-  - [8.3 Module Bar](#83-module-bar--in-scope)
-  - [8.4 Client Dependencies](#84-client-dependencies--in-scope)
-  - [8.5 Reusable Component Patterns](#85-reusable-component-patterns--in-scope)
-
-- [9. Navigation Structure](#9-navigation-structure--in-scope)
-
-- [10. Environment Configuration](#10-environment-configuration--in-scope)
-
-- [11. Testing Strategy](#11-testing-strategy--in-scope)
-
-- [12. Coding Standards & Best Practices](#12-coding-standards--best-practices--in-scope)
-  - [12.1 Naming Conventions](#121-naming-conventions--in-scope)
-  - [12.1.1 Single Canonical Names](#1211-single-canonical-names--in-scope)
-  - [12.2 File & Module Structure](#122-file--module-structure--in-scope)
-  - [12.3 Copyright & File Headers](#123-copyright--file-headers--in-scope)
-  - [12.4 Code Reuse](#124-code-reuse--in-scope)
-  - [12.5 Classes vs Functions](#125-classes-vs-functions--in-scope)
-  - [12.6 Error Handling](#126-error-handling--in-scope)
-  - [12.7 Import & Export Style](#127-import--export-style--in-scope)
-  - [12.8 Comments & Documentation](#128-comments--documentation--in-scope)
-  - [12.9 Async & Concurrency](#129-async--concurrency--in-scope)
-  - [12.10 Security Practices](#1210-security-practices--in-scope)
-
-- [13. Developer Tooling](#13-developer-tooling--in-scope)
-  - [13.1 ESLint](#131-eslint--in-scope)
-  - [13.2 Prettier](#132-prettier--in-scope)
-  - [13.3 EditorConfig](#133-editorconfig--in-scope)
-  - [13.4 Husky & Git Hooks](#134-husky--git-hooks--in-scope)
-  - [13.5 VSCode Workspace](#135-vscode-workspace--in-scope)
-  - [13.6 Vitest](#136-vitest--in-scope)
-  - [13.7 Vite](#137-vite--in-scope)
-  - [13.8 npm Workspaces](#138-npm-workspaces--in-scope)
-  - [13.9 Logging](#139-logging--in-scope)
-  - [13.10 Environment Management](#1310-environment-management--in-scope)
-
-- [14. Project Setup Guide](#14-project-setup-guide--in-scope)
-  - [14.1 Prerequisites](#141-prerequisites--in-scope)
-  - [14.2 GitHub Repository Setup](#142-github-repository-setup--in-scope)
-  - [14.3 Clone & Install](#143-clone--install--in-scope)
-  - [14.4 VSCode Configuration](#144-vscode-configuration--in-scope)
-  - [14.5 Environment Setup](#145-environment-setup--in-scope)
-  - [14.6 Database Setup](#146-database-setup--in-scope)
-  - [14.7 Start Development](#147-start-development--in-scope)
-  - [14.8 Run Tests](#148-run-tests--in-scope)
-  - [14.9 Daily Workflow](#149-daily-workflow--in-scope)
-  - [14.10 Husky Commit Rules](#1410-husky-commit-rules--in-scope)
-  - [14.11 Recommended `.nvmrc`](#1411-recommended-nvmrc--in-scope)
-  - [14.12 `.env.example` Reference](#1412-envexample-reference--in-scope)
-
-- [15. Architecture Decision Records](#15-architecture-decision-records--in-scope)
-  - [15.1 Purpose](#151-purpose--in-scope)
-  - [15.2 Location](#152-location--in-scope)
-  - [15.3 Template](#153-template--in-scope)
-  - [15.4 When to Write an ADR](#154-when-to-write-an-adr--in-scope)
-  - [15.5 Initial ADRs](#155-initial-adrs--in-scope)
-  - [15.6 Referencing ADRs](#156-referencing-adrs--in-scope)
-
-- [16. Scripts](#16-scripts--in-scope)
-  - [16.1 Conventions](#161-conventions--in-scope)
-  - [16.2 Migration Scripts](#162-migration-scripts--in-scope)
-    - [16.2.1 `setupAdmin.js`](#1621-setupadminjs)
-    - [16.2.2 `runMigrate.js`](#1622-runmigratejs)
-    - [16.2.3 `migrateTenants.js`](#1623-migratetenantsjs)
-  - [16.3 Bootstrap & Seed Scripts](#163-bootstrap--seed-scripts--in-scope)
-    - [16.3.1 `seed.js`](#1631-seedjs)
-    - [16.3.2 `seedRbac.js`](#1632-seedrbacjs)
-    - [16.3.3 `seedDemoMG.js` *(planned)*](#1633-seeddemomgjs-planned)
-    - [16.3.4 `seedDemoSRH.js` *(planned)*](#1634-seeddemosrhjs-planned)
-  - [16.4 Debugging & Diagnostic Scripts](#164-debugging--diagnostic-scripts--in-scope)
-  - [16.5 CLI / Shell Utilities](#165-cli--shell-utilities--in-scope)
-    - [16.5.1 `db/provisionTenantCli.js`](#1651-dbprovisiontenantclijs)
-    - [16.5.2 `db/reconcilePolicyCatalog.js`](#1652-dbreconcilepolicycatalogjs)
+- [4. Add-on Modules](#4-add-on-modules--in-scope)
+  - [4.1 Catalog](#41-catalog--add-on)
+    - [4.1.1 Overview](#411-overview)
+    - [4.1.2 Data Tables](#412-data-tables)
+      - [4.1.2.1 Catalog Items](#4121-catalog-items)
+        - [4.1.2.1.1 `catalog_items`](#41211-catalog_items)
+      - [4.1.2.2 BOM Components](#4122-bom-components)
+        - [4.1.2.2.1 `bom_components`](#41221-bom_components)
+      - [4.1.2.3 Vendor SKUs](#4123-vendor-skus)
+        - [4.1.2.3.1 `vendor_skus`](#41231-vendor_skus)
+      - [4.1.2.4 Vendor Pricing](#4124-vendor-pricing)
+        - [4.1.2.4.1 `vendor_pricing`](#41241-vendor_pricing)
+    - [4.1.3 API](#413-api)
+    - [4.1.4 Business Rules](#414-business-rules)
+  - [4.2 Scheduling](#42-scheduling--add-on-deferred)
+    - [4.2.1 Overview](#421-overview)
+    - [4.2.2 Data Tables](#422-data-tables)
+    - [4.2.3 API](#423-api)
+    - [4.2.4 Business Rules](#424-business-rules)
+  - [4.3 Construction](#43-construction--add-on-deferred)
+    - [4.3.1 Overview](#431-overview)
+    - [4.3.2 Data Tables](#432-data-tables)
+    - [4.3.3 API](#433-api)
+    - [4.3.4 Business Rules](#434-business-rules)
+  - [4.4 Future Add-ons](#44-future-add-ons--add-on-deferred)
+- [5. Planned Integrations](#5-planned-integrations--in-scope)
+  - [5.1 Scope and order](#51-scope-and-order)
+  - [5.2 Architectural fit](#52-architectural-fit)
+  - [5.3 Vendor selection](#53-vendor-selection)
+- [6. Demo Tenants](#6-demo-tenants--in-scope)
+  - [6.1 Meridian Group (MG) — Consulting Use Case](#61-meridian-group-mg--consulting-use-case)
+    - [6.1.1 Profile](#611-profile)
+    - [6.1.2 Active Modules](#612-active-modules)
+    - [6.1.3 Data Requirements](#613-data-requirements)
+    - [6.1.4 Key Workflows](#614-key-workflows)
+    - [6.1.5 Seed Script Reference](#615-seed-script-reference)
+  - [6.2 Sterling Ridge Homes (SRH) — Construction Use Case](#62-sterling-ridge-homes-srh--construction-use-case)
+    - [6.2.1 Profile](#621-profile)
+    - [6.2.2 Active Modules](#622-active-modules)
+    - [6.2.3 Data Requirements](#623-data-requirements)
+    - [6.2.4 Key Workflows](#624-key-workflows)
+    - [6.2.5 Seed Script Reference](#625-seed-script-reference)
+- [7. Standard API Patterns](#7-standard-api-patterns--in-scope)
+  - [7.1 CRUD Operations](#71-crud-operations--in-scope)
+  - [7.2 Pagination](#72-pagination--in-scope)
+  - [7.3 Audit Fields](#73-audit-fields--in-scope)
+  - [7.4 Soft Deletes](#74-soft-deletes--in-scope)
+  - [7.5 Validation](#75-validation--in-scope)
+  - [7.6 Excel Import / Export](#76-excel-import--export--in-scope)
+    - [7.6.1 Backend](#761-backend)
+    - [7.6.2 Frontend](#762-frontend)
+    - [7.6.3 Pages with Import / Export](#763-pages-with-import--export)
+- [8. Database Design](#8-database-design--in-scope)
+  - [8.1 Common Columns](#81-common-columns--in-scope)
+  - [8.2 Naming Conventions](#82-naming-conventions--in-scope)
+  - [8.3 Generated Columns](#83-generated-columns--in-scope)
+  - [8.4 Schema Management & Migrations](#84-schema-management--migrations--in-scope)
+- [9. UI Components & Theming](#9-ui-components--theming--in-scope)
+  - [9.1 Theme System](#91-theme-system--in-scope)
+    - [9.1.1 Component Override Strategy](#911-component-override-strategy)
+    - [9.1.2 Design Tokens](#912-design-tokens)
+    - [9.1.3 Theme Overrides Reference](#913-theme-overrides-reference)
+  - [9.2 Navigation System](#92-navigation-system--in-scope)
+  - [9.3 Module Bar](#93-module-bar--in-scope)
+  - [9.4 Client Dependencies](#94-client-dependencies--in-scope)
+  - [9.5 Reusable Component Patterns](#95-reusable-component-patterns--in-scope)
+- [10. Navigation Structure](#10-navigation-structure--in-scope)
+- [11. Environment Configuration](#11-environment-configuration--in-scope)
+- [12. Testing Strategy](#12-testing-strategy--in-scope)
+- [13. Coding Standards & Best Practices](#13-coding-standards--best-practices--in-scope)
+  - [13.1 Naming Conventions](#131-naming-conventions--in-scope)
+  - [13.1.1 Single Canonical Names](#1311-single-canonical-names--in-scope)
+  - [13.2 File & Module Structure](#132-file--module-structure--in-scope)
+  - [13.3 Copyright & File Headers](#133-copyright--file-headers--in-scope)
+  - [13.4 Code Reuse](#134-code-reuse--in-scope)
+  - [13.5 Classes vs Functions](#135-classes-vs-functions--in-scope)
+  - [13.6 Error Handling](#136-error-handling--in-scope)
+  - [13.7 Import & Export Style](#137-import--export-style--in-scope)
+  - [13.8 Comments & Documentation](#138-comments--documentation--in-scope)
+  - [13.9 Async & Concurrency](#139-async--concurrency--in-scope)
+  - [13.10 Security Practices](#1310-security-practices--in-scope)
+- [14. Developer Tooling](#14-developer-tooling--in-scope)
+  - [14.1 ESLint](#141-eslint--in-scope)
+  - [14.2 Prettier](#142-prettier--in-scope)
+  - [14.3 EditorConfig](#143-editorconfig--in-scope)
+  - [14.4 Husky & Git Hooks](#144-husky--git-hooks--in-scope)
+  - [14.5 VSCode Workspace](#145-vscode-workspace--in-scope)
+  - [14.6 Vitest](#146-vitest--in-scope)
+  - [14.7 Vite](#147-vite--in-scope)
+  - [14.8 npm Workspaces](#148-npm-workspaces--in-scope)
+  - [14.9 Logging](#149-logging--in-scope)
+  - [14.10 Environment Management](#1410-environment-management--in-scope)
+- [15. Project Setup Guide](#15-project-setup-guide--in-scope)
+  - [15.1 Prerequisites](#151-prerequisites--in-scope)
+  - [15.2 GitHub Repository Setup](#152-github-repository-setup--in-scope)
+    - [Create the repository](#create-the-repository)
+    - [Branch strategy](#branch-strategy)
+    - [Protect the main branch](#protect-the-main-branch)
+  - [15.3 Clone & Install](#153-clone--install--in-scope)
+  - [15.4 VSCode Configuration](#154-vscode-configuration--in-scope)
+    - [Open the workspace](#open-the-workspace)
+    - [Install required extensions](#install-required-extensions)
+    - [Suggested VSCode user settings](#suggested-vscode-user-settings)
+  - [15.5 Environment Setup](#155-environment-setup--in-scope)
+  - [15.6 Database Setup](#156-database-setup--in-scope)
+  - [15.7 Start Development](#157-start-development--in-scope)
+  - [15.8 Run Tests](#158-run-tests--in-scope)
+  - [15.9 Daily Workflow](#159-daily-workflow--in-scope)
+  - [15.10 Husky Commit Rules](#1510-husky-commit-rules--in-scope)
+  - [15.11 Recommended `.nvmrc`](#1511-recommended-nvmrc--in-scope)
+  - [15.12 `.env.example` Reference](#1512-envexample-reference--in-scope)
+- [16. Architecture Decision Records](#16-architecture-decision-records--in-scope)
+  - [16.1 Purpose](#161-purpose--in-scope)
+  - [16.2 Location](#162-location--in-scope)
+  - [16.3 Template](#163-template--in-scope)
+  - [16.4 When to Write an ADR](#164-when-to-write-an-adr--in-scope)
+  - [16.5 Initial ADRs](#165-initial-adrs--in-scope)
+  - [16.6 Referencing ADRs](#166-referencing-adrs--in-scope)
+- [17. Scripts](#17-scripts--in-scope)
+  - [17.1 Conventions](#171-conventions--in-scope)
+  - [17.2 Migration Scripts](#172-migration-scripts--in-scope)
+    - [17.2.1 `setupAdmin.js`](#1721-setupadminjs)
+    - [17.2.2 `runMigrate.js`](#1722-runmigratejs)
+    - [17.2.3 `migrateTenants.js`](#1723-migratetenantsjs)
+  - [17.3 Bootstrap & Seed Scripts](#173-bootstrap--seed-scripts--in-scope)
+    - [17.3.1 `seed.js`](#1731-seedjs)
+    - [17.3.2 `seedRbac.js`](#1732-seedrbacjs)
+    - [17.3.3 `seedDemoMG.js` *(planned)*](#1733-seeddemomgjs-planned)
+    - [17.3.4 `seedDemoSRH.js` *(planned)*](#1734-seeddemosrhjs-planned)
+  - [17.4 Debugging & Diagnostic Scripts](#174-debugging--diagnostic-scripts--in-scope)
+  - [17.5 CLI / Shell Utilities](#175-cli--shell-utilities--in-scope)
+    - [17.5.1 `db/provisionTenantCli.js`](#1751-dbprovisiontenantclijs)
+    - [17.5.2 `db/reconcilePolicyCatalog.js`](#1752-dbreconcilepolicycatalogjs)
 
 ## Glossary
 
@@ -627,7 +619,7 @@ POST / PUT / DELETE / PATCH mutation routes (createRouter prepends addAuditField
 **Middleware reference.**
 
 - `apps/server/src/middleware/requireRootTenant.js` — gates admin and tenant-management routes. Returns 403 unless `req.user.home_tenant?.toLowerCase()` equals `process.env.ROOT_TENANT_CODE` (default `axerra`). Comparison is case-insensitive.
-- `apps/server/src/middleware/auditContext.js` — wraps each request in AsyncLocalStorage carrying the audit identity for model-layer hooks. Paired with `lib/requestContext.js` and `lib/registerAuditResolver.js` (see §6.3).
+- `apps/server/src/middleware/auditContext.js` — wraps each request in AsyncLocalStorage carrying the audit identity for model-layer hooks. Paired with `lib/requestContext.js` and `lib/registerAuditResolver.js` (see §7.3).
 - `apps/server/src/middleware/errorHandler.js` — unified Express 5 error handler. It maps `SchemaDefinitionError` and `type === 'validation'` → 400, pg-schemata `DatabaseError` 23505 (unique) → 409, 23503 (FK) → 422, application errors carrying `err.status` → that status, and all other unhandled errors → 500 with structured logging (and `err.message` in non-prod).
 - `apps/server/src/services/{permCacheInvalidator,rbacQueryContext,permissionLoader}.js` — Redis cache invalidator (busts `perm:{userId}:{tenantCode}` on role/policy mutations), RBAC query context builder, and the permission loader. The loader reads the canon from the database on cache miss. See §3.1.2 and `rules/rbac.md`.
 
@@ -658,14 +650,15 @@ Core modules load on every tenant. No configuration is required. They are:
 
 Add-on modules load only if the tenant lists them in `tenants.allowed_modules`. The full set of available add-ons is:
 
-| Module | Description | PRD § |
-| --- | --- | --- |
-| `bom` | Bill of Materials — catalog SKUs, vendor SKUs, vendor pricing. | §3.11 |
-| `contracts` | Contract documents and milestones (services SOWs, construction sales, production work orders). | §3.12 |
-| `scheduling` | Resource, crew, and milestone scheduling. | §3.13 |
-| `timesheets` | Labour capture by employee, project, and activity. | §3.14 |
-| `procurement` | Purchase orders, vendor RFQs, expediting. | §3.15 |
-| `inventory` | On-hand stock, lot/serial tracking, project issues. | §3.16 |
+| Module | Kind | Description | PRD § |
+| --- | --- | --- | --- |
+| `catalog` | capability | Master item catalog, Bill of Materials, vendor SKU matching, vendor pricing. | §4.1 |
+| `scheduling` | capability | Resource, crew, and milestone scheduling. | §4.2 |
+| `construction` | vertical | Subdivision sales, closing statements, draw schedules, lien-waiver tracking. | §4.3 |
+| `timesheets` | capability | Labour capture by employee, project, and activity. | §4.4 (future) |
+| `procurement` | capability | Purchase orders, vendor RFQs, expediting. | §4.4 (future) |
+| `inventory` | capability | On-hand stock, lot/serial tracking, project issues. | §4.4 (future) |
+| `manufacturing` | vertical | Production work orders, BOM-driven production. | §4.4 (future) |
 
 **Loading rules.** Three rules govern add-on loading:
 
@@ -673,7 +666,7 @@ Add-on modules load only if the tenant lists them in `tenants.allowed_modules`. 
 2. An empty `tenants.allowed_modules` array means **no** add-ons load. Empty does not mean "all" — that behaviour was removed.
 3. Removing a module from `tenants.allowed_modules` disables its routes and middleware on the next request. Existing data is not deleted.
 
-Of the six add-ons, only `bom` is currently registered in `moduleRegistry.js`. The other five are planned — they will be registered when implemented.
+Only `catalog` (formerly `bom`) is currently registered in `moduleRegistry.js`. The rest are planned — they will be registered when implemented. Add-ons are either **capability** modules (industry-agnostic) or **industry verticals** (see [ADR-0035](./decisions/0035-add-on-taxonomy-and-construction.md) and §4).
 
 ### 3.1 System — Auth, Tenant & RBAC  [core]
 
@@ -1336,7 +1329,7 @@ Companies are the legal entities under a tenant — the things that sign contrac
 
 #### 3.2.3 API
 
-All endpoints are under `/api/core/v1/` and provide standard CRUD (see §6.1) unless noted.
+All endpoints are under `/api/core/v1/` and provide standard CRUD (see §7.1) unless noted.
 
 | Method | Path | Description |
 | --- | --- | --- |
@@ -1511,7 +1504,7 @@ Templates are reusable blueprints used to create new projects.
 
 #### 3.3.3 API
 
-All endpoints under `/api/projects/v1/` use standard CRUD (§6.1) unless noted.
+All endpoints under `/api/projects/v1/` use standard CRUD (§7.1) unless noted.
 
 | Method | Path | Description |
 | --- | --- | --- |
@@ -1595,6 +1588,7 @@ The Activities module owns categorical cost tracking. Categories and activities 
 | `id` | uuid | Primary key. |
 | `name` | varchar(128) | Deliverable name. |
 | `description` | text | Description. |
+| `effect` | varchar(16) | `bill`, `pay`, or `gate`. What completing this deliverable does (§3.4.4 rule 10). |
 | `status` | varchar(20) | `pending` → `released` → `finished` → `canceled`. |
 | `start_date` | date | Timeline start. |
 | `end_date` | date | Timeline end. |
@@ -1676,7 +1670,7 @@ The Activities module owns categorical cost tracking. Categories and activities 
 
 #### 3.4.3 API
 
-All endpoints under `/api/activities/v1/` provide standard CRUD (§6.1).
+All endpoints under `/api/activities/v1/` provide standard CRUD (§7.1).
 
 | Method | Path | Description |
 | --- | --- | --- |
@@ -1697,9 +1691,10 @@ All endpoints under `/api/activities/v1/` provide standard CRUD (§6.1).
 4. Default actual-cost state is `pending`. Approval is subject to budget and tolerance checks.
 5. An actual cost can be approved only when its parent unit is `released` and its cost line exists and is approved.
 6. Amounts cannot exceed approved budget plus tolerance unless covered by an approved change order.
-7. Approving an actual cost triggers GL posting via the cross-module posting contract (see [ADR-0019](./decisions/0019-cross-module-posting.md)). The credit is AP / accrual; the debit is governed by the company's `wip_policy` (§3.7.2.2.1) — under `capitalize_release` it resolves to WIP for build categories or Inventory for land / lot, under `expense_immediately` it resolves to Expense — through `category_account_map`.
+7. Approving an actual cost triggers GL posting via the cross-module posting contract (see [ADR-0019](./decisions/0019-cross-module-posting-contract.md)). The credit is AP / accrual; the debit is governed by the company's `wip_policy` (§3.7.2.2.1) — under `capitalize_release` it resolves to WIP for build categories or Inventory for land / lot, under `expense_immediately` it resolves to Expense — through `category_account_map`.
 8. `cost_lines.amount` is a database-generated column; never set it directly.
 9. Vendor parts seed cost-line `unit_price` and `markup_pct` defaults when a buyer selects a `(vendor, vendor_sku)` pair.
+10. A deliverable's `effect` declares what completing it does: `bill` generates an AR invoice through its billing agreement (§3.6), `pay` authorizes an AP payment against a purchase order or subcontract (§3.5), and `gate` is a control checkpoint (inspection, approval, customer review) with no general-ledger effect. Effect-driven billing and payment are **core** — they ride on deliverables and require no add-on. Gate sub-flavors (inspection, approval, review) are labels, not separate effects. Sequencing one deliverable behind another (e.g. a `gate` ahead of a `bill`) is a scheduling concern and is deferred.
 
 ---
 
@@ -1787,7 +1782,7 @@ Allocates a payment across one or more AP invoices, supporting partial and split
 
 #### 3.5.3 API
 
-All endpoints under `/api/ap/v1/` provide standard CRUD (§6.1).
+All endpoints under `/api/ap/v1/` provide standard CRUD (§7.1).
 
 | Method | Path | Description |
 | --- | --- | --- |
@@ -1799,7 +1794,7 @@ All endpoints under `/api/ap/v1/` provide standard CRUD (§6.1).
 #### 3.5.4 Business Rules
 
 1. Approving an invoice requires every line to map to a valid GL account and (optionally) a cost line.
-2. Approving an invoice posts to GL via the cross-module posting contract (see [ADR-0019](./decisions/0019-cross-module-posting.md)) and updates the vendor balance. The credit is AP Liability; the debit is governed by the company's `wip_policy` (§3.7.2.2.1) — WIP / Inventory under `capitalize_release`, Expense under `expense_immediately` — resolved through `category_account_map`.
+2. Approving an invoice posts to GL via the cross-module posting contract (see [ADR-0019](./decisions/0019-cross-module-posting-contract.md)) and updates the vendor balance. The credit is AP Liability; the debit is governed by the company's `wip_policy` (§3.7.2.2.1) — WIP / Inventory under `capitalize_release`, Expense under `expense_immediately` — resolved through `category_account_map`.
 3. Invoice numbering is auto-assigned on `status` transition to `approved` if `invoice_number` is empty. The scope is `company_id` per §3.1.4.5 — each company has its own running sequence.
 4. Remaining balance is computed as `total_amount − SUM(payments) − SUM(applied credit memos)`. It is not stored.
 5. When `project_id` is set, the invoice amount feeds into project cashflow outflow metrics (§3.8).
@@ -1812,7 +1807,7 @@ All endpoints under `/api/ap/v1/` provide standard CRUD (§6.1).
 
 #### 3.6.1 Overview
 
-Accounts Receivable (AR) owns client invoices, invoice lines, and receipts. AR is the primary revenue source for project profitability tracking. Approving an invoice (transition to `sent`) posts to GL via the cross-module contract: debit AR, credit Revenue. Construction subdivision-sales workflows use closing statements in the `contracts` add-on, not AR invoices. See §3.12.
+Accounts Receivable (AR) owns client invoices, invoice lines, receipts, and billing agreements. AR is the primary revenue source for project profitability tracking. Approving an invoice (transition to `sent`) posts to GL via the cross-module contract: debit AR, credit Revenue. Construction subdivision-unit sales are recognized by the construction add-on, not by `ar_invoices` (§4.3).
 
 #### 3.6.2 Data Tables
 
@@ -1820,15 +1815,14 @@ Accounts Receivable (AR) owns client invoices, invoice lines, and receipts. AR i
 
 ###### 3.6.2.1.1 `ar_invoices`
 
-| Field              | Type          | Description                                                        |
-| ------------------ | ------------- | ------------------------------------------------------------------ |
 | Column | Type | Notes |
 | --- | --- | --- |
 | `id` | uuid | Primary key. |
 | `company_id` | uuid | FK to `companies` (RESTRICT). |
 | `client_id` | uuid | FK to `clients` (RESTRICT). |
 | `project_id` | uuid | FK to `projects` (SET NULL). Required for project revenue tracking. |
-| `deliverable_id` | uuid | FK to `deliverables` (SET NULL). |
+| `deliverable_id` | uuid | FK to `deliverables` (SET NULL). The `bill`-effect deliverable that released this invoice. |
+| `billing_agreement_id` | uuid | FK to `billing_agreements` (SET NULL). The revenue agreement this invoice bills against. |
 | `invoice_number` | varchar(32) | Invoice number. Auto-numbered on transition to `sent` (see §3.1.4.5). |
 | `invoice_date` | date | Invoice date. |
 | `due_date` | date | Due date. |
@@ -1874,6 +1868,34 @@ Allocates a receipt across one or more AR invoices, supporting partial and split
 | `ar_invoice_id` | uuid | FK to `ar_invoices` (RESTRICT). |
 | `amount` | numeric(14,2) | Portion of the receipt applied to this invoice. |
 
+##### 3.6.2.4 Billing Agreements
+
+A billing agreement is the revenue-side contract that governs client billing — the single home for services Statements of Work (SOW) and construction draw schedules alike. It binds a client and project to a set of billing milestones; completing a milestone releases an AR invoice. There is **no separate services vertical** — the SOW lives here. The accounts-payable mirror (a subcontract or purchase order governing what the tenant *pays*) is not a billing agreement; it lives in AP / procurement.
+
+###### 3.6.2.4.1 `billing_agreements`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `company_id` | uuid | FK to `companies` (RESTRICT). |
+| `client_id` | uuid | FK to `clients` (RESTRICT). |
+| `project_id` | uuid | FK to `projects` (SET NULL). |
+| `name` | varchar(128) | Agreement name (e.g. the SOW title). |
+| `agreement_type` | varchar(24) | `sow`, `draw_schedule`, or `other`. |
+| `total_amount` | numeric(14,2) | Total contract value. |
+| `status` | varchar(20) | `draft` → `active` → `closed`. |
+| `notes` | text | Internal notes. |
+
+###### 3.6.2.4.2 `billing_agreement_milestones`
+
+Links an agreement to the `bill`-effect deliverables (§3.4.2.2.1) that release its invoices. The dependency points AR → activities, consistent with `ar_invoices.deliverable_id`.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `billing_agreement_id` | uuid | FK to `billing_agreements` (CASCADE). |
+| `deliverable_id` | uuid | FK to `deliverables` (RESTRICT). A `bill`-effect milestone. |
+| `sequence` | integer | Billing order. |
+
 #### 3.6.3 API
 
 | Method | Path | Description |
@@ -1882,6 +1904,7 @@ Allocates a receipt across one or more AR invoices, supporting partial and split
 | PUT | `/api/ar/v1/ar-invoices/approve` | Approve invoice (sets status to `sent`). RBAC-gated: `ar::ar-invoices::approve` at `full`. |
 | CRUD | `/api/ar/v1/ar-invoice-lines` | Manage AR invoice lines. |
 | CRUD | `/api/ar/v1/receipts` | Manage receipts. |
+| CRUD | `/api/ar/v1/billing-agreements` | Manage billing agreements and their milestones. |
 
 #### 3.6.4 Business Rules
 
@@ -1892,16 +1915,8 @@ Allocates a receipt across one or more AR invoices, supporting partial and split
 5. When `project_id` is set, the invoice feeds into project revenue and cashflow inflow metrics (§3.8).
 6. Partial payments and retainage are supported through `receipts` plus the cashflow module's recognition rules.
 7. Receipt `method` is restricted to `check`, `ach`, `wire` by controller-level allowlist — invalid values return 400.
-8. Construction subdivision sales do **not** flow through `ar_invoices`. They use closing statements owned by the `contracts` add-on. Posting a closing statement is the unit's sale event: it fires `wip_release` (§3.7.2.8) and recognizes revenue under `completed_contract`. On the accrual ledger it resolves to a single balanced entry:
-
-   | Leg | DR | CR |
-   | --- | --- | --- |
-   | Recognize sale | A/R (sale price) | Revenue (sale price) |
-   | Relieve build cost (`wip_release`) | COGS | WIP |
-   | Relieve land / lot | COGS | Inventory |
-   | Intercompany funding, where applicable | due-to / due-from per §3.7.2.9 | |
-
-   On the cash ledger the closing statement is a credit sale, so its account roles are null and it posts nothing; cash-basis revenue recognizes later at receipt (DR Cash, CR Revenue), as the AR-receipt row already does (§3.7.2.8). WIP and Inventory are accrual-only and never appear in the cash ledger. The core `ar` module is not modified. See [ADR-0019](./decisions/0019-cross-module-posting.md).
+8. Milestone-gated billing is **core**. A billing agreement (§3.6.2.4) is the revenue contract — the home for services Statements of Work and construction draw schedules. Completing a `bill`-effect deliverable (§3.4.4 rule 10) listed among the agreement's milestones releases an AR invoice stamped with that `billing_agreement_id`. No add-on is required, and there is no services vertical.
+9. Construction subdivision-unit sales do **not** flow through `ar_invoices`. Their revenue is recognized by the construction add-on's settlement document, which posts a single balanced entry through the cross-module posting contract (§4.3.4, [ADR-0019](./decisions/0019-cross-module-posting-contract.md)).
 
 ---
 
@@ -1909,7 +1924,7 @@ Allocates a receipt across one or more AR invoices, supporting partial and split
 
 #### 3.7.1 Overview
 
-The Accounting module owns the chart of accounts, journal entries and lines, ledger balances, the posting queue, the category-to-account mapping, fiscal periods, and intercompany accounting. Every other module that touches money (AP, AR, Activities, Contracts) posts here via the cross-module posting contract ([ADR-0019](./decisions/0019-cross-module-posting.md)). Accounting itself does not source events from external systems; planned external feeds (bank reconciliation, payment rails) enter through the posting contract rather than writing to the ledger directly, preserving this property — see §4.
+The Accounting module owns the chart of accounts, journal entries and lines, ledger balances, the posting queue, the category-to-account mapping, fiscal periods, and intercompany accounting. Every other module that touches money (AP, AR, Activities, Contracts) posts here via the cross-module posting contract ([ADR-0019](./decisions/0019-cross-module-posting-contract.md)). Accounting itself does not source events from external systems; planned external feeds (bank reconciliation, payment rails) enter through the posting contract rather than writing to the ledger directly, preserving this property — see §5.
 
 #### 3.7.2 Data Tables
 
@@ -2051,7 +2066,7 @@ The rules engine that replaces hardcoded postings. For each business event the p
 
 Account roles resolve to concrete accounts through the role → account mapping (an extension of `category_account_map`, §3.7.2.7). A null account role is how the cash ledger records nothing for an invoice-issuance event. The same event therefore posts differently per ledger:
 
-The `wip_release` event is fired by posting a closing-statement document (§3.6.4 rule 8); there is no automatic release without it. Its leg is DR COGS, CR WIP (`debit_account_role = cogs`, `credit_account_role = wip`, `recognition_date` = the settlement date). It exists only on the accrual ledger — WIP is an accrual-only account, so the role is null on the cash ledger. The closing statement is a composite event whose other legs (inventory relief, A/R, revenue, intercompany) resolve alongside it into one balanced entry; see §3.6.4 rule 8 for the full recipe.
+The `wip_release` event is fired by an add-on settlement document via the posting contract ([ADR-0019](./decisions/0019-cross-module-posting-contract.md)); there is no automatic release without it. Its leg is DR COGS, CR WIP (`debit_account_role = cogs`, `credit_account_role = wip`, `recognition_date` = the settlement date). It exists only on the accrual ledger — WIP is an accrual-only account, so the role is null on the cash ledger. The settlement document is a composite event whose other legs (inventory relief, A/R, revenue, intercompany) resolve alongside it into one balanced entry; the construction add-on supplies the construction recipe (§4.3.4).
 
 | Event | Accrual ledger | Cash ledger |
 | --- | --- | --- |
@@ -2124,7 +2139,7 @@ Unique `(tenant_id, ledger_id, fiscal_year, period_number)`. Date ranges for a g
 
 #### 3.7.3 API
 
-All endpoints under `/api/accounting/v1/` provide standard CRUD (§6.1) unless noted.
+All endpoints under `/api/accounting/v1/` provide standard CRUD (§7.1) unless noted.
 
 | Method | Path | Description |
 | --- | --- | --- |
@@ -2160,7 +2175,7 @@ All endpoints under `/api/accounting/v1/` provide standard CRUD (§6.1) unless n
 9. Intercompany transactions create paired journal entries (due-to / due-from) and carry an `is_eliminated` flag. Consolidation reporting eliminates flagged transactions from tenant-level P&L and balance sheet.
 10. The posting queue is the single asynchronous serialization point. Cross-module posters write to the queue; an accounting-side worker drains the queue, posts entries, and writes failures to `error_message` with a `failed` status for retry.
 11. Multi-GAAP uses the same ledger and `posting_rules` machinery — additional ledgers distinguished by `accounting_principle`, each with its own rules and fiscal periods. `[deferred]`
-12. Under `wip_policy = capitalize_release` (§3.7.2.2.1) a unit's costs accumulate as WIP (build) and Inventory (land / lot) on the accrual ledger as they are incurred, never touching the P&L. Posting a closing-statement document (§3.6.4 rule 8) fires `wip_release`, relieving WIP and Inventory to COGS and recognizing revenue under `completed_contract` in one balanced accrual entry. Absent that document there is no automatic release. WIP and Inventory are accrual-only and never appear in the cash ledger.
+12. Under `wip_policy = capitalize_release` (§3.7.2.2.1) a unit's costs accumulate as WIP (build) and Inventory (land / lot) on the accrual ledger as they are incurred, never touching the P&L. An add-on settlement document fires `wip_release`, relieving WIP and Inventory to COGS and recognizing revenue under `completed_contract` in one balanced accrual entry (the construction add-on supplies the recipe, §4.3.4). Absent that document there is no automatic release. WIP and Inventory are accrual-only and never appear in the cash ledger.
 
 ---
 
@@ -2236,7 +2251,7 @@ All endpoints under `/api/reports/v1/`.
 | GET | `/api/reports/v1/ar-aging/:clientId` | AR aging for a specific client. |
 | GET | `/api/reports/v1/ap-aging` | AP aging across all vendors. |
 | GET | `/api/reports/v1/ap-aging/:vendorId` | AP aging for a specific vendor. |
-| GET | `/api/reports/v1/company-cashflow` | Cashflow aggregated across all projects for a company. UI lives under `/dashboard/cashflow`, not `/reports/*` (see §9). |
+| GET | `/api/reports/v1/company-cashflow` | Cashflow aggregated across all projects for a company. UI lives under `/dashboard/cashflow`, not `/reports/*` (see §10). |
 | GET | `/api/reports/v1/margin-analysis` | Cross-project margin comparison and trending. |
 
 #### 3.8.4 Business Rules
@@ -2372,7 +2387,7 @@ No API surface. Read directly by the client via the shared country list in `pack
 
 #### 3.10.4 Match Review Logs
 
-Audit trail for BOM vendor-SKU matching decisions.
+Audit trail for catalog vendor-SKU matching decisions.
 
 ##### 3.10.4.1 `match_review_logs`
 
@@ -2391,22 +2406,28 @@ Endpoint: `/api/tenants/v1/match-review-logs`.
 
 ---
 
-### 3.11 Bill of Materials (BOM)  [add-on]
+## 4. Add-on Modules  [in-scope]
 
-#### 3.11.1 Overview
+Add-on modules are licensed per tenant via `tenants.allowed_modules` (§3.0.2). They divide into **capability add-ons** (industry-agnostic) and **industry verticals**. Catalog, Scheduling, and Construction are documented below; Timesheets, Procurement, Inventory, and a future Manufacturing vertical are listed under Future Add-ons (§4.4). See [ADR-0035](./decisions/0035-add-on-taxonomy-and-construction.md).
 
-The BOM add-on manages material catalogs, vendor SKU matching, and vendor pricing. Catalog SKUs are tenant-curated reference items. Vendor SKUs are pulled from vendor price lists. Each vendor SKU is matched back to a catalog SKU, either manually or via pgvector similarity search. Cost lines select a `(vendor, vendor_sku)` pair and inherit the pricing.
+---
 
-#### 3.11.2 Data Tables
+### 4.1 Catalog  [add-on]
 
-##### 3.11.2.1 Catalog SKUs
+#### 4.1.1 Overview
 
-###### 3.11.2.1.1 `catalog_skus`
+The Catalog add-on owns the tenant's master item catalog, the Bill of Materials (BOM) that composes those items into assemblies, vendor SKU matching, and vendor pricing. Catalog items are tenant-curated material reference records. The BOM feature links a parent item to its component items with quantities, so an assembly explodes into its parts and rolls up its cost. Vendor SKUs are pulled from vendor price lists and matched back to a catalog item, either manually or via pgvector similarity search. Cost lines select a `(vendor, vendor_sku)` pair and inherit the pricing.
+
+#### 4.1.2 Data Tables
+
+##### 4.1.2.1 Catalog Items
+
+###### 4.1.2.1.1 `catalog_items`
 
 | Column | Type | Notes |
 | --- | --- | --- |
 | `id` | uuid | Primary key. |
-| `catalog_sku` | varchar(64) | Unique catalog SKU. |
+| `catalog_sku` | varchar(64) | Unique catalog SKU code. |
 | `description` | text | Full description. |
 | `description_normalized` | text | Normalized for matching. |
 | `category` | varchar(64) | Material category. |
@@ -2414,9 +2435,22 @@ The BOM add-on manages material catalogs, vendor SKU matching, and vendor pricin
 | `model` | varchar(32) | Embedding model used. |
 | `embedding` | vector(3072) | pgvector embedding for similarity search. |
 
-##### 3.11.2.2 Vendor SKUs
+##### 4.1.2.2 BOM Components
 
-###### 3.11.2.2.1 `vendor_skus`
+###### 4.1.2.2.1 `bom_components`
+
+The BOM is an adjacency-list self-reference on `catalog_items`: each row is one edge linking a parent item (the assembly) to a child item (the component) with a quantity. An item is an *assembly* when it owns `bom_components` rows and a *leaf* when it owns none — there is no separate type column. The same child item is reused across many parents (one master definition, many edges), which is the whole point of the master catalog.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `parent_item_id` | uuid | FK to `catalog_items` (CASCADE). The assembly. |
+| `child_item_id` | uuid | FK to `catalog_items` (RESTRICT). The component item. |
+| `quantity` | numeric(12,4) | Quantity of the child per one parent. |
+
+##### 4.1.2.3 Vendor SKUs
+
+###### 4.1.2.3.1 `vendor_skus`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -2425,16 +2459,16 @@ The BOM add-on manages material catalogs, vendor SKU matching, and vendor pricin
 | `vendor_sku` | varchar(64) | Vendor's SKU code. |
 | `description` | text | Vendor's description. |
 | `description_normalized` | text | Normalized description. |
-| `catalog_sku_id` | uuid | FK to `catalog_skus` (SET NULL). The matched catalog SKU. |
+| `catalog_sku_id` | uuid | FK to `catalog_items` (SET NULL). The matched catalog item. |
 | `confidence` | real | Match confidence score (0.0–1.0). |
 | `model` | varchar(32) | Embedding model (default `text-embedding-3-large`). |
 | `embedding` | vector(3072) | pgvector embedding. |
 
 Custom model methods: `findBySku(vendor_id, vendor_sku)`, `getUnmatched()`, `refreshEmbeddings(batches)`.
 
-##### 3.11.2.3 Vendor Pricing
+##### 4.1.2.4 Vendor Pricing
 
-###### 3.11.2.3.1 `vendor_pricing`
+###### 4.1.2.4.1 `vendor_pricing`
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -2444,131 +2478,100 @@ Custom model methods: `findBySku(vendor_id, vendor_sku)`, `getUnmatched()`, `ref
 | `unit` | varchar(32) | Unit of measure. |
 | `effective_date` | date | Price effective date. |
 
-#### 3.11.3 API
+#### 4.1.3 API
 
-All endpoints under `/api/bom/v1/` provide standard CRUD (§6.1).
+All endpoints under `/api/catalog/v1/` provide standard CRUD (§7.1).
 
 | Method | Path | Description |
 | --- | --- | --- |
-| CRUD | `/api/bom/v1/catalog-skus` | Manage catalog SKUs. |
-| CRUD | `/api/bom/v1/vendor-skus` | Manage vendor SKUs. |
-| CRUD | `/api/bom/v1/vendor-pricing` | Manage vendor pricing. |
+| CRUD | `/api/catalog/v1/catalog-items` | Manage catalog items. |
+| CRUD | `/api/catalog/v1/bom-components` | Manage BOM component edges. |
+| CRUD | `/api/catalog/v1/vendor-skus` | Manage vendor SKUs. |
+| CRUD | `/api/catalog/v1/vendor-pricing` | Manage vendor pricing. |
+| GET | `/api/catalog/v1/catalog-items/:id/explode` | Read-only BOM explosion / cost roll-up for an assembly. |
 
-#### 3.11.4 Business Rules
+#### 4.1.4 Business Rules
 
-1. The BOM module loads only when `bom` appears in `tenants.allowed_modules` (see §3.0.2).
-2. Catalog SKUs are tenant-curated. Vendor SKUs originate from vendor price lists.
-3. Matching produces a `vendor_skus.catalog_sku_id` link with a `confidence` score. The match review log (§3.10.4) records every accept/reject/defer decision.
-4. Auto-match thresholds are tenant-configurable. Below the lower threshold, matches are deferred for manual review; above the upper threshold, matches auto-accept; in between, they queue for review.
-5. Cost lines select a `(vendor, vendor_sku)` pair to inherit pricing (§3.4.4).
-
----
-
-### 3.12 Contracts  [add-on] [deferred]
-
-#### 3.12.1 Overview
-
-The Contracts add-on owns contract documents and their milestones. Document types include services Statements of Work (SOW), construction subdivision sales, closing statements, and production work orders. Milestones gate AR invoice generation. In construction, they also gate closing-statement posting via the cross-module contract.
-
-#### 3.12.2 Data Tables
-
-Deferred — schema lands when the module graduates from spec to code.
-
-#### 3.12.3 API
-
-Deferred.
-
-#### 3.12.4 Business Rules
-
-Deferred. Construction closing statements post a single GL entry touching AR, WIP, inventory, and intercompany accounts (see §3.6.4 rule 8).
+1. The Catalog module loads only when `catalog` appears in `tenants.allowed_modules` (see §3.0.2).
+2. Catalog items are tenant-curated. Vendor SKUs originate from vendor price lists.
+3. The BOM is materials-only. An assembly is a `catalog_items` row that owns `bom_components` rows; assembly *labor* is never a component — it is a separate cost line (§3.4).
+4. Cycle prevention is enforced in application code: an item may not contain itself directly or transitively. Inserting a `bom_components` edge rejects the case where the parent is already reachable beneath the child.
+5. Explosion and cost roll-up use recursive traversal: a leaf's cost comes from vendor pricing; an assembly's cost is the sum of each child's rolled-up cost times its quantity. Quantity multiplies down the tree, so the total of a leaf equals the product of quantities along each path. When exploding into cost lines, sum only top-level lines to avoid double-counting the parent and its children.
+6. Matching produces a `vendor_skus.catalog_sku_id` link with a `confidence` score. The match review log (§3.10.4) records every accept/reject/defer decision.
+7. Auto-match thresholds are tenant-configurable. Below the lower threshold, matches are deferred for manual review; above the upper threshold, matches auto-accept; in between, they queue for review.
+8. Cost lines select a `(vendor, vendor_sku)` pair to inherit pricing (§3.4.4). The link from a core `cost_lines` row to a catalog item is a **soft reference** (no database foreign key): catalog tables do not exist in the schema of a tenant that has not licensed the add-on. BOM explosion runs read-only in the add-on; the resulting lines are written through the existing core cost-lines endpoint.
+9. The core `vendor_parts` table (§3.4) and the catalog `vendor_skus` / `vendor_pricing` tables are an intentional split: `vendor_parts` is the activities module's local per-vendor pricing cache, available without the add-on; `vendor_skus` / `vendor_pricing` is the richer matched registry with time-phased pricing that the Catalog add-on layers on top.
 
 ---
 
-### 3.13 Scheduling  [add-on] [deferred]
+### 4.2 Scheduling  [add-on] [deferred]
 
-#### 3.13.1 Overview
+#### 4.2.1 Overview
 
 The Scheduling add-on owns resource, crew, and milestone scheduling across projects and units. It consumes tasks (§3.3.2.3) and produces a time-phased plan.
 
-#### 3.13.2 Data Tables
+#### 4.2.2 Data Tables
 
 Deferred.
 
-#### 3.13.3 API
+#### 4.2.3 API
 
 Deferred.
 
-#### 3.13.4 Business Rules
-
-Deferred.
-
----
-
-### 3.14 Timesheets  [add-on] [deferred]
-
-#### 3.14.1 Overview
-
-The Timesheets add-on captures labor by employee, project, activity, and date. Approved timesheets generate cost lines on the labor cost path (§3.4.2.4).
-
-#### 3.14.2 Data Tables
-
-Deferred.
-
-#### 3.14.3 API
-
-Deferred.
-
-#### 3.14.4 Business Rules
+#### 4.2.4 Business Rules
 
 Deferred.
 
 ---
 
-### 3.15 Procurement  [add-on] [deferred]
+### 4.3 Construction  [add-on] [deferred]
 
-#### 3.15.1 Overview
+#### 4.3.1 Overview
 
-The Procurement add-on owns purchase orders, vendor Requests for Quote (RFQs), and expediting. POs draw from BOM catalog and vendor SKUs and feed AP invoice three-way matching.
+The Construction add-on is the construction industry vertical. It owns subdivision-unit sales, **closing (settlement) statements**, draw schedules, and lien-waiver tracking. The closing statement is the document that consummates a unit sale; posting it is the unit's sale event. Services Statements of Work are not here — they are billing agreements in AR (§3.6.2.4). Production work orders belong to a future manufacturing vertical.
 
-#### 3.15.2 Data Tables
+#### 4.3.2 Data Tables
 
-Deferred.
+Deferred — schema lands when the module graduates from spec to code. Intended documents: subdivision sales / unit records, closing statements, draw schedules, lien waivers.
 
-#### 3.15.3 API
-
-Deferred.
-
-#### 3.15.4 Business Rules
+#### 4.3.3 API
 
 Deferred.
+
+#### 4.3.4 Business Rules
+
+1. The Construction module loads only when `construction` appears in `tenants.allowed_modules` (§3.0.2).
+2. Construction subdivision sales do **not** flow through `ar_invoices`. They use closing statements owned by this add-on.
+3. Posting a closing statement is the unit's sale event. It fires the `wip_release` event and recognizes revenue under `completed_contract`, resolving on the **accrual** ledger to a single balanced entry through the cross-module posting contract ([ADR-0019](./decisions/0019-cross-module-posting-contract.md)):
+
+   | Leg | DR | CR |
+   | --- | --- | --- |
+   | Recognize sale | A/R (sale price) | Revenue (sale price) |
+   | Relieve build cost (`wip_release`) | COGS | WIP |
+   | Relieve land / lot | COGS | Inventory |
+   | Intercompany funding, where applicable | due-to / due-from per §3.7.2.9 | |
+
+   On the **cash** ledger the closing statement is a credit sale, so its account roles are null and it posts nothing; cash-basis revenue recognizes later at receipt (DR Cash, CR Revenue), as the AR-receipt row already does. WIP and Inventory are accrual-only and never appear in the cash ledger.
+4. The posting uses **core** machinery only — the generic role-based posting contract and the company's policy enums `wip_policy` and `revenue_recognition_policy` (§3.7.2.2.1). It is not a configuration flag and not a user-defined journal-workflow engine; the recipe above is the fixed construction recipe. The core `ar`, `accounting`, and `inventory` definitions are not modified.
 
 ---
 
-### 3.16 Inventory & Warehousing  [add-on] [deferred]
+### 4.4 Future Add-ons  [add-on] [deferred]
 
-#### 3.16.1 Overview
+These modules are planned but not yet specified. Each loads only when listed in `tenants.allowed_modules` (§3.0.2).
 
-The Inventory & Warehousing add-on tracks on-hand stock, lot and serial numbers, and project issues. Construction closing statements debit inventory on unit sale (see §3.6.4).
-
-#### 3.16.2 Data Tables
-
-Deferred.
-
-#### 3.16.3 API
-
-Deferred.
-
-#### 3.16.4 Business Rules
-
-Deferred.
+- **`timesheets`** (capability) — labor capture by employee, project, activity, and date; approved timesheets generate labor cost lines (§3.4).
+- **`procurement`** (capability) — purchase orders, vendor Requests for Quote (RFQs), and expediting; POs draw from Catalog items and vendor SKUs and feed AP invoice three-way matching.
+- **`inventory`** (capability) — on-hand stock, lot/serial tracking, and project issues; the construction add-on’s unit sale relieves inventory.
+- **`manufacturing`** (industry vertical) — production work orders and BOM-driven production.
 
 ---
 
-## 4. Planned Integrations  [in-scope]
+## 5. Planned Integrations  [in-scope]
 
 AXERRA connects to no external payment or banking services today. The general ledger is the system of record, and money movement is recorded through approved postings inside the application. The integrations below are deferred until a customer or commercial need justifies them; they are documented here to record that the architecture is designed to accommodate them without core changes.
 
-### 4.1 Scope and order
+### 5.1 Scope and order
 
 Planned money-movement integrations, in implementation order:
 
@@ -2578,7 +2581,7 @@ Planned money-movement integrations, in implementation order:
 
 Later candidates tracked in the roadmap (not yet scoped): sales tax, payroll. See ROADMAP Phase 7.
 
-### 4.2 Architectural fit
+### 5.2 Architectural fit
 
 These are integration modules that *feed* the ledger; they do not replace it.
 
@@ -2586,30 +2589,30 @@ These are integration modules that *feed* the ledger; they do not replace it.
 - **Outbound payments** (ACH, wire) reuse the `approvals` two-step workflow (§3.3.4) for authorisation, and post their cash movements through the same contract.
 - Because external feeds enter through the posting contract rather than by writing to the ledger directly, the Accounting module’s "does not source events from external systems" property (§3.7.1) is preserved: the integration module is the event source, and the GL receives ordinary postings.
 
-### 4.3 Vendor selection
+### 5.3 Vendor selection
 
 Vendor selection is deliberately deferred until the need is real. Candidates evaluated: Plaid (bank feed, ACH); Modern Treasury, Increase, and Column (ACH, wires, and reconciliation). Listing them implies no commitment.
 
 ---
 
-## 5. Demo Tenants  [in-scope]
+## 6. Demo Tenants  [in-scope]
 
 Two named demo tenants exercise the full product surface. Both are referenced by name in screenshots, walkthroughs, and seed scripts.
 
-### 5.1 Meridian Group (MG) — Consulting Use Case
+### 6.1 Meridian Group (MG) — Consulting Use Case
 
-#### 5.1.1 Profile
+#### 6.1.1 Profile
 
 Holding company with three legal entities. Professional services and consulting. No construction. No manufacturing. Exists to prove out the core product on a realistic multi-entity services book and to exercise intercompany accounting (§3.7.2.9).
 
-#### 5.1.2 Active Modules
+#### 6.1.2 Active Modules
 
 | Kind | Modules |
 | --- | --- |
 | Core | All ten core modules (§3.0.1). |
-| Add-on | `contracts`, `scheduling`, `timesheets`. |
+| Add-on | `scheduling`, `timesheets`. |
 
-#### 5.1.3 Data Requirements
+#### 6.1.3 Data Requirements
 
 Realistic volume for a mid-size consulting firm:
 
@@ -2619,31 +2622,31 @@ Realistic volume for a mid-size consulting firm:
 - 200+ AP invoices, 150+ AR invoices.
 - 500+ journal entries with realistic intercompany activity.
 
-#### 5.1.4 Key Workflows
+#### 6.1.4 Key Workflows
 
 - Project budgeting through the budget approval gate.
-- Contract milestones (`contracts` add-on) gating AR invoice generation.
+- Billing-agreement milestones (core, §3.6.2.4) gating AR invoice generation.
 - Timesheet entries flowing into cost lines via the labor cost path.
 - Intercompany billing between the three legal entities, with elimination on consolidation.
 
-#### 5.1.5 Seed Script Reference
+#### 6.1.5 Seed Script Reference
 
 `apps/server/scripts/seedDemoMG.js`. Reproducible — drops and recreates the MG tenant schema, then populates it from fixtures under `apps/server/scripts/fixtures/mg/`.
 
-### 5.2 Sterling Ridge Homes (SRH) — Construction Use Case
+### 6.2 Sterling Ridge Homes (SRH) — Construction Use Case
 
-#### 5.2.1 Profile
+#### 6.2.1 Profile
 
 Homebuilder and property developer with three companies. Uses construction-specific workflows: unit-level cost tracking, BOM-driven procurement, contracted draw schedules, and subcontractor AP with lien-waiver tracking. Exists to drive out the construction add-on requirements and stress-test the cross-module posting contract.
 
-#### 5.2.2 Active Modules
+#### 6.2.2 Active Modules
 
 | Kind | Modules |
 | --- | --- |
 | Core | All ten core modules (§3.0.1). |
-| Add-on | `bom`, `contracts`, `scheduling`, `timesheets`, `procurement`, `inventory`. |
+| Add-on | `catalog`, `construction`, `scheduling`, `timesheets`, `procurement`, `inventory`. |
 
-#### 5.2.3 Data Requirements
+#### 6.2.3 Data Requirements
 
 Realistic volume for a mid-size homebuilder:
 
@@ -2651,28 +2654,28 @@ Realistic volume for a mid-size homebuilder:
 - 15+ projects (each with multiple units).
 - 80+ vendors, 20+ clients, 30+ employees.
 - 300+ AP invoices, 100+ AR invoices.
-- 500+ BOM catalog SKUs.
-- 200+ vendor SKUs mapped to catalog SKUs.
+- 500+ catalog items.
+- 200+ vendor SKUs mapped to catalog items.
 
-#### 5.2.4 Key Workflows
+#### 6.2.4 Key Workflows
 
 - Unit-level cost tracking and budget variance reporting.
-- BOM-to-PO flow: select catalog SKUs, resolve to vendor SKUs, issue purchase orders through the `procurement` add-on.
-- Draw schedule tied to contract deliverables (`contracts` add-on) gating AR closing statements.
+- BOM-to-PO flow: select catalog items, resolve to vendor SKUs, issue purchase orders through the `procurement` add-on.
+- Draw schedule (construction add-on) gating closing-statement posting (§4.3).
 - Subcontractor AP with lien-waiver tracking attached to AP invoices.
 - Closing-statement posting (revenue, WIP, inventory, intercompany) via the cross-module contract.
 
-#### 5.2.5 Seed Script Reference
+#### 6.2.5 Seed Script Reference
 
 `apps/server/scripts/seedDemoSRH.js`. Reproducible — drops and recreates the SRH tenant schema, then populates it from fixtures under `apps/server/scripts/fixtures/srh/`.
 
 ---
 
-## 6. Standard API Patterns  [in-scope]
+## 7. Standard API Patterns  [in-scope]
 
 All API routes are built from scratch using pg-schemata's TableModel and QueryModel as the data layer.
 
-### 6.1 CRUD Operations  [in-scope]
+### 7.1 CRUD Operations  [in-scope]
 
 Every resource entity uses `createRouter` to generate a consistent REST API backed by pg-schemata:
 
@@ -2694,7 +2697,7 @@ Every resource entity uses `createRouter` to generate a consistent REST API back
 
 `withMeta` is not auto-applied by `createRouter`. Each router passes it via per-method middleware arrays (e.g., `getMiddlewares: [meta]`). `rbac()` is not included in the standard CRUD chain. It must be added explicitly on custom endpoints that need per-action permission-level checks. Standard routes can be individually disabled via `disable*` flags (e.g., `disablePost: true`).
 
-### 6.2 Pagination  [in-scope]
+### 7.2 Pagination  [in-scope]
 
 Keyset-based pagination via pg-schemata's `findAfterCursor()`:
 
@@ -2704,7 +2707,7 @@ Keyset-based pagination via pg-schemata's `findAfterCursor()`:
 - `columnWhitelist`: Restrict returned columns
 - `includeDeactivated`: Include soft-deleted records
 
-### 6.3 Audit Fields  [in-scope]
+### 7.3 Audit Fields  [in-scope]
 
 Most models define `hasAuditFields: { enabled: true, userFields: { type: 'uuid' } }`. The exception is `policy_catalog`, which uses `hasAuditFields: { enabled: false }` because it is seed-only reference data. pg-schemata manages `created_at` and `updated_at` automatically. **Audit actor resolution** (`created_by` / `updated_by`) is handled by the ALS resolver registered through `registerAuditResolver` (see Request-context plumbing below). These columns are no longer threaded through `req.body`. The `addAuditFields` Express middleware keeps its name for historical reasons. It now only injects **tenant context** (`tenant_code` and `tenant_id` from `req.user`) on POST requests, with skip logic for tenant creation and user registration. It still acts as the guard that rejects mutation requests with no user context.
 
@@ -2714,11 +2717,11 @@ Most models define `hasAuditFields: { enabled: true, userFields: { type: 'uuid' 
 - `apps/server/src/lib/requestContext.js` + `apps/server/src/lib/registerAuditResolver.js` — register a tenant-aware resolver with pg-schemata that pulls the current user id from the ALS context. pg-schemata invokes the resolver for every insert and update. As a result, `created_by` and `updated_by` are filled at the model layer regardless of whether the controller touched `req.body`.
 - Direct model calls inside services do not need to thread the user id manually. The ALS store carries it as long as the call originated inside an Express request.
 
-### 6.4 Soft Deletes  [in-scope]
+### 7.4 Soft Deletes  [in-scope]
 
 Most models define `softDelete: true`. Exceptions: `roles` (`softDelete: false`), `ledger_balances` and `posting_queues` (`softDelete: false` — append-only), `policy_catalog` (`softDelete: false`). pg-schemata automatically excludes records where `deactivated_at IS NOT NULL` from all read queries. Archive and restore are implemented manually in `BaseController` using `model.updateWhere()` — setting or clearing `deactivated_at` directly rather than using pg-schemata's `removeWhere()`/`restoreWhere()` methods.
 
-### 6.5 Validation  [in-scope]
+### 7.5 Validation  [in-scope]
 
 pg-schemata auto-generates Zod validators from schema definitions:
 
@@ -2726,13 +2729,13 @@ pg-schemata auto-generates Zod validators from schema definitions:
 - Update validation: excludes `immutable` columns, partial validation
 - Custom validators can be attached per-column via `colProps.validator`
 
-### 6.6 Excel Import / Export  [in-scope]
+### 7.6 Excel Import / Export  [in-scope]
 
 > **ADR Reference:** [ADR-0023](./decisions/0023-excel-import-export.md)
 
 Built into pg-schemata's TableModel and exposed as a full-stack feature across all `createRouter`-generated resources.
 
-#### 6.6.1 Backend
+#### 7.6.1 Backend
 
 - **Import.** `importFromSpreadsheet(filePath, sheetIndex, callbackFn?, _returning?, { previewOnly })` parses XLSX, validates against schema, and bulk-inserts with audit fields. `BaseController.importXls()` handles file upload via multer (`/tmp/uploads/`) and injects `tenant_code` and `created_by` via the callback. The default commit return shape is `{ inserted: number }` for legacy single-sheet importers, or `{ inserted, updated, ... }` for flat-format importers.
 - **Import preview mode (`?preview=1`).** Importers that go through `importSimpleTable` (in `lib/spreadsheetHelpers.js`) or the flat-combined / multi-sheet paths honor `previewOnly`. They return a counts-only classification payload without writing:
@@ -2762,7 +2765,7 @@ All other entities (non-source) use the default pg-schemata single-sheet import/
 
 **Disabling:** Individual resources can disable import/export via `disableImportXls: true` or `disableExportXls: true` in the `createRouter` options.
 
-#### 6.6.2 Frontend
+#### 7.6.2 Frontend
 
 **Custom Hooks** (`hooks/useImportExport.js`):
 
@@ -2787,7 +2790,7 @@ All pages with import/export follow this pattern:
 
 > **Stability note**: Destructure `mutateAsync` directly from mutations (e.g., `const { mutateAsync: importAsync } = useImportXls(...)`) — `mutateAsync` is a stable reference. Never pass the whole mutation object as a `useCallback` dependency (causes infinite re-renders via the toolbar registration cycle).
 
-#### 6.6.3 Pages with Import / Export
+#### 7.6.3 Pages with Import / Export
 
 All resources using `createRouter` have import/export endpoints. The following pages have full client-side import/export wiring:
 
@@ -2813,16 +2816,16 @@ All resources using `createRouter` have import/export endpoints. The following p
 | CreditMemosPage      | ap         | ap-credit-memos   | `apCreditMemoApi`    | `apCreditMemos`   |
 | ArInvoicesPage       | ar         | ar-invoices       | `arInvoiceApi`       | `arInvoices`      |
 | ReceiptsPage         | ar         | receipts          | `receiptApi`         | `receipts`        |
-| CatalogPage          | bom        | catalog-skus      | `catalogSkuApi`      | `catalogSkus`     |
+| CatalogPage          | catalog    | catalog-items     | `catalogItemApi`     | `catalogItems`    |
 | VendorContactsPanel  | core       | vendor-contacts   | `vendorContactApi`   | `vendorContacts`  |
 
 > **Vendor Contacts** are imported/exported from the parent Vendor edit dialog rather than a stand-alone page — see §3.3.1a. The router exposes `/api/core/v1/vendor-contacts/import-xls` and `/export-xls`.
 
 ---
 
-## 7. Database Design  [in-scope]
+## 8. Database Design  [in-scope]
 
-### 7.1 Common Columns  [in-scope]
+### 8.1 Common Columns  [in-scope]
 
 Aggregate-root tables include (managed by pg-schemata schema definitions):
 
@@ -2836,14 +2839,14 @@ Aggregate-root tables include (managed by pg-schemata schema definitions):
 
 > **Column listing conventions in §3:** Many tables in §3 omit `id` (uuid PK) and `tenant_id` (uuid, not null, immutable) from their column listings for brevity — these columns are present in the actual schema files. The `id` column follows the standard pattern: `{ name: 'id', type: 'uuid', default: 'gen_random_uuid()', notNull: true, immutable: true, colProps: { cnd: true } }`. Check the actual schema file for the definitive column list.
 
-### 7.2 Naming Conventions  [in-scope]
+### 8.2 Naming Conventions  [in-scope]
 
 - Tables: plural `snake_case` (e.g., `vendor_skus`)
 - Columns: `snake_case`
 - Foreign keys: must specify `onDelete` behavior in schema definition
 - All FK columns are indexed via schema `constraints.indexes`
 
-### 7.3 Generated Columns  [in-scope]
+### 8.3 Generated Columns  [in-scope]
 
 Generated columns are deliberately excluded from pg-schemata schema definitions (to keep them out of INSERT/UPDATE ColumnSets) and added via `ALTER TABLE ... ADD COLUMN ... GENERATED ALWAYS AS ... STORED` in migration files:
 
@@ -2851,7 +2854,7 @@ Generated columns are deliberately excluded from pg-schemata schema definitions 
 - `cost_lines.amount = quantity * unit_price`
 - `cost_items.amount = quantity * unit_cost`
 
-### 7.4 Schema Management & Migrations  [in-scope]
+### 8.4 Schema Management & Migrations  [in-scope]
 
 **Table Creation:**
 
@@ -2877,7 +2880,7 @@ Generated columns are deliberately excluded from pg-schemata schema definitions 
 4. `202502250012` — Numbering system tables (tenant_numbering_config, tenant_number_sequence_state).
 5. `202502110020` — Project tables (projects, project_clients, units, task_groups, tasks_master, tasks, cost_items, change_orders, template_units, template_tasks, template_cost_items, template_change_orders). Note: `projects.client_id` removed; replaced by `project_clients` junction table.
 6. `202502110040` — Activity tables (categories, activities, deliverables, deliverable_assignments, budgets, cost_lines, actual_costs, vendor_parts)
-7. `202502110030` — BOM tables (catalog_skus, vendor_skus, vendor_pricing) with pgvector
+7. `202502110030` — Catalog tables (catalog_items, bom_components, vendor_skus, vendor_pricing) with pgvector
 8. `202502110070` — Accounting tables (ledgers, company_accounting_config, chart_of_accounts, journal_entries, journal_entry_lines, ledger_balances, posting_queues, category_account_map, posting_rules, company_accounts, company_transactions, internal_transfers, fiscal_periods). Note: `ledgers` is created first because `journal_entries`, `fiscal_periods`, and `posting_rules` FK to it; accounting runs before AP/AR because `ap_invoice_lines` and `ar_invoice_lines` FK to `chart_of_accounts`.
 9. `202502110050` — AP tables (ap_invoices, ap_invoice_lines, payments, payment_allocations, ap_credit_memos)
 10. `202502110060` — AR tables (ar_invoices, ar_invoice_lines, receipts, receipt_allocations). Note: `ar_clients` removed — AR invoices reference the unified `clients` table directly.
@@ -2893,9 +2896,9 @@ Generated columns are deliberately excluded from pg-schemata schema definitions 
 
 ---
 
-## 8. UI Components & Theming  [in-scope]
+## 9. UI Components & Theming  [in-scope]
 
-### 8.1 Theme System  [in-scope]
+### 9.1 Theme System  [in-scope]
 
 Dual-mode theming with automatic OS preference detection:
 
@@ -2913,7 +2916,7 @@ Dual-mode theming with automatic OS preference detection:
 
 Custom background tokens: `sidebar`, `header`, `surface` for layout zones.
 
-#### 8.1.1 Component Override Strategy
+#### 9.1.1 Component Override Strategy
 
 Styling decisions follow a three-tier hierarchy:
 
@@ -2929,7 +2932,7 @@ Styling decisions follow a three-tier hierarchy:
 | Is it a structural dimension or position for layout chrome? | Layout token   | ↓             |
 | Is it dynamic (depends on props, state, or route)?          | Inline `sx`  | Theme override |
 
-#### 8.1.2 Design Tokens
+#### 9.1.2 Design Tokens
 
 **Mode-independent tokens (`tokens.js`):**
 
@@ -2972,7 +2975,7 @@ Styling decisions follow a three-tier hierarchy:
 | `masterPanelSx`         | `width: 38%`, `minWidth: 340`, `display: flex`, `flexDirection: column`                     | Left panel of master-detail                                  |
 | `detailPanelSx`         | `flex: 1`, `minWidth: 0`, `display: flex`, `flexDirection: column`, `overflow: auto`      | Right panel of master-detail                                 |
 
-#### 8.1.3 Theme Overrides Reference
+#### 9.1.3 Theme Overrides Reference
 
 All MUI component overrides defined in `theme.js`:
 
@@ -3006,7 +3009,7 @@ All MUI component overrides defined in `theme.js`:
 | `MuiAvatar`         | named variant `"header"`    | 32 × 32, primary colours, cursor pointer, 0.8rem bold                                                                                                                                                                                                                                               |
 | `MuiDataGrid`       | defaultProps + styleOverrides | `density: compact`, token `rowHeight`, `columnHeaderHeight: 40`, `disableColumnMenu: false`; border, transparent bg, token fontSize, focus ring, `.row-archived { opacity: 0.5 }`, row-actions kebab hidden until hover, header bg/border, row hover/selected, cell padding, footer border |
 
-### 8.2 Navigation System  [in-scope]
+### 9.2 Navigation System  [in-scope]
 
 Navigation is configured via `navigationConfig.js` with capability-based filtering. Each top-level nav group has an icon, label, optional `capability` guard, and an array of child items with `path` and optional per-item `capability`.
 
@@ -3023,9 +3026,9 @@ Primary Group -> Leaf items
     +-- Manage Users (/tenant/manage-users, capability: tenants::)
 ```
 
-Extensible design: add new groups/modules to `NAV_ITEMS` array with optional `capability` guards and `rootTenantOnly` flag. Groups with `rootTenantOnly: true` are only visible to Axerra users. The example above shows only 2 of 14 nav groups — see §9 for the complete navigation structure.
+Extensible design: add new groups/modules to `NAV_ITEMS` array with optional `capability` guards and `rootTenantOnly` flag. Groups with `rootTenantOnly: true` are only visible to Axerra users. The example above shows only 2 of 14 nav groups — see §10 for the complete navigation structure.
 
-### 8.3 Module Bar  [in-scope]
+### 9.3 Module Bar  [in-scope]
 
 The Module Bar has two zones:
 
@@ -3035,7 +3038,7 @@ The Module Bar has two zones:
   - **Filters**: Text fields or select dropdowns
   - **Primary Actions**: Action buttons (Create, Edit, Archive, Restore, Import, Export, etc.)
 
-### 8.4 Client Dependencies  [in-scope]
+### 9.4 Client Dependencies  [in-scope]
 
 | Package                   | Version  | Purpose                                                  |
 | ------------------------- | -------- | -------------------------------------------------------- |
@@ -3050,7 +3053,7 @@ The Module Bar has two zones:
 | `@tanstack/react-query` | ^5.28.0  | Server state management                                  |
 | `react-router-dom`      | ^7.9.6   | Client-side routing                                      |
 
-### 8.5 Reusable Component Patterns  [in-scope]
+### 9.5 Reusable Component Patterns  [in-scope]
 
 Guidelines for maintaining consistency as the UI grows:
 
@@ -3133,7 +3136,7 @@ All DataGrid CRUD pages use `useListSelection` + `DataTable` as the standard sel
 
 ---
 
-## 9. Navigation Structure  [in-scope]
+## 10. Navigation Structure  [in-scope]
 
 Based on the sidebar navigation config (`navigationConfig.js`) and client-side routes (`App.jsx`):
 
@@ -3149,7 +3152,7 @@ Based on the sidebar navigation config (`navigationConfig.js`) and client-side r
 | **AR**                        | Clients (→`/core/clients`), AR Invoices, Receipts, AR Aging                                                                                                                     | `/ar`                         | `ar::`                    |
 | **Accounting & GL**           | Chart of Accounts, Journal Entries, Ledger                                                                                                                                         | `/accounting`                 | `accounting::`            |
 | **Reports**                   | Budget vs Actual, Profitability, Cashflow, Margin Analysis, P&L*(nav-only)*, Balance Sheet*(nav-only)*                                                                           | `/reports`                    | `reports::`               |
-| **BOM**                       | Catalog SKUs (`bom::catalog-skus`), Vendor SKU Matching (`bom::vendor-skus`)                                                                                                   | `/bom`                        | `bom::`                   |
+| **Catalog**                   | Catalog Items (`catalog::catalog-items`), BOM (`catalog::bom-components`), Vendor SKU Matching (`catalog::vendor-skus`)                                                         | `/catalog`                    | `catalog::`               |
 | **Settings**                  | Numbering (`core::numbering-config`), Payment Terms (`core::payment-terms`), Approvals (`core::approval-config`)                                                                | `/settings`                   | `core::`                  |
 | **Admin**                     | Vendors (`core::vendors`), Clients (`core::clients`), Employees (`core::employees`), Contacts (`core::contacts`), Companies (`core::companies`), Roles (`core::roles`) | `/core`, `/tenant`          | `core::`                  |
 | **Tenants** *(Axerra only)* | Manage Tenants (`tenants::`), Manage Users (`tenants::`)                                                                                                                       | `/tenant`                     | `tenants::`               |
@@ -3164,7 +3167,7 @@ Based on the sidebar navigation config (`navigationConfig.js`) and client-side r
 
 ---
 
-## 10. Environment Configuration  [in-scope]
+## 11. Environment Configuration  [in-scope]
 
 | Variable                       | Purpose                                                                         | Default                   |
 | ------------------------------ | ------------------------------------------------------------------------------- | ------------------------- |
@@ -3186,13 +3189,13 @@ Based on the sidebar navigation config (`navigationConfig.js`) and client-side r
 | `PORT`                       | Express server port                                                             | `3000`                  |
 | `HOST`                       | Express server host                                                             | `localhost`             |
 | `NODE_ENV`                   | Runtime environment (`development`, `test`, `production`)                 | —                        |
-| `OPENAI_API_KEY`             | OpenAI API key for BOM embedding service (`bom/services/embeddingService.js`) | —                        |
+| `OPENAI_API_KEY`             | OpenAI API key for the Catalog embedding service (`catalog/services/embeddingService.js`) | —                        |
 | `ROOT_TENANT_CODE`           | Root tenant code for bootstrap migration (falls back directly to `'AXERRA'`)  | `AXERRA`                |
 | `ROOT_COMPANY`               | Root company name for bootstrap migration                                       | `Axerra LLC`            |
 
 ---
 
-## 11. Testing Strategy  [in-scope]
+## 12. Testing Strategy  [in-scope]
 
 | Suite                 | Location               | Purpose                                                                  |
 | --------------------- | ---------------------- | ------------------------------------------------------------------------ |
@@ -3205,9 +3208,9 @@ All tests use Vitest with dependency injection for controllers. `tests/setup.js`
 
 ---
 
-## 12. Coding Standards & Best Practices  [in-scope]
+## 13. Coding Standards & Best Practices  [in-scope]
 
-### 12.1 Naming Conventions  [in-scope]
+### 13.1 Naming Conventions  [in-scope]
 
 | Context                               | Convention                                             | Example                                                             |
 | ------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------- |
@@ -3224,7 +3227,7 @@ All tests use Vitest with dependency injection for controllers. `tests/setup.js`
 | **Boolean variables**           | `is`/`has`/`can`/`should` prefix               | `isActive`, `hasPermission`, `canApprove`                     |
 | **Enums / status values**       | snake_case strings                                     | `'in_progress'`, `'change_order'`, `'pending'`                |
 
-### 12.1.1 Single Canonical Names  [in-scope]
+### 13.1.1 Single Canonical Names  [in-scope]
 
 Every concept, variable, parameter, and config key must have **exactly one name** throughout the codebase. Never accept multiple synonyms for the same value or create alias maps to normalize variant spellings. Ambiguity in naming is a bug factory.
 
@@ -3263,7 +3266,7 @@ const { max_by_groups } = rule;
 - Never silently accept misspellings or abbreviations; fail loudly so the caller fixes the source
 - Environment variables, config keys, and request parameters each have exactly one accepted name
 
-### 12.2 File & Module Structure  [in-scope]
+### 13.2 File & Module Structure  [in-scope]
 
 **Keep modules small and focused.** Each file should have a single, clear responsibility.
 
@@ -3279,7 +3282,7 @@ const { max_by_groups } = rule;
 
 - **`projects`** — Project management, units, tasks, cost items, change orders, templates
 - **`activities`** — Activity tracking
-- **`bom`** — Bill of Materials
+- **`catalog`** — Catalog (master items, Bill of Materials, vendor matching & pricing)
 - **`ar`** — Accounts Receivable
 - **`ap`** — Accounts Payable
 - **`accounting`** — General Ledger, Chart of Accounts
@@ -3332,7 +3335,7 @@ src/
 - Maximum ~200–300 lines per file; refactor if larger
 - Group related exports via barrel `index.js` files at the module level
 
-### 12.3 Copyright & File Headers  [in-scope]
+### 13.3 Copyright & File Headers  [in-scope]
 
 Every source file must include a copyright header as the first content:
 
@@ -3355,7 +3358,7 @@ Every source file must include a copyright header as the first content:
 -- Copyright (c) 2025 – present Axerra LLC. All rights reserved.
 ```
 
-### 12.4 Code Reuse  [in-scope]
+### 13.4 Code Reuse  [in-scope]
 
 **Function reuse hierarchy (prefer higher over lower):**
 
@@ -3371,7 +3374,7 @@ Every source file must include a copyright header as the first content:
 - Reimplementing CRUD — use `createRouter`; only override specific routes when business rules differ
 - Inline SQL strings in controllers — use model methods or named service functions
 
-### 12.5 Classes vs Functions  [in-scope]
+### 13.5 Classes vs Functions  [in-scope]
 
 | Use Case                    | Pattern                                                               | Rationale                                                                                                                                                 |
 | --------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -3389,7 +3392,7 @@ Every source file must include a copyright header as the first content:
 - `class` for React components (use function components exclusively)
 - Singletons beyond `DB.init()` (use dependency injection instead)
 
-### 12.6 Error Handling  [in-scope]
+### 13.6 Error Handling  [in-scope]
 
 **Server-side:**
 
@@ -3413,7 +3416,7 @@ Every source file must include a copyright header as the first content:
 - Toast/snackbar notifications for user-facing errors
 - Never swallow errors silently — always log or display
 
-### 12.7 Import & Export Style  [in-scope]
+### 13.7 Import & Export Style  [in-scope]
 
 **ES Modules only** (no CommonJS):
 
@@ -3438,14 +3441,14 @@ import { rbac } from '../../middleware/rbac.js';
 import { vendorsSchema } from '../schemas/vendorsSchema.js';
 ```
 
-### 12.8 Comments & Documentation  [in-scope]
+### 13.8 Comments & Documentation  [in-scope]
 
 - **JSDoc** on all exported functions with `@param`, `@returns`, and `@throws` tags
 - **Inline comments** only for *why*, never *what* — the code should be self-documenting
 - **TODO comments** must include a ticket/issue reference: `// TODO(AXERRA-123): Add retainage support`
 - **No commented-out code** — use version control instead
 
-### 12.9 Async & Concurrency  [in-scope]
+### 13.9 Async & Concurrency  [in-scope]
 
 - All database operations are `async/await` — never use raw `.then()` chains
 - Use `Promise.all()` for independent concurrent operations (e.g., parallel queries)
@@ -3453,7 +3456,7 @@ import { vendorsSchema } from '../schemas/vendorsSchema.js';
 - pg-schemata bulk operations (`bulkInsert`, `bulkUpdate`, `bulkUpsert`) are automatically transaction-wrapped — do not wrap them in an additional transaction
 - For multi-step business transactions (e.g., posting an invoice + creating GL entries), use pg-promise's `db.tx()` to ensure atomicity
 
-### 12.10 Security Practices  [in-scope]
+### 13.10 Security Practices  [in-scope]
 
 - Never log sensitive data (passwords, tokens, PII) — redact before logging
 - Always use parameterized queries (pg-schemata handles this automatically)
@@ -3467,9 +3470,9 @@ import { vendorsSchema } from '../schemas/vendorsSchema.js';
 
 ---
 
-## 13. Developer Tooling  [in-scope]
+## 14. Developer Tooling  [in-scope]
 
-### 13.1 ESLint  [in-scope]
+### 14.1 ESLint  [in-scope]
 
 **Version:** ESLint 9 with flat config (`eslint.config.js` at monorepo root)
 
@@ -3492,7 +3495,7 @@ import { vendorsSchema } from '../schemas/vendorsSchema.js';
 
 **Run:** `npm run lint` (root) or `npm run lint` (per-workspace)
 
-### 13.2 Prettier  [in-scope]
+### 14.2 Prettier  [in-scope]
 
 **Version:** Prettier 3
 
@@ -3517,7 +3520,7 @@ import { vendorsSchema } from '../schemas/vendorsSchema.js';
 
 **Ignored paths (`.prettierignore`):** `node_modules`, `dist`, `build`, `coverage`, lockfiles, framework output directories, large assets
 
-### 13.3 EditorConfig  [in-scope]
+### 14.3 EditorConfig  [in-scope]
 
 **File:** `.editorconfig` at monorepo root
 
@@ -3527,7 +3530,7 @@ Ensures consistent whitespace across all editors/IDEs:
 - Markdown: trailing whitespace preserved (significant for line breaks)
 - Makefiles: tab indentation (required by Make)
 
-### 13.4 Husky & Git Hooks  [in-scope]
+### 14.4 Husky & Git Hooks  [in-scope]
 
 **Version:** Husky 9
 
@@ -3544,7 +3547,7 @@ Ensures consistent whitespace across all editors/IDEs:
 
 **Setup:** `npm run prepare` installs Husky hooks via the `prepare` lifecycle script
 
-### 13.5 VSCode Workspace  [in-scope]
+### 14.5 VSCode Workspace  [in-scope]
 
 **File:** `axerra.code-workspace` (single-root workspace — one folder entry pointing to the monorepo root)
 
@@ -3553,9 +3556,9 @@ Ensures consistent whitespace across all editors/IDEs:
 - JavaScript/TypeScript/JSX/TSX: `esbenp.prettier-vscode` (Prettier extension)
 - JSON/JSONC: VSCode built-in JSON formatter
 
-> **Note:** The workspace file does not currently include an `extensions.recommendations` block. Install extensions manually per §14.4.
+> **Note:** The workspace file does not currently include an `extensions.recommendations` block. Install extensions manually per §15.4.
 
-### 13.6 Vitest  [in-scope]
+### 14.6 Vitest  [in-scope]
 
 **Version:** Vitest 3 with `@vitest/coverage-v8`
 
@@ -3582,7 +3585,7 @@ Ensures consistent whitespace across all editors/IDEs:
 | `test:rbac`        | RBAC tests only                        | Permission resolution              |
 | `test:coverage`    | All tests + HTML coverage              | Coverage reporting                 |
 
-### 13.7 Vite  [in-scope]
+### 14.7 Vite  [in-scope]
 
 **Version:** Vite 7 with `@vitejs/plugin-react`
 
@@ -3593,7 +3596,7 @@ Ensures consistent whitespace across all editors/IDEs:
 - API proxy: `/api` requests forwarded to `http://localhost:3000` (Express backend)
 - Build: source maps enabled for debugging
 
-### 13.8 npm Workspaces  [in-scope]
+### 14.8 npm Workspaces  [in-scope]
 
 **Monorepo structure managed by npm workspaces:**
 
@@ -3629,7 +3632,7 @@ Ensures consistent whitespace across all editors/IDEs:
 | `seed:rbac`       | Seed RBAC roles and policies            |
 | `start`           | Production server start                 |
 
-### 13.9 Logging  [in-scope]
+### 14.9 Logging  [in-scope]
 
 **Server-side logging via Winston + Morgan:**
 
@@ -3639,7 +3642,7 @@ Ensures consistent whitespace across all editors/IDEs:
 - Production: `info` and above; Development: `debug` and above
 - pg-schemata accepts an optional `logger` parameter on initialization for query-level logging
 
-### 13.10 Environment Management  [in-scope]
+### 14.10 Environment Management  [in-scope]
 
 **`.env` files (gitignored):**
 
@@ -3653,9 +3656,9 @@ Ensures consistent whitespace across all editors/IDEs:
 
 ---
 
-## 14. Project Setup Guide  [in-scope]
+## 15. Project Setup Guide  [in-scope]
 
-### 14.1 Prerequisites  [in-scope]
+### 15.1 Prerequisites  [in-scope]
 
 Install these before starting:
 
@@ -3674,7 +3677,7 @@ Install these before starting:
 - **pgAdmin** or **DBeaver** — Visual database browser
 - **Redis Insight** — Visual Redis browser
 
-### 14.2 GitHub Repository Setup  [in-scope]
+### 15.2 GitHub Repository Setup  [in-scope]
 
 #### Create the repository
 
@@ -3723,7 +3726,7 @@ Or configure in GitHub → Settings → Branches → Branch protection rules:
 - Require branches to be up to date before merging
 - Do not allow bypassing the above settings
 
-### 14.3 Clone & Install  [in-scope]
+### 15.3 Clone & Install  [in-scope]
 
 ```bash
 # 1. Clone the repository
@@ -3743,7 +3746,7 @@ chmod +x .husky/pre-commit
 - `apps/server/`
 - `packages/shared/`
 
-### 14.4 VSCode Configuration  [in-scope]
+### 15.4 VSCode Configuration  [in-scope]
 
 #### Open the workspace
 
@@ -3798,7 +3801,7 @@ Add to your workspace settings (in `axerra.code-workspace`) or user `settings.js
 }
 ```
 
-### 14.5 Environment Setup  [in-scope]
+### 15.5 Environment Setup  [in-scope]
 
 ```bash
 # 1. Copy the example env file (create one if it doesn't exist)
@@ -3842,7 +3845,7 @@ VITE_ROOT_EMAIL_DOMAIN=axerra.io
 node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 ```
 
-### 14.6 Database Setup  [in-scope]
+### 15.6 Database Setup  [in-scope]
 
 ```bash
 # 1. Create PostgreSQL user and databases
@@ -3867,7 +3870,7 @@ npm -w apps/server run seed
 npm -w apps/server run seed:rbac
 ```
 
-### 14.7 Start Development  [in-scope]
+### 15.7 Start Development  [in-scope]
 
 ```bash
 # Start both server (port 3000) and client (port 5173) concurrently
@@ -3884,7 +3887,7 @@ npm run dev:client    # Vite React on http://localhost:5173
 2. Log in with the `ROOT_EMAIL` / `ROOT_PASSWORD` from your `.env`
 3. Test the API directly: `curl http://localhost:3000/api/auth/check`
 
-### 14.8 Run Tests  [in-scope]
+### 15.8 Run Tests  [in-scope]
 
 ```bash
 # Full test suite
@@ -3900,7 +3903,7 @@ npm -w apps/server run test:rbac
 npm -w apps/server run test:coverage
 ```
 
-### 14.9 Daily Workflow  [in-scope]
+### 15.9 Daily Workflow  [in-scope]
 
 ```bash
 # 1. Pull latest changes
@@ -3964,7 +3967,7 @@ chore(deps): bump pg-schemata to 1.3.1
 docs: update PRD with cashflow module specification
 ```
 
-### 14.10 Husky Commit Rules  [in-scope]
+### 15.10 Husky Commit Rules  [in-scope]
 
 The pre-commit hook enforces:
 
@@ -3989,7 +3992,7 @@ The pre-commit hook enforces:
    ```
 3. **lint-staged** — If configured, runs ESLint and Prettier on staged files only (fast)
 
-### 14.11 Recommended `.nvmrc`  [in-scope]
+### 15.11 Recommended `.nvmrc`  [in-scope]
 
 Create a `.nvmrc` at the monorepo root to pin the Node version:
 
@@ -3999,7 +4002,7 @@ Create a `.nvmrc` at the monorepo root to pin the Node version:
 
 Then any developer can run `nvm use` to switch to the correct version automatically.
 
-### 14.12 `.env.example` Reference  [in-scope]
+### 15.12 `.env.example` Reference  [in-scope]
 
 The `.env.example` file exists at the monorepo root. Keep it in version control as a developer reference:
 
@@ -4040,13 +4043,13 @@ VITE_ROOT_EMAIL_DOMAIN=axerra.io
 
 ---
 
-## 15. Architecture Decision Records  [in-scope]
+## 16. Architecture Decision Records  [in-scope]
 
-### 15.1 Purpose  [in-scope]
+### 16.1 Purpose  [in-scope]
 
 Architecture Decision Records (ADRs) capture the *why* behind architectural and technical choices. Code shows *what* was built; commit messages show *when*; ADRs explain *why one approach was chosen over alternatives*. Without them, future developers waste time reverse-engineering intent, or worse, undo a deliberate choice without understanding the consequences.
 
-### 15.2 Location  [in-scope]
+### 16.2 Location  [in-scope]
 
 ADRs live in `docs/decisions/` at the monorepo root:
 
@@ -4085,6 +4088,9 @@ axerra/
       0030-roles-as-array-on-entity.md
       0031-add-on-hooks.md
       0032-multi-ledger-cash-vs-accrual.md
+      0033-catalog-and-bom.md
+      0034-deliverable-effects-and-billing.md
+      0035-add-on-taxonomy-and-construction.md
     PRD.md                      # This file
 ```
 
@@ -4096,7 +4102,7 @@ Rules:
 2. ADRs are append-only — never edit a past ADR; supersede it with a new one.
 3. ADRs are committed to the repo — they travel with the code, not in a wiki.
 
-### 15.3 Template  [in-scope]
+### 16.3 Template  [in-scope]
 
 Every ADR follows this lightweight format:
 
@@ -4128,7 +4134,7 @@ What are the implications of this decision — both positive and negative?
 What trade-offs were accepted?
 ```
 
-### 15.4 When to Write an ADR  [in-scope]
+### 16.4 When to Write an ADR  [in-scope]
 
 Write an ADR when:
 
@@ -4144,7 +4150,7 @@ Do **not** write an ADR for:
 - Implementation details that are easily changed later.
 - Bug fixes or routine feature work.
 
-### 15.5 Initial ADRs  [in-scope]
+### 16.5 Initial ADRs  [in-scope]
 
 The following ADRs are captured under `docs/decisions/`:
 
@@ -4158,7 +4164,7 @@ The following ADRs are captured under `docs/decisions/`:
 | 0006 | Express 5 over Fastify/Koa                                      | Mature ecosystem; team familiarity; async error handling improvements in v5          |
 | 0007 | Redis for permission caching over in-memory                     | Shared across server instances; survives process restarts; TTL expiration            |
 | 0008 | Soft deletes over hard deletes                                  | Audit trail; undo capability; referential integrity preserved                        |
-| 0009 | *(Skipped — number not used; see §15.2 note)*               | —                                                                                   |
+| 0009 | *(Skipped — number not used; see §16.2 note)*               | —                                                                                   |
 | 0010 | Conventional Commits over freeform messages                     | Parseable history; automated changelog potential; scope-based filtering              |
 | 0011 | Monorepo with npm workspaces over separate repos                | Shared code; unified tooling; atomic cross-package changes                           |
 | 0012 | pgvector embeddings for SKU matching over fuzzy string matching | Semantic similarity; language-agnostic; scales with catalog size                     |
@@ -4172,7 +4178,7 @@ The following ADRs are captured under `docs/decisions/`:
 | 0031 | Synchronous hooks for add-on modules                            | Add-ons extend core workflows via named, in-transaction, throw-to-block hooks. Partially supersedes ADR-0028. Contract lands with the first add-on that needs a hook. |
 | 0032 | Multi-ledger architecture for cash vs accrual                   | `ledger_id` discriminator + data-driven posting rules; cash basis is a posted, lockable book, not derived. N-way for deferred multi-GAAP. |
 
-### 15.6 Referencing ADRs  [in-scope]
+### 16.6 Referencing ADRs  [in-scope]
 
 When code implements a non-obvious pattern that traces back to an ADR, reference it:
 
@@ -4203,9 +4209,9 @@ schema creation with extension setup.
 
 ---
 
-## 16. Scripts  [in-scope]
+## 17. Scripts  [in-scope]
 
-### 16.1 Conventions  [in-scope]
+### 17.1 Conventions  [in-scope]
 
 All operational scripts live under `apps/server/scripts/` and are invoked via the `apps/server` package.json `scripts` block. Three conventions apply:
 
@@ -4215,9 +4221,9 @@ All operational scripts live under `apps/server/scripts/` and are invoked via th
 
 Execute scripts via the npm scripts in `apps/server/package.json` whenever one exists. Falling back to `node` direct invocation is supported but requires `cross-env NODE_ENV=…` set manually.
 
-### 16.2 Migration Scripts  [in-scope]
+### 17.2 Migration Scripts  [in-scope]
 
-#### 16.2.1 `setupAdmin.js`
+#### 17.2.1 `setupAdmin.js`
 
 - **Purpose.** Bootstrap the `admin` schema on a fresh database. Creates the schema, installs extensions (`pgcrypto`, `uuid-ossp`, `vector`), runs admin migrations, and seeds the root Axerra tenant plus the bootstrap `super_user`.
 - **Usage.** Run once per environment. Subsequent boots are idempotent and skip already-applied steps.
@@ -4227,7 +4233,7 @@ Execute scripts via the npm scripts in `apps/server/package.json` whenever one e
   npm -w apps/server run setupAdmin:test  # test DB
   ```
 
-#### 16.2.2 `runMigrate.js`
+#### 17.2.2 `runMigrate.js`
 
 - **Purpose.** Drive pending migrations against the admin schema and every active tenant schema. Wraps `migrateTenants.js`.
 - **Usage.** Accepts an optional space-separated list of tenant schema names to limit scope. `--dry-run` reports pending migrations without applying them; `NODE_ENV=test` or `--test` implies `--dry-run`.
@@ -4239,13 +4245,13 @@ Execute scripts via the npm scripts in `apps/server/package.json` whenever one e
   node apps/server/scripts/runMigrate.js --dry-run  # report only
   ```
 
-#### 16.2.3 `migrateTenants.js`
+#### 17.2.3 `migrateTenants.js`
 
 - **Purpose.** Library used by `runMigrate.js`. Resolves the module set for each schema via `getModulesForSchema()` and runs only the migrations for those modules. Exported for programmatic use; not a CLI in its own right.
 
-### 16.3 Bootstrap & Seed Scripts  [in-scope]
+### 17.3 Bootstrap & Seed Scripts  [in-scope]
 
-#### 16.3.1 `seed.js`
+#### 17.3.1 `seed.js`
 
 - **Purpose.** Seed development data into the dev database (companies, vendors, projects, sample invoices, chart of accounts).
 - **Usage.** Idempotent — re-running clears non-system tables and reseeds.
@@ -4254,7 +4260,7 @@ Execute scripts via the npm scripts in `apps/server/package.json` whenever one e
   npm -w apps/server run seed
   ```
 
-#### 16.3.2 `seedRbac.js`
+#### 17.3.2 `seedRbac.js`
 
 - **Purpose.** Seed RBAC reference data (policy catalog, default roles, default policies) into a tenant schema. Re-runs the `policyCatalogReconciler` to sync the in-code `CATALOG_ENTRIES` constant.
 - **Usage.** Runs against `NODE_ENV=development` by default.
@@ -4263,31 +4269,31 @@ Execute scripts via the npm scripts in `apps/server/package.json` whenever one e
   npm -w apps/server run seed:rbac
   ```
 
-#### 16.3.3 `seedDemoMG.js` *(planned)*
+#### 17.3.3 `seedDemoMG.js` *(planned)*
 
-- **Purpose.** Build the Meridian Group demo tenant (§5.1). Drops and recreates the MG schema, then loads fixtures from `apps/server/scripts/fixtures/mg/`.
+- **Purpose.** Build the Meridian Group demo tenant (§6.1). Drops and recreates the MG schema, then loads fixtures from `apps/server/scripts/fixtures/mg/`.
 - **Execute.**
   ```bash
   node apps/server/scripts/seedDemoMG.js
   ```
 
-#### 16.3.4 `seedDemoSRH.js` *(planned)*
+#### 17.3.4 `seedDemoSRH.js` *(planned)*
 
-- **Purpose.** Build the Sterling Ridge Homes demo tenant (§5.2). Drops and recreates the SRH schema, then loads fixtures from `apps/server/scripts/fixtures/srh/`.
+- **Purpose.** Build the Sterling Ridge Homes demo tenant (§6.2). Drops and recreates the SRH schema, then loads fixtures from `apps/server/scripts/fixtures/srh/`.
 - **Execute.**
   ```bash
   node apps/server/scripts/seedDemoSRH.js
   ```
 
-### 16.4 Debugging & Diagnostic Scripts  [in-scope]
+### 17.4 Debugging & Diagnostic Scripts  [in-scope]
 
 Debugging scripts live alongside other one-off operational tools and are intentionally undocumented in `package.json` — they're invoked directly. Each prints its own usage with `--help`.
 
 The current diagnostic surface is small; additional scripts land under `apps/server/scripts/diag/` as needs arise.
 
-### 16.5 CLI / Shell Utilities  [in-scope]
+### 17.5 CLI / Shell Utilities  [in-scope]
 
-#### 16.5.1 `db/provisionTenantCli.js`
+#### 17.5.1 `db/provisionTenantCli.js`
 
 - **Purpose.** Run `provisionNewTenant` from the host shell — the same service the HTTP `POST /api/tenants/v1/tenants` endpoint calls. Useful for headless bootstrap and tests that need a fresh tenant outside HTTP.
 - **Usage.** Required: `--tenant-code`, `--company`, plus the admin user fields. Optional: `--schema-name`, `--tier`, `--status`.
@@ -4305,7 +4311,7 @@ The current diagnostic surface is small; additional scripts land under `apps/ser
     --admin-last-name Doe
   ```
 
-#### 16.5.2 `db/reconcilePolicyCatalog.js`
+#### 17.5.2 `db/reconcilePolicyCatalog.js`
 
 - **Purpose.** Run the policy-catalog reconciler against one tenant schema or all tenants. Performs an idempotent diff/apply between in-code `CATALOG_ENTRIES` and the per-tenant `policy_catalog` table. Use when a hotfix changes the catalog without shipping a migration.
 - **Usage.** `--schema <name>` targets a single tenant; omit to walk every active tenant. `--dry-run` reports the planned changes without writing.

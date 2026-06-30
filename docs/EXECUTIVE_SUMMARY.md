@@ -19,7 +19,7 @@ Personas range from platform operators down to AP/AR clerks, with a four-layer R
 AXERRA covers the full project-to-cash lifecycle:
 
 - **Projects & budgets** — projects, units/phases, budgets, change orders, and actual-cost tracking
-- **Procurement & BOM** — catalog SKUs, vendor SKU matching (pgvector + OpenAI embeddings), vendor pricing
+- **Catalog & BOM** — catalog items, Bill of Materials (BOM) assemblies, vendor SKU matching (pgvector + OpenAI embeddings), vendor pricing
 - **Accounts payable & receivable** — vendor invoices, payments, client invoices, receipts
 - **General ledger** — double-entry accounting, chart of accounts, journal entries, intercompany transactions
 - **Cashflow & profitability** — project-level dashboards and margin analysis
@@ -30,7 +30,7 @@ AXERRA covers the full project-to-cash lifecycle:
 - **Project-first accounting** — cost, cashflow, and profitability are first-class dimensions, not after-the-fact reports
 - **Schema-per-tenant isolation** — every customer gets a dedicated PostgreSQL schema; one compromised tenant cannot leak into another
 - **Built on pg-schemata (owned)** — Axerra owns the underlying ORM layer, so the platform can evolve without vendor lock-in
-- **Modular entitlements** — tenants activate modules (Projects, BOM, AP, AR, GL, Reports) independently
+- **Modular entitlements** — tenants activate modules (Projects, Catalog, AP, AR, GL, Reports) independently
 
 ## Technology
 

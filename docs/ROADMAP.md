@@ -49,15 +49,13 @@ gantt
 ## Phase 3 — Project accounting 🟢
 
 - [x] `projects` module (projects, sub-projects, units) — `apps/server/src/modules/projects/models/` includes `Projects`, `Tasks`, `TaskGroups`, `Units`, `ChangeOrders`, `CostItems`
-- [x] `activities` module (cost tracking) — `apps/server/src/modules/activities/models/` includes `Activities`, `Budgets`, `CostLines`, `ActualCosts`. **Note: `Deliverables` and `DeliverableAssignments` still live here pending the §3.0.3 split into the `contracts` vertical module.**
+- [x] `activities` module (cost tracking) — `apps/server/src/modules/activities/models/` includes `Activities`, `Budgets`, `CostLines`, `ActualCosts`, `Deliverables`, and `DeliverableAssignments`. Deliverables are **core** and carry a `bill`/`pay`/`gate` effect (ADR-0034).
 - [x] Cashflow and profitability views — read-only SQL views backed by `profitabilityController`, `cashflowController`, `marginAnalysisController`
 - [x] `reports` module (reporting & analytics) — `apps/server/src/modules/reports/controllers/` with profitability, cashflow, margin, cost-breakdown, AR aging, AP aging
 
-**Outstanding for Phase 3 closure:** move deliverables out of `activities` into the planned `contracts` vertical module (§3.0.3).
+## Phase 4 — Services billing & scheduling ⚪
 
-## Phase 4 — Services vertical ⚪
-
-- [ ] `contracts` (services SOWs and deliverables — receives deliverables migrated out of `activities`)
+- [ ] `billing_agreements` in AR (services SOWs as agreement + milestones; ADR-0034) — no services vertical
 - [ ] `timesheets`
 - [ ] `scheduling`
 - [ ] Meridian Group demo tenant exercised end-to-end (PRD §5.1)
@@ -65,18 +63,18 @@ gantt
 
 ## Phase 5 — Construction vertical ⚪
 
-- [~] `bom` — `apps/server/src/modules/bom/` exists with `CatalogSkus`, `VendorSkus`, `VendorPricing` and 5 controllers. Minimal but real; counts as scaffolded, not complete.
-- [ ] `contracts` (construction — subdivision sales, draw schedules, closing statements)
+- [~] `catalog` (renamed from `bom`) — `apps/server/src/modules/bom/` exists with `CatalogSkus`, `VendorSkus`, `VendorPricing` and 5 controllers; rename to `catalog` and add `bom_components` (BOM) per ADR-0033. Scaffolded, not complete.
+- [ ] `construction` (subdivision sales, draw schedules, closing statements)
 - [ ] `procurement`
 - [ ] `inventory`
-- [ ] AR closing-statement flow (PRD §3.8.4) posting through ADR-0019
+- [ ] Closing-statement flow (construction add-on) posting through ADR-0019
 - [ ] Sterling Ridge Homes demo tenant exercised end-to-end (PRD §5.2)
 
 ## Phase 6 — Production vertical ⚪
 
-- [ ] `contracts` (production work orders)
+- [ ] `manufacturing` (production work orders)
 - [ ] `scheduling` extensions for production
-- [ ] `bom` extensions for production
+- [ ] `catalog` extensions for production
 - [ ] `procurement` extensions for production
 
 ## Phase 7 — Planned integrations (customer-gated) ⚪

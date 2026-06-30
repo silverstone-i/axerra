@@ -1,6 +1,6 @@
 # ADR-0028: Vertical Add-on Module Architecture
 
-**Status**: Accepted; partially superseded by [ADR-0031](./0031-add-on-hooks.md) on the question of add-on extension of core workflows.
+**Status**: Accepted; partially superseded by [ADR-0031](./0031-add-on-hooks.md) on the question of add-on extension of core workflows, and by [ADR-0035](./0035-add-on-taxonomy-and-construction.md) on the add-on roster taxonomy (capability add-ons vs industry verticals) and the construction vertical.
 **Date**: 2026-05-22
 
 ## Context
@@ -25,7 +25,7 @@ Concretely:
 1. The module registry [`apps/server/src/db/moduleRegistry.js`](../../apps/server/src/db/moduleRegistry.js) is the single source of truth for what modules exist. Vertical modules get an entry in the same table as core modules. `arch:check` (ADR-0021) enforces that any module directory carrying schemas is registered.
 2. Access is controlled by `tenant.allowed_modules` (jsonb array on `admin.tenants`) checked by the [`moduleEntitlement` middleware](../../apps/server/src/middleware/moduleEntitlement.js). The existing "empty means allow all" semantic from ADR-0018 is preserved.
 3. The middleware chain is unchanged: `authRedis → withMeta → moduleEntitlement → rbac → handler`.
-4. Cross-module behaviour — e.g. the construction `contracts` module posting closing-statement journal entries to GL (PRD §3.8.4) — uses the existing cross-module posting contract (ADR-0019). No new mechanism.
+4. Cross-module behaviour — e.g. the construction add-on posting settlement journal entries to GL — uses the existing cross-module posting contract (ADR-0019). No new mechanism.
 5. Adding a new vertical module is a three-step process: implement the module under `apps/server/src/<module>/`, register it in `moduleRegistry.js`, populate `allowed_modules` for licensed tenants.
 
 ## Alternatives Considered

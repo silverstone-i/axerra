@@ -5,7 +5,9 @@
 
 ## Context
 
-The BOM module requires matching vendor SKUs to a canonical catalog of internal SKUs. Vendor descriptions vary wildly — abbreviations, different naming conventions, mixed units — making exact-match or keyword search unreliable. We needed a scalable, accurate matching approach that works within our existing PostgreSQL infrastructure.
+The Catalog module requires matching vendor SKUs to a canonical catalog of internal items. Vendor descriptions vary wildly — abbreviations, different naming conventions, mixed units — making exact-match or keyword search unreliable. We needed a scalable, accurate matching approach that works within our existing PostgreSQL infrastructure.
+
+> The module was formerly named `bom`; it is now `catalog`. SKU matching (this ADR) and vendor pricing are catalog features. The true Bill of Materials — composing catalog items into assemblies via the `bom_components` self-reference — is a separate feature layered on the same item master and is not described here.
 
 ## Decision
 
@@ -17,13 +19,13 @@ We use the `pgvector` PostgreSQL extension with OpenAI `text-embedding-3-large` 
 
 1. **Normalize** — Descriptions are lowercased, units expanded (e.g., `"` → `inch`), special characters removed
 2. **Embed** — Normalized text is sent to OpenAI's embedding API; the resulting 3072-dimension vector is stored in the row's `embedding` column
-3. **Match** — Cosine similarity (`1 - (a <=> b)`) ranks catalog SKUs against a vendor SKU's embedding
-4. **Auto-assign** — If the best match exceeds a confidence threshold (default 0.85), the vendor SKU is automatically linked to the catalog SKU
+3. **Match** — Cosine similarity (`1 - (a <=> b)`) ranks catalog items against a vendor SKU's embedding
+4. **Auto-assign** — If the best match exceeds a confidence threshold (default 0.85), the vendor SKU is automatically linked to the catalog item
 5. **Audit** — Every match decision (accept, reject, defer) is logged to `admin.match_review_logs`
 
 ### Column Design
 
-Both `catalog_skus` and `vendor_skus` include:
+Both `catalog_items` and `vendor_skus` include:
 
 - `description_normalized` — Cached normalized text used for embedding generation
 - `model` — Tracks which embedding model produced the vector (default `text-embedding-3-large`)

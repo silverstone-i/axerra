@@ -550,7 +550,7 @@ Migration: `202502110030_bomTables.js` — includes `CREATE EXTENSION IF NOT EXI
 #### ADRs & Docs
 
 - `docs/decisions/0012-pgvector-sku-matching.md`
-- `docs/rules/bom.md` — Matching workflow, confidence thresholds, review decisions
+- `docs/rules/catalog.md` — Catalog, BOM, matching workflow, confidence thresholds, review decisions
 
 ---
 

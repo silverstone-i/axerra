@@ -6,7 +6,7 @@
 |-------|-----------|---------|-------|
 | `categories` | — | — | Tenant-level reference; type IN (labor, material, subcontract, equipment, other) |
 | `activities` | categories (CASCADE) | CASCADE from category | Code unique per tenant |
-| `deliverables` | — | — | Status-gated lifecycle |
+| `deliverables` | — | — | Status-gated lifecycle; effect IN (bill, pay, gate) |
 | `deliverable_assignments` | deliverables (CASCADE), projects (CASCADE), employees (SET NULL) | CASCADE from deliverable or project | Junction table |
 | `budgets` | deliverables (CASCADE), activities (CASCADE) | CASCADE from deliverable or activity | Versioned; version + is_current tracking |
 | `cost_lines` | companies (RESTRICT), deliverables (CASCADE), activities (CASCADE), vendors (SET NULL), budgets (SET NULL) | CASCADE from deliverable or activity | Generated `amount` column |
@@ -27,6 +27,18 @@ pending → released → finished
 - **canceled**: Deliverable abandoned (terminal)
 
 Invalid transitions are rejected with HTTP 400.
+
+## Deliverable Effect Types
+
+A deliverable's `effect` column declares what completing it does. This is **core** — billing and payment ride on deliverables, no add-on required.
+
+| Effect | Meaning |
+|--------|---------|
+| `bill` | Generates an AR invoice through the deliverable's billing agreement (AR module). |
+| `pay` | Authorizes an AP payment against a purchase order or subcontract (AP module). |
+| `gate` | Control checkpoint (inspection, approval, customer review) — no GL effect. |
+
+Gate sub-flavors (inspection, approval, review) are labels, not separate effects. Sequencing one deliverable behind another (e.g. a `gate` ahead of a `bill`) is a scheduling concern and is deferred.
 
 ## Budget Status Workflow
 
@@ -58,7 +70,7 @@ draft → locked → change_order
 - **locked**: Finalized
 - **change_order**: Modified after lock (terminal)
 
-> **Note:** Schema CHECK and controller `VALID_TRANSITIONS` agree on `draft`, `locked`, `change_order` (reconciled 2026-05-20 per gap 1.12 / 3.5). The previously unused `submitted` and `approved` values were removed from the CHECK.
+> **Note:** Schema CHECK and controller `VALID_TRANSITIONS` agree on `draft`, `locked`, `change_order`.
 
 ### Generated Column
 
