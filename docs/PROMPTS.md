@@ -77,7 +77,7 @@ Create the following files by porting from an earlier branch (`git show <branch>
 
 #### Conventions (apply to all files)
 
-- Every file gets a Axerra copyright header (PRD §10.3)
+- Every file gets a Axerra copyright header (PRD §12.3)
 - Prettier: single quotes, trailing commas, 144-char lines, 2-space indent
 - ESLint: unused vars warn with `^_` prefix ignore
 - pg-schemata schema defaults use JS values (`default: 'active'`), NOT SQL literals
@@ -171,7 +171,7 @@ The codebase has:
 
 | File | Purpose |
 |------|---------|
-| `src/theme.js` | `createAppTheme(mode)` — Light: primary #003e6b, secondary #f79c3c. Dark: primary #f6b21b, secondary #0ea5e9. Component overrides per PRD §6.1.3 (AppBar, Toolbar, Drawer, Card, Button, DataGrid, etc.) |
+| `src/theme.js` | `createAppTheme(mode)` — Light: primary #003e6b, secondary #f79c3c. Dark: primary #f6b21b, secondary #0ea5e9. Component overrides per PRD §8.1.3 (AppBar, Toolbar, Drawer, Card, Button, DataGrid, etc.) |
 | `src/config/layoutTokens.js` | SIDEBAR_WIDTH_OPEN=242, SIDEBAR_WIDTH_COLLAPSED=110, TENANT_BAR_HEIGHT=48, MODULE_BAR_HEIGHT=48, fonts, composite sx presets |
 | `src/services/client.js` | Fetch wrapper: credentials:include, x-tenant-code header, auto-refresh on 401 (shared promise), JSON parsing |
 | `src/services/authApi.js` | login, logout, refresh, getMe, check, changePassword — thin wrappers around client.post/get |
@@ -550,7 +550,7 @@ Migration: `202502110030_bomTables.js` — includes `CREATE EXTENSION IF NOT EXI
 #### ADRs & Docs
 
 - `docs/decisions/0012-pgvector-sku-matching.md`
-- `docs/rules/bom.md` — Matching workflow, confidence thresholds, review decisions
+- `docs/rules/catalog.md` — Catalog, BOM, matching workflow, confidence thresholds, review decisions
 
 ---
 

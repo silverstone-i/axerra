@@ -1,0 +1,1189 @@
+<title>AXERRA Architecture</title>
+
+<style>
+  :root {
+    --paper: #f7f8fa;
+    --raise: #ffffff;
+    --ink: #1a2333;
+    --ink-2: #55627a;
+    --ink-3: #7d8a9f;
+    --rule: #dde2ea;
+    --rule-firm: #c3ccd9;
+    --accent: #a32e32;
+    --accent-soft: #f2e4e3;
+    --accent-2: #2c5f6b;
+    --plate: #fcfcfb;
+
+    --serif: ui-serif, "New York", "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+
+    --measure: 68ch;
+    --s1: 0.35rem;
+    --s2: 0.7rem;
+    --s3: 1.1rem;
+    --s4: 1.8rem;
+    --s5: 2.8rem;
+    --s6: 4.4rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #12171f;
+      --raise: #182029;
+      --ink: #dce3ed;
+      --ink-2: #8492a8;
+      --ink-3: #66738a;
+      --rule: #262f3c;
+      --rule-firm: #3a4658;
+      --accent: #e1666a;
+      --accent-soft: #2e1e21;
+      --accent-2: #6fb3c0;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper: #12171f;
+    --raise: #182029;
+    --ink: #dce3ed;
+    --ink-2: #8492a8;
+    --ink-3: #66738a;
+    --rule: #262f3c;
+    --rule-firm: #3a4658;
+    --accent: #e1666a;
+    --accent-soft: #2e1e21;
+    --accent-2: #6fb3c0;
+  }
+
+  :root[data-theme="light"] {
+    --paper: #f7f8fa;
+    --raise: #ffffff;
+    --ink: #1a2333;
+    --ink-2: #55627a;
+    --ink-3: #7d8a9f;
+    --rule: #dde2ea;
+    --rule-firm: #c3ccd9;
+    --accent: #a32e32;
+    --accent-soft: #f2e4e3;
+    --accent-2: #2c5f6b;
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  .wrap {
+    max-width: 82rem;
+    margin: 0 auto;
+    padding: var(--s5) var(--s4) var(--s6);
+  }
+
+  /* ---------- masthead ---------- */
+
+  .masthead {
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: var(--s3);
+    margin-bottom: var(--s4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--s2);
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-size: clamp(2.1rem, 5vw, 3.1rem);
+    line-height: 1.06;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  .standfirst {
+    font-family: var(--serif);
+    font-size: 1.14rem;
+    line-height: 1.5;
+    color: var(--ink-2);
+    max-width: 54ch;
+    text-wrap: pretty;
+  }
+
+  /* ---------- corrections ---------- */
+
+  .corrections {
+    margin-bottom: var(--s5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--s3);
+    max-width: var(--measure);
+  }
+
+  .corrections > .eyebrow {
+    color: var(--accent);
+  }
+
+  .correction {
+    border-left: 2px solid var(--accent);
+    padding-left: var(--s3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--s1);
+  }
+
+  .correction .assumed {
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    color: var(--ink-3);
+    text-decoration: line-through;
+    text-decoration-color: var(--accent);
+    text-decoration-thickness: 1px;
+  }
+
+  .correction .actual {
+    font-size: 0.95rem;
+    color: var(--ink);
+  }
+
+  /* ---------- two-column shell ---------- */
+
+  .shell {
+    display: grid;
+    grid-template-columns: minmax(0, 12rem) minmax(0, 1fr);
+    gap: var(--s6);
+    align-items: start;
+  }
+
+  nav.folio {
+    position: sticky;
+    top: var(--s4);
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    line-height: 1.5;
+    display: flex;
+    flex-direction: column;
+    gap: var(--s1);
+    border-top: 1px solid var(--rule-firm);
+    padding-top: var(--s2);
+  }
+
+  nav.folio a {
+    color: var(--ink-2);
+    text-decoration: none;
+    display: grid;
+    grid-template-columns: 1.6rem 1fr;
+    gap: var(--s1);
+    padding: 0.18rem 0;
+    border-bottom: 1px solid transparent;
+    transition: color 120ms ease, border-color 120ms ease;
+  }
+
+  nav.folio a span:first-child {
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+
+  nav.folio a:hover,
+  nav.folio a:focus-visible {
+    color: var(--accent-2);
+    border-bottom-color: var(--rule-firm);
+  }
+
+  /* ---------- sections ---------- */
+
+  main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--s6);
+  }
+
+  section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s3);
+    scroll-margin-top: var(--s4);
+    min-width: 0;
+  }
+
+  .shead {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s1);
+    border-top: 2px solid var(--ink);
+    padding-top: var(--s2);
+  }
+
+  h2 {
+    font-family: var(--serif);
+    font-size: clamp(1.45rem, 3vw, 1.95rem);
+    line-height: 1.14;
+    font-weight: 600;
+    letter-spacing: -0.012em;
+    text-wrap: balance;
+  }
+
+  h3 {
+    font-family: var(--sans);
+    font-size: 0.95rem;
+    font-weight: 650;
+    letter-spacing: 0.005em;
+    margin-top: var(--s2);
+  }
+
+  p {
+    max-width: var(--measure);
+    text-wrap: pretty;
+  }
+
+  main p {
+    font-size: 0.97rem;
+    color: var(--ink-2);
+  }
+
+  main p strong {
+    color: var(--ink);
+    font-weight: 650;
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.85em;
+    background: var(--raise);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: 0.08em 0.32em;
+    color: var(--ink);
+    word-break: break-word;
+  }
+
+  a.ref {
+    color: var(--accent-2);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+  }
+
+  ul {
+    max-width: var(--measure);
+    display: flex;
+    flex-direction: column;
+    gap: var(--s2);
+    padding-left: var(--s3);
+  }
+
+  li {
+    font-size: 0.97rem;
+    color: var(--ink-2);
+  }
+
+  li::marker {
+    color: var(--ink-3);
+  }
+
+  li strong {
+    color: var(--ink);
+    font-weight: 650;
+  }
+
+  /* ---------- diagram plates ---------- */
+
+  figure {
+    margin: var(--s2) 0;
+    border: 1px solid var(--rule-firm);
+    border-radius: 2px;
+    background: var(--plate);
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  figure .plate {
+    overflow-x: auto;
+    padding: var(--s3);
+    min-width: 0;
+  }
+
+  pre.mermaid {
+    margin: 0;
+    background: none;
+    display: block;
+    min-width: 0;
+  }
+
+  /* Natural diagram size is pinned by script from each viewBox — see the
+     bottom of this file. CSS alone cannot read a viewBox, and both mermaid's
+     inline max-width and a reset's svg { max-width: 100% } otherwise scale
+     wide diagrams down to illegible (0.35x). Without the script this falls
+     back to fit-to-width, which is degraded but not broken. */
+
+  figcaption {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: #7d8a9f;
+    border-top: 1px solid var(--rule-firm);
+    padding: var(--s2) var(--s3);
+    background: var(--raise);
+  }
+
+  /* ---------- tables ---------- */
+
+  .tscroll {
+    overflow-x: auto;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    min-width: 0;
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  thead th {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    text-align: left;
+    font-weight: 400;
+    padding: var(--s2) var(--s3);
+    border-bottom: 1px solid var(--rule-firm);
+    background: var(--raise);
+    white-space: nowrap;
+  }
+
+  tbody td {
+    padding: 0.42rem var(--s3);
+    border-bottom: 1px solid var(--rule);
+    color: var(--ink-2);
+    vertical-align: top;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  tbody td:first-child {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+
+  /* ---------- file tree ---------- */
+
+  pre.tree {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    line-height: 1.72;
+    color: var(--ink-2);
+    background: var(--raise);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: var(--s3);
+    overflow-x: auto;
+    min-width: 0;
+  }
+
+  pre.tree b {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  /* ---------- aside note ---------- */
+
+  .note {
+    border-left: 2px solid var(--rule-firm);
+    padding-left: var(--s3);
+    max-width: var(--measure);
+    display: flex;
+    flex-direction: column;
+    gap: var(--s1);
+  }
+
+  .note .eyebrow {
+    color: var(--ink-3);
+  }
+
+  .note p {
+    font-size: 0.9rem;
+    color: var(--ink-2);
+  }
+
+  /* ---------- colophon ---------- */
+
+  footer {
+    margin-top: var(--s6);
+    border-top: 1px solid var(--rule-firm);
+    padding-top: var(--s3);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    line-height: 1.7;
+    color: var(--ink-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--s1);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent-2);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      transition: none !important;
+      animation: none !important;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .shell {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--s4);
+    }
+
+    nav.folio {
+      position: static;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+      gap: 0 var(--s3);
+    }
+
+    .wrap {
+      padding: var(--s4) var(--s3) var(--s5);
+    }
+  }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <div class="eyebrow">axerra &middot; docs/architecture</div>
+    <h1>How AXERRA fits together</h1>
+    <p class="standfirst">
+      Process boot, the Express middleware chain, module internals, and the schema-per-tenant data layer &mdash; traced against
+      source, not inferred.
+    </p>
+  </header>
+
+  <div class="corrections">
+    <div class="eyebrow">Three things commonly assumed wrong</div>
+
+    <div class="correction">
+      <div class="assumed">/api/v1/&lt;module&gt;</div>
+      <div class="actual">
+        The version segment sits <em>inside</em> each module aggregator: <code>/api/&lt;module&gt;/v1/&lt;resource&gt;</code>.
+        <code>/api/auth/*</code> is the lone exception &mdash; it mounts flat.
+      </div>
+    </div>
+
+    <div class="correction">
+      <div class="assumed">CRUD routes are policy-checked</div>
+      <div class="actual">
+        <code>rbac()</code> is absent from the default chain <code>createRouter</code> generates. 13 of 68 entity routers reference it
+        at all; everywhere else baseline CRUD is authenticated and module-entitled only.
+      </div>
+    </div>
+
+    <div class="correction">
+      <div class="assumed">One place resolves the tenant schema</div>
+      <div class="actual">
+        Two do &mdash; <code>authRedis</code> writes it to <code>req.ctx.schema</code>, then every controller call re-reads it via
+        <code>ViewController.getSchema(req)</code>. Nothing uses <code>SET search_path</code>.
+      </div>
+    </div>
+  </div>
+
+  <div class="shell">
+    <nav class="folio" aria-label="Sections">
+      <a href="#s1"><span>1</span><span>System context</span></a>
+      <a href="#s2"><span>2</span><span>Boot &amp; middleware</span></a>
+      <a href="#s3"><span>3</span><span>Route registry</span></a>
+      <a href="#s4"><span>4</span><span>Module anatomy</span></a>
+      <a href="#s5"><span>5</span><span>Request trace</span></a>
+      <a href="#s6"><span>6</span><span>Data layer</span></a>
+      <a href="#s7"><span>7</span><span>Access control</span></a>
+      <a href="#s8"><span>&mdash;</span><span>Client side</span></a>
+    </nav>
+
+    <main>
+      <!-- ============ 1 ============ -->
+      <section id="s1">
+        <div class="shead">
+          <div class="eyebrow">Section 1</div>
+          <h2>System context</h2>
+        </div>
+
+        <figure>
+          <div class="plate">
+<pre class="mermaid">
+---
+config:
+  theme: neutral
+---
+flowchart LR
+  browser["Browser"]
+
+  subgraph client["apps/client — React 18 + Vite"]
+    vite["Vite dev server :5173&lt;br/&gt;proxies /api to :3000"]
+    spa["main.jsx to App.jsx&lt;br/&gt;pages / hooks / services"]
+  end
+
+  subgraph server["apps/server — Express 5"]
+    exp["server.js :3000&lt;br/&gt;to src/app.js"]
+  end
+
+  shared["packages/shared&lt;br/&gt;@axerra/shared"]
+
+  subgraph pg["PostgreSQL"]
+    admin["admin schema&lt;br/&gt;tenants, portal_users,&lt;br/&gt;portal_user_tenants"]
+    tn["tenant schemas&lt;br/&gt;one per tenant"]
+  end
+
+  redis["Redis — optional&lt;br/&gt;perm canons, impersonation"]
+
+  browser --&gt; vite --&gt; spa
+  spa --&gt;|"fetch, credentials: include"| exp
+  exp --&gt; admin
+  exp --&gt; tn
+  exp &lt;-.-&gt;|"cache, fails open"| redis
+  shared -.-&gt; spa
+  shared -.-&gt; exp
+</pre>
+          </div>
+          <figcaption>Fig. 1 &mdash; Processes and stores</figcaption>
+        </figure>
+
+        <p>
+          Redis is an <strong>optimisation, not a dependency</strong>. Every Redis path in
+          <code>authRedis.js</code> and <code>permissionLoader.js</code> is wrapped in a silent catch that falls through to
+          Postgres. Two things are stored: permission canons at <code>perm:&lt;userId&gt;:&lt;tenantCode&gt;</code> with a
+          900-second time to live, and impersonation state at <code>imp:&lt;userId&gt;</code>.
+        </p>
+
+        <p>
+          <code>@axerra/shared</code> is deliberately tiny &mdash; it exports exactly five symbols
+          (<code>resolveLevel</code>, <code>TAX_TYPES</code>, <code>COUNTRIES</code>, <code>formatByPattern</code>,
+          <code>stripFormatting</code>) and reaches both apps through npm workspaces resolution.
+        </p>
+      </section>
+
+      <!-- ============ 2 ============ -->
+      <section id="s2">
+        <div class="shead">
+          <div class="eyebrow">Section 2</div>
+          <h2>Server boot and the middleware chain</h2>
+        </div>
+
+        <p>
+          <code>server.js</code> is 23 lines: load <code>dotenv/config</code>, import <code>src/app.js</code>,
+          <code>app.listen(PORT)</code>. There is no <code>http.createServer</code>, no SIGTERM handler, and no explicit database or
+          Redis initialisation &mdash; the pool is a side effect of the first <code>import db.js</code>, and Redis connects lazily on
+          first use.
+        </p>
+
+        <figure>
+          <div class="plate">
+<pre class="mermaid">
+---
+config:
+  theme: neutral
+---
+flowchart TD
+  boot["server.js&lt;br/&gt;dotenv, app.listen :3000"] --&gt; load["app.js module load:&lt;br/&gt;registerAuditResolver"]
+
+  load --&gt; cors["cors — credentials: true"]
+  cors --&gt; json["express.json"]
+  json --&gt; urlenc["express.urlencoded"]
+  urlenc --&gt; cookie["cookieParser"]
+  cookie --&gt; morgan["morgan dev — request log"]
+  morgan --&gt; health["GET /api/health&lt;br/&gt;before auth"]
+  health --&gt; auth["use /api — authRedis"]
+  auth --&gt; audit["use /api — auditContext&lt;br/&gt;AsyncLocalStorage scope"]
+  audit --&gt; routes["use /api — apiRoutes"]
+  routes --&gt; root["GET /"]
+  root --&gt; nf["404 catch-all"]
+  nf --&gt; err["errorHandler"]
+</pre>
+          </div>
+          <figcaption>Fig. 2 &mdash; app.js, in source order</figcaption>
+        </figure>
+
+        <p>
+          Absent, contrary to expectation: <strong>no <code>helmet</code>, no <code>express-session</code>, no rate-limit
+          middleware, and no app-wide <code>passport</code>.</strong> None of the first three is even a declared dependency.
+          <code>passport-local</code> is used only inside <code>authController.login</code>, with
+          <code>{ session: false }</code>. Winston carries application logs; <code>morgan('dev')</code> is the request logger.
+        </p>
+
+        <h3>2.1 &nbsp;Inside authRedis</h3>
+
+        <figure>
+          <div class="plate">
+<pre class="mermaid">
+---
+config:
+  theme: neutral
+---
+flowchart TD
+  in["Request to /api/*"] --&gt; bypass{"Path in bypass list?&lt;br/&gt;/ , /auth/login,&lt;br/&gt;/auth/refresh, /auth/logout"}
+  bypass --&gt;|yes| skip["next — no req.user"]
+  bypass --&gt;|no| jwt["jwt.verify auth_token cookie"]
+
+  jwt --&gt; hydrate["admin.portal_users lookup&lt;br/&gt;+ earliest active&lt;br/&gt;admin.portal_user_tenants binding"]
+  hydrate --&gt; hdr{"x-tenant-code header&lt;br/&gt;differs from home tenant?"}
+  hdr --&gt;|no| useHome["Use home tenant"]
+  hdr --&gt;|yes| guard["admin.tenants lookup&lt;br/&gt;+ cross-tenant binding guard&lt;br/&gt;403 unless home is ROOT_TENANT_CODE"]
+
+  useHome --&gt; perms
+  guard --&gt; perms["GET perm:uid:tenant from Redis"]
+  perms --&gt;|hit| stale
+  perms --&gt;|miss| loadp["loadPermissions from tenant schema&lt;br/&gt;roles, policies, state filters,&lt;br/&gt;field groups, then primePermCache"]
+  loadp --&gt; stale["calcPermHash vs ph claim&lt;br/&gt;mismatch sets X-Token-Stale: 1"]
+
+  stale --&gt; imp["Impersonation overlay&lt;br/&gt;from imp:uid"]
+  imp --&gt; out["Populate req.user and req.ctx&lt;br/&gt;ctx.schema, ctx.tenant, ctx.perms"]
+</pre>
+          </div>
+          <figcaption>Fig. 3 &mdash; Authentication and tenant resolution</figcaption>
+        </figure>
+
+        <p>
+          This is the first of the two places the tenant schema is resolved. It writes the resolved name to
+          <code>req.user.schema_name</code> and <code>req.ctx.schema</code>.
+        </p>
+      </section>
+
+      <!-- ============ 3 ============ -->
+      <section id="s3">
+        <div class="shead">
+          <div class="eyebrow">Section 3</div>
+          <h2>Route registry and URL shape</h2>
+        </div>
+
+        <p>
+          <code>src/apiRoutes.js</code> mounts ten module aggregators under <code>/api</code>. The <code>system/</code> and
+          <code>modules/</code> split is load-bearing &mdash; architecture lint rules treat them differently.
+        </p>
+
+        <figure>
+          <div class="plate">
+<pre class="mermaid">
+---
+config:
+  theme: neutral
+---
+flowchart LR
+  api["src/apiRoutes.js&lt;br/&gt;mounted at /api"]
+
+  subgraph sys["src/system — platform"]
+    a["auth"]
+    t["tenants"]
+    c["core"]
+  end
+
+  subgraph mods["src/modules — business"]
+    p["projects"]
+    ac["activities"]
+    b["bom"]
+    ap["ap"]
+    ar["ar"]
+    acc["accounting"]
+    r["reports"]
+  end
+
+  api --&gt; a &amp; t &amp; c
+  api --&gt; p &amp; ac &amp; b &amp; ap &amp; ar &amp; acc &amp; r
+</pre>
+          </div>
+          <figcaption>Fig. 4 &mdash; Ten aggregators, two origins</figcaption>
+        </figure>
+
+        <p>Each aggregator owns its own version segment, so the shape is <code>/api/&lt;module&gt;/v1/&lt;resource&gt;</code>:</p>
+
+        <div class="tscroll">
+          <table>
+            <thead>
+              <tr><th>Example</th><th>Module</th><th>Resource</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>/api/core/v1/vendors</td><td>core</td><td>vendors</td></tr>
+              <tr><td>/api/ar/v1/ar-invoices</td><td>ar</td><td>ar-invoices</td></tr>
+              <tr><td>/api/tenants/v1/portal-users</td><td>tenants</td><td>portal-users</td></tr>
+              <tr><td>/api/auth/login</td><td>auth</td><td>&mdash; flat, no v1</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ 4 ============ -->
+      <section id="s4">
+        <div class="shead">
+          <div class="eyebrow">Section 4</div>
+          <h2>Module anatomy</h2>
+        </div>
+
+        <p>
+          Every module follows the same layout. Accounts receivable (<code>ar</code>) is the worked example below because it
+          exercises the full set.
+        </p>
+
+<pre class="tree">src/modules/ar/
+  <b>apiRoutes/v1/</b>  arApiRoutes.js  arInvoicesRouter.js  ...
+  <b>controllers/</b>   arInvoicesController.js
+  <b>models/</b>        ArInvoices.js
+  <b>schemas/</b>       arInvoicesSchema.js
+  <b>schema/migrations/</b>
+  <b>arRepositories.js</b></pre>
+
+        <figure>
+          <div class="plate">
+<pre class="mermaid">
+---
+config:
+  theme: neutral
+---
+flowchart TD
+  agg["arApiRoutes.js&lt;br/&gt;use /v1/ar-invoices"] --&gt; rtr["arInvoicesRouter.js"]
+
+  rtr --&gt; custom["Custom routes declared FIRST&lt;br/&gt;PUT /approve&lt;br/&gt;withMeta to moduleEntitlement&lt;br/&gt;to addAuditFields to rbac full"]
+  rtr --&gt; factory["use / — createRouter&lt;br/&gt;controller, extendRoutes, options"]
+
+  custom --&gt; ctl
+  factory --&gt; ctl["arInvoicesController&lt;br/&gt;extends BaseController&lt;br/&gt;rbacConfig scopeColumn: project_id&lt;br/&gt;VALID_TRANSITIONS state machine"]
+
+  ctl --&gt;|"cross-module barrel"| svc["accounting/services&lt;br/&gt;postARInvoice&lt;br/&gt;core numberingService allocateNumber"]
+  ctl --&gt; model["models/ArInvoices.js&lt;br/&gt;extends pg-schemata TableModel"]
+  model --&gt; schema["schemas/arInvoicesSchema.js&lt;br/&gt;dbSchema: tenantid placeholder&lt;br/&gt;columns, constraints, softDelete"]
+  schema --&gt; table["SQL against tenant_schema.ar_invoices"]
+
+  base1["lib/ViewController.js&lt;br/&gt;get, getById, getWhere, exportXls&lt;br/&gt;getSchema, handleError&lt;br/&gt;RBAC layers 2-4"] -.-&gt;|extends| base2
+  base2["lib/BaseController.js&lt;br/&gt;create, update, archive, restore&lt;br/&gt;bulkInsert, bulkUpdate, importXls"] -.-&gt;|extends| ctl
+</pre>
+          </div>
+          <figcaption>Fig. 5 &mdash; Router to controller to model to table</figcaption>
+        </figure>
+
+        <p>
+          There is <strong>no validator or data transfer object layer</strong>. Validation is the pg-schemata schema definition,
+          plus ad-hoc controller checks such as <code>VALID_TRANSITIONS</code> and <code>SCHEMA_NAME_RE</code>. <code>zod</code> is
+          a declared dependency with zero imports in <code>src/</code>.
+        </p>
+
+        <p>
+          <code>services/</code> appears only where logic spans entities &mdash; <code>numberingService</code> in <code>core</code>,
+          the posting barrel in <code>accounting</code>. The <code>reports</code> module skips models entirely and issues raw
+          <code>SELECT * FROM &lt;schema&gt;.vw_*</code> against SQL views.
+        </p>
+
+        <h3>4.1 &nbsp;What createRouter generates</h3>
+
+        <p><code>createRouter</code> is the factory behind nearly every resource. It generates 13 routes, each with a
+          <code>disable*</code> opt-out:</p>
+
+        <div class="tscroll">
+          <table>
+            <thead>
+              <tr><th>Method</th><th>Path</th><th>Controller method</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>POST</td><td>/</td><td>create</td></tr>
+              <tr><td>GET</td><td>/</td><td>get</td></tr>
+              <tr><td>GET</td><td>/where</td><td>getWhere</td></tr>
+              <tr><td>GET</td><td>/archived</td><td>getWhere</td></tr>
+              <tr><td>GET</td><td>/ping</td><td>&mdash; inline pong</td></tr>
+              <tr><td>GET</td><td>/:id</td><td>getById</td></tr>
+              <tr><td>POST</td><td>/bulk-insert</td><td>bulkInsert</td></tr>
+              <tr><td>POST</td><td>/import-xls</td><td>importXls</td></tr>
+              <tr><td>POST</td><td>/export-xls</td><td>exportXls</td></tr>
+              <tr><td>PUT</td><td>/bulk-update</td><td>bulkUpdate</td></tr>
+              <tr><td>PUT</td><td>/update</td><td>update</td></tr>
+              <tr><td>DELETE</td><td>/archive</td><td>archive</td></tr>
+              <tr><td>PATCH</td><td>/restore</td><td>restore</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <figure>
+          <div class="plate">
+<pre class="mermaid">
+---
+config:
+  theme: neutral
+---
+flowchart LR
+  subgraph read["Reads — GET"]
+    r1["userMws&lt;br/&gt;incl. withMeta"] --&gt; r2["moduleEntitlement"] --&gt; r3["handler"]
+  end
+
+  subgraph write["Mutations — POST PUT DELETE PATCH"]
+    w1["addAuditFields&lt;br/&gt;prepended"] --&gt; w2["userMws&lt;br/&gt;incl. withMeta"] --&gt; w3["moduleEntitlement&lt;br/&gt;appended"] --&gt; w4["handler"]
+  end
+
+  subgraph io["import-xls / export-xls only"]
+    i1["safePost or safeGet"] --&gt; i2["setImportAction&lt;br/&gt;or setExportAction"] --&gt; i3["rbac full&lt;br/&gt;or rbac view"] --&gt; i4["multer single file&lt;br/&gt;import only"] --&gt; i5["handler"]
+  end
+</pre>
+          </div>
+          <figcaption>Fig. 6 &mdash; Chain assembly, per method</figcaption>
+        </figure>
+
+        <p>
+          <code>rbac()</code> is <strong>not</strong> in the default CRUD chain. Across the 68 entity routers, 13 reference
+          <code>rbac(</code> at all: every router under <code>system/tenants/</code>, plus <code>vendorsRouter</code>,
+          <code>clientsRouter</code>, <code>employeesRouter</code>, <code>vendorContactsRouter</code>,
+          <code>arInvoicesRouter</code> (approve), <code>journalEntriesRouter</code>, <code>budgetsRouter</code>, and
+          <code>postingQueuesRouter</code>. Everywhere else &mdash; all of <code>projects</code>, <code>ap</code>,
+          <code>bom</code>, <code>reports</code>, and most of <code>core</code> and <code>accounting</code> &mdash; baseline CRUD is
+          authenticated and module-entitled, with policy gating only on <code>/import-xls</code> and <code>/export-xls</code>.
+          Layers 2 through 4 still filter rows and columns, but only for controllers that set <code>this.rbacConfig</code>.
+        </p>
+
+        <div class="note">
+          <div class="eyebrow">Detail</div>
+          <p>
+            <code>/ping</code> intentionally carries no middleware. Routers that must not leak their existence pass
+            <code>disablePing: true</code>.
+          </p>
+        </div>
+      </section>
+
+      <!-- ============ 5 ============ -->
+      <section id="s5">
+        <div class="shead">
+          <div class="eyebrow">Section 5</div>
+          <h2>Request trace</h2>
+        </div>
+
+        <p>
+          <code>GET /api/ar/v1/ar-invoices?project_id=…</code> with <code>Cookie: auth_token=…</code> and
+          <code>x-tenant-code: SRH</code>.
+        </p>
+
+        <figure>
+          <div class="plate">
+<pre class="mermaid">
+---
+config:
+  theme: neutral
+---
+sequenceDiagram
+  autonumber
+  participant C as Client
+  participant A as app.js
+  participant AR as authRedis
+  participant PG as Postgres
+  participant RD as Redis
+  participant AC as auditContext
+  participant RT as Routers
+  participant MW as route middleware
+  participant VC as ViewController
+  participant DB as db.js
+
+  C-&gt;&gt;A: GET /api/ar/v1/ar-invoices
+  A-&gt;&gt;A: cors, json, cookies, morgan
+  A-&gt;&gt;AR: not a bypass path
+  AR-&gt;&gt;AR: jwt.verify auth_token
+  AR-&gt;&gt;PG: admin.portal_users + portal_user_tenants
+  AR-&gt;&gt;PG: admin.tenants where tenant_code = srh
+  Note over AR,PG: binding guard, schema resolves to srh
+  AR-&gt;&gt;RD: GET perm:uid:srh
+  alt cache miss
+    AR-&gt;&gt;PG: loadPermissions from srh.*
+    AR-&gt;&gt;RD: primePermCache
+  end
+  AR-&gt;&gt;AR: calcPermHash vs ph claim
+  AR-&gt;&gt;RD: GET imp:uid — none
+  AR-&gt;&gt;AC: req.user, req.ctx.schema = srh
+  AC-&gt;&gt;RT: requestContext.run — ALS scope
+  RT-&gt;&gt;RT: apiRoutes to arApiRoutes to arInvoicesRouter
+  Note over RT: PUT /approve does not match,&lt;br/&gt;falls through to createRouter GET /
+  RT-&gt;&gt;MW: safeGet chain
+  MW-&gt;&gt;MW: req.resource = ar / ar-invoices
+  MW-&gt;&gt;MW: tenant allowed_modules includes ar
+  MW-&gt;&gt;VC: arInvoicesController.get
+  VC-&gt;&gt;VC: getSchema req to srh
+  VC-&gt;&gt;VC: _applyRbacFilters — layers 2, 3, 4
+  VC-&gt;&gt;DB: model srh
+  DB-&gt;&gt;PG: SELECT from srh.ar_invoices
+  PG--&gt;&gt;VC: rows
+  VC-&gt;&gt;VC: _filterRecordFields — layer 4
+  VC--&gt;&gt;C: res.json rows
+</pre>
+          </div>
+          <figcaption>Fig. 7 &mdash; One read, end to end</figcaption>
+        </figure>
+
+        <p>
+          On throw, <code>ViewController.handleError</code> maps the Postgres error code and usually terminates the request itself
+          &mdash; <code>23505</code> to 409, <code>23503</code> to 400, <code>22001</code> to 400. The global
+          <code>errorHandler</code> therefore fires rarely; when it does, it maps <code>SchemaDefinitionError</code> to 400,
+          <code>23505</code> to 409, <code>23503</code> to 422, passes through <code>err.status</code>, and otherwise returns 500
+          with the message hidden in production.
+        </p>
+
+        <p>
+          The <code>auditContext</code> AsyncLocalStorage scope is what lets pg-schemata stamp <code>created_by</code> /
+          <code>updated_by</code> without any controller threading the actor through explicitly. <code>addAuditFields</code>,
+          despite its name, no longer sets those columns; it guards mutation routes and injects <code>tenant_code</code> /
+          <code>tenant_id</code> on POST.
+        </p>
+      </section>
+
+      <!-- ============ 6 ============ -->
+      <section id="s6">
+        <div class="shead">
+          <div class="eyebrow">Section 6</div>
+          <h2>Data layer</h2>
+        </div>
+
+        <figure>
+          <div class="plate">
+<pre class="mermaid">
+---
+config:
+  theme: neutral
+---
+flowchart TD
+  reg["db/moduleRegistry.js&lt;br/&gt;9 entries — name, scope,&lt;br/&gt;repositories, migrations"]
+  reg --&gt; repos["db/repositories.js&lt;br/&gt;flattens to one&lt;br/&gt;modelKey to ModelClass map"]
+  repos --&gt; init["DB.init DATABASE_URL,&lt;br/&gt;repositories, logger"]
+  init --&gt; raw["DB.db — pg-promise&lt;br/&gt;with models attached"]
+  raw --&gt; cdb["createCallDb in db.js"]
+
+  cdb --&gt; fn["Exported db is CALLABLE&lt;br/&gt;db vendors, srh&lt;br/&gt;to setSchemaName srh"]
+  cdb --&gt; props["Model properties&lt;br/&gt;db.vendors, db.arInvoices"]
+  cdb --&gt; pass["pg-promise passthroughs&lt;br/&gt;any, oneOrNone, tx, task, ..."]
+
+  reg -.-&gt;|"scope: admin — auth only"| adm["Literal admin schema&lt;br/&gt;db portalUsers, admin"]
+  reg -.-&gt;|"scope: tenant — 8 modules"| ten["dbSchema: tenantid placeholder&lt;br/&gt;bound per call"]
+</pre>
+          </div>
+          <figcaption>Fig. 8 &mdash; Registry to callable db</figcaption>
+        </figure>
+
+        <p>
+          Only <code>auth</code> is <code>scope: 'admin'</code>. <code>core</code> and all seven business modules are
+          <code>scope: 'tenant'</code>.
+        </p>
+
+        <h3>6.1 &nbsp;Where the schema switch happens</h3>
+
+        <figure>
+          <div class="plate">
+<pre class="mermaid">
+---
+config:
+  theme: neutral
+---
+flowchart LR
+  s1["1. authRedis&lt;br/&gt;reads admin.tenants.schema_name&lt;br/&gt;writes req.ctx.schema"]
+  s2["2. ViewController.getSchema req&lt;br/&gt;ctx.schema, else user.schema_name,&lt;br/&gt;else user.tenant_code — lowercased"]
+  s3["db model, schema&lt;br/&gt;to setSchemaName"]
+  s4["Raw-SQL controllers&lt;br/&gt;pgp.as.name schema&lt;br/&gt;interpolation"]
+
+  s1 --&gt; s2 --&gt; s3
+  s2 --&gt; s4
+</pre>
+          </div>
+          <figcaption>Fig. 9 &mdash; Two resolution points, no search_path</figcaption>
+        </figure>
+
+        <p>
+          Every controller call re-reads the schema and rebinds the model. Reports and other raw-SQL paths interpolate the schema
+          name through <code>pgp.as.name</code> instead.
+        </p>
+
+        <h3>6.2 &nbsp;Tenant provisioning</h3>
+
+        <figure>
+          <div class="plate">
+<pre class="mermaid">
+---
+config:
+  theme: neutral
+---
+flowchart TD
+  cli["scripts/db/provisionTenantCli.js&lt;br/&gt;or CreateTenantWizard"] --&gt; setup["services/tenantSetup.js&lt;br/&gt;provisionNewTenant"]
+  setup --&gt; ins["INSERT admin.tenants"]
+  ins --&gt; prov["services/tenantProvisioning.js&lt;br/&gt;CREATE SCHEMA name"]
+  prov --&gt; mig["db/migrations/createMigrator.js&lt;br/&gt;substitutes tenantid placeholder"]
+  mig --&gt; rec["Records applied ids in&lt;br/&gt;pgschemata.migrations&lt;br/&gt;schema_name, module_name,&lt;br/&gt;id, checksum"]
+  rec --&gt; seed["Seed RBAC catalog, self-company,&lt;br/&gt;admin employee + portal user"]
+</pre>
+          </div>
+          <figcaption>Fig. 10 &mdash; New tenant bootstrap</figcaption>
+        </figure>
+
+        <p>
+          Schema arrives through pg-schemata <code>createTable</code> at tenant bootstrap &mdash; there are no standalone
+          data-definition-language or backfill migration files.
+        </p>
+      </section>
+
+      <!-- ============ 7 ============ -->
+      <section id="s7">
+        <div class="shead">
+          <div class="eyebrow">Section 7</div>
+          <h2>Role-based access control</h2>
+        </div>
+
+        <p>Four layers. They execute in two different places, and only the first is middleware.</p>
+
+        <figure>
+          <div class="plate">
+<pre class="mermaid">
+---
+config:
+  theme: neutral
+---
+flowchart TD
+  subgraph l1["Layer 1 — Policies — middleware/rbac.js"]
+    p1["resolveLevel caps, module, router, action"]
+    p2["Cascade:&lt;br/&gt;module::router::action&lt;br/&gt;to module::router::&lt;br/&gt;to module::::&lt;br/&gt;to ::::"]
+    p3["EXACT_MATCH_KEYS skip the cascade"]
+    p4["Levels ascend: none, view, full&lt;br/&gt;no super_user bypass"]
+    p1 --&gt; p2 --&gt; p3 --&gt; p4
+  end
+
+  subgraph l234["Layers 2-4 — ViewController"]
+    q1["buildQueryContext&lt;br/&gt;services/rbacQueryContext.js"]
+    q2["Layer 2 — data scope&lt;br/&gt;pushes rbacConfig.scopeColumn IN ..."]
+    q3["Layer 3 — state filters&lt;br/&gt;pushes status IN ..."]
+    q4["Layer 4 — field groups&lt;br/&gt;narrows options.columnWhitelist&lt;br/&gt;+ _filterRecordFields on the way out"]
+    q1 --&gt; q2 --&gt; q3 --&gt; q4
+  end
+
+  l1 --&gt;|"only on gated routes"| l234
+</pre>
+          </div>
+          <figcaption>Fig. 11 &mdash; Four layers, two execution sites</figcaption>
+        </figure>
+
+        <p>
+          Layer 1 gates only the routes that explicitly mount <code>rbac()</code> &mdash; see §4.1. Layers 2 through 4 run inside
+          <code>ViewController</code> for any controller that sets <code>this.rbacConfig</code>, independent of whether layer 1 ran.
+        </p>
+
+        <p>
+          Permission canons are assembled by <code>permissionLoader.js</code> from the tenant schema and cached in Redis for 900
+          seconds. <code>permCacheInvalidator.js</code> evicts on role and policy change, fire-and-forget, with the time to live as
+          the backstop.
+        </p>
+      </section>
+
+      <!-- ============ 8 ============ -->
+      <section id="s8">
+        <div class="shead">
+          <div class="eyebrow">Coda</div>
+          <h2>Client side, briefly</h2>
+        </div>
+
+        <figure>
+          <div class="plate">
+<pre class="mermaid">
+---
+config:
+  theme: neutral
+---
+flowchart TD
+  main["main.jsx"] --&gt; tp["ThemeProvider — OS colour scheme"]
+  tp --&gt; cb["CssBaseline"]
+  cb --&gt; qc["QueryClientProvider&lt;br/&gt;staleTime 5 min, retry 1"]
+  qc --&gt; ap["AuthProvider&lt;br/&gt;also owns tenant + impersonation"]
+  ap --&gt; tpp["TenantPreferencesProvider"]
+  tpp --&gt; map["ModuleActionsProvider"]
+  map --&gt; app["App.jsx — BrowserRouter"]
+  app --&gt; shell["LayoutShell — the auth guard&lt;br/&gt;Navigate to /login if no user"]
+  shell --&gt; outlet["Outlet keyed on tenant_code&lt;br/&gt;remounts on tenant switch"]
+</pre>
+          </div>
+          <figcaption>Fig. 12 &mdash; Provider tree</figcaption>
+        </figure>
+
+        <p>Data access is three hand-written layers &mdash; no axios, no code generation:</p>
+
+        <figure>
+          <div class="plate">
+<pre class="mermaid">
+---
+config:
+  theme: neutral
+---
+flowchart LR
+  hook["hooks/useVendors.js&lt;br/&gt;TanStack Query&lt;br/&gt;useVendors, useCreateVendor, ..."]
+  svc["services/vendorApi.js&lt;br/&gt;BASE /core/v1/vendors&lt;br/&gt;list, create, update, archive"]
+  cl["services/client.js&lt;br/&gt;fetch, credentials: include&lt;br/&gt;single-flight 401 refresh&lt;br/&gt;x-tenant-code injection&lt;br/&gt;getAll keyset cursor follow"]
+  api["/api/*"]
+
+  hook --&gt; svc --&gt; cl --&gt; api
+</pre>
+          </div>
+          <figcaption>Fig. 13 &mdash; Hook to service to transport</figcaption>
+        </figure>
+
+        <p>
+          <code>BrowserRouter</code> lives in <code>App.jsx</code>, not <code>main.jsx</code>, so the router sits inside every
+          provider. There is no <code>ProtectedRoute</code> component &mdash; <code>LayoutShell</code> is the guard. Route-level
+          capability enforcement is absent by design: the sidebar filters navigation by <code>user.perms.caps</code>, and the
+          server is the actual gate.
+        </p>
+      </section>
+    </main>
+  </div>
+
+  <footer>
+    <div>Traced against source on branch docs/prd-restructure. Diagram plates keep a constant light ground in both themes so
+      mermaid&rsquo;s own palette always reads correctly.</div>
+    <div>Markdown source: docs/architecture/ARCHITECTURE.md &middot; Invariants: docs/architecture/CONTRACT.md</div>
+  </footer>
+</div>
+
+<script>
+  // Pin each diagram to its natural size, read from the viewBox mermaid emits.
+  // Diagrams are rendered by the host at an unspecified time, so sweep on a
+  // MutationObserver rather than once on load. Plates scroll when a diagram is
+  // wider than the column; nothing is ever scaled below 1:1.
+  (function () {
+    function pin(svg) {
+      if (svg.dataset.pinned) return;
+      var vb = (svg.getAttribute('viewBox') || '').trim().split(/[\s,]+/);
+      var w = parseFloat(vb[2]);
+      var h = parseFloat(vb[3]);
+      if (!w || !h) return;
+      svg.dataset.pinned = '1';
+      svg.style.setProperty('max-width', 'none', 'important');
+      svg.style.setProperty('width', w + 'px', 'important');
+      svg.style.setProperty('height', h + 'px', 'important');
+    }
+
+    function sweep() {
+      var list = document.querySelectorAll('figure .plate svg:not([data-pinned])');
+      for (var i = 0; i < list.length; i++) pin(list[i]);
+    }
+
+    sweep();
+    if (window.MutationObserver) {
+      new MutationObserver(sweep).observe(document.documentElement, { childList: true, subtree: true });
+    }
+    window.addEventListener('load', sweep);
+  })();
+</script>

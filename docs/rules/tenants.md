@@ -20,7 +20,7 @@ Creating a tenant is a three-step atomic operation:
    `roles: ['admin']`, `is_app_user: true`, and `is_primary_contact: true`,
    then a linked `portal_user` with the provided email and password. The
    admin employee starts with `code = NULL`; numbering is configured and
-   backfilled later via Settings (see PRD §3.13.9). Note: the admin
+   backfilled later via Settings (see PRD §3.1.4.5.6). Note: the admin
    employee is created via raw SQL (not through `employeesController`),
    so no `sources` record is auto-created — the employee will not have
    linked phone numbers or addresses until a source is manually added.

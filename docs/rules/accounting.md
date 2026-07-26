@@ -4,12 +4,16 @@
 
 | Table | Parent FK | Cascade | Soft Delete | Notes |
 |-------|-----------|---------|-------------|-------|
+| `ledgers` | companies (RESTRICT), self-ref `parent_ledger_id` (SET NULL) | — | Yes | One per accounting representation; `basis` IN (accrual, cash, common); code unique per company |
+| `company_accounting_config` | companies (RESTRICT) | — | Yes | One row per company; `book_basis` IN (accrual, cash); recognition + WIP policy |
 | `chart_of_accounts` | — | — | Yes | Code unique per tenant; optional bank fields |
-| `journal_entries` | companies (RESTRICT), projects (SET NULL) | — | Yes | Status-gated; self-ref `corrects_id` (SET NULL) for reversals |
+| `journal_entries` | companies (RESTRICT), ledgers (RESTRICT), projects (SET NULL) | — | Yes | Status-gated; `ledger_id` not null; self-ref `corrects_id` (SET NULL) for reversals |
 | `journal_entry_lines` | journal_entries (CASCADE), chart_of_accounts (RESTRICT) | CASCADE from entry | Yes | Polymorphic `related_table` / `related_id` |
-| `ledger_balances` | chart_of_accounts (RESTRICT) | — | **No** | Append-only; unique (account_id, as_of_date) |
-| `posting_queues` | journal_entries (CASCADE) | CASCADE from entry | **No** | Async posting status tracker |
+| `ledger_balances` | ledgers (RESTRICT), chart_of_accounts (RESTRICT) | — | **No** | Append-only; unique (ledger_id, account_id, as_of_date) |
+| `posting_queues` | journal_entries (CASCADE) | CASCADE from entry | **No** | Async posting status tracker; ledger carried via entry |
 | `category_account_map` | categories (RESTRICT), chart_of_accounts (RESTRICT) | — | Yes | Temporal validity (valid_from, valid_to) |
+| `posting_rules` | ledgers (RESTRICT) | — | Yes | Per-ledger rule set; null account role = emit no posting |
+| `fiscal_periods` | companies (RESTRICT), ledgers (RESTRICT) | — | Yes | Per-ledger period gating; unique (tenant_id, ledger_id, fiscal_year, period_number) |
 | `company_accounts` | companies (RESTRICT) ×2, chart_of_accounts (RESTRICT) | — | Yes | Unique (tenant_id, source_company_id, target_company_id) |
 | `company_transactions` | companies (RESTRICT) ×2, journal_entries (SET NULL) ×2 | — | Yes | Module IN (ar, ap, je) — controller-validated, no schema CHECK; elimination flag |
 | `internal_transfers` | chart_of_accounts (RESTRICT) ×2 | — | Yes | from_account_id ≠ to_account_id — controller-validated (HTTP 400), no schema CHECK |
@@ -33,7 +37,7 @@ Journal entries must balance before insert: `SUM(debits) = SUM(credits)` within 
 Posting is transactional (`db.tx()`):
 
 1. Validates entry status is `pending`
-2. For each line, updates `ledger_balances` via `INSERT ... ON CONFLICT (account_id, as_of_date) DO UPDATE SET balance = balance + amount`
+2. For each line, updates `ledger_balances` via `INSERT ... ON CONFLICT (ledger_id, account_id, as_of_date) DO UPDATE SET balance = balance + amount`
 3. Transitions entry status to `posted`
 4. Updates `posting_queues` record: status `posted`, sets `processed_at`
 
@@ -57,19 +61,28 @@ pending → posted
 - **posted**: Successfully posted; `processed_at` set
 - **failed**: Posting error; `error_message` recorded; retryable via `POST /retry`
 
+## Ledgers & Accounting Basis
+
+Each company keeps one ledger per accounting representation it must produce: `accrual` (the internal backbone — project costing and profitability require it), `cash`, and a shared `common` ledger. `company_accounting_config.book_basis` designates which is the authoritative book of record.
+
+- Accrual is always maintained. Cash is a parallel, posted, period-lockable book — not derived at report time.
+- Each `(company, ledger)` balances and locks independently. Cash and bank balances are identical across a company's ledgers; ledgers differ only by accrual-only accounts (A/R, A/P, WIP, inventory), which never appear in the `cash` ledger.
+- Entries identical in both bases (cash sales, direct cash expenses, intercompany cash transfers) post once to the `common` ledger. The accrual report reads `common` + `accrual`; the cash report reads `common` + `cash`. Reports select a basis by ledger, never by filtering account types.
+- Multi-GAAP reuses the same machinery (additional ledgers by `accounting_principle`); deferred.
+
 ## GL Posting Hooks
 
-The posting service creates journal entries automatically from other modules:
+For each business event the posting service evaluates the `posting_rules` of every ledger belonging to the event's company and posts the resolved — possibly empty — entry to each. A null account role is how the cash ledger records nothing for an invoice-issuance event.
 
-| Trigger | Source Type | Debit | Credit |
-|---------|------------|-------|--------|
-| AP invoice approved | `ap_invoice` | Expense / WIP | AP Liability |
-| AP payment created | `ap_payment` | AP Liability | Cash / Bank |
-| AR invoice sent | `ar_invoice` | AR Receivable | Revenue |
-| AR receipt created | `ar_receipt` | Cash / Bank | AR Receivable |
-| Actual cost approved | `actual_cost` | Expense / WIP | AP / Accrual |
+| Trigger | Source Type | Accrual ledger (DR → CR) | Cash ledger (DR → CR) |
+|---------|------------|--------------------------|------------------------|
+| AP invoice approved | `ap_invoice` | Expense/WIP → AP Liability | — (no entry) |
+| AP payment created | `ap_payment` | AP Liability → Cash/Bank | Expense → Cash/Bank |
+| AR invoice sent | `ar_invoice` | AR Receivable → Revenue | — (no entry) |
+| AR receipt created | `ar_receipt` | Cash/Bank → AR Receivable | Cash/Bank → Revenue |
+| Actual cost approved | `actual_cost` | Expense/WIP → AP/Accrual | Expense → Cash/Bank (at payment) |
 
-Each hook sets `source_type` and `source_id` on the journal entry for audit traceability.
+Each hook sets `source_type` and `source_id` on the journal entry for audit traceability. Cash-basis recognition relies on `payment_allocations` / `receipt_allocations` to attribute partial and split settlements to the invoices they settle.
 
 ## Intercompany Transactions
 
@@ -99,6 +112,9 @@ All accounting module routes are mounted under `/api/accounting/v1/`:
 
 | Endpoint | Entity | Custom |
 |----------|--------|--------|
+| `/api/accounting/v1/ledgers` | Ledgers | — |
+| `/api/accounting/v1/company-accounting-config` | Company Accounting Config | — |
+| `/api/accounting/v1/posting-rules` | Posting Rules | — |
 | `/api/accounting/v1/chart-of-accounts` | Chart of Accounts | — |
 | `/api/accounting/v1/journal-entries` | Journal Entries | `POST /post`, `POST /reverse` |
 | `/api/accounting/v1/journal-entry-lines` | Journal Entry Lines | — |

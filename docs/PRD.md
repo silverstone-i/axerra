@@ -10,40 +10,416 @@ Every H2 (`##`) and H3 (`###`) heading in this document carries one of three sco
 
 Status tags applied at the paragraph or bullet level (`[intended]`, `[implemented]`, `[superseded]`) supplement the section scope tag where needed.
 
+## Table of Contents
+
+- [Scope-tag Legend](#scope-tag-legend)
+- [Glossary](#glossary)
+- [1. Overview](#1-overview--in-scope)
+  - [1.1 Product Overview](#11-product-overview--in-scope)
+  - [1.2 Target Users](#12-target-users--in-scope)
+  - [1.3 Technology Stack](#13-technology-stack--in-scope)
+  - [1.4 Monorepo Structure](#14-monorepo-structure--in-scope)
+- [2. Architecture](#2-architecture--in-scope)
+  - [2.1 Multi-Tenant Model](#21-multi-tenant-model--in-scope)
+  - [2.2 pg-schemata Integration](#22-pg-schemata-integration--in-scope)
+    - [2.2.1 Core Capabilities](#221-core-capabilities)
+    - [2.2.2 Query Operators](#222-query-operators)
+    - [2.2.3 Model Definition Pattern](#223-model-definition-pattern)
+    - [2.2.4 Database Initialization](#224-database-initialization)
+    - [2.2.5 Planned Enhancements](#225-planned-enhancements)
+  - [2.3 Application Layout](#23-application-layout--in-scope)
+  - [2.4 Request Flow](#24-request-flow--in-scope)
+- [3. Module Reference](#3-module-reference--in-scope)
+  - [3.0 Module Taxonomy](#30-module-taxonomy--in-scope)
+    - [3.0.1 Core Modules](#301-core-modules)
+    - [3.0.2 Add-on Modules (loading rules)](#302-add-on-modules-loading-rules)
+  - [3.1 System — Auth, Tenant & RBAC](#31-system--auth-tenant--rbac--core)
+    - [3.1.1 Overview](#311-overview)
+    - [3.1.2 Data Tables](#312-data-tables)
+      - [3.1.2.1 Admin Schema Identity Tables](#3121-admin-schema-identity-tables)
+        - [3.1.2.1.1 `admin.portal_users`](#31211-adminportal_users)
+        - [3.1.2.1.2 `admin.portal_user_tenants`](#31212-adminportal_user_tenants)
+        - [3.1.2.1.3 `admin.tenants`](#31213-admintenants)
+        - [3.1.2.1.4 `admin.impersonation_logs`](#31214-adminimpersonation_logs)
+      - [3.1.2.2 RBAC Policy Tables](#3122-rbac-policy-tables)
+        - [3.1.2.2.1 `roles`](#31221-roles)
+        - [3.1.2.2.2 `policies`](#31222-policies)
+        - [3.1.2.2.3 `policy_catalog`](#31223-policy_catalog)
+      - [3.1.2.3 RBAC State and Field-Group Tables](#3123-rbac-state-and-field-group-tables)
+        - [3.1.2.3.1 `state_filters`](#31231-state_filters)
+        - [3.1.2.3.2 `field_group_definitions`](#31232-field_group_definitions)
+        - [3.1.2.3.3 `field_group_grants`](#31233-field_group_grants)
+      - [3.1.2.4 RBAC Membership Tables](#3124-rbac-membership-tables)
+        - [3.1.2.4.1 `project_members`](#31241-project_members)
+        - [3.1.2.4.2 `company_members`](#31242-company_members)
+      - [3.1.2.5 Approval Audit](#3125-approval-audit)
+        - [3.1.2.5.1 `approvals`](#31251-approvals)
+    - [3.1.3 API](#313-api)
+      - [3.1.3.1 Authentication Endpoints](#3131-authentication-endpoints)
+      - [3.1.3.2 Tenant Management Endpoints](#3132-tenant-management-endpoints)
+      - [3.1.3.3 RBAC / Policy Endpoints](#3133-rbac--policy-endpoints)
+      - [3.1.3.4 Approval Audit Endpoint](#3134-approval-audit-endpoint)
+    - [3.1.4 Business Rules](#314-business-rules)
+      - [3.1.4.1 Login Flow & Token Lifecycle](#3141-login-flow--token-lifecycle)
+      - [3.1.4.2 Mid-Session Policy Refresh](#3142-mid-session-policy-refresh)
+      - [3.1.4.3 Four-Layer RBAC Resolution](#3143-four-layer-rbac-resolution)
+      - [3.1.4.4 System Roles (incl. vendor_contacts, clients)](#3144-system-roles-incl-vendor_contacts-clients)
+      - [3.1.4.5 Tenant Numbering System](#3145-tenant-numbering-system)
+        - [3.1.4.5.1 Design principles](#31451-design-principles)
+        - [3.1.4.5.2 Data: `tenant_numbering_config`](#31452-data-tenant_numbering_config)
+        - [3.1.4.5.3 Data: `tenant_number_sequence_state`](#31453-data-tenant_number_sequence_state)
+        - [3.1.4.5.4 Allocation and display](#31454-allocation-and-display)
+        - [3.1.4.5.5 Recommended defaults](#31455-recommended-defaults)
+        - [3.1.4.5.6 Entity integration and backfill](#31456-entity-integration-and-backfill)
+      - [3.1.4.6 Impersonation](#3146-impersonation)
+      - [3.1.4.7 Tenant Archive, Restore, and Admin Reactivation](#3147-tenant-archive-restore-and-admin-reactivation)
+        - [3.1.4.7.1 Archive cascade](#31471-archive-cascade)
+        - [3.1.4.7.2 Restore cascade](#31472-restore-cascade)
+        - [3.1.4.7.3 Admin reactivation via `provision-admin`](#31473-admin-reactivation-via-provision-admin)
+        - [3.1.4.7.4 What `provision-admin` deliberately does **not** do](#31474-what-provision-admin-deliberately-does-not-do)
+      - [3.1.4.8 Tenant Approval Settings](#3148-tenant-approval-settings)
+        - [3.1.4.8.1 Data: `tenant_approval_config`](#31481-data-tenant_approval_config)
+  - [3.2 Core Entities](#32-core-entities--core)
+    - [3.2.1 Overview](#321-overview)
+    - [3.2.2 Data Tables](#322-data-tables)
+      - [3.2.2.1 Vendors & Vendor Contacts](#3221-vendors--vendor-contacts)
+        - [3.2.2.1.1 `vendors`](#32211-vendors)
+        - [3.2.2.1.2 `vendor_contacts`](#32212-vendor_contacts)
+      - [3.2.2.2 Payment Terms](#3222-payment-terms)
+        - [3.2.2.2.1 `payment_terms`](#32221-payment_terms)
+      - [3.2.2.3 Clients](#3223-clients)
+        - [3.2.2.3.1 `clients`](#32231-clients)
+      - [3.2.2.4 Employees](#3224-employees)
+        - [3.2.2.4.1 `employees`](#32241-employees)
+      - [3.2.2.5 Sources, Contacts, Addresses & Phones](#3225-sources-contacts-addresses--phones)
+        - [3.2.2.5.1 `sources`](#32251-sources)
+        - [3.2.2.5.2 `contacts`](#32252-contacts)
+        - [3.2.2.5.3 `addresses`](#32253-addresses)
+        - [3.2.2.5.4 `phone_numbers`](#32254-phone_numbers)
+        - [3.2.2.5.5 `tax_identifiers`](#32255-tax_identifiers)
+      - [3.2.2.6 Companies](#3226-companies)
+        - [3.2.2.6.1 `companies`](#32261-companies)
+    - [3.2.3 API](#323-api)
+    - [3.2.4 Business Rules](#324-business-rules)
+  - [3.3 Projects](#33-projects--core)
+    - [3.3.1 Overview](#331-overview)
+    - [3.3.2 Data Tables](#332-data-tables)
+      - [3.3.2.1 Projects](#3321-projects)
+        - [3.3.2.1.1 `projects`](#33211-projects)
+        - [3.3.2.1.2 `project_clients`](#33212-project_clients)
+      - [3.3.2.2 Units](#3322-units)
+        - [3.3.2.2.1 `units`](#33221-units)
+      - [3.3.2.3 Tasks & Task Groups](#3323-tasks--task-groups)
+        - [3.3.2.3.1 `task_groups`](#33231-task_groups)
+        - [3.3.2.3.2 `tasks_master`](#33232-tasks_master)
+        - [3.3.2.3.3 `tasks`](#33233-tasks)
+      - [3.3.2.4 Cost Items](#3324-cost-items)
+        - [3.3.2.4.1 `cost_items`](#33241-cost_items)
+      - [3.3.2.5 Change Orders](#3325-change-orders)
+        - [3.3.2.5.1 `change_orders`](#33251-change_orders)
+      - [3.3.2.6 Templates](#3326-templates)
+    - [3.3.3 API](#333-api)
+    - [3.3.4 Business Rules](#334-business-rules)
+  - [3.4 Activities & Cost Management](#34-activities--cost-management--core)
+    - [3.4.1 Overview](#341-overview)
+    - [3.4.2 Data Tables](#342-data-tables)
+      - [3.4.2.1 Categories & Activities](#3421-categories--activities)
+        - [3.4.2.1.1 `categories`](#34211-categories)
+        - [3.4.2.1.2 `activities`](#34212-activities)
+      - [3.4.2.2 Deliverables & Assignments](#3422-deliverables--assignments)
+        - [3.4.2.2.1 `deliverables`](#34221-deliverables)
+        - [3.4.2.2.2 `deliverable_assignments`](#34222-deliverable_assignments)
+      - [3.4.2.3 Budgets](#3423-budgets)
+        - [3.4.2.3.1 `budgets`](#34231-budgets)
+      - [3.4.2.4 Cost Lines](#3424-cost-lines)
+        - [3.4.2.4.1 `cost_lines`](#34241-cost_lines)
+      - [3.4.2.5 Actual Costs](#3425-actual-costs)
+        - [3.4.2.5.1 `actual_costs`](#34251-actual_costs)
+      - [3.4.2.6 Vendor Parts](#3426-vendor-parts)
+        - [3.4.2.6.1 `vendor_parts`](#34261-vendor_parts)
+    - [3.4.3 API](#343-api)
+    - [3.4.4 Business Rules](#344-business-rules)
+  - [3.5 Accounts Payable](#35-accounts-payable--core)
+    - [3.5.1 Overview](#351-overview)
+    - [3.5.2 Data Tables](#352-data-tables)
+      - [3.5.2.1 AP Invoices](#3521-ap-invoices)
+        - [3.5.2.1.1 `ap_invoices`](#35211-ap_invoices)
+      - [3.5.2.2 AP Invoice Lines](#3522-ap-invoice-lines)
+        - [3.5.2.2.1 `ap_invoice_lines`](#35221-ap_invoice_lines)
+      - [3.5.2.3 Payments](#3523-payments)
+        - [3.5.2.3.1 `payments`](#35231-payments)
+        - [3.5.2.3.2 `payment_allocations`](#35232-payment_allocations)
+      - [3.5.2.4 Credit Memos](#3524-credit-memos)
+        - [3.5.2.4.1 `ap_credit_memos`](#35241-ap_credit_memos)
+    - [3.5.3 API](#353-api)
+    - [3.5.4 Business Rules](#354-business-rules)
+  - [3.6 Accounts Receivable](#36-accounts-receivable--core)
+    - [3.6.1 Overview](#361-overview)
+    - [3.6.2 Data Tables](#362-data-tables)
+      - [3.6.2.1 AR Invoices](#3621-ar-invoices)
+        - [3.6.2.1.1 `ar_invoices`](#36211-ar_invoices)
+      - [3.6.2.2 AR Invoice Lines](#3622-ar-invoice-lines)
+        - [3.6.2.2.1 `ar_invoice_lines`](#36221-ar_invoice_lines)
+      - [3.6.2.3 Receipts](#3623-receipts)
+        - [3.6.2.3.1 `receipts`](#36231-receipts)
+        - [3.6.2.3.2 `receipt_allocations`](#36232-receipt_allocations)
+      - [3.6.2.4 Billing Agreements](#3624-billing-agreements)
+        - [3.6.2.4.1 `billing_agreements`](#36241-billing_agreements)
+        - [3.6.2.4.2 `billing_agreement_milestones`](#36242-billing_agreement_milestones)
+    - [3.6.3 API](#363-api)
+    - [3.6.4 Business Rules](#364-business-rules)
+  - [3.7 Accounting & General Ledger](#37-accounting--general-ledger--core)
+    - [3.7.1 Overview](#371-overview)
+    - [3.7.2 Data Tables](#372-data-tables)
+      - [3.7.2.1 Ledgers](#3721-ledgers)
+        - [3.7.2.1.1 `ledgers`](#37211-ledgers)
+      - [3.7.2.2 Accounting Basis](#3722-accounting-basis)
+        - [3.7.2.2.1 `company_accounting_config`](#37221-company_accounting_config)
+      - [3.7.2.3 Chart of Accounts](#3723-chart-of-accounts)
+        - [3.7.2.3.1 `chart_of_accounts`](#37231-chart_of_accounts)
+      - [3.7.2.4 Journal Entries & Lines](#3724-journal-entries--lines)
+        - [3.7.2.4.1 `journal_entries`](#37241-journal_entries)
+        - [3.7.2.4.2 `journal_entry_lines`](#37242-journal_entry_lines)
+      - [3.7.2.5 Ledger Balances](#3725-ledger-balances)
+        - [3.7.2.5.1 `ledger_balances`](#37251-ledger_balances)
+      - [3.7.2.6 Posting Queues](#3726-posting-queues)
+        - [3.7.2.6.1 `posting_queues`](#37261-posting_queues)
+      - [3.7.2.7 Category-Account Map](#3727-category-account-map)
+        - [3.7.2.7.1 `category_account_map`](#37271-category_account_map)
+      - [3.7.2.8 Posting Rules](#3728-posting-rules)
+        - [3.7.2.8.1 `posting_rules`](#37281-posting_rules)
+      - [3.7.2.9 Intercompany](#3729-intercompany)
+        - [3.7.2.9.1 `company_accounts`](#37291-company_accounts)
+        - [3.7.2.9.2 `company_transactions`](#37292-company_transactions)
+        - [3.7.2.9.3 `internal_transfers`](#37293-internal_transfers)
+      - [3.7.2.10 Fiscal Periods](#37210-fiscal-periods)
+        - [3.7.2.10.1 `fiscal_periods`](#372101-fiscal_periods)
+    - [3.7.3 API](#373-api)
+    - [3.7.4 Business Rules](#374-business-rules)
+  - [3.8 Cashflow & Profitability](#38-cashflow--profitability--core)
+    - [3.8.1 Overview](#381-overview)
+    - [3.8.2 Data Tables & Views](#382-data-tables--views)
+      - [3.8.2.1 Data linkage model](#3821-data-linkage-model)
+      - [3.8.2.2 Metrics](#3822-metrics)
+      - [3.8.2.3 SQL views](#3823-sql-views)
+    - [3.8.3 API](#383-api)
+    - [3.8.4 Business Rules](#384-business-rules)
+  - [3.9 Reporting & Views](#39-reporting--views--core)
+    - [3.9.1 Overview](#391-overview)
+    - [3.9.2 Data Tables & Views](#392-data-tables--views)
+      - [3.9.2.1 Core export views](#3921-core-export-views)
+      - [3.9.2.2 Financial views](#3922-financial-views)
+      - [3.9.2.3 Budget vs. actual metrics](#3923-budget-vs-actual-metrics)
+    - [3.9.3 API](#393-api)
+    - [3.9.4 Business Rules](#394-business-rules)
+  - [3.10 Shared Tables](#310-shared-tables--core)
+    - [3.10.1 Emails](#3101-emails)
+      - [3.10.1.1 `emails`](#31011-emails)
+    - [3.10.2 Tenant Preferences](#3102-tenant-preferences)
+      - [3.10.2.1 `tenant_preferences`](#31021-tenant_preferences)
+    - [3.10.3 Countries](#3103-countries)
+      - [3.10.3.1 `admin.countries`](#31031-admincountries)
+    - [3.10.4 Match Review Logs](#3104-match-review-logs)
+      - [3.10.4.1 `match_review_logs`](#31041-match_review_logs)
+- [4. Add-on Modules](#4-add-on-modules--in-scope)
+  - [4.1 Catalog](#41-catalog--add-on)
+    - [4.1.1 Overview](#411-overview)
+    - [4.1.2 Data Tables](#412-data-tables)
+      - [4.1.2.1 Catalog Items](#4121-catalog-items)
+        - [4.1.2.1.1 `catalog_items`](#41211-catalog_items)
+      - [4.1.2.2 BOM Components](#4122-bom-components)
+        - [4.1.2.2.1 `bom_components`](#41221-bom_components)
+      - [4.1.2.3 Vendor SKUs](#4123-vendor-skus)
+        - [4.1.2.3.1 `vendor_skus`](#41231-vendor_skus)
+      - [4.1.2.4 Vendor Pricing](#4124-vendor-pricing)
+        - [4.1.2.4.1 `vendor_pricing`](#41241-vendor_pricing)
+    - [4.1.3 API](#413-api)
+    - [4.1.4 Business Rules](#414-business-rules)
+  - [4.2 Scheduling](#42-scheduling--add-on-deferred)
+    - [4.2.1 Overview](#421-overview)
+    - [4.2.2 Data Tables](#422-data-tables)
+    - [4.2.3 API](#423-api)
+    - [4.2.4 Business Rules](#424-business-rules)
+  - [4.3 Construction](#43-construction--add-on-deferred)
+    - [4.3.1 Overview](#431-overview)
+    - [4.3.2 Data Tables](#432-data-tables)
+    - [4.3.3 API](#433-api)
+    - [4.3.4 Business Rules](#434-business-rules)
+  - [4.4 Future Add-ons](#44-future-add-ons--add-on-deferred)
+- [5. Planned Integrations](#5-planned-integrations--in-scope)
+  - [5.1 Scope and order](#51-scope-and-order)
+  - [5.2 Architectural fit](#52-architectural-fit)
+  - [5.3 Vendor selection](#53-vendor-selection)
+- [6. Demo Tenants](#6-demo-tenants--in-scope)
+  - [6.1 Meridian Group (MG) — Consulting Use Case](#61-meridian-group-mg--consulting-use-case)
+    - [6.1.1 Profile](#611-profile)
+    - [6.1.2 Active Modules](#612-active-modules)
+    - [6.1.3 Data Requirements](#613-data-requirements)
+    - [6.1.4 Key Workflows](#614-key-workflows)
+    - [6.1.5 Seed Script Reference](#615-seed-script-reference)
+  - [6.2 Sterling Ridge Homes (SRH) — Construction Use Case](#62-sterling-ridge-homes-srh--construction-use-case)
+    - [6.2.1 Profile](#621-profile)
+    - [6.2.2 Active Modules](#622-active-modules)
+    - [6.2.3 Data Requirements](#623-data-requirements)
+    - [6.2.4 Key Workflows](#624-key-workflows)
+    - [6.2.5 Seed Script Reference](#625-seed-script-reference)
+- [7. Standard API Patterns](#7-standard-api-patterns--in-scope)
+  - [7.1 CRUD Operations](#71-crud-operations--in-scope)
+  - [7.2 Pagination](#72-pagination--in-scope)
+  - [7.3 Audit Fields](#73-audit-fields--in-scope)
+  - [7.4 Soft Deletes](#74-soft-deletes--in-scope)
+  - [7.5 Validation](#75-validation--in-scope)
+  - [7.6 Excel Import / Export](#76-excel-import--export--in-scope)
+    - [7.6.1 Backend](#761-backend)
+    - [7.6.2 Frontend](#762-frontend)
+    - [7.6.3 Pages with Import / Export](#763-pages-with-import--export)
+- [8. Database Design](#8-database-design--in-scope)
+  - [8.1 Common Columns](#81-common-columns--in-scope)
+  - [8.2 Naming Conventions](#82-naming-conventions--in-scope)
+  - [8.3 Generated Columns](#83-generated-columns--in-scope)
+  - [8.4 Schema Management & Migrations](#84-schema-management--migrations--in-scope)
+- [9. UI Components & Theming](#9-ui-components--theming--in-scope)
+  - [9.1 Theme System](#91-theme-system--in-scope)
+    - [9.1.1 Component Override Strategy](#911-component-override-strategy)
+    - [9.1.2 Design Tokens](#912-design-tokens)
+    - [9.1.3 Theme Overrides Reference](#913-theme-overrides-reference)
+  - [9.2 Navigation System](#92-navigation-system--in-scope)
+  - [9.3 Module Bar](#93-module-bar--in-scope)
+  - [9.4 Client Dependencies](#94-client-dependencies--in-scope)
+  - [9.5 Reusable Component Patterns](#95-reusable-component-patterns--in-scope)
+- [10. Navigation Structure](#10-navigation-structure--in-scope)
+- [11. Environment Configuration](#11-environment-configuration--in-scope)
+- [12. Testing Strategy](#12-testing-strategy--in-scope)
+- [13. Coding Standards & Best Practices](#13-coding-standards--best-practices--in-scope)
+  - [13.1 Naming Conventions](#131-naming-conventions--in-scope)
+  - [13.1.1 Single Canonical Names](#1311-single-canonical-names--in-scope)
+  - [13.2 File & Module Structure](#132-file--module-structure--in-scope)
+  - [13.3 Copyright & File Headers](#133-copyright--file-headers--in-scope)
+  - [13.4 Code Reuse](#134-code-reuse--in-scope)
+  - [13.5 Classes vs Functions](#135-classes-vs-functions--in-scope)
+  - [13.6 Error Handling](#136-error-handling--in-scope)
+  - [13.7 Import & Export Style](#137-import--export-style--in-scope)
+  - [13.8 Comments & Documentation](#138-comments--documentation--in-scope)
+  - [13.9 Async & Concurrency](#139-async--concurrency--in-scope)
+  - [13.10 Security Practices](#1310-security-practices--in-scope)
+- [14. Developer Tooling](#14-developer-tooling--in-scope)
+  - [14.1 ESLint](#141-eslint--in-scope)
+  - [14.2 Prettier](#142-prettier--in-scope)
+  - [14.3 EditorConfig](#143-editorconfig--in-scope)
+  - [14.4 Husky & Git Hooks](#144-husky--git-hooks--in-scope)
+  - [14.5 VSCode Workspace](#145-vscode-workspace--in-scope)
+  - [14.6 Vitest](#146-vitest--in-scope)
+  - [14.7 Vite](#147-vite--in-scope)
+  - [14.8 npm Workspaces](#148-npm-workspaces--in-scope)
+  - [14.9 Logging](#149-logging--in-scope)
+  - [14.10 Environment Management](#1410-environment-management--in-scope)
+- [15. Project Setup Guide](#15-project-setup-guide--in-scope)
+  - [15.1 Prerequisites](#151-prerequisites--in-scope)
+  - [15.2 GitHub Repository Setup](#152-github-repository-setup--in-scope)
+    - [Create the repository](#create-the-repository)
+    - [Branch strategy](#branch-strategy)
+    - [Protect the main branch](#protect-the-main-branch)
+  - [15.3 Clone & Install](#153-clone--install--in-scope)
+  - [15.4 VSCode Configuration](#154-vscode-configuration--in-scope)
+    - [Open the workspace](#open-the-workspace)
+    - [Install required extensions](#install-required-extensions)
+    - [Suggested VSCode user settings](#suggested-vscode-user-settings)
+  - [15.5 Environment Setup](#155-environment-setup--in-scope)
+  - [15.6 Database Setup](#156-database-setup--in-scope)
+  - [15.7 Start Development](#157-start-development--in-scope)
+  - [15.8 Run Tests](#158-run-tests--in-scope)
+  - [15.9 Daily Workflow](#159-daily-workflow--in-scope)
+  - [15.10 Husky Commit Rules](#1510-husky-commit-rules--in-scope)
+  - [15.11 Recommended `.nvmrc`](#1511-recommended-nvmrc--in-scope)
+  - [15.12 `.env.example` Reference](#1512-envexample-reference--in-scope)
+- [16. Architecture Decision Records](#16-architecture-decision-records--in-scope)
+  - [16.1 Purpose](#161-purpose--in-scope)
+  - [16.2 Location](#162-location--in-scope)
+  - [16.3 Template](#163-template--in-scope)
+  - [16.4 When to Write an ADR](#164-when-to-write-an-adr--in-scope)
+  - [16.5 Initial ADRs](#165-initial-adrs--in-scope)
+  - [16.6 Referencing ADRs](#166-referencing-adrs--in-scope)
+- [17. Scripts](#17-scripts--in-scope)
+  - [17.1 Conventions](#171-conventions--in-scope)
+  - [17.2 Migration Scripts](#172-migration-scripts--in-scope)
+    - [17.2.1 `setupAdmin.js`](#1721-setupadminjs)
+    - [17.2.2 `runMigrate.js`](#1722-runmigratejs)
+    - [17.2.3 `migrateTenants.js`](#1723-migratetenantsjs)
+  - [17.3 Bootstrap & Seed Scripts](#173-bootstrap--seed-scripts--in-scope)
+    - [17.3.1 `seed.js`](#1731-seedjs)
+    - [17.3.2 `seedRbac.js`](#1732-seedrbacjs)
+    - [17.3.3 `seedDemoMG.js` *(planned)*](#1733-seeddemomgjs-planned)
+    - [17.3.4 `seedDemoSRH.js` *(planned)*](#1734-seeddemosrhjs-planned)
+  - [17.4 Debugging & Diagnostic Scripts](#174-debugging--diagnostic-scripts--in-scope)
+  - [17.5 CLI / Shell Utilities](#175-cli--shell-utilities--in-scope)
+    - [17.5.1 `db/provisionTenantCli.js`](#1751-dbprovisiontenantclijs)
+    - [17.5.2 `db/reconcilePolicyCatalog.js`](#1752-dbreconcilepolicycatalogjs)
+
+## Glossary
+
+- **ADR** — Architecture Decision Record.
+- **AGPL** — GNU Affero General Public License.
+- **AP** — Accounts Payable.
+- **AR** — Accounts Receivable.
+- **API** — Application Programming Interface.
+- **BOM** — Bill of Materials.
+- **CI** — Continuous Integration.
+- **CLI** — Command-Line Interface.
+- **CRUD** — Create, Read, Update, Delete.
+- **CSS** — Cascading Style Sheets.
+- **DDL** — Data Definition Language.
+- **DTO** — Data Transfer Object.
+- **ERP** — Enterprise Resource Planning.
+- **FK** — Foreign Key.
+- **GL** — General Ledger.
+- **HMR** — Hot Module Replacement.
+- **HTTP** — Hypertext Transfer Protocol.
+- **JSON** — JavaScript Object Notation.
+- **JWT** — JSON Web Token.
+- **LRU** — Least Recently Used (cache eviction policy).
+- **MG** — Meridian Group (demo tenant).
+- **MUI** — Material UI (React component library).
+- **ORM** — Object-Relational Mapper.
+- **PG** — PostgreSQL (also used as shorthand for `pg-schemata`).
+- **PII** — Personally Identifiable Information.
+- **PK** — Primary Key.
+- **PR** — Pull Request.
+- **PRD** — Product Requirements Document.
+- **RBAC** — Role-Based Access Control.
+- **REST** — Representational State Transfer.
+- **SKU** — Stock Keeping Unit.
+- **SOW** — Statement of Work.
+- **SPA** — Single-Page Application.
+- **SQL** — Structured Query Language.
+- **SRH** — Sterling Ridge Homes (demo tenant).
+- **SSN** — Social Security Number.
+- **TTL** — Time To Live.
+- **UI** — User Interface.
+- **URL** — Uniform Resource Locator.
+- **UUID** — Universally Unique Identifier.
+- **VAT** — Value Added Tax.
+- **XSS** — Cross-Site Scripting.
+- **XLSX** — Office Open XML Spreadsheet file format.
+
 ## 1. Overview  [in-scope]
 
-### 1.1 Product Positioning  [in-scope]
+### 1.1 Product Overview  [in-scope]
 
-AXERRA is a **horizontal, project-native, multi-entity ERP**. The base ERP core — tenants and legal entities, master data, projects, activities, BOM, AP/AR, general-ledger accounting, cashflow and profitability — is industry-agnostic and ships as Phase 1. Industry-specific workflows are delivered as **add-on modules** layered on this core. Construction (property development, homebuilding, general contracting) is the reference vertical for **Phase 2** and is the first industry module to ship; additional verticals follow the same add-on pattern.
+AXERRA is a multi-tenant, project-native Enterprise Resource Planning (ERP) platform with double-entry accounting. It is built for organizations that run their business through projects: consulting firms, property developers, homebuilders, general contractors, and similar multi-entity operators. One system covers budgets, cost tracking, vendor and client management, Accounts Payable (AP), Accounts Receivable (AR), General Ledger (GL), intercompany operations, and project-level cashflow and profitability. The base ERP is industry-agnostic. Industry-specific workflows ship as opt-in add-on modules. AXERRA runs on schema-per-tenant PostgreSQL isolation via `pg-schemata` 1.3.0. Axerra owns `pg-schemata` and extends it as product needs evolve.
 
-This framing supersedes earlier wording that described AXERRA as a "construction ERP." Construction is a reference workflow, not the product definition.
+### 1.2 Target Users  [in-scope]
 
-- **Phase 1 — Base ERP core:** multi-tenant infrastructure; RBAC; master data (vendors, clients, employees, contacts, companies); projects, activities, cost lines; BOM; AP/AR; accounting and GL; cashflow and profitability; reporting and views.
-- **Phase 2 — Construction reference module:** industry-specific workflows that extend the base core (e.g., construction-specific cost coding, unit/lot management nuance, draw schedules).
-- **Out-of-scope for both phases:** industry-vertical workflows beyond construction.
+AXERRA distinguishes two kinds of role. **System roles** are built into the platform and their meaning is fixed. **Convenience roles** are created per tenant and named to match local job titles (e.g., Controller, Project Manager, AP Clerk). System roles carry hard-coded scope rules. Convenience roles inherit from policies the tenant chooses.
 
-This positioning is referenced from §13 and from each module section's intro.
+| User type | Kind | Description |
+| --- | --- | --- |
+| Super Admin | System | Platform operator. Full cross-tenant access, impersonation, and tenant lifecycle management. |
+| Platform Support | System | Cross-tenant access and impersonation for support tasks. No access to Axerra financial data. |
+| Tenant Staff | Convenience | Internal users of a tenant. Granted one or more tenant-defined roles (e.g., Administrator, Controller, Project Manager, AP/AR Clerk, BOM Manager, Financial Analyst). |
+| Vendor Contact | System | Portal user mapped to a vendor record. `self` scope — sees only their own vendor's data (invoices, payments, POs). |
+| Client | System | Portal user mapped to a client record. `self` scope — sees only their own invoices, statements, and receipts. |
 
-### 1.2 Product Vision  [in-scope]
-
-AXERRA is a **multi-tenant, modular project-native ERP** with double-entry accounting, designed to manage projects, budgets, cost tracking, vendor relationships, accounts payable/receivable, general ledger accounting, intercompany operations, and **project-level cashflow and profitability analysis** — all within a schema-isolated multi-tenant architecture. Construction is the Phase 2 reference vertical (see §1.1).
-
-> **Build Approach:** This application is built from scratch (greenfield). All server-side data access, schema management, migrations, and CRUD operations leverage **pg-schemata 1.3.0** — an owned, extensible PostgreSQL ORM layer. Since Axerra owns the pg-schemata repository, features can be added and bugs fixed as needed to support AXERRA requirements.
-
-### 1.3 Target Users  [in-scope]
-
-| Persona                             | Description                                                                                                  |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| **Axerra Super User**         | Platform operator with full access to Axerra data, cross-tenant access, impersonation, and tenant management |
-| **Axerra Support**            | Cross-tenant access, impersonation, and tenant management. No access to Axerra financial data                |
-| **Administrator**             | Full access within their tenant's data. Same role meaning in every schema                                    |
-| **Project Manager**           | Creates/manages projects, units, budgets, cost lines, change orders, and actual costs                        |
-| **Accountant / Controller**   | Manages chart of accounts, journal entries, AP/AR invoices, and intercompany transactions                    |
-| **AP/AR Clerk**               | Processes vendor invoices, payments, client invoices, and receipts                                           |
-| **Procurement / BOM Manager** | Manages catalog SKUs, vendor SKU matching, and vendor pricing                                                |
-| **CFO / Financial Analyst**   | Reviews cashflow dashboards, project profitability reports, and margin analysis                              |
-
-### 1.4 Technology Stack  [in-scope]
+### 1.3 Technology Stack  [in-scope]
 
 | Layer                      | Technology                                                                                                          |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------- |
@@ -57,7 +433,7 @@ AXERRA is a **multi-tenant, modular project-native ERP** with double-entry accou
 | **Testing**          | Vitest (unit, integration, contract, RBAC suites)                                                                   |
 | **Tooling**          | npm workspaces monorepo, ESLint 9 flat config (root-level, covers all workspaces), Prettier, Husky pre-commit hooks |
 
-### 1.5 Monorepo Structure  [in-scope]
+### 1.4 Monorepo Structure  [in-scope]
 
 ```
 axerra/
@@ -79,15 +455,15 @@ AXERRA uses **PostgreSQL schema-per-tenant** isolation powered by pg-schemata:
 
 - **`admin` schema**: System-wide tables (`tenants`, `portal_users`, `portal_user_tenants`, `match_review_logs`, `impersonation_logs`)
 - **Tenant schemas** (e.g., `acme`, `axerra`): Each customer gets a dedicated PostgreSQL schema containing all business tables (vendors, projects, accounting, etc.)
-- **Cross-tenant access source of truth:** the `admin.portal_user_tenants` binding table — not `portal_users.tenant_id` alone. A portal user has one row per tenant they can access; the oldest active binding is treated as the **home tenant** (used at login). `portal_users.tenant_id` is retained as a convenience pointer to the home tenant but is **not** the authoritative cross-tenant list.
-- Tenant resolution is performed per-request: at login the home tenant is resolved from `portal_user_tenants`; subsequent requests may target any active binding via the `x-tenant-code` header (subject to RBAC).
-- All database access is schema-aware via pg-schemata's `setSchemaName()` — models bind queries to the correct tenant schema dynamically.
+- **Cross-tenant access source of truth:** the `admin.portal_user_tenants` binding table. A portal user has one row per tenant they can access. The oldest active binding is the **home tenant** (used at login). `portal_users.tenant_id` is a convenience pointer to the home tenant. It is **not** the authoritative cross-tenant list.
+- Tenant resolution runs per request. At login the home tenant resolves from `portal_user_tenants`. Subsequent requests may target any active binding via the `x-tenant-code` header (subject to RBAC).
+- All database access is schema-aware via pg-schemata's `setSchemaName()`. Models bind queries to the correct tenant schema dynamically.
 
-### 2.2 pg-schemata Integration (Owned Dependency)  [in-scope]
+### 2.2 pg-schemata Integration  [in-scope]
 
 AXERRA is built entirely on **pg-schemata 1.3.0**. Since Axerra owns the pg-schemata repository, the library can be extended with new features or patched as AXERRA requirements evolve.
 
-#### 2.2.1 Core Capabilities Used
+#### 2.2.1 Core Capabilities
 
 | pg-schemata Feature           | AXERRA Usage                                                                                                                        |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
@@ -102,7 +478,7 @@ AXERRA is built entirely on **pg-schemata 1.3.0**. Since Axerra owns the pg-sche
 | **Excel Import/Export** | `importFromSpreadsheet()` / `exportToSpreadsheet()` built into TableModel                                                       |
 | **Error Classes**       | `DatabaseError` (PG error codes: 23505 unique, 23503 FK) and `SchemaDefinitionError`                                            |
 
-#### 2.2.2 WHERE Clause Query Operators
+#### 2.2.2 Query Operators
 
 All models inherit pg-schemata's rich query builder:
 
@@ -180,7 +556,7 @@ const rawDb = DB.getInstance();
 const db = createCallDb(rawDb);
 ```
 
-#### 2.2.5 Potential pg-schemata Enhancements (Owned Repo)
+#### 2.2.5 Planned Enhancements
 
 Features that may need to be added to pg-schemata to support AXERRA:
 
@@ -232,1640 +608,2074 @@ POST / PUT / DELETE / PATCH mutation routes (createRouter prepends addAuditField
   -> addAuditFields (auto-prepended) -> [requireRootTenant (admin routes)] -> [withMeta (user-supplied)] -> [moduleEntitlement (auto-appended)] -> [rbac('full') (auto on /import-xls; opt-in elsewhere)] -> Controller -> pg-schemata Model
 ```
 
-> **Note:** `createRouter` automatically prepends `addAuditFields` on mutation routes (POST, PUT, DELETE, PATCH) and appends `moduleEntitlement` on all routes — with two exceptions: `/ping` has no middleware, and `POST /export-xls` uses read-level middleware (no `addAuditFields`). The `withMeta` middleware is passed by each router via per-method middleware arrays. `rbac()` is auto-applied on `/import-xls` (`rbac('full')`) and `/export-xls` (`rbac('view')`) routes with action overrides (`setImportAction` / `setExportAction`). For other routes, `rbac()` must be explicitly added (e.g. `portalUsersRouter` per-method arrays, `employees/:id/reset-password`, `ar-invoices/approve`).
+**`createRouter` middleware rules.**
 
-> **Middleware reference (as of 2026-05-21, gaps 2.10 / 2.11 / 2.21):**
->
-> - `apps/server/src/middleware/requireRootTenant.js` — gates admin / tenant-management routes. Returns 403 unless `req.user.home_tenant?.toLowerCase()` equals `process.env.ROOT_TENANT_CODE` (default `axerra`, also lowercased). Comparison is case-insensitive.
-> - `apps/server/src/middleware/auditContext.js` — wraps each request in AsyncLocalStorage carrying the audit identity for model-layer hooks (paired with `lib/requestContext.js` and `lib/registerAuditResolver.js` — see §4.3).
-> - `apps/server/src/middleware/errorHandler.js` — unified Express 5 error handler; maps `SchemaDefinitionError` / `type === 'validation'` → 400, pg-schemata `DatabaseError` 23505 (unique) → 409, 23503 (FK) → 422, application errors carrying `err.status` are returned with that status, all other unhandled errors → 500 with structured logging (and `err.message` in non-prod).
-> - `apps/server/src/services/{permCacheInvalidator,rbacQueryContext,permissionLoader}.js` — Redis cache invalidator (busts `perm:{userId}:{tenantCode}` on role/policy mutations), RBAC query context builder, and the permission loader that reads canon from DB on cache miss. See §3.1.2 and `rules/rbac.md`.
+1. `addAuditFields` is auto-prepended on mutation routes (POST, PUT, DELETE, PATCH).
+2. `moduleEntitlement` is auto-appended on every route. Two exceptions: `/ping` has no middleware, and `POST /export-xls` uses read-level middleware (no `addAuditFields`).
+3. `withMeta` is passed by each router via per-method middleware arrays.
+4. `rbac()` is auto-applied on `/import-xls` (as `rbac('full')`) and `/export-xls` (as `rbac('view')`), with action overrides via `setImportAction` / `setExportAction`.
+5. For other routes, `rbac()` must be added explicitly (e.g., `portalUsersRouter` per-method arrays, `employees/:id/reset-password`, `ar-invoices/approve`).
 
----
+**Middleware reference.**
 
-## 3. Feature Modules  [in-scope]
+- `apps/server/src/middleware/requireRootTenant.js` — gates admin and tenant-management routes. Returns 403 unless `req.user.home_tenant?.toLowerCase()` equals `process.env.ROOT_TENANT_CODE` (default `axerra`). Comparison is case-insensitive.
+- `apps/server/src/middleware/auditContext.js` — wraps each request in AsyncLocalStorage carrying the audit identity for model-layer hooks. Paired with `lib/requestContext.js` and `lib/registerAuditResolver.js` (see §7.3).
+- `apps/server/src/middleware/errorHandler.js` — unified Express 5 error handler. It maps `SchemaDefinitionError` and `type === 'validation'` → 400, pg-schemata `DatabaseError` 23505 (unique) → 409, 23503 (FK) → 422, application errors carrying `err.status` → that status, and all other unhandled errors → 500 with structured logging (and `err.message` in non-prod).
+- `apps/server/src/services/{permCacheInvalidator,rbacQueryContext,permissionLoader}.js` — Redis cache invalidator (busts `perm:{userId}:{tenantCode}` on role/policy mutations), RBAC query context builder, and the permission loader. The loader reads the canon from the database on cache miss. See §3.1.2 and `rules/rbac.md`.
 
-> Modules below are part of the Phase 1 base ERP core unless otherwise noted (see §1.1). Industry-vertical workflows — including construction — are layered as add-on modules in Phase 2 and beyond.
+## 3. Module Reference  [in-scope]
 
-### 3.1 Authentication & Authorization (Core)  [in-scope]
+### 3.0 Module Taxonomy  [in-scope]
 
-#### 3.1.1 Authentication
+AXERRA splits functionality into two kinds of module: **core** and **add-on**. Core modules ship with every instance. Add-on modules are opt-in per tenant. Every module is wired through `apps/server/src/db/moduleRegistry.js` and gated by the `moduleEntitlement` middleware (see [ADR-0018](./decisions/0018-module-entitlement-middleware.md) and [ADR-0028](./decisions/0028-vertical-module-architecture.md)).
 
-**Login Flow:** (Phase 3 — current as of 2026-05-20)
+#### 3.0.1 Core Modules
 
-1. User submits email/password on `LoginPage`
-2. Client calls `POST /api/auth/login` via `authApi.login()`
-3. Server validates via Passport Local Strategy (bcrypt hash comparison against `admin.portal_users`)
-4. Server resolves the user's **home tenant** via `admin.portal_user_tenants` binding (oldest active binding). Login is refused with *"Tenant is inactive."* if the home tenant is not active (see `passportService.js:54`; resolves gap 1.14, 2026-05-21).
-5. Server loads RBAC permissions for the home tenant and **gates token issuance** on the result. A user with no usable permissions (no entity, no roles, or roles that resolve to no policies) is refused with 403 — credentials were valid but the account is unusable.
-6. Server computes `ph` (permissions hash) from the resolved permission canon, signs `auth_token` (15min) and `refresh_token` (7-day) JWTs, and sets them as httpOnly cookies. The permission canon is primed into the Redis cache so the user's first authenticated request does not re-load.
-7. Client calls `GET /api/auth/me` to hydrate user context.
-8. `AuthContext` stores user state; `LayoutShell` guards authenticated routes.
+Core modules load on every tenant. No configuration is required. They are:
 
-**Endpoints:**
+| Module | Description | PRD § |
+| --- | --- | --- |
+| `system` | Auth, tenant management, RBAC. | §3.1 |
+| `core` | Vendors, vendor contacts, clients, employees, companies, contacts, addresses, payment terms. | §3.2 |
+| `projects` | Projects, units, tasks, cost items, change orders, templates. | §3.3 |
+| `activities` | Categories, activities, deliverables, budgets, cost lines, actual costs, vendor parts. | §3.4 |
+| `ap` | Accounts Payable — invoices, payments, credit memos. | §3.5 |
+| `ar` | Accounts Receivable — invoices, receipts. | §3.6 |
+| `accounting` | Chart of Accounts, Journal Entries, Ledger Balances, Posting Queues, Intercompany. | §3.7 |
+| `cashflow` | Cashflow forecasts and project profitability views. | §3.8 |
+| `reports` | Reporting and analytics. | §3.9 |
+| `shared` | Cross-module tables — emails, tenant preferences, countries, match review logs. | §3.10 |
 
-| Method   | Path                          | Purpose                                                                   |
-| -------- | ----------------------------- | ------------------------------------------------------------------------- |
-| `POST` | `/api/auth/login`           | Authenticate with email/password                                          |
-| `POST` | `/api/auth/refresh`         | Rotate tokens (full rotation)                                             |
-| `POST` | `/api/auth/logout`          | Clear auth cookies                                                        |
-| `POST` | `/api/auth/change-password` | Change password (validates current password, enforces strength rules)     |
-| `GET`  | `/api/auth/me`              | Get current user context, tenant, roles, permissions, impersonation state |
-| `GET`  | `/api/auth/check`           | Lightweight session validation                                            |
+#### 3.0.2 Add-on Modules (loading rules)
 
-**Token Claims:**
+Add-on modules load only if the tenant lists them in `tenants.allowed_modules`. The full set of available add-ons is:
 
-- `sub`: User UUID
-- `ph`: Permissions hash for cache validation — computed at login from the user's loaded permission canon (Phase 3, live as of commit `1ac6a21`)
-- `iss`: Issuer (`'axerra-serv'`)
-- `aud`: Audience (`'axerra-serv-api'`)
+| Module | Kind | Description | PRD § |
+| --- | --- | --- | --- |
+| `catalog` | capability | Master item catalog, Bill of Materials, vendor SKU matching, vendor pricing. | §4.1 |
+| `scheduling` | capability | Resource, crew, and milestone scheduling. | §4.2 |
+| `construction` | vertical | Subdivision sales, closing statements, draw schedules, lien-waiver tracking. | §4.3 |
+| `timesheets` | capability | Labour capture by employee, project, and activity. | §4.4 (future) |
+| `procurement` | capability | Purchase orders, vendor RFQs, expediting. | §4.4 (future) |
+| `inventory` | capability | On-hand stock, lot/serial tracking, project issues. | §4.4 (future) |
+| `manufacturing` | vertical | Production work orders, BOM-driven production. | §4.4 (future) |
 
-> **Note:** Authentication is against `admin.portal_users` which contains only identity/auth fields (`id`, `tenant_id`, `entity_type`, `entity_id`, `email`, `password_hash`, `status`). Tenant context (`tenant_code`, `schema_name`) and roles are resolved at request time by the `authRedis` middleware via HTTP headers, Redis cache, and database lookup — they are NOT embedded in the JWT. Roles are read from the entity record's `roles` text array (resolved via `entity_type` + `entity_id`), not from a column on `portal_users`.
+**Loading rules.** Three rules govern add-on loading:
 
-**Client-Side Auth:**
+1. An add-on loads for a tenant only if its module key appears in `tenants.allowed_modules` for that tenant.
+2. An empty `tenants.allowed_modules` array means **no** add-ons load. Empty does not mean "all" — that behaviour was removed.
+3. Removing a module from `tenants.allowed_modules` disables its routes and middleware on the next request. Existing data is not deleted.
 
-- `AuthContext` provides `{ user, loading, login, logout, refreshUser, tenant, isRootTenantUser, assumedTenant, assumeTenant, exitAssumption, impersonation, startImpersonation, endImpersonation }` via React context, where `tenant` is `null` or `{ tenant_code, schema_name }` (when an assumption is active, `tenant` also includes `company` and `is_assumed: true`)
-- `LayoutShell` renders loading spinner while `loading=true`, redirects to `/login` if `user=null`
-- All API calls use `credentials: 'include'` for cookie transmission
-- No tokens stored in localStorage — fully cookie-based
+Only `catalog` (formerly `bom`) is currently registered in `moduleRegistry.js`. The rest are planned — they will be registered when implemented. Add-ons are either **capability** modules (industry-agnostic) or **industry verticals** (see [ADR-0035](./decisions/0035-add-on-taxonomy-and-construction.md) and §4).
 
-#### 3.1.2 Role-Based Access Control (RBAC)
+### 3.1 System — Auth, Tenant & RBAC  [core]
 
-> **ADR Reference:** [ADR-0013](./decisions/0013-four-layer-scoped-rbac.md) (supersedes [ADR-0004](./decisions/0004-three-level-rbac.md))
+#### 3.1.1 Overview
 
-RBAC uses a four-layer model where each layer narrows what the previous layer grants. Layers 2-4 never expand access beyond what Layer 1 allows.
+The System module owns identity, tenant lifecycle, and Role-Based Access Control (RBAC). It lives in two places. The platform-wide `admin` schema holds portal users, tenant records, and the impersonation audit. Every tenant schema holds the tenant's own roles, policies, scopes, field groups, and numbering. Every other module depends on it. RBAC follows a four-layer model: policies → data scope → state filters → field groups. See [ADR-0013](./decisions/0013-four-layer-scoped-rbac.md).
 
-| Layer                        | Question               | Mechanism                                                          |
-| ---------------------------- | ---------------------- | ------------------------------------------------------------------ |
-| **1 — Role Policies** | What can this role DO? | `policies` table — `none`/`view`/`full` levels            |
-| **2 — Data Scope**    | HOW MUCH data?         | `roles.scope` + `project_members` + `company_members` tables |
-| **3 — State Filters** | Which record STATES?   | `state_filters` table                                            |
-| **4 — Field Groups**  | Which COLUMNS?         | `field_group_definitions` + `field_group_grants` tables        |
+#### 3.1.2 Data Tables
 
-**Layer 1 — Data Model:**
+##### 3.1.2.1 Admin Schema Identity Tables
 
-- `roles`: Role definitions with `code`, `name`, `description` (optional), `is_system`, `is_immutable`, `scope` (`all_projects`, `assigned_companies`, `assigned_projects`, or `self`), plus `tenant_code`
-- `policies`: Permission grants with `(role_id, module, router, action, level)` dimensions, plus `tenant_code`
+Four admin-schema tables form the identity cluster. They are owned by `admin`, shared across tenants, and accessed via the `requireRootTenant` middleware (except where noted).
 
-> **Role Assignment:** Roles are stored as a `roles` text array directly on each entity table (employees, clients, vendor_contacts) — there is no `role_members` junction table. The permission loader reads the `roles` array from the entity record (resolved via `portal_users.entity_type` + `entity_id`), then queries `policies` for matching role IDs. A SQL view can reconstruct "members by role" across entity tables when needed for admin reporting.
+###### 3.1.2.1.1 `admin.portal_users`
 
-**Layer 2 — Data Model:**
+Pure identity / authentication. All personal information (name, phone, address) lives on the linked entity record in the tenant schema via polymorphic `entity_type` + `entity_id`.
 
-- `project_members`: Maps `(project_id, user_id)` with a `role` label (e.g., `member`, `lead`). When `roles.scope = 'assigned_projects'`, only data from the user's assigned projects is visible.
-- `company_members`: Maps `(company_id, user_id)`. When `roles.scope = 'assigned_companies'`, only data from projects belonging to the user's assigned companies is visible. The permission loader eagerly resolves both `companyIds` and corresponding `projectIds`.
-- **`self` scope:** When `roles.scope = 'self'`, the permission loader reads `entity_type` and `entity_id` from `portal_users`. The canon includes `entityType` and `entityId`. `_applyRbacFilters()` maps the entity type to the appropriate FK column on the queried resource (e.g., `vendor_id` for AP invoices, `client_id` for AR invoices, `employee_id` for timecards). This enables portal access where vendors/clients see only their own records.
-- `policy_catalog`: Registry of valid `(module, router, action)` combinations for role configuration UI discovery. Includes `label` (varchar(128), human-readable name), `description` (varchar(512), optional explanation), `sort_order` (integer, display ordering), `valid_statuses` (text[], valid status values for state filter UI), `available_fields` (text[], columns available for field group UI), and `policy_required` (boolean, default true — whether a policy must exist for this combination). Seed-only reference data — no audit fields, no tenant_code.
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Convenience pointer to the user's **home** tenant. Authoritative cross-tenant access lives in `portal_user_tenants`. |
+| `entity_type` | varchar(16) | `'employee'`, `'vendor_contact'`, or `'client'`. |
+| `entity_id` | uuid | Cross-schema reference to the entity record in the tenant schema (enforced by business logic, not FK). |
+| `email` | varchar(128) | Login identifier. Globally unique via partial index `WHERE deactivated_at IS NULL`. |
+| `password_hash` | text | bcrypt hash. Never returned in API responses. |
+| `status` | varchar(20) | `active`, `invited`, `locked`. |
 
-**Layer 3 — Data Model:**
+Partial unique index `(entity_type, entity_id) WHERE deactivated_at IS NULL` prevents duplicate logins for the same entity.
 
-- `state_filters`: `(role_id, module, router, visible_statuses[])`. Restricts which record statuses are visible per role per resource. Empty = no filtering (all statuses visible).
+###### 3.1.2.1.2 `admin.portal_user_tenants`
 
-**Layer 4 — Data Model:**
+Authoritative cross-tenant binding table. One row per `(portal_user, tenant)` pair the user can access. The oldest active row is the user's home tenant.
 
-- `field_group_definitions`: Named column groups per resource — e.g., `(module, router, group_name, columns[], is_default)`.
-- `field_group_grants`: Assigns field groups to roles. Definitions with `is_default = true` are granted to all roles automatically. Empty = all columns visible.
-
-> **RBAC Schema Storage:** RBAC tables are defined with `dbSchema: 'public'` as a placeholder, but pg-schemata dynamically overrides the schema at bootstrap/migration time. Each tenant schema gets its own copy of all RBAC tables.
-
-**Permission Levels (Layer 1):** `none` (0) < `view` (1) < `full` (2)
-
-**Policy Resolution (most specific to least):**
-
-1. `module::router::action` (e.g., `ar::ar-invoices::approve`)
-2. `module::router::` (e.g., `ar::ar-invoices::`)
-3. `module::::` (e.g., `ar::::`)
-4. `::::` (empty-module wildcard — matches policies seeded with empty `module` for admin/super_user roles)
-5. Default: `none`
-
-**Exact-Match Carve-Out (`EXACT_MATCH_KEYS`, as of 2026-05-21):** Catalog entries with `policy_required: true` (the default for router-scoped actions) bypass the four-step fallback above and require an exact `module::router::action` grant. The set is derived at module load in `apps/server/src/middleware/rbac.js` from `CATALOG_ENTRIES` in `policyCatalogSeeder.js` (lines 27-37 explain the semantics). This keeps sensitive actions (password resets, approvals, etc.) out of router-level CRUD or wildcard grants — broader policies do NOT satisfy the check. Catalog rows with `policy_required: false` (e.g., most import actions, sub-record CRUD) continue to use the normal fallback resolver. See also `rules/rbac.md`. (Resolves gaps 2.7 / 4.28, 2026-05-21.)
-
-**Multi-role Merge:**
-
-- Layer 2 scope: most permissive wins — four-tier hierarchy: `all_projects` > `assigned_companies` > `assigned_projects` > `self`
-- Layer 3 statuses: union of visible statuses across roles
-- Layer 4 columns: union of granted columns across roles
-
-**Built-in System Roles:**
-
-All roles — including system roles — go through the full RBAC policy resolution. There are no bypass or short-circuit paths in the middleware.
-
-- `super_user` (Axerra `axerra` schema only): Full access to all Axerra data + cross-tenant access + impersonation + tenant management. Seeded with `level: 'full'` policies for all modules plus cross-tenant and impersonation policies. Goes through full RBAC policy resolution — no bypass.
-- `admin` (all tenant schemas): Full access within that tenant's data. Seeded with `level: 'full'` policies for all modules. Same meaning in every schema. Goes through full RBAC policy resolution — no bypass.
-- `support` (Axerra `axerra` schema only): Cross-tenant access + impersonation + tenant management. No access to Axerra financial modules (accounting, AR, AP). Seeded with `level: 'none'` for financial modules + `level: 'full'` for non-financial modules + cross-tenant and impersonation policies. Goes through full RBAC policy resolution.
-
-> **No RBAC Bypass:** The middleware does NOT short-circuit for `super_user` or `admin`. All users are authorized through the same entity `roles` array → `policies` resolution path. This ensures all access is auditable, configurable, and consistent.
-
-**Seeded Tenant Roles:**
-
-- `admin`: Tenant-level administrator, `scope: 'all_projects'`. Seeded with explicit `level: 'full'` policies for ALL modules. When new modules are added to the platform, the module migration seeds admin policies for all existing tenants (see Admin Policy Auto-Seeding below).
-
-> **Note:** Only `admin`, `super_user`, and `support` are seeded by the system role seeder. Additional roles (e.g., `project_manager`, `controller`) are tenant-configurable and must be created by tenant admins via the ManageRolesPage UI.
-
-**Axerra-Only Policies:** Cross-tenant and impersonation policies are ONLY seeded in the `axerra` schema on `super_user` and `support` roles. These policies cannot be assigned to other tenants' schemas.
-
-**Tenant Configurability:** All roles except `super_user`, `admin`, and `support` are tenant-configurable. Tenants define their own roles, assign scopes, create state filters, and build field groups.
-
-**Permission Canon (cached in Redis):**
-
-- Canonical form: `{ caps, scope, projectIds, companyIds, entityType, entityId, stateFilters, fieldGroups }`
-- Stored at `perm:{userId}:{tenantCode}`
-- SHA-256 permission hash designed for JWT (`ph` claim) — computed at login from the user's loaded permission canon (Phase 3, live as of commit `1ac6a21`, 2026-05-20). `authRedis` re-computes the hash on every request from the loaded canon and sets `X-Token-Stale: 1` when the request's `ph` claim diverges (`apps/server/src/middleware/authRedis.js:198-200`). Client-side handling of the header is intended but not yet wired. (Resolves gap 4.24, 2026-05-21.)
-- `authRedis` middleware reads the `roles` array from the entity record (resolved via `portal_users.entity_type` + `entity_id`), then queries `policies` for matching role IDs — NOT from a `portal_users.role` column or `role_members` table
-- `entityType` and `entityId` are included in the canon for `self` scope resolution
-
-**Module Entitlements:**
-
-- `admin.tenants.allowed_modules` (jsonb array of module names) controls which modules a tenant can access
-- Enforced by middleware after auth and before RBAC: if `req.resource.module` is not in the tenant's `allowed_modules`, return 403
-- Source of truth at request time: `moduleEntitlement` reads from `req.ctx.tenant.allowed_modules` (populated by `authRedis`). There is no separate Redis key for `allowed_modules`. (Reconciled per gaps 4.14 / 2.24, 2026-05-21.)
-- Default: empty array (or missing field) means **all modules allowed** — this is an allow-when-unset policy, NOT a deny-by-default whitelist. Entitlement enforcement activates per-tenant as their `allowed_modules` arrays are populated. See ADR-0018.
-- Managed by Axerra `super_user` / `support` via tenant management UI
-
-**Enforcement:**
-
-- **Module Entitlement (middleware):** `moduleEntitlement` is auto-applied by `createRouter` on all routes. Checks `tenants.allowed_modules` — if the tenant doesn't have the module enabled, returns 403 regardless of user permissions. Empty array means all modules allowed.
-- **Layer 1 (opt-in middleware):** `withMeta({ module, router, action })` annotates `req.resource`. `rbac(requiredLevel)` can be explicitly added to routes that need per-action permission checks — it resolves the user's policy level from `caps` and returns 403 if insufficient. GET/HEAD default to `view`; mutations default to `full`. `createRouter` auto-applies `rbac()` on import/export routes: `rbac('full')` on `/import-xls` (with `setImportAction` overriding `req.resource.action = 'import'`) and `rbac('view')` on `/export-xls` (with `setExportAction` overriding `req.resource.action = 'export'`). For custom endpoints, `rbac()` is manually added (e.g., `employees/:id/reset-password`, `ar-invoices/approve`). Standard CRUD routes (POST, GET, PUT, DELETE, PATCH) from `createRouter` do **not** include `rbac()` — they rely on `moduleEntitlement` for access control. Permissions are resolved from entity `roles` array → `policies` for ALL users — no role-based bypass or short-circuit.
-- **Layers 2-4 (service layer):** `ViewController._applyRbacFilters()` applies scope, state, and field filters. Controllers opt in via `this.rbacConfig = { module, router, scopeColumn, entityScopeColumns }`. The `entityScopeColumns` mapping tells the `self` scope which FK column to filter for each entity type (e.g., `{ vendor: 'vendor_id', client: 'client_id', employee: 'employee_id' }`).
-
-**Policy Seeding by Role Class:**
-
-Two mechanisms coexist by design. The choice is driven by whether the role is **idempotent** (its capability set is fixed and cannot change as new modules ship) or **module-sensitive** (its policies must grow when a new module is introduced).
-
-*Idempotent roles — wildcard policy at seed time* `[implemented]`
-
-Five system roles are idempotent and receive a single wildcard `level: 'full'` policy with `module: ''` (and the corresponding role-shaped scope rules) at tenant creation. Adding a new module does NOT require backfilling these roles — the wildcard already covers every module, present and future. Implementation: `apps/server/src/system/auth/services/systemRoleSeeder.js`.
-
-| Role | Scope | Why idempotent |
-| ---- | ----- | -------------- |
-| `super_user`    | Cross-tenant, Axerra-only | Platform operator; always full access across every tenant. |
-| `admin`         | All modules within their tenant | Always full access within the tenant; module set is irrelevant. |
-| `support`       | Cross-tenant, Axerra-only, excluding `FINANCIAL_MODULES` | Capability set fixed by Axerra; module changes don't alter the contract. |
-| `vendor_contact` | Vendor-shaped scope (their own vendor record + linked transactions) | Capability set fixed by the vendor-portal contract. |
-| `client`        | Client-shaped scope (their own projects + linked AR records) | Capability set fixed by the client-portal contract. |
-
-*Module-sensitive roles — per-module retroactive seeder* `[intended]`
-
-All other roles — `accountant`, `ap_clerk`, `ar_clerk`, `project_manager`, `procurement`, `cfo`, and any tenant-defined custom role — receive explicit per-module policy rows. Each role's policies enumerate the (module, router, action, level) tuples it can perform; the wildcard mechanism above is not available because these roles must be denyable on a per-module basis.
-
-When a new module ships, every existing tenant schema must be backfilled with the new module's policy rows for every module-sensitive role that already exists in that tenant. This retroactive seeder runs from the module's migration, walks `admin.tenants`, and inserts the per-(role, module) policy set into each tenant schema. New tenant provisioning calls the same seeder for every module currently enabled in the tenant's `allowed_modules`.
-
-The retroactive seeder is NOT yet built. Tenants stood up before a module ships will lack policies for that module until the seeder lands; in the interim, tenant admins can add policies manually via the RBAC management endpoints. (Tracked via the `[intended]` status tag on this paragraph — anyone scanning §3.1.2 sees the open work directly. Resolves gap 1.7 by accurately documenting the two-mechanism design, 2026-05-21.)
-
-**Policy-Catalog Carve-Outs (as of 2026-05-21):**
-
-- `tenants::portal-users::import|export` are intentionally NOT seeded in the policy catalog. `portalUsersRouter` sets `disableImportXls: true` / `disableExportXls: true`, and `policyCatalogSeeder.js` omits the rows. Rationale: users are created via `/register` only — see §3.2.2. (Resolves gap 3.26, 2026-05-21.)
-- `tenants::tenants::import|export` ARE seeded and gate the tenant XLSX import/export routes (see §3.2.1).
-
-**Policy-Catalog Reconciler & CLI (as of 2026-05-21, gap 2.8):**
-
-- `apps/server/src/system/core/services/policyCatalogReconciler.js` performs idempotent diff + apply between the in-code `CATALOG_ENTRIES` constant and the per-tenant `policy_catalog` table, so deployed tenants converge on the latest catalog without per-tenant manual reseeding.
-- Migrations `202603270016_reseedPolicyCatalog.js` and `202605040018_reseedTenantImportExportCatalog.js` invoke the reconciler.
-- CLI entry point: `apps/server/scripts/db/reconcilePolicyCatalog.js` — reseeds a single tenant or all tenants from the host shell. Useful when a hotfix changes the catalog without shipping a migration.
-
-**RBAC Management Endpoints (tenant-scope, under `/api/core/v1/`):**
-
-| Method        | Path                                     | Purpose                                                           |
-| ------------- | ---------------------------------------- | ----------------------------------------------------------------- |
-| Standard CRUD | `/api/core/v1/roles`                   | Manage tenant roles (code, name, scope, is_system, is_immutable)  |
-| Standard CRUD | `/api/core/v1/policies`                | Manage per-role permission grants (module, router, action, level) |
-| Standard CRUD | `/api/core/v1/policy-catalog`          | Read-only catalog of valid (module, router, action) combinations  |
-| Standard CRUD | `/api/core/v1/state-filters`           | Manage Layer 3 state visibility filters per role/resource         |
-| Standard CRUD | `/api/core/v1/field-group-definitions` | Manage Layer 4 named column groups per resource                   |
-| Standard CRUD | `/api/core/v1/field-group-grants`      | Assign field groups to roles                                      |
-| Standard CRUD | `/api/core/v1/project-members`         | Manage Layer 2 user↔project assignments                          |
-| Standard CRUD | `/api/core/v1/company-members`         | Manage Layer 2 user↔company assignments                          |
-
-> **Role Assignment:** Roles are managed via entity CRUD endpoints (update the `roles` array on the employee/vendor-contact/client/contact record). There is no separate `/role-members` endpoint.
-
-> All RBAC management routes use `createRouter` with `withMeta({ module: 'core', router: '<resource>' })`. `policyCatalogRouter` uses `withMeta({ module: 'core', router: 'policy-catalog' })` — entitlement resolves against the `policy-catalog` resource. (Stale footnote claiming `router: 'roles'` removed per gap 4.7, 2026-05-21.)
-
-**RBAC Management UI (`ManageRolesPage`):** The Manage Roles page at `/tenant/manage-roles` uses a master-detail layout. The left panel lists roles in a DataTable; the right panel has tabbed editors for the four RBAC layers:
-
-| Tab               | Component                      | Purpose                                                                                                                                    |
-| ----------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Policies          | `PolicyEditor`               | Accordion-based policy matrix — reads `policy_catalog` for structure, renders level selectors (none/view/full) per module/router/action |
-| State Filters     | `StateFilterEditor`          | Configure Layer 3 status visibility filters per role/resource — restrict which record statuses a role can see                             |
-| Field Groups      | `FieldGroupEditor`           | Toggle Layer 4 field group grants per role — displays all definitions grouped by module/router, admins toggle which groups are granted    |
-| Field Definitions | `FieldGroupDefinitionEditor` | CRUD for field group definitions — create/edit/delete named column groups per resource                                                    |
-
-Roles with `is_immutable = true` OR `is_system = true` are read-only across all detail tabs. Only `is_immutable` hides the row-level Edit action in the master list.
-
----
-
-### 3.2 Tenant Management  [in-scope]
-
-**Purpose:** Axerra operators manage customer organizations (tenants) and their users.
-
-**Access Control:** Restricted to Axerra employees via `requireRootTenant` middleware.
-
-**Root Tenant:** Axerra (tenant_code `AXERRA`) is the platform root tenant. It cannot be archived or deleted. The `super_user` and `support` system roles can only be assigned to users belonging to the Axerra tenant. The root tenant is created automatically during initial setup via the `202502110001_bootstrapAdmin` migration.
-
-#### 3.2.1 Manage Tenants
-
-**Data Model (`admin.tenants`):**
-
-| Field               | Type         | Description                                                                        |
-| ------------------- | ------------ | ---------------------------------------------------------------------------------- |
-| `id`              | uuid         | Primary key                                                                        |
-| `tenant_code`     | varchar(6)   | Unique short code (e.g.,`AXERRA`, `CAL`)                                       |
-| `company`         | varchar(128) | Company name                                                                       |
-| `schema_name`     | varchar(63)  | PostgreSQL schema name                                                             |
-| `status`          | varchar(20)  | `active`, `trial`, `suspended`, `pending`                                  |
-| `tier`            | varchar(20)  | `enterprise`, `growth`, `starter`                                            |
-| `region`          | varchar(64)  | Geographic region                                                                  |
-| `allowed_modules` | jsonb        | Module access list enforced by `moduleEntitlement` — empty array (or missing) means **all modules allowed** (allow-when-unset, NOT deny-by-default per ADR-0018). See §3.1.2. |
-| `max_users`       | integer      | User limit (default 5)                                                             |
-| `notes`           | text         | Internal notes                                                                     |
-
-**Tenant Provisioning:**
-
-- Raw `CREATE SCHEMA` DDL creates the new tenant schema
-- Extensions (e.g., `pgcrypto`, `vector`) are created per-schema as needed
-- `createMigrator` runs all pending migrations against the new schema (not `bootstrap()` or `MigrationManager`)
-- Seed data (default roles, chart of accounts templates) is inserted via `bulkInsert()`
-- **Admin User Creation:** Performed in a single transaction: (1) create an `employees` record in the tenant schema with `roles: ['admin']`, `is_app_user: true`, `is_primary_contact: true`, (2) create a `portal_users` login in `admin.portal_users` with `entity_type: 'employee'` and `entity_id` linking to the new employee. The employee must have `roles` assigned and `is_app_user = true` before the `portal_users` login is created. The admin employee is created with `code = NULL` because numbering is not yet configured; the code is backfilled when the tenant enables numbering via Settings (see §3.13.9).
-- **CLI entry point (as of 2026-05-21, gap 2.17):** `apps/server/scripts/db/provisionTenantCli.js` runs the same `provisionNewTenant` service from the host shell. Useful for headless bootstraps and tests that need a fresh tenant outside the HTTP flow.
-- **Root-entity seeder (gap 2.18):** `apps/server/src/services/seedRootEntity.js` is invoked during initial Axerra setup to create the `super_user` employee record under the Axerra tenant schema and link it to the bootstrap portal_user. It is idempotent and safe to re-run.
-- **Contact Designation:** Primary and billing contacts are designated via `employees.is_primary_contact` and `employees.is_billing_contact` flags — there is no `tenant_role` column on `portal_users`.
-
-**UI Requirements:**
-
-- Data grid displaying: Code, Tenant Name, Status, Tier, Region, Active columns
-- Row selection with checkbox (single and multi-select)
-- Module Bar actions: **Create Tenant**, **View Details**, **Edit Tenant**, **Archive**, **Restore**
-- Status badge display with color coding
-- Create tenant form includes admin user fields: first name, last name, email, and password (used to create the tenant's Administrator user and linked employee record)
-- Pagination with configurable rows-per-page (powered by `findAfterCursor()`)
-- Archive cascades to deactivate all currently-active associated `portal_users` (sets `deactivated_at`, `status = 'locked'`, and `updated_by`) — works for both `?id=` and `?tenant_code=` query params.
-- The root tenant (Axerra, `AXERRA`) cannot be archived — server rejects the request with 403
-- Restore reactivates the tenant only — users remain archived and must be individually restored by an admin
-- **View Details dialog** (`maxWidth="md"`): displays tenant fields in a responsive 3-column grid of `FieldRow` components (label:value pairs). Fields: Code, Tier, Region, Status (rendered as `StatusBadge` chip), Max Users, Schema (monospace), Created, Updated, Notes (full-width). Below a divider, two `DataGrid` tables display **Primary Contacts** and **Billing Contacts** with Name, Email (mailto link), and Phone columns. Contact data is fetched via `useTenantContacts(tenantId)` hook.
-- The Module Bar exposes **Import** and **Export** XLSX actions for the tenants list, mirroring the toolbar contract used by every other resource page (see ADR-0024).
-
-**Endpoints:**
-
-| Method     | Path                                     | Purpose                                                                                                                  |
-| ---------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `POST`   | `/api/tenants/v1/tenants`              | Create tenant (provisions schema, creates employee with `roles: ['admin']` + portal_users login in single transaction) |
-| `GET`    | `/api/tenants/v1/tenants`              | List tenants (cursor-based pagination)                                                                                   |
-| `GET`    | `/api/tenants/v1/tenants/:id`          | Get tenant by ID                                                                                                         |
-| `PUT`    | `/api/tenants/v1/tenants/update`       | Update tenant                                                                                                            |
-| `DELETE` | `/api/tenants/v1/tenants/archive`      | Soft-delete tenant (cascades to users)                                                                                   |
-| `PATCH`  | `/api/tenants/v1/tenants/restore`      | Restore archived tenant                                                                                                  |
-| `GET`    | `/api/tenants/v1/tenants/:id/modules`  | Get tenant's allowed modules                                                                                             |
-| `GET`    | `/api/tenants/v1/tenants/:id/contacts` | Get primary and billing contacts with phone/address (cross-schema query into tenant's employees)                         |
-| `POST`   | `/api/tenants/v1/tenants/import-xls`   | Import tenants from XLSX (requires `tenants::tenants::import` = `full`). Each row carries its own `tenant_code`. Rows without an `id` trigger a **full per-row `provisionNewTenant` call** (schema create, migrations, RBAC seed, admin portal user creation). Rows with an `id` are treated as updates. Supports `previewOnly=true` for upfront validation (per-row required-field / format / password-strength checks, intra-file duplicate detection, cross-table uniqueness against `admin.tenants` + `admin.portal_users`, ROOT_TENANT archive protection) without writes. See `apps/server/src/system/auth/models/Tenants.js`. |
-| `POST`   | `/api/tenants/v1/tenants/export-xls`   | Export tenants to XLSX (requires `tenants::tenants::export` = `view`)                                                    |
-
-#### 3.2.2 Manage Users
-
-**Data Model (`admin.portal_users`):**
-
-`portal_users` is a pure identity/authentication table. All personal information (name, phone, address) lives on the linked entity record (employee, vendor, vendor contact, client, or contact) in the tenant schema. The link is polymorphic via `entity_type` + `entity_id`. Roles are stored as a `roles` text array on the entity record — there is no `role` column on `portal_users` and no `role_members` junction table.
-
-| Field             | Type         | Description                                                                                                 |
-| ----------------- | ------------ | ----------------------------------------------------------------------------------------------------------- |
-| `id`            | uuid         | Primary key                                                                                                 |
-| `tenant_id`     | uuid         | FK to tenants                                                                                               |
-| `entity_type`   | varchar(16)  | Entity kind:`'employee'`, `'vendor_contact'`, `'client'`                                              |
-| `entity_id`     | uuid         | Cross-schema reference to the tenant-schema entity record (not a database FK — enforced by business logic) |
-| `email`         | varchar(128) | Login identifier, globally unique (partial index WHERE deactivated_at IS NULL)                              |
-| `password_hash` | text         | bcrypt hash (never returned in API responses)                                                               |
-| `status`        | varchar(20)  | `active`, `invited`, `locked`                                                                         |
-
-Partial unique index: `(entity_type, entity_id) WHERE deactivated_at IS NULL` — prevents duplicate logins for the same entity.
-
-> **`portal_users.tenant_id`** is a convenience pointer to the user's **home** tenant. It is **not** the authoritative cross-tenant access list — see `admin.portal_user_tenants` below.
-
-**Data Model (`admin.portal_user_tenants`):**
-
-`portal_user_tenants` is the authoritative cross-tenant binding table. One row per `(portal_user, tenant)` pair the user can access. The oldest active row is the user's **home tenant** (resolved at login).
-
-| Field            | Type         | Description                                                                                              |
-| ---------------- | ------------ | -------------------------------------------------------------------------------------------------------- |
-| `id`             | uuid         | Primary key                                                                                              |
-| `portal_user_id` | uuid         | FK to `admin.portal_users` (CASCADE)                                                                     |
-| `tenant_id`      | uuid         | FK to `admin.tenants` (CASCADE)                                                                          |
-| `entity_type`    | varchar(16)  | `'employee'`, `'vendor_contact'`, `'client'`, or NULL for bare registrations                             |
-| `entity_id`      | uuid         | Cross-schema reference to the tenant-scoped entity record (NULL for bare registrations)                  |
-| `status`         | varchar(20)  | `'active'`, `'invited'`, `'locked'`                                                                      |
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `portal_user_id` | uuid | FK to `admin.portal_users` (CASCADE). |
+| `tenant_id` | uuid | FK to `admin.tenants` (CASCADE). |
+| `entity_type` | varchar(16) | `'employee'`, `'vendor_contact'`, `'client'`, or NULL for bare registrations. |
+| `entity_id` | uuid | Cross-schema reference. NULL for bare registrations. |
+| `status` | varchar(20) | `active`, `invited`, `locked`. |
 
 Indexes:
-
 - Partial unique `(portal_user_id, tenant_id) WHERE deactivated_at IS NULL` — at most one active binding per user per tenant.
-- Partial unique `(tenant_id, entity_type, entity_id) WHERE deactivated_at IS NULL AND entity_type IS NOT NULL` — preserves the "exactly one active portal_user per tenant-scoped entity" invariant.
+- Partial unique `(tenant_id, entity_type, entity_id) WHERE deactivated_at IS NULL AND entity_type IS NOT NULL` — at most one active portal_user per tenant-scoped entity.
 - Supporting indexes on `portal_user_id`, `tenant_id`, `(entity_type, entity_id)`.
 
-**Roles for the cross-tenant model:**
+###### 3.1.2.1.3 `admin.tenants`
 
-- Employees and clients have exactly one active binding (their home tenant).
-- Vendor contacts may have one binding per tenant they service.
-- The login flow resolves the home tenant by oldest active binding and refuses login if the home tenant is inactive (see §3.1.1).
-- Cross-tenant requests (Axerra support / impersonation) use the `x-tenant-code` header to select a different active binding at request time.
+The tenant registry. Axerra (tenant_code `AXERRA`) is the root tenant and cannot be archived or deleted.
 
-> **Removed from portal_users:** `tenant_code`, `user_name`, `full_name`, `tax_id`, `notes`, `role`, `tenant_role`, `employee_id`. The `employee_id` column has been replaced by the polymorphic `entity_type` + `entity_id` pair, supporting logins for employees, vendors, clients, and contacts. User identity data lives on the entity record. Roles are stored as a `roles` text array on the entity record (not in a `role_members` junction table). Contact designation (primary/billing) is via `employees.is_primary_contact` / `is_billing_contact`. The `axe_admin_phones` and `axe_admin_addresses` tables have been removed — phone numbers and addresses are stored on the linked entity via the polymorphic `sources` → `phone_numbers` / `addresses` pattern.
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_code` | varchar(6) | Unique short code (e.g., `AXERRA`, `CAL`). |
+| `company` | varchar(128) | Company name. |
+| `schema_name` | varchar(63) | PostgreSQL schema for this tenant. |
+| `status` | varchar(20) | `active`, `trial`, `suspended`, `pending`. |
+| `tier` | varchar(20) | `enterprise`, `growth`, `starter`. |
+| `region` | varchar(64) | Geographic region. |
+| `allowed_modules` | jsonb | Add-on modules this tenant has licensed. Empty array (or missing) means no add-ons are loaded — see §3.0.2. |
+| `max_users` | integer | User limit (default 5). |
+| `notes` | text | Internal notes. |
 
-**Access Control (as of 2026-05-21):** All portal-users routes are gated by `requireRootTenant` middleware and `withMeta({ module: 'tenants', router: 'portal-users' })`. `rbac()` IS applied per-method via the `portalUsersRouter` middleware arrays — `rbac('view')` on GET, `rbac('full')` on POST `/register`, PUT, DELETE, and PATCH. Spreadsheet import/export are disabled at the router (`disableImportXls: true`, `disableExportXls: true`), and the policy catalog intentionally does NOT seed `tenants::portal-users::import|export` — users are created via `/register` only (see permission-catalog cross-reference in §3.1.2). (Resolves gaps 3.10 / 4.23, 2026-05-21.)
+###### 3.1.2.1.4 `admin.impersonation_logs`
 
-**Endpoints:**
+Audit trail for cross-tenant impersonation by Axerra `super_user` / `support`.
 
-| Method     | Path                                      | Purpose                                                                                                                               |
-| ---------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST`   | `/api/tenants/v1/portal-users/register` | Register new user (accepts `tenant_code`, `email`, `password`; validates tenant is active)                                      |
-| `GET`    | `/api/tenants/v1/portal-users`          | List users                                                                                                                            |
-| `GET`    | `/api/tenants/v1/portal-users/:id`      | Get user by ID                                                                                                                        |
-| `PUT`    | `/api/tenants/v1/portal-users/update`   | Update user                                                                                                                           |
-| `DELETE` | `/api/tenants/v1/portal-users/archive`  | Soft-delete user — sets `status = 'locked'` and `deactivated_at`, cascades to archive linked entity (prevents self-archival)     |
-| `PATCH`  | `/api/tenants/v1/portal-users/restore`  | Restore user — sets `status = 'active'` and clears `deactivated_at`, cascades to restore linked entity (checks tenant is active) |
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `impersonator_id` | uuid | FK to `portal_users` (the operator). |
+| `target_user_id` | uuid | FK to `portal_users` (the user being impersonated). |
+| `target_tenant_code` | varchar(6) | Tenant being entered. |
+| `reason` | text | Operator-supplied reason. |
+| `started_at` | timestamptz | Session start. |
+| `ended_at` | timestamptz | Null while active. |
 
-**Business Rules:**
+Partial unique index `(impersonator_id) WHERE ended_at IS NULL` prevents concurrent sessions; a second open attempt returns `409 Conflict`.
 
-- Standard POST is disabled; users must be created via the `/register` endpoint
-- Spreadsheet import/export is **not** supported on `portal-users`. `portalUsersRouter` sets `disableImportXls: true` and `disableExportXls: true`, and `policyCatalogSeeder` does not emit `tenants::portal-users::import|export` rows. Users are created via `/register` only.
-- Registration collects: `tenant_code`, `email`, `password`. Validates the tenant exists and is active. Entity linkage (`entity_type`, `entity_id`) and entity pre-validation (roles assigned, `is_app_user = true`) are not yet enforced — these fields can be set via subsequent update
-- Password automatically hashed with bcrypt on registration
-- Email must be globally unique across all active users (enforced by partial unique index WHERE deactivated_at IS NULL)
-- Users cannot archive themselves (checked by both `id` and `email`)
-- Archiving a user sets `status = 'locked'` (in addition to `deactivated_at`) and cascades to soft-delete the linked entity record (employee/vendor/client/contact) in the tenant schema via `entity_type` + `entity_id`
-- Restoring a user sets `status = 'active'`, clears `deactivated_at`, and cascades to restore the linked entity record in the tenant schema
-- Restoring a user requires the parent tenant to be active — returns 403 if the tenant is deactivated
-- Axerra membership is determined by `tenant_code` comparison: server uses `requireRootTenant` middleware (checks `req.user.tenant_code` against `ROOT_TENANT_CODE` env var); client uses `isRootTenantUser` computed flag in `AuthContext` (checks `tenant_code` against `VITE_ROOT_TENANT_CODE`)
+##### 3.1.2.2 RBAC Policy Tables
 
-#### 3.2.3 Admin Operations
+These three tables define **Layer 1 — what a role can do**. They live in every tenant schema.
 
-**Endpoints:**
+###### 3.1.2.2.1 `roles`
 
-| Method   | Path                                           | Purpose                                                   |
-| -------- | ---------------------------------------------- | --------------------------------------------------------- |
-| `GET`  | `/api/tenants/v1/admin/schemas`              | List all active tenants (Axerra users only)               |
-| `POST` | `/api/tenants/v1/admin/impersonate`          | Start impersonation session (requires `target_user_id`) |
-| `POST` | `/api/tenants/v1/admin/exit-impersonation`   | End active impersonation session                          |
-| `GET`  | `/api/tenants/v1/admin/impersonation-status` | Check current impersonation state                         |
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `code` | varchar(32) | Role code (e.g., `admin`, `project_manager`). |
+| `name` | varchar(64) | Display name. |
+| `description` | text | Optional. |
+| `is_system` | boolean | True for `super_user`, `admin`, `support`, `vendor_contact`, `client`. |
+| `is_immutable` | boolean | True if the role cannot be edited or deleted. |
+| `scope` | varchar(32) | `all_projects`, `assigned_companies`, `assigned_projects`, or `self`. |
+| `tenant_code` | varchar(6) | Tenant this role belongs to. |
 
-**Cross-tenant access:** Axerra users send `x-tenant-code` header to switch tenant context — handled by `authRedis` middleware, no dedicated endpoint needed. See [BR-RBAC-043](./rules/rbac.md#br-rbac-043).
+Roles are stored as a `roles` text array directly on each entity record (employees, clients, vendor_contacts). There is no `role_members` junction table.
 
-**Orphan portal-users (as of 2026-05-21, gap 2.4):**
+###### 3.1.2.2.2 `policies`
 
-Bare `admin.portal_users` rows (no active `portal_user_tenants` binding and no tenant-schema entity) are surfaced and cleaned up via a dedicated admin router. Implementation under `apps/server/src/system/tenants/{controllers/orphanPortalUsersController.js, apiRoutes/v1/orphanPortalUsersRouter.js}`; SQL functions `admin.find_orphan_portal_users(p_limit)`, `admin.count_orphan_portal_users()`, and `admin.cleanup_orphan_portal_user(id)` are installed by migration `202605010001_orphanPortalUsersCleanup.js`.
+Per-role permission grants.
 
-| Method | Path                                                       | Purpose                                                                                         |
-| ------ | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `GET`  | `/api/tenants/v1/orphan-portal-users/orphans/preview`      | Preview up to N orphan rows + the total backlog count. Action `find_orphans` (set via `withMeta`).   |
-| `POST` | `/api/tenants/v1/orphan-portal-users/orphans/cleanup`      | Hard-delete a single orphan portal_user by id (transactional). Action `cleanup_orphans` (set via `withMeta`). |
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `role_id` | uuid | FK to `roles`. |
+| `module` | varchar(32) | Module key. Empty string `''` for wildcard policies on idempotent roles. |
+| `router` | varchar(64) | Router name within the module. |
+| `action` | varchar(32) | Action name. |
+| `level` | varchar(8) | `none`, `view`, or `full`. |
+| `tenant_code` | varchar(6) | Tenant this policy belongs to. |
 
-**Platform Maintenance UI:** `apps/client/src/pages/Tenant/PlatformMaintenancePage.jsx` (mounted under the Tenant admin nav group, Axerra-only) renders one card per maintenance operation. Orphan-portal-users find / cleanup is the first card; additional cross-tenant hygiene tools land here as separate cards. (Documented per gap 2.14, 2026-05-21.)
+###### 3.1.2.2.3 `policy_catalog`
 
-**Impersonation Implementation:**
+Read-only registry of valid `(module, router, action)` combinations. Drives the role-configuration UI and the exact-match carve-out in policy resolution.
 
-- Audit trail: `admin.impersonation_logs` table records `impersonator_id`, `target_user_id`, `target_tenant_code`, `reason`, `started_at`, `ended_at`
-- Session state: active impersonation stored in Redis at `imp:{userId}` with TTL
-- Session uniqueness: partial unique index on `impersonation_logs (impersonator_id) WHERE ended_at IS NULL` prevents concurrent sessions; attempting a second session returns `409 Conflict`
-- `authRedis` middleware detects active impersonation via Redis key and swaps `req.user` to the target user, setting `req.user.is_impersonating = true` and `req.user.impersonated_by`
-- `/auth/me` response includes `impersonation: { active, impersonated_by }` for client-side UI state
-- See [BR-RBAC-044](./rules/rbac.md#br-rbac-044), [BR-RBAC-048](./rules/rbac.md#br-rbac-048)
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `module` | varchar(32) | Module key. |
+| `router` | varchar(64) | Router name. |
+| `action` | varchar(32) | Action name. |
+| `label` | varchar(128) | Human-readable label. |
+| `description` | varchar(512) | Optional explanation. |
+| `sort_order` | integer | Display order in the UI. |
+| `valid_statuses` | text[] | Valid status values for the state-filter UI. |
+| `available_fields` | text[] | Columns available for the field-group UI. |
+| `policy_required` | boolean | Default `true`. If `true`, an exact `module::router::action` grant is required — wildcard fallbacks do not apply. |
+
+Seed-only reference data. No audit fields, no tenant_code.
+
+##### 3.1.2.3 RBAC State and Field-Group Tables
+
+These tables define **Layer 3 (record states)** and **Layer 4 (column visibility)**.
+
+###### 3.1.2.3.1 `state_filters`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `role_id` | uuid | FK to `roles`. |
+| `module` | varchar(32) | Module key. |
+| `router` | varchar(64) | Router name. |
+| `visible_statuses` | text[] | Statuses this role may see. Empty = no filtering. |
+
+###### 3.1.2.3.2 `field_group_definitions`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `module` | varchar(32) | Module key. |
+| `router` | varchar(64) | Router name. |
+| `group_name` | varchar(64) | Group name. |
+| `columns` | text[] | Columns in this group. |
+| `is_default` | boolean | If `true`, granted to every role automatically. |
+
+###### 3.1.2.3.3 `field_group_grants`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `role_id` | uuid | FK to `roles`. |
+| `field_group_id` | uuid | FK to `field_group_definitions`. |
+
+Empty grants = all columns visible.
+
+##### 3.1.2.4 RBAC Membership Tables
+
+These tables define **Layer 2 — data scope** for users with `assigned_projects` or `assigned_companies` scope.
+
+###### 3.1.2.4.1 `project_members`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `project_id` | uuid | FK to `projects`. |
+| `user_id` | uuid | FK to `portal_users`. |
+| `role` | varchar(32) | Label (e.g., `member`, `lead`). |
+
+###### 3.1.2.4.2 `company_members`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `company_id` | uuid | FK to `companies`. |
+| `user_id` | uuid | FK to `portal_users`. |
+
+When a user's role has `scope = 'assigned_companies'`, the permission loader resolves both `companyIds` and the corresponding `projectIds` from these tables.
+
+##### 3.1.2.5 Approval Audit
+
+Cross-module approval workflow audit. The table is system-level (tenant-scoped, polymorphic) because approvals are a cross-cutting concern: projects (budget release, change orders), AP (payments, invoices, credit memos), AR (invoices), GL (manual journal entries), and add-on workflows all write rows to the same table.
+
+###### 3.1.2.5.1 `approvals`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `entity_type` | varchar(32) | The kind of thing being approved (e.g. `project`, `unit`, `change_order`, `ap_payment`, `ap_invoice`, `ar_invoice`, `gl_journal`). |
+| `entity_id` | uuid | FK reference to the entity row. No DB-level FK (polymorphic). |
+| `action` | varchar(32) | `submit`, `approve`, `reject`, `post`, `complete`, `release`, `close`. Add-ons may introduce additional action values. |
+| `prior_status` | varchar(20) | The entity's status before the action. |
+| `new_status` | varchar(20) | The entity's status after the action. |
+| `reason` | text | Optional rationale. Required on `reject`. |
+
+Standard audit fields apply: `created_by` is the actor who took the action, `created_at` is when it happened. `updated_by` / `updated_at` exist (per pg-schemata convention) but are unused — the table is append-only at the application layer; no PATCH/PUT endpoint is exposed.
+
+Indexes: `(entity_type, entity_id, created_at DESC)` for "latest action on this entity"; `(created_by, created_at)` for per-user audit.
+
+Each module owns its own workflow rules (valid actions, state transitions, gating permissions) and writes rows via its own action endpoints. The shared table provides the audit trail and a unified read surface (`GET /api/approvals/v1/approvals`).
+
+#### 3.1.3 API
+
+##### 3.1.3.1 Authentication Endpoints
+
+| Method | Path | Description |
+| --- | --- | --- |
+| POST | `/api/auth/login` | Authenticate with email and password. |
+| POST | `/api/auth/refresh` | Rotate auth and refresh tokens. |
+| POST | `/api/auth/logout` | Clear auth cookies. |
+| POST | `/api/auth/change-password` | Change the current user's password. Enforces strength rules. |
+| GET | `/api/auth/me` | Current user context — tenant, roles, permissions, impersonation state. |
+| GET | `/api/auth/check` | Lightweight session validation. |
+
+##### 3.1.3.2 Tenant Management Endpoints
+
+Restricted to Axerra staff via `requireRootTenant` middleware.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| POST | `/api/tenants/v1/tenants` | Create tenant. Provisions schema and creates the admin employee plus portal_users login in a single transaction. |
+| GET | `/api/tenants/v1/tenants` | List tenants (cursor-based pagination). |
+| GET | `/api/tenants/v1/tenants/:id` | Get tenant by id. |
+| PUT | `/api/tenants/v1/tenants/update` | Update tenant. |
+| DELETE | `/api/tenants/v1/tenants/archive` | Soft-delete tenant. Cascades to lock the tenant's `portal_user_tenants` bindings; locks each linked `portal_users` row only if the binding being archived is its last active one (multi-tenant vendors stay live elsewhere). See §3.1.4.7. |
+| PATCH | `/api/tenants/v1/tenants/restore` | Restore archived tenant. Reactivates the cohort of bindings and users archived at the same time (`deactivated_at` cleared). `status` is **not** modified — bindings and users remain `locked`. An Axerra root user must explicitly enable an admin via `provision-admin` before login is possible. See §3.1.4.7. |
+| POST | `/api/tenants/v1/tenants/:tenantId/provision-admin` | Enable an admin on a restored (or freshly active) tenant. Three branches keyed off the supplied email: no matching `portal_users` → create user + binding; existing user, no binding to this tenant → add a new `employee` binding; existing user with a locked `employee` binding to this tenant → unlock in place, re-invite. Returns `409` when the existing binding's `entity_type` is not `employee`. See §3.1.4.7. |
+| GET | `/api/tenants/v1/tenants/:id/modules` | Get the tenant's allowed add-on modules. |
+| GET | `/api/tenants/v1/tenants/:id/contacts` | Get primary and billing contacts (cross-schema query into the tenant's employees). |
+| POST | `/api/tenants/v1/tenants/import-xls` | Import tenants from XLSX. Rows without `id` trigger full per-row provisioning. |
+| POST | `/api/tenants/v1/tenants/export-xls` | Export tenants to XLSX. |
+| POST | `/api/tenants/v1/portal-users/register` | Register a new user (`tenant_code`, `email`, `password`). |
+| GET | `/api/tenants/v1/portal-users` | List portal users. |
+| GET | `/api/tenants/v1/portal-users/:id` | Get portal user by id. |
+| PUT | `/api/tenants/v1/portal-users/update` | Update portal user. |
+| DELETE | `/api/tenants/v1/portal-users/archive` | Soft-delete portal user. Cascades to linked entity. Self-archival blocked. |
+| PATCH | `/api/tenants/v1/portal-users/restore` | Restore portal user. Requires parent tenant active. |
+| GET | `/api/tenants/v1/admin/schemas` | List active tenants (Axerra only). |
+| POST | `/api/tenants/v1/admin/impersonate` | Start impersonation session (`target_user_id`). |
+| POST | `/api/tenants/v1/admin/exit-impersonation` | End the active impersonation session. |
+| GET | `/api/tenants/v1/admin/impersonation-status` | Check current impersonation state. |
+| GET | `/api/tenants/v1/orphan-portal-users/orphans/preview` | Preview orphan `portal_users` rows and backlog count. |
+| POST | `/api/tenants/v1/orphan-portal-users/orphans/cleanup` | Hard-delete a single orphan portal_user. |
+
+##### 3.1.3.3 RBAC / Policy Endpoints
+
+Tenant-scope, all under `/api/core/v1/`.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| CRUD | `/api/core/v1/roles` | Manage tenant roles. |
+| CRUD | `/api/core/v1/policies` | Manage per-role policy grants. |
+| GET | `/api/core/v1/policy-catalog` | Read-only catalog of valid `(module, router, action)` combinations. |
+| CRUD | `/api/core/v1/state-filters` | Manage Layer 3 state visibility filters. |
+| CRUD | `/api/core/v1/field-group-definitions` | Manage Layer 4 named column groups. |
+| CRUD | `/api/core/v1/field-group-grants` | Assign field groups to roles. |
+| CRUD | `/api/core/v1/project-members` | Manage Layer 2 user↔project assignments. |
+| CRUD | `/api/core/v1/company-members` | Manage Layer 2 user↔company assignments. |
+| CRUD | `/api/core/v1/numbering-config` | Manage per-entity-type numbering configuration (see §3.1.4.5). |
+| CRUD | `/api/core/v1/approval-config` | Manage per-workflow approval requirements (see §3.1.4.8). |
+
+Role assignment itself is done via the entity CRUD endpoints (update the `roles` array on the employee, vendor contact, or client record). There is no `/role-members` endpoint.
+
+##### 3.1.3.4 Approval Audit Endpoint
+
+Tenant-scoped, cross-module read surface for the `approvals` table (§3.1.2.5).
+
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/api/approvals/v1/approvals` | List approval audit rows. Filterable by `entity_type`, `entity_id`, `created_by` (actor), `action`, date range. Gated by `system::approvals::view`. |
+
+Approval *actions* (submit, approve, reject, post) live on each module's own endpoints — `/api/projects/v1/projects/:id/approve-release`, future `/api/ap/v1/payments/:id/approve`, etc. This endpoint is read-only.
+
+#### 3.1.4 Business Rules
+
+##### 3.1.4.1 Login Flow & Token Lifecycle
+
+1. The user submits email and password on `LoginPage`.
+2. The client calls `POST /api/auth/login` via `authApi.login()`.
+3. The server validates credentials via Passport Local Strategy (bcrypt against `admin.portal_users.password_hash`).
+4. The server resolves the user's home tenant from `admin.portal_user_tenants` (oldest active binding). Login is refused with `"Tenant is inactive."` if the home tenant is not active.
+5. The server loads RBAC permissions for the home tenant and gates token issuance on the result. A user with no usable permissions is refused with `403` — credentials were valid but the account is unusable.
+6. The server computes `ph`, a SHA-256 hash of the resolved permission canon. It signs the `auth_token` (15-minute TTL) and `refresh_token` (7-day TTL) as JWTs and sets them as httpOnly cookies. The permission canon is primed into Redis so the first authenticated request skips the reload.
+7. The client calls `GET /api/auth/me` to hydrate user context, then `LayoutShell` admits the user to the app.
+8. JWT claims carry only `sub` (user UUID) and `ph` (permissions hash). Tenant context, roles, and permissions are resolved at request time by `authRedis` — they are not embedded in the token.
+9. `auth_token` rotates on every call to `POST /api/auth/refresh`; the refresh token rotates fully alongside it. Logout clears both cookies.
+10. All API calls use `credentials: 'include'`. No tokens are stored in `localStorage`.
+
+##### 3.1.4.2 Mid-Session Policy Refresh
+
+1. When a role's policies, scope, state filters, or field grants change, the server invalidates the Redis permission canon for every affected user (`perm:{userId}:{tenantCode}`).
+2. On the user's next authenticated request, `authRedis` reloads the canon from the database and recomputes `ph`.
+3. If the recomputed `ph` differs from the claim in the request's `auth_token`, the server sets the `X-Token-Stale: 1` response header. The client treats that header as a signal to call `POST /api/auth/refresh`. The refresh re-issues tokens with the fresh `ph`.
+4. The user does not need to log out and back in. The next request reflects the updated permissions automatically.
+
+> **Implementation gap:** the server emits `X-Token-Stale: 1`, but the client does not yet read it — proactive token refresh on permission change is unimplemented, so a stale `ph` claim persists in the token until the next reactive refresh (up to 15 minutes, or until any 401).
+
+##### 3.1.4.3 Four-Layer RBAC Resolution
+
+1. **Layer 1 — Policies.** Resolution walks from most specific to least specific: `module::router::action` → `module::router::` → `module::::` → `::::` (empty-module wildcard for idempotent roles) → default `none`.
+2. **Exact-match carve-out.** `policy_catalog` rows with `policy_required = true` bypass the fallback. They require an exact `module::router::action` grant. The carve-out set is built at module load in `apps/server/src/middleware/rbac.js` from `CATALOG_ENTRIES` in `policyCatalogSeeder.js`. This keeps sensitive actions out of router-level wildcards.
+3. **Layer 2 — Data scope.** `roles.scope` selects how much data the user sees. The hierarchy is `all_projects` > `assigned_companies` > `assigned_projects` > `self`. `self` scope reads `entity_type` and `entity_id` from `portal_users`. It then maps to the resource's FK column (e.g., `vendor_id` on AP invoices).
+4. **Layer 3 — State filters.** `state_filters.visible_statuses` restricts which record statuses the role may see per `(module, router)`. Empty = no filtering.
+5. **Layer 4 — Field groups.** `field_group_grants` plus default definitions decide which columns are returned. Empty grants = all columns visible.
+6. **Multi-role merge.** When a user holds multiple roles, Layer 2 takes the most permissive scope. Layers 3 and 4 take the union of states and columns across roles.
+7. **No bypass.** The middleware does not short-circuit for `super_user` or `admin`. Every user resolves through the same `roles` array → `policies` path. Every grant is auditable.
+8. **Enforcement.** Four pieces work in order. `moduleEntitlement` rejects requests whose module is not in `tenants.allowed_modules`. `withMeta({ module, router, action })` annotates `req.resource`. `rbac(requiredLevel)` enforces Layer 1 at the route. `ViewController._applyRbacFilters()` enforces Layers 2–4 at the service layer.
+
+##### 3.1.4.4 System Roles (incl. vendor_contacts, clients)
+
+System roles are built into the platform. Their meaning is fixed across every tenant and they cannot be edited. They are distinct from **convenience roles** (e.g., `accountant`, `controller`, `project_manager`), which each tenant defines for itself.
+
+| Role | Scope | Notes |
+| --- | --- | --- |
+| `super_user` | Cross-tenant (Axerra only) | Full access to every tenant. Holds wildcard `level: 'full'` policy plus cross-tenant and impersonation grants. |
+| `admin` | `all_projects` (per tenant) | Full access within one tenant. Holds wildcard `level: 'full'` policy. Seeded in every tenant schema. |
+| `support` | Cross-tenant (Axerra only) | Cross-tenant access and impersonation, with `level: 'none'` on financial modules (`accounting`, `ap`, `ar`). |
+| `vendor_contact` | `self` | Vendor-portal user. Sees only their own vendor's records (AP invoices, payments, POs). |
+| `client` | `self` | Client-portal user. Sees only their own invoices, statements, and receipts. |
+
+Cross-tenant and impersonation policies are seeded only in the `axerra` schema, on `super_user` and `support`. They cannot be assigned in any other schema.
+
+The five system roles above receive a single wildcard policy at seed time. Adding a new module does not require backfilling them. Convenience roles enumerate per-module policies explicitly. When a new module ships, every tenant's convenience roles must be backfilled with the new module's rows. The retroactive seeder for this is not yet built. Tenants must add the new policies manually until it lands.
+
+`tenants::portal-users::import` and `tenants::portal-users::export` are intentionally absent from `policy_catalog`. Users are created via `/register` only. `tenants::tenants::import|export` are seeded and gate the tenants XLSX endpoints.
+
+##### 3.1.4.5 Tenant Numbering System
+
+The numbering system generates human-readable business identifiers (e.g., `EMP-0045`, `INV-2026-00123`) separately from internal UUID primary keys. Configuration is per-tenant, optionally sub-scoped (e.g., per company for invoices), and supports period-based counter reset.
+
+###### 3.1.4.5.1 Design principles
+
+1. UUID primary keys are not business identifiers.
+2. Business numbers are generated per tenant; never globally.
+3. Invoice numbers are generated per company (`scope_type = 'company'`); each company has its own invoice sequence.
+4. Reset is implemented via `period_key` partitioning, not by restarting sequences.
+5. Display formatting is independent of serial allocation.
+6. Issued numbers are immutable.
+
+###### 3.1.4.5.2 Data: `tenant_numbering_config`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null, immutable. |
+| `id_type` | varchar(32) | `employee`, `vendor`, `client`, `contact`, `ar_invoice`, `ap_invoice`, `project`. |
+| `prefix` | varchar(16) | Display prefix. |
+| `suffix` | varchar(16) | Display suffix. |
+| `date_mode` | varchar(16) | `none`, `year`, `year_month`, `ymd`. |
+| `reset_mode` | varchar(16) | `never`, `yearly`, `monthly`, `daily`. |
+| `padding` | integer | Zero-pad width. |
+| `separator` | varchar(4) | Joins display parts. |
+| `uppercase` | boolean | Apply uppercase to the final display ID. |
+| `scope_type` | varchar(32) | `none`, `company`, or `project`. |
+| `is_enabled` | boolean | Enables auto-numbering for this entity type. |
+
+Unique constraint `(tenant_id, id_type)` — one config row per entity type per tenant. Changing configuration affects future numbers only; historical numbers are never rewritten.
+
+###### 3.1.4.5.3 Data: `tenant_number_sequence_state`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null, immutable. |
+| `id_type` | varchar(32) | Entity type. |
+| `scope_id` | uuid | Scope entity UUID, or NIL UUID for global scope. |
+| `period_key` | varchar(16) | Derived from `reset_mode`: `never` → `global`, `yearly` → `YYYY`, `monthly` → `YYYY-MM`, `daily` → `YYYY-MM-DD`. |
+| `last_serial` | bigint | Current counter value. |
+
+Unique constraint `(tenant_id, id_type, scope_id, period_key)`.
+
+###### 3.1.4.5.4 Allocation and display
+
+1. Determine `period_key` from `reset_mode` and current date.
+2. `BEGIN` transaction.
+3. `SELECT ... FROM tenant_number_sequence_state FOR UPDATE` (row lock).
+4. Insert with `last_serial = 1` if no row exists; otherwise increment `last_serial`.
+5. Assign the serial to the entity record.
+6. Compute `display_id = prefix + separator + date_part + separator + padded(serial) + separator + suffix`. Only non-empty components are included; uppercase applied if configured.
+7. `COMMIT`.
+
+Reset is achieved via `period_key` partitioning. For yearly reset, 2025 uses `period_key = '2025'` from serial 000001, and 2026 starts a new partition at 000001 automatically.
+
+###### 3.1.4.5.5 Recommended defaults
+
+| Entity | Prefix | Padding | Date mode | Reset | Scope |
+| --- | --- | --- | --- | --- | --- |
+| Employee | `EMP` | 4 | none | never | tenant |
+| Vendor | `VND` | 4 | none | never | tenant |
+| Client | `CLT` | 4 | none | never | tenant |
+| Contact | `CON` | 4 | none | never | tenant |
+| Project | `PRJ` | 4 | none | never | tenant |
+| AR Invoice | `INV` | 5 | year | yearly | company |
+| AP Invoice | `BILL` | 5 | year | yearly | company |
+
+All configs are seeded with `is_enabled = false`. Tenants opt in via Settings → Numbering.
+
+###### 3.1.4.5.6 Entity integration and backfill
+
+1. Auto-numbering populates the entity's code field only when the user does not supply one.
+2. AR invoices number on status transition to `sent`. AP invoices number on status transition to `approved`. Numbers are immutable after assignment.
+3. When numbering is enabled for an entity type for the first time, existing records with `code IS NULL AND deactivated_at IS NULL` are backfilled. The backfill runs atomically, in `created_at` order, via the same `allocateNumber()` path normal creates use. The response returns a `backfilledCodes` count for the UI.
+
+##### 3.1.4.6 Impersonation
+
+1. The active impersonation session is stored in Redis at `imp:{userId}` with TTL.
+2. `authRedis` detects the session, swaps `req.user` to the target user, and sets `req.user.is_impersonating = true` plus `req.user.impersonated_by`.
+3. `/api/auth/me` includes `impersonation: { active, impersonated_by }` for client-side UI state.
+4. Each session inserts a row into `admin.impersonation_logs`. The partial unique index on `(impersonator_id) WHERE ended_at IS NULL` prevents concurrent sessions. A second open attempt returns `409 Conflict`.
+
+##### 3.1.4.7 Tenant Archive, Restore, and Admin Reactivation
+
+The tenant lifecycle is **soft**: archive locks rows, restore reactivates them, no data is deleted. Restoring a tenant does **not** restore login capability on its own — by design, an Axerra root user must deliberately enable at least one admin via the `provision-admin` endpoint before the tenant becomes usable again.
+
+###### 3.1.4.7.1 Archive cascade
+
+`DELETE /api/tenants/v1/tenants/archive` runs in a single transaction:
+
+1. Sets `admin.tenants.deactivated_at = NOW()` on the tenant row.
+2. Bulk-updates every active `admin.portal_user_tenants` row for that tenant: `deactivated_at = NOW(), status = 'locked'`.
+3. For each affected `portal_users` row, locks it **only if** the just-archived binding was the user's last active one. Multi-tenant vendor contacts with other live bindings stay live and can keep logging in via those tenants.
+
+The root tenant (`AXERRA`) cannot be archived.
+
+###### 3.1.4.7.2 Restore cascade
+
+`PATCH /api/tenants/v1/tenants/restore` runs in a single transaction and uses a **cohort-by-MAX-timestamp** rule (`restoreTenantBindings` in `apps/server/src/system/auth/services/portalUserCascade.js`):
+
+1. Clears `admin.tenants.deactivated_at` on the tenant row.
+2. Finds the cohort of bindings whose `deactivated_at` equals the most recent `deactivated_at` for this tenant — i.e. the bindings archived **with** the tenant. Bindings deactivated at an earlier date for unrelated reasons are deliberately excluded.
+3. Clears `deactivated_at` on each cohort binding and on the referenced `portal_users` rows.
+4. **Does not modify `status`.** Bindings and users come out of restore as `locked` because the archive cascade set them to `locked` and the prior status is not preserved. This is intentional: a dormancy period invalidates the prior trust state, so re-enabling a login must be an explicit operator decision.
+
+After restore, no one can log in to the tenant until §3.1.4.7.3 is executed for at least one user.
+
+###### 3.1.4.7.3 Admin reactivation via `provision-admin`
+
+`POST /api/tenants/v1/tenants/:tenantId/provision-admin` is RBAC-guarded by `requireRootTenant`. The handler runs in a single transaction and follows the same shape as `vendorContactsController.#provisionAppUser` (the existing email-collision-tolerant provisioning pattern). It takes `{ email, firstName, lastName, phone, employeeId? }` and branches on what already exists:
+
+1. **No matching `portal_users` row.** Create the `portal_users` row, create the tenant-side `employees` row (or link to the supplied `employeeId` if it points at an existing employee), insert a `portal_user_tenants` binding with `entity_type='employee'`, `status='invited'`. Send invite email.
+2. **`portal_users` exists, no binding to this tenant.** Do not modify the existing `portal_users` row (the user is active in another tenant — typically a vendor contact, or an Axerra staff member taking interim admin duty). Create the tenant-side `employees` row, insert a new `(portal_user_id, tenantId, entity_type='employee', status='invited')` binding. Send invite email. The user keeps their existing credentials and reaches this tenant via the `x-tenant-code` header (see §3.1.4.x request flow).
+3. **`portal_users` exists AND a binding to this tenant exists with `entity_type='employee'`.** Unlock in place: clear any residual `deactivated_at`, set `status='invited'`, blank `password_hash`, link to the supplied employee row (or keep the existing `entity_id` if already populated). Send invite email.
+4. **`portal_users` exists with a binding to this tenant whose `entity_type` is `vendor_contact`, `client`, or `NULL` (bare).** Return `409 Conflict` with a descriptive error. The endpoint never silently rewrites the entity link — promoting a vendor contact or client to admin is a separate, explicit operation outside this endpoint's scope.
+
+All rows touched stamp `created_by` / `updated_by = req.user.id` for audit.
+
+###### 3.1.4.7.4 What `provision-admin` deliberately does **not** do
+
+- It does not bulk-unlock the original employee cohort. Each admin must be enabled deliberately.
+- It does not re-activate a tenant's `allowed_modules` or otherwise alter the tenant row. Restore handles tenant state; this endpoint handles user state.
+- It does not provide self-service. Forgotten-password recovery for portal users (any tenant, archived or active) is out of scope.
+
+See [ADR-0029](decisions/0029-tenant-restore-admin-reactivation.md) for the security rationale behind the lock-on-restore + deliberate-reactivation design.
+
+##### 3.1.4.8 Tenant Approval Settings
+
+Per-workflow toggle for whether an approval workflow enforces the two-step submit → approve sequence. Each tenant configures it independently; workflows are governed separately (a tenant may require approval for budget release but not for change orders, or vice versa).
+
+###### 3.1.4.8.1 Data: `tenant_approval_config`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `workflow_type` | varchar(32) | The approval workflow. Unique per tenant. `project_budget_release` and `change_order` today; future rows cover AP/AR/GL approvals (§3.1.2.5). |
+| `require_approval` | boolean | `true` → the transition requires the two-step submit → approve sequence; the submitter and approver may be the same user (self-approval is permitted). `false` → a single user holding the relevant approve permission performs the transition directly, with no separate submit step. |
+
+Standard audit fields apply. Both workflows are seeded `require_approval = true`, preserving two-step approval as the default; tenants opt out via Settings → Approvals. Regardless of the flag, every transition still writes a row to the `approvals` audit table (§3.1.2.5).
 
 ---
 
-### 3.3 Core Entities  [in-scope]
+### 3.2 Core Entities  [core]
 
-**Purpose:** Shared reference data used across all modules — vendors, clients, employees, contacts, addresses, phone numbers, and intercompany entities.
+#### 3.2.1 Overview
 
-#### 3.3.1 Vendors
+Core Entities are the shared reference records every other module reads from. They include vendors, vendor contacts, payment terms, clients, employees, and companies. Polymorphic supporting tables (sources, contacts, addresses, phone numbers, tax identifiers, emails) attach to every entity through a single `sources` discriminated-union table. That pattern lets addresses, phones, emails, and tax IDs hang off any entity uniformly.
 
-| Field               | Type         | Description                    |
-| ------------------- | ------------ | ------------------------------ |
-| `id`              | uuid         | PK                             |
-| `tenant_id`       | uuid         | Not null                       |
-| `source_id`       | uuid         | FK to sources (CASCADE)        |
-| `name`            | varchar(128) | Not null                       |
-| `code`            | varchar(16)  | Unique per tenant              |
-| `payment_term_id` | uuid         | FK to payment_terms (SET NULL) |
-| `is_active`       | boolean      | Default true                   |
-| `notes`           | text         | Internal notes                 |
+#### 3.2.2 Data Tables
 
-**Endpoint:** `/api/core/v1/vendors`
+##### 3.2.2.1 Vendors & Vendor Contacts
 
-#### 3.3.1a Vendor Contacts
+###### 3.2.2.1.1 `vendors`
 
-| Field           | Type        | Description                                                                                                     |
-| --------------- | ----------- | --------------------------------------------------------------------------------------------------------------- |
-| `id`          | uuid        | PK                                                                                                              |
-| `tenant_id`   | uuid        | Not null                                                                                                        |
-| `vendor_id`   | uuid        | FK to vendors (CASCADE)                                                                                         |
-| `source_id`   | uuid        | FK to sources (CASCADE)                                                                                         |
-| `first_name`  | varchar(64) | Not null                                                                                                        |
-| `last_name`   | varchar(64) | Not null                                                                                                        |
-| `position`    | varchar(64) | Job title                                                                                                       |
-| `department`  | varchar(64) | Department                                                                                                      |
-| `is_app_user` | boolean     | Default false. Must be true before a `portal_users` login can be created. Requires `roles` to be non-empty. |
-| `roles`       | text[]      | RBAC role codes assigned to this vendor contact (default `'{}'`). References `roles.code`.                  |
-| `is_primary`  | boolean     | Default false. Marks primary contact for the vendor.                                                            |
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null. |
+| `source_id` | uuid | FK to `sources` (CASCADE). |
+| `name` | varchar(128) | Not null. |
+| `code` | varchar(16) | Unique per tenant. Auto-numbered when numbering is enabled. |
+| `payment_term_id` | uuid | FK to `payment_terms` (SET NULL). |
+| `is_active` | boolean | Default true. |
+| `notes` | text | Internal notes. |
 
-Each vendor contact gets its own `sources` record (with `source_type = 'vendor_contact'`) for linked emails and phone numbers via the polymorphic sources pattern.
+###### 3.2.2.1.2 `vendor_contacts`
 
-**Endpoint:** `/api/core/v1/vendor-contacts`
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null. |
+| `vendor_id` | uuid | FK to `vendors` (CASCADE). |
+| `source_id` | uuid | FK to `sources` (CASCADE). |
+| `first_name` | varchar(64) | Not null. |
+| `last_name` | varchar(64) | Not null. |
+| `position` | varchar(64) | Job title. |
+| `department` | varchar(64) | Department. |
+| `is_app_user` | boolean | Default false. Must be true before a `portal_users` login can be created. Requires `roles` to be non-empty. |
+| `roles` | text[] | RBAC role codes (default `'{}'`). References `roles.code`. |
+| `is_primary` | boolean | Default false. Marks the vendor's primary contact. |
 
-**UI affordance:** `VendorContactsPanel.jsx` + `ContactFormDialog.jsx` (under `apps/client/src/pages/Core/vendors/`) render inside the Vendor edit dialog and provide create/edit/archive for the vendor's contacts. Standard XLSX import/export are wired at the router level (the router auto-applies `rbac('full')` on `/import-xls` and `rbac('view')` on `/export-xls`); a top-level Vendor Contacts page is intentionally not part of §4.6.3 today — import/export is driven from the parent Vendor panel. (Documented per gaps 2.3 / 2.16, 2026-05-21.)
+Each vendor contact owns its own `sources` row (with `source_type = 'vendor_contact'`) so emails, phones, and addresses attach via the polymorphic pattern (see §3.2.2.5).
 
-#### 3.3.1b Payment Terms
+##### 3.2.2.2 Payment Terms
 
-| Field         | Type        | Description                                                   |
-| ------------- | ----------- | ------------------------------------------------------------- |
-| `id`        | uuid        | PK                                                            |
-| `tenant_id` | uuid        | Not null                                                      |
-| `label`     | varchar(64) | Not null. Human-readable label (e.g. "Net 30", "2/10 Net 30") |
-| `term`      | integer     | Not null, default 30. The numeric value of the payment term   |
-| `units`     | varchar(16) | Not null, default `'days'`. CHECK: `days` or `months`   |
-| `is_active` | boolean     | Default true                                                  |
+###### 3.2.2.2.1 `payment_terms`
 
-**Endpoint:** `/api/core/v1/payment-terms`
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null. |
+| `label` | varchar(64) | Human-readable label (e.g., "Net 30", "2/10 Net 30"). |
+| `term` | integer | Not null, default 30. |
+| `units` | varchar(16) | Not null, default `days`. CHECK: `days` or `months`. |
+| `is_active` | boolean | Default true. |
 
-#### 3.3.2 Clients
+##### 3.2.2.3 Clients
 
-| Field           | Type         | Description                                                                                                     |
-| --------------- | ------------ | --------------------------------------------------------------------------------------------------------------- |
-| `id`          | uuid         | PK                                                                                                              |
-| `tenant_id`   | uuid         | Not null                                                                                                        |
-| `source_id`   | uuid         | FK to sources (CASCADE)                                                                                         |
-| `name`        | varchar(128) | Not null                                                                                                        |
-| `code`        | varchar(16)  | Unique per tenant                                                                                               |
-| `roles`       | text[]       | RBAC role codes assigned to this client (default `'{}'`). References `roles.code`.                          |
-| `is_app_user` | boolean      | Default false. Must be true before a `portal_users` login can be created. Requires `roles` to be non-empty. |
-| `is_active`   | boolean      | Default true                                                                                                    |
+###### 3.2.2.3.1 `clients`
 
-> **Email storage:** Client email addresses live in the polymorphic `emails` table (see §3.3.4 / §3.14.1) keyed by the client's `source_id`. There is no `email` column on `clients`. (Reconciled per gap 3.12 / 4.11, 2026-05-21.)
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null. |
+| `source_id` | uuid | FK to `sources` (CASCADE). |
+| `name` | varchar(128) | Not null. |
+| `code` | varchar(16) | Unique per tenant. Auto-numbered when numbering is enabled. |
+| `roles` | text[] | RBAC role codes (default `'{}'`). |
+| `is_app_user` | boolean | Default false. Must be true before a `portal_users` login can be created. |
+| `is_active` | boolean | Default true. |
 
-**Endpoint:** `/api/core/v1/clients`
+Email addresses live in the polymorphic `emails` table keyed by `clients.source_id`. There is no `email` column on `clients`.
 
-#### 3.3.3 Employees
+##### 3.2.2.4 Employees
 
-| Field                  | Type         | Description                                                                                                        |
-| ---------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------ |
-| `id`                 | uuid         | PK                                                                                                                 |
-| `tenant_id`          | uuid         | Not null                                                                                                           |
-| `source_id`          | uuid         | FK to sources (CASCADE)                                                                                            |
-| `first_name`         | varchar(64)  | Not null                                                                                                           |
-| `last_name`          | varchar(64)  | Not null                                                                                                           |
-| `code`               | varchar(16)  | Unique per tenant                                                                                                  |
-| `position`           | varchar(64)  | Job title                                                                                                          |
-| `department`         | varchar(64)  | Department                                                                                                         |
-| `roles`              | text[]       | RBAC role codes assigned to this employee (default `'{}'`). References `roles.code`.                           |
-| `is_app_user`        | boolean      | Default false. Must be true before a `portal_users` login can be created. Requires `roles` to be non-empty.    |
-| `is_primary_contact` | boolean      | Default false. Designates this employee as the tenant's primary contact.                                           |
-| `is_billing_contact` | boolean      | Default false. Designates this employee as the tenant's billing contact.                                           |
+###### 3.2.2.4.1 `employees`
 
-> **Email storage:** Employee email addresses live in the polymorphic `emails` table (see §3.3.4 / §3.14.1) keyed by the employee's `source_id`. There is no `email` column on `employees`; the per-tenant uniqueness invariant is enforced on `emails` instead. (Reconciled per gap 3.11 / 4.11, 2026-05-21.)
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null. |
+| `source_id` | uuid | FK to `sources` (CASCADE). |
+| `first_name` | varchar(64) | Not null. |
+| `last_name` | varchar(64) | Not null. |
+| `code` | varchar(16) | Unique per tenant. Auto-numbered when numbering is enabled. |
+| `position` | varchar(64) | Job title. |
+| `department` | varchar(64) | Department. |
+| `roles` | text[] | RBAC role codes (default `'{}'`). |
+| `is_app_user` | boolean | Default false. Must be true before a `portal_users` login can be created. Requires `roles` to be non-empty. |
+| `is_primary_contact` | boolean | Default false. Designates this employee as the tenant's primary contact. |
+| `is_billing_contact` | boolean | Default false. Designates this employee as the tenant's billing contact. |
 
-> **Soft Delete:** Employees use the `deactivated_at` column (via pg-schemata `softDelete: true`) — there is no `is_active` boolean column. Vendors, clients, and contacts have BOTH `is_active` (boolean) AND `deactivated_at` (via `softDelete: true`) — a dual active/inactive mechanism. `is_active` is a user-facing toggle; `deactivated_at` is the pg-schemata soft-delete marker that filters records from read queries.
+Email addresses live in the polymorphic `emails` table keyed by `employees.source_id`. The per-tenant uniqueness invariant is enforced on `emails` instead of on `employees`.
 
-> **Contact Designation:** Both `is_primary_contact` and `is_billing_contact` can be true on the same employee (e.g., small company owner is both primary and billing contact). Multiple employees can share the same flag. These flags replace the former `portal_users.tenant_role` designation. When the primary contact leaves the tenant (deactivated), the tenant's account executive is responsible for designating a new primary contact.
+Employees use `deactivated_at` (via pg-schemata `softDelete: true`) and do **not** have an `is_active` boolean. Vendors, clients, and contacts have both `is_active` (user-facing toggle) and `deactivated_at` (soft-delete marker).
 
-**Edit Dialog:** The employee edit dialog (`maxWidth="md"`) includes phone number and address management sections below the employee fields. Phone numbers are rendered as repeatable inline rows (type select, number, is_primary checkbox, delete). Addresses are rendered as bordered cards with a 2-column grid of address fields. Changes are diffed and persisted via the polymorphic `sources` → `phone_numbers` / `addresses` pattern.
+##### 3.2.2.5 Sources, Contacts, Addresses & Phones
 
-**App-user provisioning libs (as of 2026-05-21, gap 2.9):** Shared helpers under `apps/server/src/lib/` coordinate the employee ↔ portal_user lifecycle:
+The `sources` table is a discriminated union — every entity that needs addresses, phones, emails, or tax IDs gets exactly one `sources` row. Children FK to `sources.id`, never to the entity directly.
 
-- `loginEmailSync.js` — keeps `portal_users.email` in sync with the entity's `is_login` email row in the `emails` table.
-- `employeeAppUserSync.js` — drives the provision / archive / restore branches when `employees.is_app_user` toggles (mirrored for clients and vendor_contacts).
-- `clearOtherPrimary.js` — enforces single-primary invariants on `is_primary_contact` / `is_billing_contact`.
-- `employeeRoleValidator.js` — rejects `is_app_user = true` saves where `roles` is empty.
+###### 3.2.2.5.1 `sources`
 
-**Endpoints:**
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null. |
+| `table_id` | uuid | The parent entity's id. |
+| `source_type` | varchar(32) | `vendor`, `vendor_contact`, `client`, `employee`, `contact`, `company`. |
+| `label` | varchar(64) | Human-friendly label. |
 
-| Method        | Path                                          | Purpose                                                                    |
-| ------------- | --------------------------------------------- | -------------------------------------------------------------------------- |
-| Standard CRUD | `/api/core/v1/employees`                    | List, get, create, update, archive, restore                                |
-| `GET`       | `/api/core/v1/employees/:id/source-id`      | Resolve the polymorphic source record for phone/address lookups            |
-| `POST`      | `/api/core/v1/employees/:id/reset-password` | Admin-initiated password reset for an employee's linked portal_users login |
+###### 3.2.2.5.2 `contacts`
 
-#### 3.3.4 Polymorphic Sources, Contacts, Addresses & Phone Numbers
+Standalone payees and receivable counterparties that are not vendors, clients, or employees (one-off commissions, donations, ad-hoc income). Cannot log in. No RBAC roles.
 
-The `sources` table implements a **discriminated union** pattern linking vendors, clients, employees, and contacts to shared addresses and phone numbers:
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null. |
+| `source_id` | uuid | FK to `sources` (CASCADE). |
+| `name` | varchar(128) | Not null. |
+| `code` | varchar(16) | Unique per tenant. |
+| `is_active` | boolean | Default true. |
 
-**Sources:**
+###### 3.2.2.5.3 `addresses`
 
-| Field           | Type        | Description                                                                        |
-| --------------- | ----------- | ---------------------------------------------------------------------------------- |
-| `id`          | uuid        | PK                                                                                 |
-| `tenant_id`   | uuid        | Not null                                                                           |
-| `table_id`    | uuid        | References the parent entity                                                       |
-| `source_type` | varchar(32) | `vendor`, `vendor_contact`, `client`, `employee`, `contact`, `company` |
-| `label`       | varchar(64) | Human-friendly label                                                               |
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null, immutable. |
+| `source_id` | uuid | FK to `sources` (CASCADE), not null. |
+| `label` | varchar(32) | `billing`, `physical`, `mailing`. |
+| `address_line_1` | varchar(255) | Street or P.O. Box. |
+| `address_line_2` | varchar(255) | Apt, suite, unit, building, floor. |
+| `address_line_3` | varchar(255) | Additional line for international addresses. |
+| `city` | varchar(128) | City / locality. |
+| `state_province` | varchar(128) | State, province, region, prefecture, county. |
+| `postal_code` | varchar(20) | ZIP / postal code (any global format). |
+| `country_code` | char(2) | ISO 3166-1 alpha-2. |
+| `is_primary` | boolean | Primary address flag. |
 
-**Contacts (First-Class Entity — Miscellaneous Payees):**
+###### 3.2.2.5.4 `phone_numbers`
 
-Contacts are standalone first-class entities representing miscellaneous payees and receivable counterparties that don't fall into vendor, client, or employee categories — e.g., one-off commission payments, charitable donations, or ad-hoc income sources. Contacts are dual-purpose (usable in both AP and AR modules) and cannot log in (no RBAC):
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null, immutable. |
+| `source_id` | uuid | FK to `sources` (CASCADE), not null. |
+| `phone_type` | varchar(16) | `cell`, `work`, `home`, `fax`, `other` (default `cell`). |
+| `country_code` | char(2) | ISO 3166-1 alpha-2 (default `US`). |
+| `phone_number` | varchar(32) | Not null. |
+| `is_primary` | boolean | Default false. |
 
-| Field         | Type         | Description             |
-| ------------- | ------------ | ----------------------- |
-| `id`        | uuid         | PK                      |
-| `tenant_id` | uuid         | Not null                |
-| `source_id` | uuid         | FK to sources (CASCADE) |
-| `name`      | varchar(128) | Not null                |
-| `code`      | varchar(16)  | Unique per tenant       |
-| `is_active` | boolean      | Default true            |
+###### 3.2.2.5.5 `tax_identifiers`
 
-> **Note:** Contacts use the polymorphic `sources` pattern (with `source_type = 'contact'`) for linked emails, addresses, phone numbers, and tax identifiers, just like vendors, clients, and employees. Contacts cannot be app users and have no RBAC roles.
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null, immutable. |
+| `source_id` | uuid | FK to `sources` (CASCADE), not null. |
+| `country_code` | char(2) | ISO country code, not null. |
+| `tax_type` | varchar(16) | `EIN`, `SSN`, `VAT`, etc. — not null. |
+| `tax_value` | varchar(64) | The identifier value, not null. |
+| `is_primary` | boolean | Default false. |
 
-**Addresses:**
+Unique constraint `(source_id, country_code, tax_type) WHERE deactivated_at IS NULL`.
 
-| Field              | Type         | Description                                                   |
-| ------------------ | ------------ | ------------------------------------------------------------- |
-| `id`             | uuid         | PK                                                            |
-| `tenant_id`      | uuid         | Not null, immutable                                           |
-| `source_id`      | uuid         | FK to sources (CASCADE), not null                             |
-| `label`          | varchar(32)  | `billing`, `physical`, `mailing`                        |
-| `address_line_1` | varchar(255) | Street address or P.O. Box                                    |
-| `address_line_2` | varchar(255) | Apt, suite, unit, building, floor, etc.                       |
-| `address_line_3` | varchar(255) | Additional line (international addresses)                     |
-| `city`           | varchar(128) | City / locality / town                                        |
-| `state_province` | varchar(128) | State, province, region, prefecture, county                   |
-| `postal_code`    | varchar(20)  | ZIP / postal code (supports all global formats)               |
-| `country_code`   | char(2)      | ISO 3166-1 alpha-2 country code (e.g.,`US`, `GB`, `JP`) |
-| `is_primary`     | boolean      | Primary address flag                                          |
+##### 3.2.2.6 Companies
 
-**Phone Numbers:**
+###### 3.2.2.6.1 `companies`
 
-| Field            | Type        | Description                                                                           |
-| ---------------- | ----------- | ------------------------------------------------------------------------------------- |
-| `id`           | uuid        | PK                                                                                    |
-| `tenant_id`    | uuid        | Not null, immutable                                                                   |
-| `source_id`    | uuid        | FK to sources (CASCADE), not null                                                     |
-| `phone_type`   | varchar(16) | `cell`, `work`, `home`, `fax`, `other` (default `cell`)                   |
-| `country_code` | char(2)     | ISO 3166-1 alpha-2 country code (default `US`) — used to derive the dialing prefix |
-| `phone_number` | varchar(32) | Not null                                                                              |
-| `is_primary`   | boolean     | Default false                                                                         |
+Companies are the legal entities under a tenant — the things that sign contracts, hold bank accounts, and file taxes.
 
-> **Note:** Phone numbers are available to vendors, clients, employees, and contacts via the polymorphic `sources` pattern.
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null. |
+| `source_id` | uuid | FK to `sources` (CASCADE). |
+| `code` | varchar(16) | Required, unique per tenant. Not auto-numbered — operators choose the code. |
+| `name` | varchar(128) | Company name. |
+| `is_active` | boolean | Default true. |
 
-> **Global Address Best Practices:** The `addresses` table follows an internationally flexible schema:
->
-> - Three address lines accommodate any country's format without rigid field assumptions
-> - `state_province` is a generic region field (US states, UK counties, Japanese prefectures, etc.)
-> - `country_code` uses ISO 3166-1 alpha-2 for reliable lookup and localization
-> - `postal_code` as varchar(20) covers all known formats (US ZIP+4, UK postcodes, etc.)
-> - **Mailing label generation:** Concatenate non-empty address lines, then `city + state_province + postal_code` on one line, then country name (resolved from `country_code`). Country-specific formatting rules (e.g., Japanese address order reversal) can be applied via a locale-aware formatter.
+#### 3.2.3 API
 
-**Tax Identifiers:**
+All endpoints are under `/api/core/v1/` and provide standard CRUD (see §7.1) unless noted.
 
-Tax identification is handled by a dedicated `tax_identifiers` table linked via the polymorphic `sources` pattern, replacing the former `tax_id` column on entity tables:
+| Method | Path | Description |
+| --- | --- | --- |
+| CRUD | `/api/core/v1/vendors` | Manage vendors. |
+| CRUD | `/api/core/v1/vendor-contacts` | Manage vendor contacts. |
+| CRUD | `/api/core/v1/payment-terms` | Manage payment terms. |
+| CRUD | `/api/core/v1/clients` | Manage clients. |
+| CRUD | `/api/core/v1/employees` | Manage employees. |
+| GET | `/api/core/v1/employees/:id/source-id` | Resolve the polymorphic source record for phone/address lookups. |
+| POST | `/api/core/v1/employees/:id/reset-password` | Admin-initiated password reset for the employee's `portal_users` login. |
+| CRUD | `/api/core/v1/contacts` | Manage standalone contacts. |
+| CRUD | `/api/core/v1/companies` | Manage companies. |
+| CRUD | `/api/core/v1/sources` | Manage polymorphic source rows (rarely called directly). |
+| CRUD | `/api/core/v1/addresses` | Manage addresses keyed by `source_id`. |
+| CRUD | `/api/core/v1/phone-numbers` | Manage phone numbers keyed by `source_id`. |
+| CRUD | `/api/core/v1/tax-identifiers` | Manage tax identifiers keyed by `source_id`. |
+| CRUD | `/api/core/v1/emails` | Manage email addresses keyed by `source_id` (see §3.10). |
 
-| Field            | Type        | Description                                |
-| ---------------- | ----------- | ------------------------------------------ |
-| `id`           | uuid        | PK                                         |
-| `tenant_id`    | uuid        | Not null, immutable                        |
-| `source_id`    | uuid        | FK to sources (CASCADE), not null          |
-| `country_code` | char(2)     | ISO country code, not null                 |
-| `tax_type`     | varchar(16) | e.g.,`EIN`, `SSN`, `VAT` — not null |
-| `tax_value`    | varchar(64) | Tax identifier value, not null             |
-| `is_primary`   | boolean     | Default false                              |
+#### 3.2.4 Business Rules
 
-Unique constraint: `(source_id, country_code, tax_type) WHERE deactivated_at IS NULL`
-
-**Endpoints:** `/api/core/v1/sources`, `/api/core/v1/contacts`, `/api/core/v1/addresses`, `/api/core/v1/phone-numbers`, `/api/core/v1/tax-identifiers`, `/api/core/v1/emails`
-
-**Editable sections (client, as of 2026-05-21, gap 2.13):** Each entity edit dialog composes shared read/write components from `apps/client/src/components/shared/`: `EditableEmailsSection` / `EmailsSection` / `EmailRow`, `EditablePhoneNumbersSection` / `PhoneNumbersSection` / `PhoneRow`, `EditableAddressesSection` / `AddressesSection`, and `EditableTaxIdentifiersSection` / `TaxIdentifiersSection`. The Editable variants diff against the original state and persist add / update / archive against the polymorphic `sources` → child-table pattern.
-
-#### 3.3.5 Companies
-
-| Field         | Type         | Description                                       |
-| ------------- | ------------ | ------------------------------------------------- |
-| `id`        | uuid         | PK                                                |
-| `tenant_id` | uuid         | Not null                                          |
-| `source_id` | uuid         | FK to sources (CASCADE)                           |
-| `code`      | varchar(16)  | Unique company code, required (not auto-numbered) |
-| `name`      | varchar(128) | Company name                                      |
-| `is_active` | boolean      | Default true                                      |
-
-**Endpoint:** `/api/core/v1/companies`
+1. Every entity that owns addresses, phones, emails, or tax IDs has exactly one `sources` row. Children FK to `sources.id`.
+2. `is_app_user = true` requires a non-empty `roles` array. The `employeeRoleValidator.js` lib rejects saves that violate this rule.
+3. Creating a `portal_users` login from an entity is a single transaction: write the `portal_users` row, then sync the `is_login` email on the polymorphic `emails` table via `loginEmailSync.js`.
+4. `employeeAppUserSync.js` (and parallel libs for clients and vendor contacts) drives the provision / archive / restore branches when `is_app_user` toggles.
+5. `clearOtherPrimary.js` enforces single-primary invariants on `is_primary_contact` and `is_billing_contact`. Both flags may be true on the same employee. They may also be true on different employees independently.
+6. Vendor contacts are managed inside the parent Vendor edit dialog (`VendorContactsPanel.jsx` + `ContactFormDialog.jsx`). There is no top-level Vendor Contacts page. XLSX import/export is wired at the router level (`rbac('full')` on `/import-xls`, `rbac('view')` on `/export-xls`) and driven from the Vendor panel.
+7. Companies are the legal entities under a tenant. Invoices number per company (`scope_type = 'company'`). See §3.1.4.5.
+8. Mailing labels concatenate non-empty `address_line_*` lines, then `city + state_province + postal_code`, then the country resolved from `country_code`. A locale-aware formatter applies country-specific rules (e.g., Japanese order reversal).
+9. Editable sections in entity dialogs diff against the original state and persist add/update/archive against the polymorphic pattern. The components are `EditableEmailsSection`, `EditablePhoneNumbersSection`, `EditableAddressesSection`, and `EditableTaxIdentifiersSection`.
 
 ---
 
-### 3.4 Project Management  [in-scope]
+### 3.3 Projects  [core]
 
-**Purpose:** Manage construction projects, units (deliverables), tasks, cost items, and change orders. Supports template-based project creation.
+#### 3.3.1 Overview
 
-#### 3.4.1 Projects
+The Projects module owns the full project lifecycle. It covers projects, the units (deliverables) under each project, the tasks that drive schedule, the cost items that drive estimate, change orders that adjust scope, and templates that act as reusable project blueprints. Every cost line, AP invoice line, AR invoice line, and journal entry posted by another module ultimately rolls up to a project here.
 
-**Data Model:**
+#### 3.3.2 Data Tables
 
-| Field               | Type          | Description                                                                                     |
-| ------------------- | ------------- | ----------------------------------------------------------------------------------------------- |
-| `id`              | uuid          | PK                                                                                              |
-| `tenant_id`       | uuid          | Not null                                                                                        |
-| `company_id`      | uuid          | FK to companies (RESTRICT)                                                                      |
-| `address_id`      | uuid          | FK to addresses (SET NULL)                                                                      |
-| `project_code`    | varchar(32)   | Unique per tenant                                                                               |
-| `name`            | varchar(255)  | Project name                                                                                    |
-| `description`     | text          | Description                                                                                     |
-| `notes`           | text          | Internal notes                                                                                  |
-| `status`          | varchar(20)   | `planning` -> `budgeting` -> `released` -> `complete` (CHECK also includes `on_hold`) |
-| `contract_amount` | numeric(14,2) | Total contract value from client (for profitability)                                            |
+##### 3.3.2.1 Projects
 
-**Endpoint:** `/api/projects/v1/projects`
+###### 3.3.2.1.1 `projects`
 
-**Project Clients (Junction Table):**
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null. |
+| `company_id` | uuid | FK to `companies` (RESTRICT). |
+| `address_id` | uuid | FK to `addresses` (SET NULL). |
+| `project_code` | varchar(32) | Unique per tenant. Auto-numbered when numbering is enabled. |
+| `name` | varchar(255) | Project name. |
+| `description` | text | Description. |
+| `notes` | text | Internal notes. |
+| `status` | varchar(20) | `planning` → `budgeting` → `released` → `complete`. CHECK also allows `on_hold`. |
+| `contract_amount` | numeric(14,2) | Total contract value from clients (used for profitability). |
 
-Associates multiple clients with a project contract. Replaces the former single `client_id` FK on projects.
+###### 3.3.2.1.2 `project_clients`
 
-| Field          | Type        | Description                                 |
-| -------------- | ----------- | ------------------------------------------- |
-| `id`         | uuid        | PK                                          |
-| `project_id` | uuid        | FK to projects (CASCADE)                    |
-| `client_id`  | uuid        | FK to clients (RESTRICT)                    |
-| `role`       | varchar(32) | e.g.,`buyer`, `co-buyer`, `guarantor` |
-| `is_primary` | boolean     | Primary client on the contract              |
+Junction table associating multiple clients with a project (replaces a single `client_id` FK).
 
-Unique constraint: `(project_id, client_id)`
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `project_id` | uuid | FK to `projects` (CASCADE). |
+| `client_id` | uuid | FK to `clients` (RESTRICT). |
+| `role` | varchar(32) | e.g., `buyer`, `co-buyer`, `guarantor`. |
+| `is_primary` | boolean | Primary client on the contract. |
 
-**Endpoint:** `/api/projects/v1/project-clients`
+Unique `(project_id, client_id)`.
 
-#### 3.4.2 Units
+##### 3.3.2.2 Units
 
-| Field                | Type         | Description                               |
-| -------------------- | ------------ | ----------------------------------------- |
-| `id`               | uuid         | PK                                        |
-| `project_id`       | uuid         | FK to projects (CASCADE)                  |
-| `template_unit_id` | uuid         | FK to template_units (SET NULL)           |
-| `version_used`     | integer      | Template version used                     |
-| `name`             | varchar(128) | Unit name                                 |
-| `unit_code`        | varchar(32)  | Unique per project                        |
-| `status`           | varchar(20)  | `draft` -> `released` -> `complete` |
+###### 3.3.2.2.1 `units`
 
-**Endpoint:** `/api/projects/v1/units`
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `project_id` | uuid | FK to `projects` (CASCADE). |
+| `template_unit_id` | uuid | FK to `template_units` (SET NULL). |
+| `version_used` | integer | Template version used at creation. |
+| `name` | varchar(128) | Unit name. |
+| `unit_code` | varchar(32) | Unique per project. |
+| `status` | varchar(20) | `draft` → `released` → `complete`. The `draft → released` transition is permission-gated (see §3.3.4 rule 6). |
 
-#### 3.4.3 Tasks & Task Groups
+##### 3.3.2.3 Tasks & Task Groups
 
-**Task Groups:**
+###### 3.3.2.3.1 `task_groups`
 
-| Field           | Type        | Description               |
-| --------------- | ----------- | ------------------------- |
-| `id`          | uuid        | PK                        |
-| `tenant_id`   | uuid        | Not null, immutable       |
-| `code`        | varchar(16) | Unique per tenant         |
-| `name`        | varchar(64) | Group name                |
-| `description` | text        | Description               |
-| `sort_order`  | integer     | Display order (default 0) |
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null, immutable. |
+| `code` | varchar(16) | Unique per tenant. |
+| `name` | varchar(64) | Group name. |
+| `description` | text | Description. |
+| `sort_order` | integer | Display order (default 0). |
 
-**Tasks Master (Library):**
+###### 3.3.2.3.2 `tasks_master`
 
-| Field                     | Type         | Description                                                                                                          |
-| ------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------- |
-| `id`                    | uuid         | PK                                                                                                                   |
-| `tenant_id`             | uuid         | Not null, immutable                                                                                                  |
-| `code`                  | varchar(16)  | Unique per tenant                                                                                                    |
-| `task_group_code`       | varchar(16)  | Composite FK `(tenant_id, task_group_code)` → `task_groups(tenant_id, code)` added via ALTER TABLE in migration |
-| `name`                  | varchar(128) | Task name                                                                                                            |
-| `default_duration_days` | integer      | Default duration                                                                                                     |
+Tenant-level library of task definitions.
 
-**Tasks (Unit-level instances):**
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null, immutable. |
+| `code` | varchar(16) | Unique per tenant. |
+| `task_group_code` | varchar(16) | Composite FK `(tenant_id, task_group_code)` → `task_groups(tenant_id, code)` (added via ALTER TABLE in migration). |
+| `name` | varchar(128) | Task name. |
+| `default_duration_days` | integer | Default duration. |
 
-| Field              | Type         | Description                                                                      |
-| ------------------ | ------------ | -------------------------------------------------------------------------------- |
-| `id`             | uuid         | PK                                                                               |
-| `unit_id`        | uuid         | FK to units (CASCADE)                                                            |
-| `task_code`      | varchar(16)  | Reference to master task                                                         |
-| `name`           | varchar(128) | Task name                                                                        |
-| `duration_days`  | integer      | Duration                                                                         |
-| `status`         | varchar(20)  | `pending` -> `in_progress` -> `complete` (CHECK also includes `on_hold`) |
-| `parent_task_id` | uuid         | Self-referential for hierarchy                                                   |
+###### 3.3.2.3.3 `tasks`
 
-**Endpoints:** `/api/projects/v1/tasks`, `/api/projects/v1/task-groups`, `/api/projects/v1/tasks-master`
+Unit-level task instances.
 
-#### 3.4.4 Cost Items
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `unit_id` | uuid | FK to `units` (CASCADE). |
+| `task_code` | varchar(16) | Reference to `tasks_master`. |
+| `name` | varchar(128) | Task name. |
+| `duration_days` | integer | Duration. |
+| `status` | varchar(20) | `pending` → `in_progress` → `complete`. CHECK also allows `on_hold`. |
+| `parent_task_id` | uuid | Self-referential for hierarchy. |
 
-| Field           | Type          | Description                                                        |
-| --------------- | ------------- | ------------------------------------------------------------------ |
-| `id`          | uuid          | PK                                                                 |
-| `task_id`     | uuid          | FK to tasks (CASCADE)                                              |
-| `item_code`   | varchar(16)   | Cost item code                                                     |
-| `description` | varchar(255)  | Description                                                        |
-| `cost_class`  | varchar(16)   | `labor`, `material`, `subcontract`, `equipment`, `other` |
-| `cost_source` | varchar(16)   | `budget`, `change_order`                                       |
-| `quantity`    | numeric(12,4) | Quantity                                                           |
-| `unit_cost`   | numeric(12,4) | Unit cost                                                          |
-| `amount`      | numeric(12,2) | **GENERATED** (quantity * unit_cost)                         |
+##### 3.3.2.4 Cost Items
 
-**Endpoint:** `/api/projects/v1/cost-items`
+###### 3.3.2.4.1 `cost_items`
 
-#### 3.4.5 Change Orders
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `task_id` | uuid | FK to `tasks` (CASCADE). |
+| `item_code` | varchar(16) | Cost item code. |
+| `description` | varchar(255) | Description. |
+| `cost_class` | varchar(16) | `labor`, `material`, `subcontract`, `equipment`, `other`. |
+| `cost_source` | varchar(16) | `budget`, `change_order`. |
+| `quantity` | numeric(12,4) | Quantity. |
+| `unit_cost` | numeric(12,4) | Unit cost. |
+| `amount` | numeric(12,2) | GENERATED — `quantity * unit_cost`. |
 
-| Field            | Type          | Description                                               |
-| ---------------- | ------------- | --------------------------------------------------------- |
-| `id`           | uuid          | PK                                                        |
-| `unit_id`      | uuid          | FK to units (CASCADE)                                     |
-| `co_number`    | varchar(16)   | Change order number                                       |
-| `title`        | varchar(128)  | Title                                                     |
-| `reason`       | text          | Justification                                             |
-| `status`       | varchar(20)   | `draft` -> `submitted` -> `approved` / `rejected` |
-| `total_amount` | numeric(12,2) | Total change amount                                       |
+##### 3.3.2.5 Change Orders
 
-**Business Rules:**
+###### 3.3.2.5.1 `change_orders`
 
-- Change order lines reference base `cost_line_id` when modifying existing scope
-- Approved change orders adjust remaining budget and variance metrics
-- Negative quantities/costs represent scope reductions
-- Posting fires GL hooks with explicit references
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `unit_id` | uuid | FK to `units` (CASCADE). |
+| `co_number` | varchar(16) | Change order number. |
+| `title` | varchar(128) | Title. |
+| `reason` | text | Justification. |
+| `status` | varchar(20) | `draft` → `submitted` → `approved` \| `rejected` → `posted`. Rejection returns to `draft` for revision (transient). A CO in `draft`, `submitted`, or `approved` may be closed (`closed` is terminal). Posted COs cannot be closed. Approval and posting are separate actions. |
+| `total_amount` | numeric(12,2) | Total change amount. |
+| `submitted_by` | uuid | FK to `portal_users`. Set when status transitions to `submitted`. Null in `draft`. |
+| `submitted_at` | timestamptz | Set when status transitions to `submitted`. |
+| `posted_by` | uuid | FK to `portal_users`. Set when status transitions to `posted`. |
+| `posted_at` | timestamptz | Set when status transitions to `posted`. |
 
-**Endpoint:** `/api/projects/v1/change-orders`
+Approval and rejection actors live in the `approvals` audit table (§3.1.2.5) — a system-level table shared across modules. The CO row tracks the submitter and the eventual poster; everything in between is reconstructed from the audit table, which captures the full history including rejections and re-submissions.
 
-#### 3.4.6 Templates
+##### 3.3.2.6 Templates
 
-Templates serve as reusable blueprints for project creation:
+Templates are reusable blueprints used to create new projects.
 
-- **Template Units**: Blueprint for units with `name`, `version`, `status` (draft/active)
-- **Template Tasks**: Blueprint tasks with `task_code`, `name`, `duration_days`, `parent_code` hierarchy
-- **Template Cost Items**: Blueprint cost items with cost class, source, quantity, unit cost, and generated amount
-- **Template Change Orders**: Blueprint change orders
+| Table | Purpose |
+| --- | --- |
+| `template_units` | Blueprint units (`name`, `version`, `status`). |
+| `template_tasks` | Blueprint tasks (`task_code`, `name`, `duration_days`, `parent_code` hierarchy). |
+| `template_cost_items` | Blueprint cost items (cost class, source, quantity, unit cost, generated amount). |
+| `template_change_orders` | Blueprint change orders. |
 
-**Endpoints:** `/api/projects/v1/template-units`, `/api/projects/v1/template-tasks`, `/api/projects/v1/template-cost-items`, `/api/projects/v1/template-change-orders`
+#### 3.3.3 API
+
+All endpoints under `/api/projects/v1/` use standard CRUD (§7.1) unless noted.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| CRUD | `/api/projects/v1/projects` | Manage projects. |
+| CRUD | `/api/projects/v1/project-clients` | Manage project ↔ client assignments. |
+| CRUD | `/api/projects/v1/units` | Manage units. |
+| CRUD | `/api/projects/v1/task-groups` | Manage task groups. |
+| CRUD | `/api/projects/v1/tasks-master` | Manage the tenant task library. |
+| CRUD | `/api/projects/v1/tasks` | Manage unit-level task instances. |
+| CRUD | `/api/projects/v1/cost-items` | Manage cost items. |
+| CRUD | `/api/projects/v1/change-orders` | Manage change orders. |
+| POST | `/api/projects/v1/projects/:id/submit` | Submit a project budget for release approval (`budgeting → budgeting`; records submitter). Used only when `project_budget_release` approval is required (§3.1.4.8). |
+| POST | `/api/projects/v1/projects/:id/approve-release` | Approve the budget release (`budgeting → released`). Gated by `project::projects::approve-release`. Self-approval permitted. When `project_budget_release` approval is not required (§3.1.4.8), this endpoint performs the single-step release directly. |
+| POST | `/api/projects/v1/projects/:id/reject-release` | Reject the budget release. Project returns to `budgeting`. Requires `reason`. |
+| POST | `/api/projects/v1/projects/:id/complete` | Mark project complete (`released → complete`). Gated by `project::projects::complete`. Permission-only — no two-step submit/approve. Locks future cost postings. Records a single audit row with `action='complete'`. |
+| POST | `/api/projects/v1/units/:id/release` | Release a unit for implementation (`draft → released`). Gated by `project::units::release`. Permission-only — no two-step submit/approve. When `project_budget_release` approval is required (§3.1.4.8), the unit's budget must be approved first (§3.4.4 rule 1). Records a single audit row with `action='release'`. |
+| POST | `/api/projects/v1/change-orders/:id/submit` | Submit CO for approval (`draft → submitted`). Records submitter. Used only when `change_order` approval is required (§3.1.4.8). |
+| POST | `/api/projects/v1/change-orders/:id/approve` | Approve CO (`submitted → approved`). Self-approval permitted. When `change_order` approval is not required (§3.1.4.8), this endpoint moves the CO to `approved` directly from `draft` or `submitted`. |
+| POST | `/api/projects/v1/change-orders/:id/reject` | Reject CO (`submitted → draft`). Requires `reason`. |
+| POST | `/api/projects/v1/change-orders/:id/post` | Post approved CO (`approved → posted`). Applies CO to budget and fires GL hooks per ADR-0019. Separate permission from approval. |
+| POST | `/api/projects/v1/change-orders/:id/close` | Close CO. Valid only when status is `draft`, `submitted`, or `approved` (`closed` is terminal). Gated by `project::change-orders::close`. Requires `reason`. Self-close allowed. Once posted, a CO cannot be closed — a new CO must be created with offsetting amounts. |
+| CRUD | `/api/projects/v1/template-units` | Manage blueprint units. |
+| CRUD | `/api/projects/v1/template-tasks` | Manage blueprint tasks. |
+| CRUD | `/api/projects/v1/template-cost-items` | Manage blueprint cost items. |
+| CRUD | `/api/projects/v1/template-change-orders` | Manage blueprint change orders. |
+
+#### 3.3.4 Business Rules
+
+1. A project's `status` advances through `planning` → `budgeting` → `released` → `complete`. The `budgeting → released` transition is approval-gated (see rule 4). The `released → complete` transition is permission-gated (see rule 5). The `planning → budgeting` transition and `on_hold` interrupts are ungated.
+2. Units are project-scoped. Each unit has its own task tree and cost items.
+3. Tasks are created from `tasks_master` to inherit defaults; subsequent edits diverge from the master without affecting other units.
+4. **Budget release approval is configurable.** Whether the `budgeting → released` transition is two-step is governed by the `project_budget_release` row in `tenant_approval_config` (§3.1.4.8). When `require_approval = true`, it is a two-step workflow: a user with `project::projects::submit` submits the budget, and a user with `project::projects::approve-release` approves it. The submitter may also approve — self-approval is permitted; the only gate is holding `approve-release`. When `require_approval = false`, a user holding `project::projects::approve-release` moves the project directly to `released` in a single step, with no separate submit. Either path records the transition in the `approvals` audit table. Rejection returns the project to `budgeting` with the rejection reason captured in the audit table.
+5. **Project completion requires permission.** The `released → complete` transition is gated by the `project::projects::complete` permission but does not use the two-step submit/approve workflow — any user holding the permission may mark a project complete directly. The action is recorded in the `approvals` audit table for traceability (single row with `action='complete'`). Closing a project locks future cost postings against it. A future scheduling model may mark a project complete automatically when a specific milestone is reached; that path bypasses the manual permission check and records the system as actor in the audit row.
+6. **Unit release.** A unit advances `draft → released → complete`. The `draft → released` transition — which authorizes implementation work to begin on the unit — is performed via `POST /api/projects/v1/units/:id/release`, gated by `project::units::release`. It is a single permission-gated action with no two-step submit/approve workflow. When the tenant requires budget-release approval (`tenant_approval_config.project_budget_release.require_approval = true`, §3.1.4.8), the unit's budget must be approved before it can be released (see §3.4.4 rule 1); when approval is not required, a holder of `project::units::release` releases the unit directly. The action records a single row in the `approvals` audit table with `entity_type='unit'`, `action='release'`.
+7. **Budgets are locked once released.** Direct edits to budget figures on a released project are not permitted. Budget changes flow only through approved-and-posted change orders.
+8. **Change order lifecycle.** A CO progresses through `draft → submitted → approved | rejected → posted`. Each transition is an explicit action with a dedicated endpoint and permission (see §3.3.3). Rejection returns the CO to `draft` for revision (transient, not terminal). Approval and posting are separate actions — approval validates the CO; posting (a distinct permission) applies it to the budget and fires GL hooks per [ADR-0019](./decisions/0019-cross-module-posting-contract.md). Whether the `submitted → approved` step is enforced as two-step is governed by the `change_order` row in `tenant_approval_config` (§3.1.4.8); when `require_approval = false`, a holder of the CO approve permission moves a `draft` or `submitted` CO to `approved` directly. Self-approval is permitted. A CO in `draft`, `submitted`, or `approved` may be closed (`closed` is terminal). Closing is gated by `project::change-orders::close`, requires a reason, and allows self-close (the original submitter may close their own CO). Once posted, a CO cannot be closed — a new CO must be created with offsetting amounts to reverse a posted CO.
+9. Change order lines reference the base `cost_line_id` when modifying existing scope. Posted change orders adjust remaining budget and variance metrics. Negative quantities or costs represent scope reductions.
+10. **Approval audit.** Every approval-workflow transition (submit, approve, reject, post, complete, release, close) writes one row to the system-level `approvals` table (§3.1.2.5) capturing actor (`created_by`), timestamp (`created_at`), prior and new status, and optional reason (required on reject and close). The table is append-only at the application layer; no PATCH/PUT endpoint is exposed.
+11. Templates produce snapshots at create time. `units.version_used` records which template version a unit was created from; subsequent template edits do not retroactively change live units.
+12. Project numbering uses `tenant_numbering_config.id_type = 'project'` (see §3.1.4.5).
+13. **Add-on hooks (architecture committed, implementation deferred).** Add-on modules may extend project and change-order workflows by registering synchronous in-process hooks at named transition points (e.g. `beforeChangeOrderPost`, `afterProjectRelease`). Hooks run inside the parent transaction; a hook that throws blocks the transition. The architectural decision is recorded in [ADR-0031](./decisions/0031-add-on-hooks.md), which partially supersedes ADR-0028 on the question of workflow extension. The concrete hook contract (registration API, hook-point catalogue, ordering rules) lands with the first add-on that requires a hook.
+14. **Notifications (future dependency).** The approval workflow is incomplete without (a) notifying approvers when a submission is awaiting them and (b) notifying submitters of approval/rejection outcomes. A tenant notification system does not yet exist. Until it does, approvers must check pending items manually via the `GET /api/approvals/v1/approvals` list (§3.1.3.4) or a UI dashboard.
 
 ---
 
-### 3.5 Activities & Cost Management  [in-scope]
+### 3.4 Activities & Cost Management  [core]
 
-**Purpose:** Categorical cost tracking with deliverables, budgets, cost lines, actual costs, and change orders.
+#### 3.4.1 Overview
 
-#### 3.5.1 Categories & Activities
+The Activities module owns categorical cost tracking. Categories and activities classify what work is being done. Deliverables and assignments scope the work to projects and people. Budgets allocate spend per `(deliverable, activity)`. Cost lines record planned spend. Actual costs record what was incurred. Vendor parts hold the per-vendor pricing reference used to populate cost lines. Approving an actual cost posts to GL via the cross-module posting contract.
 
-**Categories:**
+#### 3.4.2 Data Tables
 
-| Field    | Type        | Description                                                        |
-| -------- | ----------- | ------------------------------------------------------------------ |
-| `id`   | uuid        | PK                                                                 |
-| `code` | varchar(16) | Unique code                                                        |
-| `name` | varchar(64) | Category name (e.g., "Framing", "Plumbing")                        |
-| `type` | varchar(16) | `labor`, `material`, `subcontract`, `equipment`, `other` |
+##### 3.4.2.1 Categories & Activities
 
-**Activities:**
+###### 3.4.2.1.1 `categories`
 
-| Field           | Type        | Description                |
-| --------------- | ----------- | -------------------------- |
-| `id`          | uuid        | PK                         |
-| `category_id` | uuid        | FK to categories (CASCADE) |
-| `code`        | varchar(16) | Unique activity code       |
-| `name`        | varchar(64) | Activity name              |
-| `is_active`   | boolean     | Default true               |
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `code` | varchar(16) | Unique code. |
+| `name` | varchar(64) | Category name (e.g., "Framing", "Plumbing"). |
+| `type` | varchar(16) | `labor`, `material`, `subcontract`, `equipment`, `other`. |
 
-**Endpoints:** `/api/activities/v1/categories`, `/api/activities/v1/activities`
+###### 3.4.2.1.2 `activities`
 
-#### 3.5.2 Deliverables & Assignments
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `category_id` | uuid | FK to `categories` (CASCADE). |
+| `code` | varchar(16) | Unique activity code. |
+| `name` | varchar(64) | Activity name. |
+| `is_active` | boolean | Default true. |
 
-**Deliverables:**
+##### 3.4.2.2 Deliverables & Assignments
 
-| Field                        | Type         | Description                                                 |
-| ---------------------------- | ------------ | ----------------------------------------------------------- |
-| `id`                       | uuid         | PK                                                          |
-| `name`                     | varchar(128) | Deliverable name                                            |
-| `description`              | text         | Description                                                 |
-| `status`                   | varchar(20)  | `pending` -> `released` -> `finished` -> `canceled` |
-| `start_date`, `end_date` | date         | Timeline                                                    |
+###### 3.4.2.2.1 `deliverables`
 
-**Deliverable Assignments:**
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `name` | varchar(128) | Deliverable name. |
+| `description` | text | Description. |
+| `effect` | varchar(16) | `bill`, `pay`, or `gate`. What completing this deliverable does (§3.4.4 rule 10). |
+| `status` | varchar(20) | `pending` → `released` → `finished` → `canceled`. |
+| `start_date` | date | Timeline start. |
+| `end_date` | date | Timeline end. |
 
-| Field              | Type | Description                  |
-| ------------------ | ---- | ---------------------------- |
-| `deliverable_id` | uuid | FK to deliverables (CASCADE) |
-| `project_id`     | uuid | FK to projects (CASCADE)     |
-| `employee_id`    | uuid | FK to employees (SET NULL)   |
-| `notes`          | text | Assignment notes             |
+###### 3.4.2.2.2 `deliverable_assignments`
 
-**Endpoints:** `/api/activities/v1/deliverables`, `/api/activities/v1/deliverable-assignments`
+| Column | Type | Notes |
+| --- | --- | --- |
+| `deliverable_id` | uuid | FK to `deliverables` (CASCADE). |
+| `project_id` | uuid | FK to `projects` (CASCADE). |
+| `employee_id` | uuid | FK to `employees` (SET NULL). |
+| `notes` | text | Assignment notes. |
 
-#### 3.5.3 Budgets
+##### 3.4.2.3 Budgets
 
-| Field               | Type             | Description                                                              |
-| ------------------- | ---------------- | ------------------------------------------------------------------------ |
-| `id`              | uuid             | PK                                                                       |
-| `deliverable_id`  | uuid             | FK to deliverables (CASCADE)                                             |
-| `activity_id`     | uuid             | FK to activities (CASCADE)                                               |
-| `budgeted_amount` | numeric(12,2)    | Amount                                                                   |
-| `version`         | integer          | Version number (default 1; no CHECK constraint enforcing > 0)            |
-| `is_current`      | boolean          | Default true                                                             |
-| `status`          | varchar(20)      | `draft` -> `submitted` -> `approved` -> `locked` -> `rejected` |
-| `submitted_by/at` | uuid/timestamptz | Submission audit                                                         |
-| `approved_by/at`  | uuid/timestamptz | Approval audit                                                           |
+###### 3.4.2.3.1 `budgets`
 
-**Business Rules:**
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `deliverable_id` | uuid | FK to `deliverables` (CASCADE). |
+| `activity_id` | uuid | FK to `activities` (CASCADE). |
+| `budgeted_amount` | numeric(12,2) | Amount. |
+| `version` | integer | Default 1. |
+| `is_current` | boolean | Default true. |
+| `status` | varchar(20) | `draft` → `submitted` → `approved` → `locked` → `rejected`. |
+| `submitted_by` / `submitted_at` | uuid / timestamptz | Submission audit. |
+| `approved_by` / `approved_at` | uuid / timestamptz | Approval audit. |
 
-- Budgets must be approved before units can be marked `released`
-- Approved versions become read-only; new changes spawn another version
-- `remaining_budget` and `spent_to_date` updated by triggers/services
+##### 3.4.2.4 Cost Lines
 
-**Endpoint:** `/api/activities/v1/budgets`
+###### 3.4.2.4.1 `cost_lines`
 
-#### 3.5.4 Cost Lines
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `company_id` | uuid | FK to `companies` (RESTRICT). |
+| `deliverable_id` | uuid | FK to `deliverables` (CASCADE). |
+| `vendor_id` | uuid | FK to `vendors` (SET NULL). |
+| `activity_id` | uuid | FK to `activities` (CASCADE). |
+| `budget_id` | uuid | FK to `budgets` (SET NULL). |
+| `tenant_sku` | varchar(64) | SKU reference. |
+| `source_type` | varchar(16) | `material` or `labor`. |
+| `quantity` | numeric(12,4) | Quantity. |
+| `unit_price` | numeric(12,4) | Unit price. |
+| `amount` | numeric(12,2) | GENERATED — `quantity * unit_price`. |
+| `markup_pct` | numeric(5,2) | Markup percentage. |
+| `status` | varchar(20) | `draft` → `locked` → `change_order`. |
 
-| Field              | Type          | Description                                                                                          |
-| ------------------ | ------------- | ---------------------------------------------------------------------------------------------------- |
-| `id`             | uuid          | PK                                                                                                   |
-| `company_id`     | uuid          | FK to companies (RESTRICT)                                                                           |
-| `deliverable_id` | uuid          | FK to deliverables (CASCADE)                                                                         |
-| `vendor_id`      | uuid          | FK to vendors (SET NULL)                                                                             |
-| `activity_id`    | uuid          | FK to activities (CASCADE)                                                                           |
-| `budget_id`      | uuid          | FK to budgets (SET NULL)                                                                             |
-| `tenant_sku`     | varchar(64)   | SKU reference                                                                                        |
-| `source_type`    | varchar(16)   | `material` or `labor`                                                                            |
-| `quantity`       | numeric(12,4) | Quantity                                                                                             |
-| `unit_price`     | numeric(12,4) | Unit price                                                                                           |
-| `amount`         | numeric(12,2) | **GENERATED** (quantity * unit_price)                                                          |
-| `markup_pct`     | numeric(5,2)  | Markup percentage                                                                                    |
-| `status`         | varchar(20)   | Workflow: `draft` -> `locked` -> `change_order`. CHECK allows `draft`, `locked`, `change_order`. |
+##### 3.4.2.5 Actual Costs
 
-**Endpoint:** `/api/activities/v1/cost-lines`
+###### 3.4.2.5.1 `actual_costs`
 
-#### 3.5.5 Actual Costs
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `activity_id` | uuid | FK to `activities` (CASCADE). |
+| `project_id` | uuid | FK to `projects` (SET NULL). Links cost to project for profitability. |
+| `amount` | numeric(12,2) | Cost amount. |
+| `currency` | varchar(3) | Currency code. |
+| `reference` | text | Invoice or source reference. |
+| `approval_status` | varchar(20) | `pending` → `approved` → `rejected`. |
+| `incurred_on` | date | Date cost was incurred. |
 
-| Field               | Type          | Description                                                          |
-| ------------------- | ------------- | -------------------------------------------------------------------- |
-| `id`              | uuid          | PK                                                                   |
-| `activity_id`     | uuid          | FK to activities (CASCADE)                                           |
-| `project_id`      | uuid          | FK to projects (SET NULL) — links cost to project for profitability |
-| `amount`          | numeric(12,2) | Cost amount                                                          |
-| `currency`        | varchar(3)    | Currency code                                                        |
-| `reference`       | text          | Invoice/source reference                                             |
-| `approval_status` | varchar(20)   | `pending` -> `approved` -> `rejected`                          |
-| `incurred_on`     | date          | Date cost was incurred                                               |
+##### 3.4.2.6 Vendor Parts
 
-**Business Rules:**
+###### 3.4.2.6.1 `vendor_parts`
 
-- Default state: `pending`; approval subject to budget/tolerance checks
-- Validation: unit must be `released`, cost line must exist and be approved
-- Amounts cannot exceed approved budget + tolerance unless covered by change orders
-- Approval triggers GL posting (debit expense/WIP, credit AP/accrual)
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `vendor_id` | uuid | FK to `vendors` (CASCADE). |
+| `vendor_sku` | varchar(64) | Vendor's SKU. |
+| `tenant_sku` | varchar(64) | Internal tenant SKU. |
+| `unit_cost` | numeric(12,4) | Unit cost. |
+| `currency` | varchar(3) | Currency code. |
+| `markup_pct` | numeric(5,2) | Markup percentage. |
+| `is_active` | boolean | Default true. |
 
-**Endpoint:** `/api/activities/v1/actual-costs`
+#### 3.4.3 API
 
-#### 3.5.6 Vendor Parts
+All endpoints under `/api/activities/v1/` provide standard CRUD (§7.1).
 
-| Field          | Type          | Description             |
-| -------------- | ------------- | ----------------------- |
-| `id`         | uuid          | PK                      |
-| `vendor_id`  | uuid          | FK to vendors (CASCADE) |
-| `vendor_sku` | varchar(64)   | Vendor's SKU            |
-| `tenant_sku` | varchar(64)   | Internal tenant SKU     |
-| `unit_cost`  | numeric(12,4) | Unit cost               |
-| `currency`   | varchar(3)    | Currency code           |
-| `markup_pct` | numeric(5,2)  | Markup percentage       |
-| `is_active`  | boolean       | Default true            |
+| Method | Path | Description |
+| --- | --- | --- |
+| CRUD | `/api/activities/v1/categories` | Manage categories. |
+| CRUD | `/api/activities/v1/activities` | Manage activities. |
+| CRUD | `/api/activities/v1/deliverables` | Manage deliverables. |
+| CRUD | `/api/activities/v1/deliverable-assignments` | Manage deliverable assignments. |
+| CRUD | `/api/activities/v1/budgets` | Manage budgets. |
+| CRUD | `/api/activities/v1/cost-lines` | Manage cost lines. |
+| CRUD | `/api/activities/v1/actual-costs` | Manage actual costs. |
+| CRUD | `/api/activities/v1/vendor-parts` | Manage vendor parts. |
 
-**Endpoint:** `/api/activities/v1/vendor-parts`
+#### 3.4.4 Business Rules
 
----
-
-### 3.6 Bill of Materials (BOM)  [in-scope]
-
-**Purpose:** Manage material catalogs, vendor SKU matching (with AI-powered similarity search), and vendor pricing.
-
-#### 3.6.1 Catalog SKUs
-
-| Field                      | Type         | Description                              |
-| -------------------------- | ------------ | ---------------------------------------- |
-| `id`                     | uuid         | PK                                       |
-| `catalog_sku`            | varchar(64)  | Unique catalog SKU                       |
-| `description`            | text         | Full description                         |
-| `description_normalized` | text         | Normalized for matching                  |
-| `category`               | varchar(64)  | Material category                        |
-| `sub_category`           | varchar(64)  | Sub-category                             |
-| `model`                  | varchar(32)  | Embedding model used                     |
-| `embedding`              | vector(3072) | pgvector embedding for similarity search |
-
-**Endpoint:** `/api/bom/v1/catalog-skus`
-
-#### 3.6.2 Vendor SKUs
-
-| Field                      | Type         | Description                                       |
-| -------------------------- | ------------ | ------------------------------------------------- |
-| `id`                     | uuid         | PK                                                |
-| `vendor_id`              | uuid         | FK to vendors (RESTRICT)                          |
-| `vendor_sku`             | varchar(64)  | Vendor's SKU code                                 |
-| `description`            | text         | Vendor's description                              |
-| `description_normalized` | text         | Normalized description                            |
-| `catalog_sku_id`         | uuid         | FK to catalog_skus (matched, SET NULL)            |
-| `confidence`             | real         | Match confidence score (0.0-1.0)                  |
-| `model`                  | varchar(32)  | Embedding model (default: text-embedding-3-large) |
-| `embedding`              | vector(3072) | pgvector embedding                                |
-
-**Custom Methods:**
-
-- `findBySku(vendor_id, vendor_sku)`: Lookup by composite key
-- `getUnmatched()`: Get vendor SKUs without catalog matches
-- `refreshEmbeddings(batches)`: Batch update embeddings
-
-**Endpoint:** `/api/bom/v1/vendor-skus`
-
-#### 3.6.3 Vendor Pricing
-
-| Field              | Type          | Description                 |
-| ------------------ | ------------- | --------------------------- |
-| `id`             | uuid          | PK                          |
-| `vendor_sku_id`  | uuid          | FK to vendor_skus (CASCADE) |
-| `unit_price`     | numeric(12,4) | Price per unit              |
-| `unit`           | varchar(32)   | Unit of measure             |
-| `effective_date` | date          | Price effective date        |
-
-**Endpoint:** `/api/bom/v1/vendor-pricing`
+1. When the tenant requires budget-release approval (`tenant_approval_config.project_budget_release.require_approval = true`, §3.1.4.8), budgets must be approved before their parent unit can be released (see §3.3.4 rule 6). When approval is not required, this precondition does not apply and a holder of `project::units::release` may release the unit directly.
+2. Approved budget versions are read-only. New changes spawn a new version.
+3. `remaining_budget` and `spent_to_date` are maintained by triggers and services as cost lines and actual costs are added.
+4. Default actual-cost state is `pending`. Approval is subject to budget and tolerance checks.
+5. An actual cost can be approved only when its parent unit is `released` and its cost line exists and is approved.
+6. Amounts cannot exceed approved budget plus tolerance unless covered by an approved change order.
+7. Approving an actual cost triggers GL posting via the cross-module posting contract (see [ADR-0019](./decisions/0019-cross-module-posting-contract.md)). The credit is AP / accrual; the debit is governed by the company's `wip_policy` (§3.7.2.2.1) — under `capitalize_release` it resolves to WIP for build categories or Inventory for land / lot, under `expense_immediately` it resolves to Expense — through `category_account_map`.
+8. `cost_lines.amount` is a database-generated column; never set it directly.
+9. Vendor parts seed cost-line `unit_price` and `markup_pct` defaults when a buyer selects a `(vendor, vendor_sku)` pair.
+10. A deliverable's `effect` declares what completing it does: `bill` generates an AR invoice through its billing agreement (§3.6), `pay` authorizes an AP payment against a purchase order or subcontract (§3.5), and `gate` is a control checkpoint (inspection, approval, customer review) with no general-ledger effect. Effect-driven billing and payment are **core** — they ride on deliverables and require no add-on. Gate sub-flavors (inspection, approval, review) are labels, not separate effects. Sequencing one deliverable behind another (e.g. a `gate` ahead of a `bill`) is a scheduling concern and is deferred.
 
 ---
 
-### 3.7 Accounts Payable (AP)  [in-scope]
+### 3.5 Accounts Payable  [core]
 
-**Purpose:** Manage vendor invoices, invoice lines, payments, and credit memos.
+#### 3.5.1 Overview
 
-#### 3.7.1 AP Invoices
+Accounts Payable (AP) owns vendor invoices, invoice lines, payments, and credit memos. Approving an invoice posts to GL (AP Liability ↔ Expense/WIP) via the cross-module posting contract. When a project is linked, the invoice amount feeds into the project's cashflow outflow metrics.
 
-| Field              | Type          | Description                                                           |
-| ------------------ | ------------- | --------------------------------------------------------------------- |
-| `id`             | uuid          | PK                                                                    |
-| `company_id`     | uuid          | FK to companies (RESTRICT)                                            |
-| `vendor_id`      | uuid          | FK to vendors (RESTRICT)                                              |
-| `project_id`     | uuid          | FK to projects (SET NULL) — required for project cashflow tracking   |
-| `invoice_number` | varchar(64)   | Invoice number                                                        |
-| `invoice_date`   | date          | Invoice date                                                          |
-| `due_date`       | date          | Payment due date                                                      |
-| `total_amount`   | numeric(14,2) | Total amount                                                          |
-| `currency`       | varchar(3)    | Currency code (default `USD`)                                       |
-| `status`         | varchar(20)   | `open` -> `approved` -> `paid` -> `voided` (CHECK constraint) |
-| `notes`          | text          | Internal notes                                                        |
+#### 3.5.2 Data Tables
 
-**Business Rules:**
+##### 3.5.2.1 AP Invoices
 
-- Posting requires every line to map to a valid GL account and optionally a cost line
-- Posting updates vendor balances and creates GL entries (AP Liability <-> Expense/WIP)
-- When `project_id` is set, the invoice amount feeds into project cashflow outflow metrics
-- Remaining balance is computed as `total_amount − SUM(payments) − SUM(applied credit memos)` — not stored as a column
-- **Invoice numbering** is auto-assigned on `status` transition to `approved` (when no `invoice_number` was provided). The scope is `company_id` per §3.13 — each company under the tenant gets its own running sequence
+###### 3.5.2.1.1 `ap_invoices`
 
-**Endpoint:** `/api/ap/v1/ap-invoices`
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `company_id` | uuid | FK to `companies` (RESTRICT). |
+| `vendor_id` | uuid | FK to `vendors` (RESTRICT). |
+| `project_id` | uuid | FK to `projects` (SET NULL). Required for project cashflow tracking. |
+| `invoice_number` | varchar(64) | Invoice number. Auto-numbered on transition to `approved` (see §3.1.4.5). |
+| `invoice_date` | date | Invoice date. |
+| `due_date` | date | Payment due date. |
+| `total_amount` | numeric(14,2) | Total amount. |
+| `currency` | varchar(3) | Currency code (default `USD`). |
+| `status` | varchar(20) | `open` → `approved` → `paid` → `voided`. |
+| `notes` | text | Internal notes. |
 
-#### 3.7.2 AP Invoice Lines
+##### 3.5.2.2 AP Invoice Lines
 
-| Field            | Type          | Description                        |
-| ---------------- | ------------- | ---------------------------------- |
-| `id`           | uuid          | PK                                 |
-| `invoice_id`   | uuid          | FK to ap_invoices (CASCADE)        |
-| `cost_line_id` | uuid          | FK to cost_lines (SET NULL)        |
-| `activity_id`  | uuid          | FK to activities (SET NULL)        |
-| `account_id`   | uuid          | FK to chart_of_accounts (RESTRICT) |
-| `description`  | text          | Line description                   |
-| `amount`       | numeric(12,2) | Line amount                        |
+###### 3.5.2.2.1 `ap_invoice_lines`
 
-**Endpoint:** `/api/ap/v1/ap-invoice-lines`
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `invoice_id` | uuid | FK to `ap_invoices` (CASCADE). |
+| `cost_line_id` | uuid | FK to `cost_lines` (SET NULL). |
+| `activity_id` | uuid | FK to `activities` (SET NULL). |
+| `account_id` | uuid | FK to `chart_of_accounts` (RESTRICT). |
+| `description` | text | Line description. |
+| `amount` | numeric(12,2) | Line amount. |
 
-#### 3.7.3 Payments
+##### 3.5.2.3 Payments
 
-| Field             | Type          | Description                                                                                |
-| ----------------- | ------------- | ------------------------------------------------------------------------------------------ |
-| `id`            | uuid          | PK                                                                                         |
-| `vendor_id`     | uuid          | FK to vendors (RESTRICT)                                                                   |
-| `ap_invoice_id` | uuid          | FK to ap_invoices (SET NULL)                                                               |
-| `payment_date`  | date          | Payment date                                                                               |
-| `amount`        | numeric(14,2) | Payment amount                                                                             |
-| `method`        | varchar(24)   | One of `check`, `ach`, `wire`. Enforced by `paymentsController` (`VALID_METHODS = ['check', 'ach', 'wire']`) on create and update — values outside the allowlist return 400. Schema has no CHECK constraint; enforcement is controller-level. (Documented per gap 3.25, 2026-05-21.) |
-| `reference`     | varchar(64)   | Check number/reference                                                                     |
-| `notes`         | text          | Internal notes                                                                             |
+###### 3.5.2.3.1 `payments`
 
-**Endpoint:** `/api/ap/v1/payments`
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `vendor_id` | uuid | FK to `vendors` (RESTRICT). |
+| `ap_invoice_id` | uuid | FK to `ap_invoices` (SET NULL). |
+| `payment_date` | date | Payment date. |
+| `amount` | numeric(14,2) | Payment amount. |
+| `method` | varchar(24) | `check`, `ach`, or `wire`. Enforced by `paymentsController` (`VALID_METHODS`) — values outside the allowlist return 400. Controller-level enforcement; no CHECK constraint. |
+| `reference` | varchar(64) | Check number or external reference. |
+| `notes` | text | Internal notes. |
 
-#### 3.7.4 AP Credit Memos
+The single `ap_invoice_id` is retained for the common one-invoice case but is superseded by `payment_allocations` for partial and split settlements, which are the source of truth for cash-ledger recognition.
 
-| Field             | Type          | Description                                              |
-| ----------------- | ------------- | -------------------------------------------------------- |
-| `id`            | uuid          | PK                                                       |
-| `vendor_id`     | uuid          | FK to vendors (RESTRICT)                                 |
-| `ap_invoice_id` | uuid          | FK to ap_invoices (SET NULL)                             |
-| `credit_number` | varchar(64)   | Credit memo number                                       |
-| `credit_date`   | date          | Credit date                                              |
-| `amount`        | numeric(14,2) | Credit amount                                            |
-| `reason`        | text          | Reason for credit                                        |
-| `status`        | varchar(20)   | `open` -> `applied` -> `voided` (CHECK constraint) |
+###### 3.5.2.3.2 `payment_allocations`
 
-**Endpoint:** `/api/ap/v1/ap-credit-memos`
+Allocates a payment across one or more AP invoices, supporting partial and split settlement.
 
----
+| Column | Type | Notes |
+| --- | --- | --- |
+| `payment_id` | uuid | FK to `payments` (CASCADE). |
+| `ap_invoice_id` | uuid | FK to `ap_invoices` (RESTRICT). |
+| `amount` | numeric(14,2) | Portion of the payment applied to this invoice. |
 
-### 3.8 Accounts Receivable (AR)  [in-scope]
+##### 3.5.2.4 Credit Memos
 
-**Purpose:** Manage client invoices, invoice lines, and payment receipts. AR is the primary revenue source for project profitability tracking.
+###### 3.5.2.4.1 `ap_credit_memos`
 
-> **Note:** The `ar_clients` table has been removed. The unified `clients` table (§3.3.2) with `email` field replaces it. Tax identifiers are managed via the `tax_identifiers` table (§3.3.4). Client addresses and phone numbers are available via the polymorphic `sources` pattern. AR invoices reference `clients.id` directly.
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `vendor_id` | uuid | FK to `vendors` (RESTRICT). |
+| `ap_invoice_id` | uuid | FK to `ap_invoices` (SET NULL). |
+| `credit_number` | varchar(64) | Credit memo number. |
+| `credit_date` | date | Credit date. |
+| `amount` | numeric(14,2) | Credit amount. |
+| `reason` | text | Reason for credit. |
+| `status` | varchar(20) | `open` → `applied` → `voided`. |
 
-#### 3.8.1 AR Invoices
+#### 3.5.3 API
 
-| Field              | Type          | Description                                                        |
-| ------------------ | ------------- | ------------------------------------------------------------------ |
-| `id`             | uuid          | PK                                                                 |
-| `company_id`     | uuid          | FK to companies (RESTRICT)                                         |
-| `client_id`      | uuid          | FK to clients (RESTRICT)                                           |
-| `project_id`     | uuid          | FK to projects (SET NULL) — required for project revenue tracking |
-| `deliverable_id` | uuid          | FK to deliverables (SET NULL)                                      |
-| `invoice_number` | varchar(32)   | Invoice number                                                     |
-| `invoice_date`   | date          | Invoice date                                                       |
-| `due_date`       | date          | Due date                                                           |
-| `total_amount`   | numeric(14,2) | Total amount                                                       |
-| `currency`       | varchar(3)    | Currency code (default `USD`)                                    |
-| `status`         | varchar(20)   | `open` -> `sent` -> `paid` -> `voided` (CHECK constraint)  |
-| `notes`          | text          | Internal notes                                                     |
+All endpoints under `/api/ap/v1/` provide standard CRUD (§7.1).
 
-**Business Rules:**
+| Method | Path | Description |
+| --- | --- | --- |
+| CRUD | `/api/ap/v1/ap-invoices` | Manage AP invoices. |
+| CRUD | `/api/ap/v1/ap-invoice-lines` | Manage AP invoice lines. |
+| CRUD | `/api/ap/v1/payments` | Manage vendor payments. |
+| CRUD | `/api/ap/v1/ap-credit-memos` | Manage AP credit memos. |
 
-- Revenue recognition can depend on activity completion percentage or cost thresholds
-- Posting debits AR, credits revenue; payments reverse the entry
-- When `project_id` is set, the invoice feeds into project revenue/cashflow inflow metrics
-- Partial payments and retainage supported (see Cashflow module)
-- Remaining balance is computed as `total_amount − SUM(receipts)` — not stored as a column
-- **Invoice numbering** is auto-assigned on `status` transition to `sent` (when no `invoice_number` was provided). The scope is `company_id` per §3.13 — each company under the tenant gets its own running sequence
+#### 3.5.4 Business Rules
 
-**Endpoints:**
-
-| Method        | Path                               | Purpose                                                                                                         |
-| ------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Standard CRUD | `/api/ar/v1/ar-invoices`         | List, get, create, update, archive, restore                                                                     |
-| `PUT`       | `/api/ar/v1/ar-invoices/approve` | Approve invoice (sets status to `sent`). RBAC-gated: requires `ar::ar-invoices::approve` at `full` level. |
-
-#### 3.8.2 AR Invoice Lines
-
-| Field           | Type          | Description                        |
-| --------------- | ------------- | ---------------------------------- |
-| `invoice_id`  | uuid          | FK to ar_invoices (CASCADE)        |
-| `account_id`  | uuid          | FK to chart_of_accounts (RESTRICT) |
-| `description` | text          | Line description                   |
-| `amount`      | numeric(14,2) | Line amount                        |
-
-**Endpoint:** `/api/ar/v1/ar-invoice-lines`
-
-#### 3.8.3 Receipts
-
-| Field             | Type          | Description                                                                                |
-| ----------------- | ------------- | ------------------------------------------------------------------------------------------ |
-| `client_id`     | uuid          | FK to clients (RESTRICT)                                                                   |
-| `ar_invoice_id` | uuid          | FK to ar_invoices (SET NULL)                                                               |
-| `receipt_date`  | date          | Receipt date                                                                               |
-| `amount`        | numeric(14,2) | Receipt amount                                                                             |
-| `method`        | varchar(24)   | One of `check`, `ach`, `wire`. Enforced by `receiptsController` (`VALID_METHODS = ['check', 'ach', 'wire']`) on create and update — values outside the allowlist return 400. Schema has no CHECK constraint; enforcement is controller-level. (Documented per gap 3.25, 2026-05-21.) |
-| `reference`     | varchar(64)   | Reference number                                                                           |
-| `notes`         | text          | Internal notes                                                                             |
-
-**Endpoint:** `/api/ar/v1/receipts`
+1. Approving an invoice requires every line to map to a valid GL account and (optionally) a cost line.
+2. Approving an invoice posts to GL via the cross-module posting contract (see [ADR-0019](./decisions/0019-cross-module-posting-contract.md)) and updates the vendor balance. The credit is AP Liability; the debit is governed by the company's `wip_policy` (§3.7.2.2.1) — WIP / Inventory under `capitalize_release`, Expense under `expense_immediately` — resolved through `category_account_map`.
+3. Invoice numbering is auto-assigned on `status` transition to `approved` if `invoice_number` is empty. The scope is `company_id` per §3.1.4.5 — each company has its own running sequence.
+4. Remaining balance is computed as `total_amount − SUM(payments) − SUM(applied credit memos)`. It is not stored.
+5. When `project_id` is set, the invoice amount feeds into project cashflow outflow metrics (§3.8).
+6. Payment `method` is restricted to `check`, `ach`, `wire` by controller-level allowlist — invalid values return 400.
+7. Credit memos may be applied against the originating invoice or held open and applied later; status `voided` removes them from open-credit calculations.
 
 ---
 
-### 3.9 Accounting & General Ledger  [in-scope]
+### 3.6 Accounts Receivable  [core]
 
-**Purpose:** Chart of accounts, journal entries, ledger balances, posting queues, and category-account mappings.
+#### 3.6.1 Overview
 
-#### 3.9.1 Chart of Accounts
+Accounts Receivable (AR) owns client invoices, invoice lines, receipts, and billing agreements. AR is the primary revenue source for project profitability tracking. Approving an invoice (transition to `sent`) posts to GL via the cross-module contract: debit AR, credit Revenue. Construction subdivision-unit sales are recognized by the construction add-on, not by `ar_invoices` (§4.3).
 
-| Field                   | Type        | Description                                                                                                                                     |
-| ----------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`                  | uuid        | PK                                                                                                                                              |
-| `code`                | varchar(16) | Account code                                                                                                                                    |
-| `name`                | varchar(64) | Account name                                                                                                                                    |
-| `type`                | varchar(16) | Intended values:`asset`, `liability`, `equity`, `income`, `expense`, `cash`, `bank` (no CHECK constraint — any varchar accepted) |
-| `is_active`           | boolean     | Default true                                                                                                                                    |
-| `cash_basis`          | boolean     | Default false                                                                                                                                   |
-| `bank_account_number` | varchar(32) | For cash/bank types                                                                                                                             |
-| `routing_number`      | varchar(16) | Bank routing                                                                                                                                    |
-| `bank_name`           | varchar(64) | Bank name                                                                                                                                       |
+#### 3.6.2 Data Tables
 
-**Endpoint:** `/api/accounting/v1/chart-of-accounts`
+##### 3.6.2.1 AR Invoices
 
-#### 3.9.2 Journal Entries
+###### 3.6.2.1.1 `ar_invoices`
 
-| Field           | Type        | Description                                                    |
-| --------------- | ----------- | -------------------------------------------------------------- |
-| `id`          | uuid        | PK                                                             |
-| `company_id`  | uuid        | FK to companies (RESTRICT)                                     |
-| `project_id`  | uuid        | FK to projects (SET NULL) — enables project-level GL analysis |
-| `entry_date`  | date        | Entry date                                                     |
-| `description` | text        | Description                                                    |
-| `status`      | varchar(16) | `pending` -> `posted` -> `reversed` (CHECK constraint)   |
-| `source_type` | varchar(32) | `activity_actual`, `invoice`, `payment`, etc.            |
-| `source_id`   | uuid        | Reference to source record                                     |
-| `corrects_id` | uuid        | Self-ref FK for reversals (SET NULL)                           |
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `company_id` | uuid | FK to `companies` (RESTRICT). |
+| `client_id` | uuid | FK to `clients` (RESTRICT). |
+| `project_id` | uuid | FK to `projects` (SET NULL). Required for project revenue tracking. |
+| `deliverable_id` | uuid | FK to `deliverables` (SET NULL). The `bill`-effect deliverable that released this invoice. |
+| `billing_agreement_id` | uuid | FK to `billing_agreements` (SET NULL). The revenue agreement this invoice bills against. |
+| `invoice_number` | varchar(32) | Invoice number. Auto-numbered on transition to `sent` (see §3.1.4.5). |
+| `invoice_date` | date | Invoice date. |
+| `due_date` | date | Due date. |
+| `total_amount` | numeric(14,2) | Total amount. |
+| `currency` | varchar(3) | Currency code (default `USD`). |
+| `status` | varchar(20) | `open` → `sent` → `paid` → `voided`. |
+| `notes` | text | Internal notes. |
 
-**Business Rules:**
+##### 3.6.2.2 AR Invoice Lines
 
-- Entries must balance (sum debits = sum credits)
-- Fiscal period validation is planned but not yet implemented — the `fiscal_periods` table does not exist
-- Self-referential `corrects_id` supports reversal chains
+###### 3.6.2.2.1 `ar_invoice_lines`
 
-**Endpoints:**
+| Column | Type | Notes |
+| --- | --- | --- |
+| `invoice_id` | uuid | FK to `ar_invoices` (CASCADE). |
+| `account_id` | uuid | FK to `chart_of_accounts` (RESTRICT). |
+| `description` | text | Line description. |
+| `amount` | numeric(14,2) | Line amount. |
 
-| Method        | Path                                           | Purpose                                                               |
-| ------------- | ---------------------------------------------- | --------------------------------------------------------------------- |
-| Standard CRUD | `/api/accounting/v1/journal-entries`         | List, get, create, update, archive, restore                           |
-| `POST`      | `/api/accounting/v1/journal-entries/post`    | Post pending journal entries (sets status to `posted`)              |
-| `POST`      | `/api/accounting/v1/journal-entries/reverse` | Reverse posted entries (creates correcting entry via `corrects_id`) |
+##### 3.6.2.3 Receipts
 
-#### 3.9.3 Journal Entry Lines
+###### 3.6.2.3.1 `receipts`
 
-| Field             | Type          | Description                        |
-| ----------------- | ------------- | ---------------------------------- |
-| `entry_id`      | uuid          | FK to journal_entries (CASCADE)    |
-| `account_id`    | uuid          | FK to chart_of_accounts (RESTRICT) |
-| `debit`         | numeric(12,2) | Debit amount (default 0)           |
-| `credit`        | numeric(12,2) | Credit amount (default 0)          |
-| `memo`          | text          | Line memo                          |
-| `related_table` | varchar(32)   | Polymorphic reference table        |
-| `related_id`    | uuid          | Polymorphic reference ID           |
+| Column | Type | Notes |
+| --- | --- | --- |
+| `client_id` | uuid | FK to `clients` (RESTRICT). |
+| `ar_invoice_id` | uuid | FK to `ar_invoices` (SET NULL). |
+| `receipt_date` | date | Receipt date. |
+| `amount` | numeric(14,2) | Receipt amount. |
+| `method` | varchar(24) | `check`, `ach`, or `wire`. Enforced by `receiptsController` (`VALID_METHODS`) — values outside the allowlist return 400. Controller-level enforcement; no CHECK constraint. |
+| `reference` | varchar(64) | Reference number. |
+| `notes` | text | Internal notes. |
 
-**Endpoint:** `/api/accounting/v1/journal-entry-lines`
+The single `ar_invoice_id` is retained for the common one-invoice case but is superseded by `receipt_allocations` for partial and split settlements, which are the source of truth for cash-ledger recognition.
 
-#### 3.9.4 Ledger Balances
+###### 3.6.2.3.2 `receipt_allocations`
 
-| Field          | Type          | Description                        |
-| -------------- | ------------- | ---------------------------------- |
-| `account_id` | uuid          | FK to chart_of_accounts (RESTRICT) |
-| `as_of_date` | date          | Balance date                       |
-| `balance`    | numeric(14,2) | Account balance                    |
+Allocates a receipt across one or more AR invoices, supporting partial and split settlement.
 
-**Endpoint:** `/api/accounting/v1/ledger-balances`
+| Column | Type | Notes |
+| --- | --- | --- |
+| `receipt_id` | uuid | FK to `receipts` (CASCADE). |
+| `ar_invoice_id` | uuid | FK to `ar_invoices` (RESTRICT). |
+| `amount` | numeric(14,2) | Portion of the receipt applied to this invoice. |
 
-#### 3.9.5 Posting Queues
+##### 3.6.2.4 Billing Agreements
 
-| Field                | Type        | Description                                                |
-| -------------------- | ----------- | ---------------------------------------------------------- |
-| `journal_entry_id` | uuid        | FK to journal_entries (CASCADE)                            |
-| `status`           | varchar(16) | `pending` -> `posted` -> `failed` (CHECK constraint) |
-| `error_message`    | text        | Error details on failure                                   |
-| `processed_at`     | timestamptz | Processing timestamp                                       |
+A billing agreement is the revenue-side contract that governs client billing — the single home for services Statements of Work (SOW) and construction draw schedules alike. It binds a client and project to a set of billing milestones; completing a milestone releases an AR invoice. There is **no separate services vertical** — the SOW lives here. The accounts-payable mirror (a subcontract or purchase order governing what the tenant *pays*) is not a billing agreement; it lives in AP / procurement.
 
-**Endpoint:** `/api/accounting/v1/posting-queues`
+###### 3.6.2.4.1 `billing_agreements`
 
-#### 3.9.6 Category-Account Map
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `company_id` | uuid | FK to `companies` (RESTRICT). |
+| `client_id` | uuid | FK to `clients` (RESTRICT). |
+| `project_id` | uuid | FK to `projects` (SET NULL). |
+| `name` | varchar(128) | Agreement name (e.g. the SOW title). |
+| `agreement_type` | varchar(24) | `sow`, `draw_schedule`, or `other`. |
+| `total_amount` | numeric(14,2) | Total contract value. |
+| `status` | varchar(20) | `draft` → `active` → `closed`. |
+| `notes` | text | Internal notes. |
 
-Maps cost categories to GL accounts with date-range validity:
+###### 3.6.2.4.2 `billing_agreement_milestones`
 
-| Field           | Type | Description                        |
-| --------------- | ---- | ---------------------------------- |
-| `category_id` | uuid | FK to categories (RESTRICT)        |
-| `account_id`  | uuid | FK to chart_of_accounts (RESTRICT) |
-| `valid_from`  | date | Effective start date               |
-| `valid_to`    | date | Effective end date                 |
+Links an agreement to the `bill`-effect deliverables (§3.4.2.2.1) that release its invoices. The dependency points AR → activities, consistent with `ar_invoices.deliverable_id`.
 
-**Endpoint:** `/api/accounting/v1/category-account-map`
+| Column | Type | Notes |
+| --- | --- | --- |
+| `billing_agreement_id` | uuid | FK to `billing_agreements` (CASCADE). |
+| `deliverable_id` | uuid | FK to `deliverables` (RESTRICT). A `bill`-effect milestone. |
+| `sequence` | integer | Billing order. |
 
-#### 3.9.7 Intercompany Accounting
+#### 3.6.3 API
 
-**Company Accounts:**
+| Method | Path | Description |
+| --- | --- | --- |
+| CRUD | `/api/ar/v1/ar-invoices` | Manage AR invoices. |
+| PUT | `/api/ar/v1/ar-invoices/approve` | Approve invoice (sets status to `sent`). RBAC-gated: `ar::ar-invoices::approve` at `full`. |
+| CRUD | `/api/ar/v1/ar-invoice-lines` | Manage AR invoice lines. |
+| CRUD | `/api/ar/v1/receipts` | Manage receipts. |
+| CRUD | `/api/ar/v1/billing-agreements` | Manage billing agreements and their milestones. |
 
-| Field                        | Type    | Description                        |
-| ---------------------------- | ------- | ---------------------------------- |
-| `source_company_id`        | uuid    | FK to companies (RESTRICT)         |
-| `target_company_id`        | uuid    | FK to companies (RESTRICT)         |
-| `inter_company_account_id` | uuid    | FK to chart_of_accounts (RESTRICT) |
-| `is_active`                | boolean | Default true                       |
+#### 3.6.4 Business Rules
 
-Unique constraint: `(tenant_id, source_company_id, target_company_id)`
-
-**Company Transactions:**
-
-| Field                       | Type          | Description                                                                          |
-| --------------------------- | ------------- | ------------------------------------------------------------------------------------ |
-| `source_company_id`       | uuid          | FK to companies (RESTRICT)                                                           |
-| `target_company_id`       | uuid          | FK to companies (RESTRICT)                                                           |
-| `source_journal_entry_id` | uuid          | FK to journal_entries (SET NULL)                                                     |
-| `target_journal_entry_id` | uuid          | FK to journal_entries (SET NULL)                                                     |
-| `module`                  | varchar(32)   | Intended values:`ar`, `ap`, `je` (no CHECK constraint — any varchar accepted) |
-| `amount`                  | numeric(14,2) | Transaction amount (default 0)                                                       |
-| `status`                  | varchar(16)   | `pending` -> `posted` -> `reversed` (CHECK constraint; default `pending`)    |
-| `is_eliminated`           | boolean       | Elimination flag for consolidated reporting (default false)                          |
-| `description`             | text          | Transaction description                                                              |
-
-**Internal Transfers:**
-
-| Field               | Type          | Description                        |
-| ------------------- | ------------- | ---------------------------------- |
-| `from_account_id` | uuid          | FK to chart_of_accounts (RESTRICT) |
-| `to_account_id`   | uuid          | FK to chart_of_accounts (RESTRICT) |
-| `transfer_date`   | date          | Transfer date                      |
-| `amount`          | numeric(12,2) | Transfer amount                    |
-| `description`     | text          | Transfer description               |
-
-**Business Rules:**
-
-- Intercompany transactions create paired journal entries (due-to / due-from)
-- Carry elimination flags for consolidated reporting
-- Consolidation targets tenant-level P&L, balance sheet, and elimination reports
-
-**Endpoints:** `/api/accounting/v1/company-accounts`, `/api/accounting/v1/company-transactions`, `/api/accounting/v1/internal-transfers`
+1. Approving an invoice (`PUT /approve`) transitions status to `sent`, posts the GL entry (debit AR, credit Revenue) via the cross-module posting contract, and triggers invoice numbering if `invoice_number` is empty.
+2. Invoice numbering scope is `company_id` (§3.1.4.5) — each company has its own running sequence.
+3. Revenue recognition can depend on activity completion percentage or cost thresholds (configured per tenant).
+4. Remaining balance is computed as `total_amount − SUM(receipts)`. It is not stored.
+5. When `project_id` is set, the invoice feeds into project revenue and cashflow inflow metrics (§3.8).
+6. Partial payments and retainage are supported through `receipts` plus the cashflow module's recognition rules.
+7. Receipt `method` is restricted to `check`, `ach`, `wire` by controller-level allowlist — invalid values return 400.
+8. Milestone-gated billing is **core**. A billing agreement (§3.6.2.4) is the revenue contract — the home for services Statements of Work and construction draw schedules. Completing a `bill`-effect deliverable (§3.4.4 rule 10) listed among the agreement's milestones releases an AR invoice stamped with that `billing_agreement_id`. No add-on is required, and there is no services vertical.
+9. Construction subdivision-unit sales do **not** flow through `ar_invoices`. Their revenue is recognized by the construction add-on's settlement document, which posts a single balanced entry through the cross-module posting contract (§4.3.4, [ADR-0019](./decisions/0019-cross-module-posting-contract.md)).
 
 ---
 
-### 3.10 Cashflow & Profitability  [in-scope]
+### 3.7 Accounting & General Ledger  [core]
 
-**Purpose:** Track money flowing in (AR receipts) and money flowing out (AP payments, actual costs) at the project level. Provide real-time profitability analysis, margin tracking, and cashflow forecasting to enable project managers and CFOs to make informed financial decisions.
+#### 3.7.1 Overview
 
-#### 3.10.1 Data Linkage Model
+The Accounting module owns the chart of accounts, journal entries and lines, ledger balances, the posting queue, the category-to-account mapping, fiscal periods, and intercompany accounting. Every other module that touches money (AP, AR, Activities, Contracts) posts here via the cross-module posting contract ([ADR-0019](./decisions/0019-cross-module-posting-contract.md)). Accounting itself does not source events from external systems; planned external feeds (bank reconciliation, payment rails) enter through the posting contract rather than writing to the ledger directly, preserving this property — see §5.
 
-Cashflow and profitability are derived from existing transactional data — no separate cashflow tables are needed. The system relies on `project_id` foreign keys present on AR invoices, AP invoices, actual costs, and journal entries.
+#### 3.7.2 Data Tables
+
+##### 3.7.2.1 Ledgers
+
+###### 3.7.2.1.1 `ledgers`
+
+A company keeps one ledger per accounting representation it must produce. AXERRA ships two bases — `accrual` (the internal backbone that drives project costing and profitability) and `cash` — plus a shared `common` ledger. Adding a ledger is a row insert, never DDL; the same registry generalizes to multi-GAAP later.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `company_id` | uuid | FK to `companies` (RESTRICT). |
+| `code` | varchar(16) | Unique per company. |
+| `name` | varchar(64) | Display name. |
+| `basis` | varchar(16) | `accrual`, `cash`, or `common`. Reports read `common` plus the requested basis. |
+| `accounting_principle` | varchar(16) | GAAP tag for future multi-GAAP ledgers. Default `corp`. `[deferred]` |
+| `parent_ledger_id` | uuid | Self-ref FK (SET NULL) for delta / extension ledgers. `[deferred]` |
+| `is_default` | boolean | The company's default `accrual` ledger. Default false. |
+| `status` | varchar(16) | `active` → `archived`. |
+
+Each `(company, ledger)` is an independently balanced, independently lockable book. Cash and bank account balances are identical across a company's ledgers — the reconciliation anchor; ledgers may differ only by the accrual-only accounts (A/R, A/P, WIP, inventory).
+
+##### 3.7.2.2 Accounting Basis
+
+###### 3.7.2.2.1 `company_accounting_config`
+
+Per-company election of which ledger is the authoritative book of record, plus the recognition policies that drive posting. One row per company.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `company_id` | uuid | FK to `companies` (RESTRICT). Unique per company. |
+| `book_basis` | varchar(16) | `accrual` or `cash`. Which ledger is the authoritative book of record. Allowed values depend on the company's jurisdiction and legal form — cash basis is a size / entity-gated concession, not universally available. |
+| `revenue_recognition_policy` | varchar(24) | `on_invoice`, `percent_complete`, or `completed_contract`. |
+| `wip_policy` | varchar(24) | `expense_immediately` or `capitalize_release`. |
+
+`wip_policy` decides where the debit lands when a cost is incurred. Under `expense_immediately` — the services / consulting default — actual-cost and AP-invoice approvals debit Expense as incurred and nothing accumulates on the balance sheet. Under `capitalize_release` — the construction default — those same approvals debit WIP (build categories) or Inventory (land / lot acquisition) instead, so unit costs accumulate as assets and reach the P&L only when a `wip_release` event relieves them to COGS (§3.7.2.8). `revenue_recognition_policy = completed_contract` pairs with `capitalize_release`: revenue and COGS are recognized together at the unit sale, never before.
+
+##### 3.7.2.3 Chart of Accounts
+
+###### 3.7.2.3.1 `chart_of_accounts`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `code` | varchar(16) | Account code. |
+| `name` | varchar(64) | Account name. |
+| `type` | varchar(16) | Intended values: `asset`, `liability`, `equity`, `income`, `expense`, `cash`, `bank`. No CHECK constraint; values are enforced by controller validation. |
+| `is_active` | boolean | Default true. |
+| `bank_account_number` | varchar(32) | For cash/bank account types. |
+| `routing_number` | varchar(16) | Bank routing. |
+| `bank_name` | varchar(64) | Bank name. |
+
+##### 3.7.2.4 Journal Entries & Lines
+
+###### 3.7.2.4.1 `journal_entries`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `company_id` | uuid | FK to `companies` (RESTRICT). |
+| `ledger_id` | uuid | FK to `ledgers` (RESTRICT). Not null. The book this entry belongs to. |
+| `project_id` | uuid | FK to `projects` (SET NULL). Enables project-level GL analysis. |
+| `entry_date` | date | Entry date. |
+| `description` | text | Description. |
+| `status` | varchar(16) | `pending` → `posted` → `reversed`. |
+| `source_type` | varchar(32) | `activity_actual`, `invoice`, `payment`, etc. |
+| `source_id` | uuid | Reference to the source record in the originating module. |
+| `corrects_id` | uuid | Self-ref FK for reversals (SET NULL). |
+
+###### 3.7.2.4.2 `journal_entry_lines`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `entry_id` | uuid | FK to `journal_entries` (CASCADE). |
+| `account_id` | uuid | FK to `chart_of_accounts` (RESTRICT). |
+| `debit` | numeric(12,2) | Debit amount (default 0). |
+| `credit` | numeric(12,2) | Credit amount (default 0). |
+| `memo` | text | Line memo. |
+| `related_table` | varchar(32) | Polymorphic reference table. |
+| `related_id` | uuid | Polymorphic reference id. |
+
+##### 3.7.2.5 Ledger Balances
+
+###### 3.7.2.5.1 `ledger_balances`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `ledger_id` | uuid | FK to `ledgers` (RESTRICT). |
+| `account_id` | uuid | FK to `chart_of_accounts` (RESTRICT). |
+| `as_of_date` | date | Balance date. |
+| `balance` | numeric(14,2) | Account balance. |
+
+Unique `(ledger_id, account_id, as_of_date)`. Append-only.
+
+##### 3.7.2.6 Posting Queues
+
+###### 3.7.2.6.1 `posting_queues`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `journal_entry_id` | uuid | FK to `journal_entries` (CASCADE). |
+| `status` | varchar(16) | `pending` → `posted` → `failed`. |
+| `error_message` | text | Error details on failure. |
+| `processed_at` | timestamptz | Processing timestamp. |
+
+The queued `journal_entry_id` carries the ledger via its entry; the queue is not ledger-specific.
+
+##### 3.7.2.7 Category-Account Map
+
+###### 3.7.2.7.1 `category_account_map`
+
+Maps cost categories to GL accounts with date-range validity.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `category_id` | uuid | FK to `categories` (RESTRICT). |
+| `account_id` | uuid | FK to `chart_of_accounts` (RESTRICT). |
+| `valid_from` | date | Effective start date. |
+| `valid_to` | date | Effective end date. |
+
+##### 3.7.2.8 Posting Rules
+
+###### 3.7.2.8.1 `posting_rules`
+
+The rules engine that replaces hardcoded postings. For each business event the posting service evaluates the rules of every ledger belonging to the event's company and posts the resolved — possibly empty — balanced entry to each ledger.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `ledger_id` | uuid | FK to `ledgers` (RESTRICT). Which ledger this rule posts to. |
+| `event_type` | varchar(32) | `ap_invoice`, `ap_payment`, `ar_invoice`, `ar_receipt`, `actual_cost`, `wip_release`, etc. |
+| `debit_account_role` | varchar(32) | Account role to resolve, e.g. `expense`, `wip`, `ar_receivable`, `cash`. Null means emit no posting for this `(event, ledger)`. |
+| `credit_account_role` | varchar(32) | Account role to resolve, e.g. `revenue`, `ap_liability`, `accrual`, `cash`. |
+| `recognition_date` | varchar(16) | Which source date the entry takes: `invoice_date`, `payment_date`, or `incurred_on`. |
+| `valid_from` | date | Effective start date. |
+| `valid_to` | date | Effective end date. |
+
+Account roles resolve to concrete accounts through the role → account mapping (an extension of `category_account_map`, §3.7.2.7). A null account role is how the cash ledger records nothing for an invoice-issuance event. The same event therefore posts differently per ledger:
+
+The `wip_release` event is fired by an add-on settlement document via the posting contract ([ADR-0019](./decisions/0019-cross-module-posting-contract.md)); there is no automatic release without it. Its leg is DR COGS, CR WIP (`debit_account_role = cogs`, `credit_account_role = wip`, `recognition_date` = the settlement date). It exists only on the accrual ledger — WIP is an accrual-only account, so the role is null on the cash ledger. The settlement document is a composite event whose other legs (inventory relief, A/R, revenue, intercompany) resolve alongside it into one balanced entry; the construction add-on supplies the construction recipe (§4.3.4).
+
+| Event | Accrual ledger | Cash ledger |
+| --- | --- | --- |
+| AR invoice sent | DR A/R, CR Revenue (`invoice_date`) | — (no entry) |
+| AR receipt | DR Cash, CR A/R (`receipt_date`) | DR Cash, CR Revenue (`receipt_date`) |
+| AP invoice approved | DR Expense/WIP, CR A/P (`invoice_date`) | — (no entry) |
+| AP payment | DR A/P, CR Cash (`payment_date`) | DR Expense, CR Cash (`payment_date`) |
+| Cash sale (no invoice) | DR Cash, CR Revenue | DR Cash, CR Revenue (identical) |
+
+Entries identical in both bases — cash sales, expenses paid directly in cash, intercompany cash transfers — post once to the `common` ledger and are read by both the cash and accrual reports.
+
+##### 3.7.2.9 Intercompany
+
+###### 3.7.2.9.1 `company_accounts`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `source_company_id` | uuid | FK to `companies` (RESTRICT). |
+| `target_company_id` | uuid | FK to `companies` (RESTRICT). |
+| `inter_company_account_id` | uuid | FK to `chart_of_accounts` (RESTRICT). |
+| `is_active` | boolean | Default true. |
+
+Unique `(tenant_id, source_company_id, target_company_id)`.
+
+###### 3.7.2.9.2 `company_transactions`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `source_company_id` | uuid | FK to `companies` (RESTRICT). |
+| `target_company_id` | uuid | FK to `companies` (RESTRICT). |
+| `source_journal_entry_id` | uuid | FK to `journal_entries` (SET NULL). |
+| `target_journal_entry_id` | uuid | FK to `journal_entries` (SET NULL). |
+| `module` | varchar(32) | Intended values: `ar`, `ap`, `je`. No CHECK constraint. |
+| `amount` | numeric(14,2) | Transaction amount (default 0). |
+| `status` | varchar(16) | `pending` → `posted` → `reversed` (default `pending`). |
+| `is_eliminated` | boolean | Elimination flag for consolidated reporting (default false). |
+| `description` | text | Transaction description. |
+
+###### 3.7.2.9.3 `internal_transfers`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `from_account_id` | uuid | FK to `chart_of_accounts` (RESTRICT). |
+| `to_account_id` | uuid | FK to `chart_of_accounts` (RESTRICT). |
+| `transfer_date` | date | Transfer date. |
+| `amount` | numeric(12,2) | Transfer amount. |
+| `description` | text | Transfer description. |
+
+##### 3.7.2.10 Fiscal Periods
+
+###### 3.7.2.10.1 `fiscal_periods`
+
+Accounting periods that gate GL posting. A journal entry may only post when its `entry_date` falls inside an `open` period for the entry's ledger. Each ledger closes and locks independently.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `company_id` | uuid | FK to `companies` (RESTRICT). |
+| `ledger_id` | uuid | FK to `ledgers` (RESTRICT). The book this period governs. |
+| `fiscal_year` | integer | Owning fiscal year, e.g. 2026. |
+| `period_number` | integer | Sequence within the fiscal year (1–12 for monthly calendars). |
+| `name` | varchar(32) | Display label, e.g. `2026-01`. |
+| `start_date` | date | First date in the period (inclusive). |
+| `end_date` | date | Last date in the period (inclusive). |
+| `status` | varchar(16) | `open` → `closed` → `locked` (default `open`). |
+| `closed_at` | timestamptz | Set when the period transitions to `closed`. |
+| `locked_at` | timestamptz | Set when the period transitions to `locked`. |
+
+Unique `(tenant_id, ledger_id, fiscal_year, period_number)`. Date ranges for a given ledger must not overlap.
+
+#### 3.7.3 API
+
+All endpoints under `/api/accounting/v1/` provide standard CRUD (§7.1) unless noted.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| CRUD | `/api/accounting/v1/ledgers` | Manage the ledger registry. |
+| CRUD | `/api/accounting/v1/company-accounting-config` | Manage per-company book basis and recognition policy. |
+| CRUD | `/api/accounting/v1/posting-rules` | Manage the per-ledger posting rules. |
+| CRUD | `/api/accounting/v1/chart-of-accounts` | Manage the chart of accounts. |
+| CRUD | `/api/accounting/v1/journal-entries` | Manage journal entries. |
+| POST | `/api/accounting/v1/journal-entries/post` | Post pending journal entries (`status` → `posted`). |
+| POST | `/api/accounting/v1/journal-entries/reverse` | Reverse posted entries (creates correcting entry via `corrects_id`). |
+| CRUD | `/api/accounting/v1/journal-entry-lines` | Manage journal entry lines. |
+| CRUD | `/api/accounting/v1/ledger-balances` | Manage ledger balances. |
+| CRUD | `/api/accounting/v1/posting-queues` | Manage the posting queue. |
+| CRUD | `/api/accounting/v1/category-account-map` | Manage category → GL account mappings. |
+| CRUD | `/api/accounting/v1/company-accounts` | Manage intercompany account pairs. |
+| CRUD | `/api/accounting/v1/company-transactions` | Manage intercompany transactions. |
+| CRUD | `/api/accounting/v1/internal-transfers` | Manage internal transfers. |
+| CRUD | `/api/accounting/v1/fiscal-periods` | Manage fiscal periods. |
+| POST | `/api/accounting/v1/fiscal-periods/close` | Close an open period (`status` → `closed`). |
+| POST | `/api/accounting/v1/fiscal-periods/reopen` | Reopen a closed period (`status` → `open`); permission-gated. |
+| POST | `/api/accounting/v1/fiscal-periods/lock` | Permanently lock a period (`status` → `locked`); irreversible. |
+
+#### 3.7.4 Business Rules
+
+1. Every journal entry must balance: `SUM(debit) = SUM(credit)`. Insertion of an unbalanced entry fails validation.
+2. Each business event is evaluated against the `posting_rules` of every ledger belonging to the event's company. The resolved entry — which may be empty when an account role is null — is posted to that ledger. Every ledger balances independently (`SUM(debit) = SUM(credit)` within the ledger).
+3. Cash and bank account balances must be identical across a company's ledgers, since a cash movement is recorded the same way on every basis. Ledgers may differ only by the accrual-only accounts (A/R, A/P, WIP, inventory), which never appear in the `cash` ledger.
+4. Entries identical in both bases are posted once to the `common` ledger. The accrual report reads `common` + `accrual`; the cash report reads `common` + `cash`. Reports select a basis by ledger, never by filtering account types.
+5. `company_accounting_config.book_basis` designates which ledger is the company's authoritative book of record. Accrual is always maintained because project costing and profitability require it.
+6. Fiscal-period validation gates GL posting per ledger. A journal entry posts only when its `entry_date` falls within an `open` period for the entry's `ledger_id` (date-range lookup against `fiscal_periods`, picking the row where `entry_date BETWEEN start_date AND end_date`). Entries dated in a `closed` or `locked` period are rejected. Closing a period sets `status = closed` and `closed_at`; reopening (back to `open`) is permission-gated; locking sets `status = locked` and `locked_at` and is irreversible.
+7. `corrects_id` is self-referential and supports reversal chains. A reversal posts the inverse entry and links back to the original.
+8. The `category_account_map` resolves a `(category, date)` to the active `account_id`. Multiple rows per category may be active over time; lookup picks the row where `entry_date BETWEEN valid_from AND valid_to`.
+9. Intercompany transactions create paired journal entries (due-to / due-from) and carry an `is_eliminated` flag. Consolidation reporting eliminates flagged transactions from tenant-level P&L and balance sheet.
+10. The posting queue is the single asynchronous serialization point. Cross-module posters write to the queue; an accounting-side worker drains the queue, posts entries, and writes failures to `error_message` with a `failed` status for retry.
+11. Multi-GAAP uses the same ledger and `posting_rules` machinery — additional ledgers distinguished by `accounting_principle`, each with its own rules and fiscal periods. `[deferred]`
+12. Under `wip_policy = capitalize_release` (§3.7.2.2.1) a unit's costs accumulate as WIP (build) and Inventory (land / lot) on the accrual ledger as they are incurred, never touching the P&L. An add-on settlement document fires `wip_release`, relieving WIP and Inventory to COGS and recognizing revenue under `completed_contract` in one balanced accrual entry (the construction add-on supplies the recipe, §4.3.4). Absent that document there is no automatic release. WIP and Inventory are accrual-only and never appear in the cash ledger.
+
+---
+
+### 3.8 Cashflow & Profitability  [core]
+
+#### 3.8.1 Overview
+
+The Cashflow & Profitability module derives revenue, cost, and cash-position metrics from existing transactional data. There are no separate cashflow tables. It joins AR invoices, receipts, AP invoices, payments, actual costs, and journal entries on `project_id`. From those joins it produces per-project profitability, monthly cashflow time series, category cost breakdowns, and aging reports. Project managers see real-time margin and budget variance. CFOs see consolidated company cashflow and forecasted cash position.
+
+#### 3.8.2 Data Tables & Views
+
+##### 3.8.2.1 Data linkage model
 
 ```
 PROJECT PROFITABILITY = Revenue (AR) − Costs (AP + Actual Costs)
 
 Revenue Sources (Inflows):
-  ├── ar_invoices WHERE project_id = ? AND status IN ('sent','paid')
-  ├── receipts   JOIN ar_invoices WHERE project_id = ?
+  ├── ar_invoices         WHERE project_id = ? AND status IN ('sent','paid')
+  ├── receipts            JOIN ar_invoices WHERE project_id = ?
   └── journal_entry_lines WHERE account.type = 'income' AND entry.project_id = ?
 
 Cost Sources (Outflows):
-  ├── ap_invoices     WHERE project_id = ? AND status IN ('approved','paid')
-  ├── payments        JOIN ap_invoices WHERE project_id = ?
-  ├── actual_costs    WHERE project_id = ? AND approval_status = 'approved'
+  ├── ap_invoices         WHERE project_id = ? AND status IN ('approved','paid')
+  ├── payments            JOIN ap_invoices WHERE project_id = ?
+  ├── actual_costs        WHERE project_id = ? AND approval_status = 'approved'
   └── journal_entry_lines WHERE account.type = 'expense' AND entry.project_id = ?
 ```
 
-#### 3.10.2 Project Profitability Metrics
+##### 3.8.2.2 Metrics
 
-| Metric                                 | Calculation                                                                         | Description                   |
-| -------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------- |
-| **Contract Value**               | `projects.contract_amount`                                                        | Total client contract value   |
-| **Invoiced Revenue**             | SUM `ar_invoices.total_amount` WHERE project_id AND status IN ('sent','paid')     | Total billed to client        |
-| **Collected Revenue**            | SUM `receipts.amount` JOIN ar_invoices WHERE project_id                           | Cash actually received        |
-| **Outstanding AR**               | Invoiced Revenue − Collected Revenue                                               | Unpaid client invoices        |
-| **Total Budgeted Cost**          | SUM `cost_items.amount` + approved change orders                                  | Approved budget for project   |
-| **Committed Cost**               | SUM `ap_invoices.total_amount` WHERE project_id AND status IN ('approved','paid') | Vendor invoices committed     |
-| **Actual Spend**                 | SUM `actual_costs.amount` WHERE project_id AND approved                           | Confirmed expenditures        |
-| **Cash Out**                     | SUM `payments.amount` JOIN ap_invoices WHERE project_id                           | Cash actually paid to vendors |
-| **Gross Profit**                 | Invoiced Revenue − Committed Cost                                                  | Revenue minus committed costs |
-| **Gross Margin %**               | (Gross Profit / Invoiced Revenue) × 100                                            | Profitability percentage      |
-| **Net Cashflow**                 | Collected Revenue − Cash Out                                                       | Real cash position            |
-| **Budget Variance**              | Total Budgeted Cost − Actual Spend                                                 | Over/under budget             |
-| **Estimated Cost at Completion** | Actual Spend + Remaining Budget (uncommitted)                                       | Projected total cost          |
-| **Projected Profit**             | Contract Value − Estimated Cost at Completion                                      | Forecasted final profit       |
-| **Projected Margin %**           | (Projected Profit / Contract Value) × 100                                          | Forecasted final margin       |
+| Metric | Calculation |
+| --- | --- |
+| Contract Value | `projects.contract_amount` |
+| Invoiced Revenue | SUM `ar_invoices.total_amount` WHERE `project_id` AND status IN (`sent`, `paid`) |
+| Collected Revenue | SUM `receipts.amount` JOIN `ar_invoices` WHERE `project_id` |
+| Outstanding AR | Invoiced Revenue − Collected Revenue |
+| Total Budgeted Cost | SUM `cost_items.amount` + approved change orders |
+| Committed Cost | SUM `ap_invoices.total_amount` WHERE `project_id` AND status IN (`approved`, `paid`) |
+| Actual Spend | SUM `actual_costs.amount` WHERE `project_id` AND approved |
+| Cash Out | SUM `payments.amount` JOIN `ap_invoices` WHERE `project_id` |
+| Gross Profit | Invoiced Revenue − Committed Cost |
+| Gross Margin % | (Gross Profit / Invoiced Revenue) × 100 |
+| Net Cashflow | Collected Revenue − Cash Out |
+| Budget Variance | Total Budgeted Cost − Actual Spend |
+| Estimated Cost at Completion | Actual Spend + Remaining Budget (uncommitted) |
+| Projected Profit | Contract Value − Estimated Cost at Completion |
+| Projected Margin % | (Projected Profit / Contract Value) × 100 |
 
-#### 3.10.3 Cashflow Timeline
+##### 3.8.2.3 SQL views
 
-Track periodic inflows/outflows to understand cash timing:
+Each tenant schema gets these views at provisioning and updates them via migration.
 
-**Cashflow Summary (computed, not stored):**
+| View | Purpose |
+| --- | --- |
+| `vw_project_profitability` | Rolled-up profitability per project (every metric above). Joins projects, ar_invoices, receipts, ap_invoices, payments, actual_costs, cost_items, change_orders. |
+| `vw_project_cashflow_monthly` | Monthly inflow/outflow time series per project. Columns: `project_id`, `month`, `inflow`, `outflow`, `actual_cost`, `net_cashflow`, `cumulative_*`. |
+| `vw_project_cost_by_category` | Cost breakdown by activity category per project. Joins deliverable_assignments, budgets, activities, categories, actual_costs. |
+| `vw_ar_aging` | AR aging buckets per client — current, 1-30, 31-60, 61-90, over 90. |
+| `vw_ap_aging` | AP aging buckets per vendor — same five buckets. |
 
-| Dimension                  | Inflow Source                         | Outflow Source                        |
-| -------------------------- | ------------------------------------- | ------------------------------------- |
-| **By Month**         | `receipts.receipt_date`             | `payments.payment_date`             |
-| **By Quarter**       | Aggregated monthly                    | Aggregated monthly                    |
-| **By Project Phase** | AR invoices per deliverable           | AP invoices + actuals per deliverable |
-| **By Vendor**        | N/A                                   | `payments` grouped by `vendor_id` |
-| **By Client**        | `receipts` grouped by `client_id` | N/A                                   |
+#### 3.8.3 API
 
-**Forecast Inputs:**
+All endpoints under `/api/reports/v1/`.
 
-| Data Point           | Source                                                      |
-| -------------------- | ----------------------------------------------------------- |
-| Expected AR inflows  | `ar_invoices.due_date` WHERE status = 'sent' (unpaid)     |
-| Expected AP outflows | `ap_invoices.due_date` WHERE status = 'approved' (unpaid) |
-| Budget burn rate     | `actual_costs` trend over rolling 30/60/90-day windows    |
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/api/reports/v1/project-profitability` | List profitability for all active projects. |
+| GET | `/api/reports/v1/project-profitability/:projectId` | Detailed profitability for one project. |
+| GET | `/api/reports/v1/project-cashflow/:projectId` | Monthly cashflow time series for a project. |
+| GET | `/api/reports/v1/project-cashflow/:projectId/forecast` | Projected cashflow based on AR due dates and AP obligations. |
+| GET | `/api/reports/v1/project-cost-breakdown/:projectId` | Cost by category with budget vs. actual. |
+| GET | `/api/reports/v1/ar-aging` | AR aging across all clients. |
+| GET | `/api/reports/v1/ar-aging/:clientId` | AR aging for a specific client. |
+| GET | `/api/reports/v1/ap-aging` | AP aging across all vendors. |
+| GET | `/api/reports/v1/ap-aging/:vendorId` | AP aging for a specific vendor. |
+| GET | `/api/reports/v1/company-cashflow` | Cashflow aggregated across all projects for a company. UI lives under `/dashboard/cashflow`, not `/reports/*` (see §10). |
+| GET | `/api/reports/v1/margin-analysis` | Cross-project margin comparison and trending. |
 
-#### 3.10.4 SQL Views for Profitability
+#### 3.8.4 Business Rules
 
-These views are created in each tenant schema at provisioning time and updated via migrations:
+1. No cashflow data is persisted. Every metric is computed at request time from the underlying transactional tables.
+2. Reports are basis-aware. Each endpoint accepts an optional `basis` parameter (`accrual` — default — or `cash`). Statements read the matching ledger plus the `common` ledger (`WHERE ledger_id IN (…)`), never by filtering account types. The `cash` basis has no A/R, A/P, WIP, or inventory; those accounts exist only in the `accrual` ledger.
+3. Revenue counts only `ar_invoices` with status `sent` or `paid`. Drafts and voided invoices are excluded.
+4. Cost counts only `ap_invoices` with status `approved` or `paid`. Pending and voided invoices are excluded.
+5. The cashflow forecast uses `ar_invoices.due_date` (unpaid `sent`) and `ap_invoices.due_date` (unpaid `approved`) plus a 30/60/90-day rolling actual-cost burn rate.
+6. The profitability dashboard renders summary cards (Contract Value, Invoiced Revenue, Gross Profit, Gross Margin %, Net Cashflow), MUI X bar charts for budget-vs-committed-vs-actual per category, and a status indicator (green / yellow / red) based on budget variance.
+7. The cashflow timeline renders a stacked-area chart of monthly inflows vs. outflows plus a cumulative net trend line, with a dashed forecast region for upcoming AR/AP due dates.
+8. Aging grids use five buckets (current / 1-30 / 31-60 / 61-90 / over 90) grouped by client (AR) or vendor (AP); they are filterable by project and include a totals summary row.
 
-**`vw_project_profitability`:**
+---
+### 3.9 Reporting & Views  [core]
 
-```sql
--- Rolled-up profitability metrics per project
--- Joins: projects, ar_invoices, receipts, ap_invoices, payments, actual_costs, cost_items, change_orders
--- Columns: project_id, project_code, project_name, project_status, contract_amount,
---          invoiced_revenue, collected_revenue, outstanding_ar,
---          total_budgeted_cost, change_order_value, committed_cost, actual_spend, cash_out,
---          gross_profit, gross_margin_pct, net_cashflow,
---          budget_variance, est_cost_at_completion, projected_profit, projected_margin_pct
-```
+#### 3.9.1 Overview
 
-**`vw_project_cashflow_monthly`:**
+The Reporting module is a thin layer of SQL views and report endpoints that read across other modules' data. Export views provide consolidated, denormalized rows for spreadsheet export. Financial views (covered in §3.8) drive dashboards. Reporting itself owns no transactional data.
 
-```sql
--- Monthly inflow/outflow time series per project
--- Columns: project_id, month, inflow (receipts), outflow (payments only),
---          actual_cost, net_cashflow (inflow − outflow, excludes actual_cost),
---          cumulative_inflow, cumulative_outflow, cumulative_net
-```
+#### 3.9.2 Data Tables & Views
 
-**`vw_project_cost_by_category`:**
+##### 3.9.2.1 Core export views
 
-```sql
--- Cost breakdown by activity category per project
--- Joins: deliverable_assignments, budgets, activities, categories, actual_costs
--- Columns: project_id, category_id, category_code, category_name, category_type,
---          budgeted_amount, actual_amount, variance
-```
+Created by migration `202502120080_sqlViews` and queried directly by report controllers.
 
-**`vw_ar_aging`:**
+| View | Description |
+| --- | --- |
+| `vw_export_contacts` | Unified contacts across vendors, clients, and employees with `source_type`. |
+| `vw_export_addresses` | Unified addresses across all source types. |
+| `vw_export_template_cost_items` | Template cost items with unit name, version, and task hierarchy. |
+| `vw_template_tasks_export` | Template tasks with unit name and version. |
 
-```sql
--- AR aging buckets per client
--- Columns: client_id, client_name, client_code, invoice_count, total_balance,
---          current_bucket, bucket_1_30, bucket_31_60, bucket_61_90, bucket_over_90
-```
+##### 3.9.2.2 Financial views
 
-**`vw_ap_aging`:**
+Owned by §3.8 (Cashflow & Profitability) and referenced here for convenience.
 
-```sql
--- AP aging buckets per vendor
--- Columns: vendor_id, vendor_name, vendor_code, invoice_count, total_balance,
---          current_bucket, bucket_1_30, bucket_31_60, bucket_61_90, bucket_over_90
-```
+| View | Description |
+| --- | --- |
+| `vw_project_profitability` | Rolled-up profitability metrics per project. |
+| `vw_project_cashflow_monthly` | Monthly inflow/outflow time series. |
+| `vw_project_cost_by_category` | Cost breakdown by activity category. |
+| `vw_ar_aging` | AR aging buckets per client. |
+| `vw_ap_aging` | AP aging buckets per vendor. |
 
-#### 3.10.5 API Endpoints
+##### 3.9.2.3 Budget vs. actual metrics
 
-| Method  | Path                                                     | Purpose                                                     |
-| ------- | -------------------------------------------------------- | ----------------------------------------------------------- |
-| `GET` | `/api/reports/v1/project-profitability`                | List profitability for all active projects                  |
-| `GET` | `/api/reports/v1/project-profitability/:projectId`     | Detailed profitability for single project                   |
-| `GET` | `/api/reports/v1/project-cashflow/:projectId`          | Monthly cashflow time series for project                    |
-| `GET` | `/api/reports/v1/project-cashflow/:projectId/forecast` | Projected cashflow based on AR due dates and AP obligations |
-| `GET` | `/api/reports/v1/project-cost-breakdown/:projectId`    | Cost by category with budget vs actual                      |
-| `GET` | `/api/reports/v1/ar-aging`                             | AR aging report across all clients                          |
-| `GET` | `/api/reports/v1/ar-aging/:clientId`                   | AR aging for specific client                                |
-| `GET` | `/api/reports/v1/ap-aging`                             | AP aging report across all vendors                          |
-| `GET` | `/api/reports/v1/ap-aging/:vendorId`                   | AP aging for specific vendor                                |
-| `GET` | `/api/reports/v1/company-cashflow`                     | Aggregated cashflow across all projects for a company. UI lives under `/dashboard/cashflow` (Dashboard nav group), NOT `/reports/*` — see §7. (Reconciled per gaps 2.23 / 4.27, 2026-05-21.) |
-| `GET` | `/api/reports/v1/margin-analysis`                      | Cross-project margin comparison and trending                |
+| Metric | Calculation |
+| --- | --- |
+| Original Budget | SUM approved `cost_lines.total_cost`. |
+| Change Orders | SUM approved `change_order_lines.total_cost`. |
+| Actual Costs | SUM `actual_costs.amount` (approved). |
+| Total Exposure | Original Budget + Change Orders. |
+| Variance (Baseline) | Original Budget − Actual Costs. |
+| Variance (Total) | Total Exposure − Actual Costs. |
 
-#### 3.10.6 UI Requirements
+#### 3.9.3 API
 
-**Project Profitability Dashboard:**
+Top-level reporting endpoints live under `/api/reports/v1/`. The cashflow- and profitability-specific endpoints are documented in §3.8.3; this section lists only the non-financial export endpoints.
 
-- Summary cards: Contract Value, Invoiced Revenue, Gross Profit, Gross Margin %, Net Cashflow
-- Status indicators: green (on budget), yellow (approaching budget), red (over budget)
-- Drill-down from project list to individual project detail
-- MUI X Charts: bar chart comparing budget vs committed vs actual per category
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/api/reports/v1/export-contacts` | Export contacts CSV/XLSX from `vw_export_contacts`. |
+| GET | `/api/reports/v1/export-addresses` | Export addresses CSV/XLSX from `vw_export_addresses`. |
+| GET | `/api/reports/v1/export-template-cost-items` | Export template cost items. |
+| GET | `/api/reports/v1/export-template-tasks` | Export template tasks. |
 
-**Cashflow Timeline Chart:**
+#### 3.9.4 Business Rules
 
-- MUI X Charts: stacked area chart showing monthly inflows vs outflows
-- Cumulative net cashflow trend line
-- Forecast region (dashed lines) for upcoming AR/AP due dates
-- Toggle: actual vs forecast vs combined view
-
-**Profitability Table:**
-
-- MUI X Data Grid with all metrics from §3.10.2
-- Sortable by any metric column
-- Conditional formatting: red for negative margins, green for healthy margins
-- Export to Excel via `exportToSpreadsheet()`
-
-**AR/AP Aging Grids:**
-
-- Aging bucket columns: Current, 1-30, 31-60, 61-90, Over 90 (5 buckets — matches `vw_ar_aging` / `vw_ap_aging` view definitions in §3.10.4 and `rules/reports.md`). (Reconciled per gap 4.31, 2026-05-21.)
-- Grouped by client (AR) or vendor (AP)
-- Filterable by project
-- Summary row with totals
+1. Reporting endpoints are read-only and do not write to underlying tables.
+2. Views are recreated by migration. Controllers do not modify view definitions at runtime.
+3. Budget-vs-actual calculations are based on **approved** records only. Drafts and rejected items are excluded.
+4. Cross-module financial reporting (cashflow, profitability) is owned by §3.8; this section's endpoints stop at exports and non-financial views.
 
 ---
 
-### 3.11 Reporting & Views  [in-scope]
+### 3.10 Shared Tables  [core]
 
-**Purpose:** Pre-computed SQL views for dashboards and data export.
+Tables that don't belong to any single business module — they're consumed by several. Grouped here for clarity.
 
-**Core Export Views:**
+#### 3.10.1 Emails
 
-| View                              | Description                                                          |
-| --------------------------------- | -------------------------------------------------------------------- |
-| `vw_export_contacts`            | Unified contacts across vendors, clients, employees with source_type |
-| `vw_export_addresses`           | Unified addresses across all source types                            |
-| `vw_export_template_cost_items` | Template cost items with unit name, version, task hierarchy          |
-| `vw_template_tasks_export`      | Template tasks with unit name and version                            |
+The `emails` table is the canonical store for email addresses across vendors, vendor contacts, clients, employees, and contacts. It replaces per-entity `email` columns.
 
-**Export View Endpoints:** Views are created by the `202502120080_sqlViews` migration. API routes are not yet implemented — views are queried directly by report controllers where needed.
+##### 3.10.1.1 `emails`
 
-**Financial Views (see §3.10.4):**
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null, immutable. |
+| `source_id` | uuid | FK to `sources` (CASCADE). Polymorphic link. |
+| `email` | varchar(128) | Not null. |
+| `label` | varchar(32) | Optional (`work`, `personal`, etc.). |
+| `is_primary` | boolean | Default false. Partial unique per `source_id`. |
+| `is_login` | boolean | Default false. Marks the email used as the linked `portal_users.email` for entities with `is_app_user = true`. Partial unique per `source_id`. |
 
-| View                            | Description                                 |
-| ------------------------------- | ------------------------------------------- |
-| `vw_project_profitability`    | Rolled-up profitability metrics per project |
-| `vw_project_cashflow_monthly` | Monthly inflow/outflow time series          |
-| `vw_project_cost_by_category` | Cost breakdown by activity category         |
-| `vw_ar_aging`                 | AR aging buckets by client/project          |
-| `vw_ap_aging`                 | AP aging buckets by vendor/project          |
-
-**Budget vs Actual Metrics:**
-
-| Metric              | Calculation                                       |
-| ------------------- | ------------------------------------------------- |
-| Original Budget     | Sum of approved `cost_lines.total_cost`         |
-| Change Orders       | Sum of approved `change_order_lines.total_cost` |
-| Actual Costs        | Sum of `actual_costs.amount` (approved)         |
-| Total Exposure      | Original Budget + Change Orders                   |
-| Variance (Baseline) | Original Budget − Actual Costs                   |
-| Variance (Total)    | Total Exposure − Actual Costs                    |
-
----
-
-### 3.12 Match Review Logs  [in-scope]
-
-**Purpose:** Audit trail for BOM vendor SKU matching decisions.
-
-| Field           | Type        | Description                       |
-| --------------- | ----------- | --------------------------------- |
-| `id`          | uuid        | PK                                |
-| `entity_type` | varchar(32) | Entity being matched              |
-| `entity_id`   | uuid        | Entity ID                         |
-| `match_type`  | varchar(32) | Type of match                     |
-| `match_id`    | uuid        | Matched entity ID                 |
-| `reviewer_id` | uuid        | Reviewer user ID                  |
-| `decision`    | varchar(16) | `accept`, `reject`, `defer` |
-| `notes`       | text        | Reviewer notes                    |
-
-**Endpoint:** `/api/tenants/v1/match-review-logs`
-
----
-
-### 3.13 Tenant-Scoped Numbering System  [in-scope]
-
-**Purpose:** Configurable, transaction-safe auto-numbering for all business entities. Separates internal PKs (UUIDs) from human-readable business identifiers. Supports per-tenant formatting, optional sub-scope (e.g., per company for invoices), and period-based counter reset.
-
-> **Terminology:** in this product, **companies are the legal entities** under a tenant — there is no separate `legal_entities` table. Section 3.13 uses `scope_type = company` for invoices; earlier wording that used `legal_entity` as a distinct scope was redundant and has been collapsed.
-
-#### 3.13.1 Design Principles
-
-1. Database primary keys (UUID) are not business identifiers
-2. Business numbers are generated per tenant (never global)
-3. Invoice numbers are generated **per company** (`scope_type = 'company'`); each company under a tenant gets its own running invoice sequence
-4. Reset behavior is implemented using a `period_key`, not by restarting sequences
-5. Display formatting is independent of serial allocation logic
-6. Issued invoice numbers are immutable
-
-#### 3.13.2 Numbering Configuration
-
-**Data Model (`tenant_numbering_config`):**
-
-| Field          | Type        | Description                                                                                    |
-| -------------- | ----------- | ---------------------------------------------------------------------------------------------- |
-| `id`         | uuid        | PK                                                                                             |
-| `tenant_id`  | uuid        | Not null, immutable                                                                            |
-| `id_type`    | varchar(32) | `employee`, `vendor`, `client`, `contact`, `ar_invoice`, `ap_invoice`, `project` |
-| `prefix`     | varchar(16) | Display prefix (e.g.,`EMP`, `INV`)                                                         |
-| `suffix`     | varchar(16) | Display suffix                                                                                 |
-| `date_mode`  | varchar(16) | `none`, `year`, `year_month`, `ymd`                                                    |
-| `reset_mode` | varchar(16) | `never`, `yearly`, `monthly`, `daily`                                                  |
-| `padding`    | integer     | Zero-pad width (e.g., 4 →`0001`)                                                            |
-| `separator`  | varchar(4)  | Joins display parts (e.g.,`-`)                                                               |
-| `uppercase`  | boolean     | Apply uppercase to final display ID                                                            |
-| `scope_type` | varchar(32) | `none`, `company`, `project` (companies are the legal entities — see §3.13 terminology note) |
-| `is_enabled` | boolean     | Enables auto-numbering for this entity type                                                    |
-
-**Unique Constraint:** `(tenant_id, id_type)` — one config row per entity type per tenant.
-
-Changing configuration affects future numbers only. Historical numbers are never rewritten.
-
-#### 3.13.3 Sequence State (Counter Storage)
-
-**Data Model (`tenant_number_sequence_state`):**
-
-| Field           | Type        | Description                                                                                                                           |
-| --------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`          | uuid        | PK                                                                                                                                    |
-| `tenant_id`   | uuid        | Not null, immutable                                                                                                                   |
-| `id_type`     | varchar(32) | Entity type                                                                                                                           |
-| `scope_id`    | uuid        | Scope entity UUID, or NIL UUID for global scope                                                                                       |
-| `period_key`  | varchar(16) | Derived from `reset_mode`: `never` → `global`, `yearly` → `YYYY`, `monthly` → `YYYY-MM`, `daily` → `YYYY-MM-DD` |
-| `last_serial` | bigint      | Current counter value                                                                                                                 |
-
-**Unique Constraint:** `(tenant_id, id_type, scope_id, period_key)`
-
-#### 3.13.4 Display ID Construction
-
-`display_id = prefix + separator + date_part + separator + padded(serial) + separator + suffix`
-
-- Only non-empty components are included
-- Date part derived from `issued_at` timestamp using `date_mode`
-- Padding applied to serial (e.g., padding=6 → `000123`)
-- Uppercase transformation applied if configured
-
-**Examples:** `EMP-0045`, `INV-2026-00123`, `VND-2026-02-0004`
-
-#### 3.13.5 Transaction-Safe Allocation
-
-1. Determine `period_key` from `reset_mode` and current date
-2. `BEGIN` transaction
-3. `SELECT ... FROM tenant_number_sequence_state FOR UPDATE` (row lock)
-4. If row not found → `INSERT` with `last_serial = 1`
-5. Else → `INCREMENT last_serial`
-6. Assign serial to entity record
-7. Compute `display_id` from config
-8. `COMMIT`
-
-This prevents race conditions and duplicate numbers under concurrent requests.
-
-#### 3.13.6 Reset Strategy
-
-Reset is achieved via `period_key` partitioning — no sequence objects are restarted manually.
-
-Example (yearly reset): 2025 → `period_key = '2025'`, serial 000001; 2026 → `period_key = '2026'`, serial resets to 000001 automatically.
-
-#### 3.13.7 Recommended Defaults
-
-| Entity Type | Prefix   | Padding | Date Mode | Reset Mode | Scope        |
-| ----------- | -------- | ------- | --------- | ---------- | ------------ |
-| Employee    | `EMP`  | 4       | none      | never      | tenant       |
-| Vendor      | `VND`  | 4       | none      | never      | tenant       |
-| Client      | `CLT`  | 4       | none      | never      | tenant       |
-| Contact     | `CON`  | 4       | none      | never      | tenant       |
-| Project     | `PRJ`  | 4       | none      | never      | tenant       |
-| AR Invoice  | `INV`  | 5       | year      | yearly     | company      |
-| AP Invoice  | `BILL` | 5       | year      | yearly     | company      |
-
-All configs are seeded with `is_enabled = false` during tenant provisioning. Tenants opt in via the Settings UI. When numbering is first enabled for an entity type, existing records with `code IS NULL` are backfilled in `created_at` order.
-
-#### 3.13.8 Entity Integration
-
-Auto-numbering populates the entity's code/number field only when the user does not provide one. For AR invoices, numbering fires when `status` transitions to `sent`; for AP invoices, when `status` transitions to `approved` (immutable after assignment).
-
-| Entity     | Code Field         | Numbering Trigger           |
-| ---------- | ------------------ | --------------------------- |
-| Vendor     | `code`           | On create (if code is null) |
-| Client     | `code`           | On create (if code is null) |
-| Employee   | `code`           | On create (if code is null) |
-| Contact    | `code`           | On create (if code is null) |
-| Project    | `project_code`   | On create (if code is null) |
-| AR Invoice | `invoice_number` | On status →`sent`        |
-| AP Invoice | `invoice_number` | On status →`approved`    |
-
-#### 3.13.9 Backfill on Enable
-
-When a tenant enables numbering for an entity type (`is_enabled` transitions `false` → `true`), the system backfills all existing records of that type that have `code IS NULL AND deactivated_at IS NULL`, ordered by `created_at`. This ensures entities created before numbering was configured — including the admin employee created during tenant provisioning — receive codes matching the tenant's chosen pattern.
-
-The backfill runs atomically in a single transaction using the same `allocateNumber()` path as normal entity creation. The response includes `backfilledCodes` count so the UI can inform the user.
-
-**Endpoint:** `/api/core/v1/numbering-config`
-
-**UI:** Settings > Numbering — card-based configuration page with per-entity-type enable/disable, format fields, and live preview.
-
----
-
-### 3.14 Tenant-First-Class Modules  [in-scope]
-
-**Purpose:** Tenant-scoped reference modules that did not fit cleanly into §3.3 *Core Entities* when the PRD was first written. Documented here for completeness. (Added per gaps 2.1, 2.2, 2.6, 4.26, 2026-05-21.)
-
-#### 3.14.1 Emails (first-class tenant-scoped table)
-
-The `emails` table is the canonical store for email addresses across vendors, clients, employees, contacts, and vendor contacts. It replaces the per-entity `email` column on `clients` and `employees`.
-
-| Field           | Type         | Description                                                                                                    |
-| --------------- | ------------ | -------------------------------------------------------------------------------------------------------------- |
-| `id`            | uuid         | PK                                                                                                             |
-| `tenant_id`     | uuid         | Not null, immutable                                                                                            |
-| `source_id`     | uuid         | FK to `sources` (CASCADE); polymorphic link to vendor / client / employee / contact / vendor_contact            |
-| `email`         | varchar(128) | Not null                                                                                                       |
-| `label`         | varchar(32)  | Optional ("work", "personal", etc.)                                                                            |
-| `is_primary`    | boolean      | Default false. Partial unique per `source_id` (one primary per entity).                                        |
-| `is_login`      | boolean      | Default false. Marks the email used as the linked `portal_users.email` for entities with `is_app_user = true`. Partial unique per `source_id` (one login email per entity). |
-
-Indexes / invariants:
-
-- Partial unique `(email) WHERE deactivated_at IS NULL` — tenant-wide email uniqueness for active rows (replaces the former `employees.email` partial unique).
+Indexes and invariants:
+- Partial unique `(email) WHERE deactivated_at IS NULL` — tenant-wide email uniqueness for active rows.
 - Partial unique `(source_id) WHERE is_login = true AND deactivated_at IS NULL`.
 - Partial unique `(source_id) WHERE is_primary = true AND deactivated_at IS NULL`.
-- Partial unique `(source_id, label) WHERE deactivated_at IS NULL AND label IS NOT NULL` — at most one of each label per entity.
+- Partial unique `(source_id, label) WHERE deactivated_at IS NULL AND label IS NOT NULL`.
 
-**Endpoint:** `/api/core/v1/emails` (standard CRUD via `createRouter`).
+Endpoint: `/api/core/v1/emails` (standard CRUD). Policy catalog entry `core::emails`. See [ADR-0025](./decisions/0025-import-dedup-partial-unique-indexes.md).
 
-**Policy catalog entry:** `core::emails` (registered in `policyCatalogSeeder.js`).
+#### 3.10.2 Tenant Preferences
 
-**Client UI:** `EmailsSection` / `EditableEmailsSection` / `EmailRow` components in `apps/client/src/components/shared/` render the email list inside each entity edit dialog (mirrors the Tax / Phone / Addresses sections — see §6.5 and §3.3.4).
+One row per tenant. Tenant-scoped UI and behaviour preferences.
 
-**ADR Reference:** [ADR-0025](./decisions/0025-import-dedup-partial-unique-indexes.md) audits the schema.
+##### 3.10.2.1 `tenant_preferences`
 
-#### 3.14.2 Tenant Preferences
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `tenant_id` | uuid | Not null, immutable, unique. |
+| `default_page_size` | integer | Not null, default 25. CHECK: between 25 and 1000. |
 
-One row per tenant — tenant-scoped UI and behaviour preferences.
+Endpoint: `/api/core/v1/tenant-preferences` (standard CRUD). Seeded with the default row during tenant provisioning (`tenantPreferencesSeeder.js`).
 
-| Field                | Type    | Description                                                       |
-| -------------------- | ------- | ----------------------------------------------------------------- |
-| `id`                 | uuid    | PK                                                                |
-| `tenant_id`          | uuid    | Not null, immutable, unique                                       |
-| `default_page_size`  | integer | Not null, default 25. CHECK: between 25 and 1000.                 |
+#### 3.10.3 Countries
 
-**Endpoint:** `/api/core/v1/tenant-preferences` (standard CRUD via `createRouter`).
+ISO 3166-1 alpha-2 country reference list in the **admin** schema. Tenant tables (`phone_numbers`, `addresses`, `tax_identifiers`) FK their `country_code` columns here so non-ISO inputs are rejected at the database level.
 
-**Schema:** `apps/server/src/system/core/schemas/tenantPreferencesSchema.js`.
+##### 3.10.3.1 `admin.countries`
 
-**Migration:** `202603270015_tenantPreferences.js` (creates the table per tenant).
+| Column | Type | Notes |
+| --- | --- | --- |
+| `code` | char(2) | Primary key. ISO 3166-1 alpha-2. Immutable. |
+| `name` | varchar(128) | Country name, not null. |
+| `dial_code` | varchar(8) | International dialing prefix (e.g., `+1`). |
+| `placeholder` | varchar(64) | UI placeholder format hint. |
 
-**Seeder:** `apps/server/src/system/core/services/tenantPreferencesSeeder.js` inserts the default row during tenant provisioning.
+No API surface. Read directly by the client via the shared country list in `packages/shared`.
 
-#### 3.14.3 Countries (admin reference table)
+#### 3.10.4 Match Review Logs
 
-ISO 3166-1 alpha-2 country reference list in the admin schema. Tenant-scope tables (`phone_numbers`, `addresses`, `tax_identifiers`) FK their `country_code` columns here so non-ISO inputs (`UK`, `Us`) are rejected at the database level.
+Audit trail for catalog vendor-SKU matching decisions.
 
-| Field         | Type         | Description                                |
-| ------------- | ------------ | ------------------------------------------ |
-| `code`        | char(2)      | PK; ISO 3166-1 alpha-2 code, immutable     |
-| `name`        | varchar(128) | Country name, not null                     |
-| `dial_code`   | varchar(8)   | International dialing prefix (e.g., `+1`)  |
-| `placeholder` | varchar(64)  | UI placeholder format hint                 |
+##### 3.10.4.1 `match_review_logs`
 
-**Schema:** `apps/server/src/system/auth/schemas/countriesSchema.js`. Model: `apps/server/src/system/auth/models/Countries.js`. Seeder: `apps/server/src/system/auth/services/countriesSeeder.js`. No API surface — read directly by the client via the shared country list in `packages/shared`.
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `entity_type` | varchar(32) | Entity being matched. |
+| `entity_id` | uuid | Entity id. |
+| `match_type` | varchar(32) | Type of match. |
+| `match_id` | uuid | Matched entity id. |
+| `reviewer_id` | uuid | Reviewer user id. |
+| `decision` | varchar(16) | `accept`, `reject`, `defer`. |
+| `notes` | text | Reviewer notes. |
+
+Endpoint: `/api/tenants/v1/match-review-logs`.
 
 ---
 
-## 4. Standard API Patterns  [in-scope]
+## 4. Add-on Modules  [in-scope]
+
+Add-on modules are licensed per tenant via `tenants.allowed_modules` (§3.0.2). They divide into **capability add-ons** (industry-agnostic) and **industry verticals**. Catalog, Scheduling, and Construction are documented below; Timesheets, Procurement, Inventory, and a future Manufacturing vertical are listed under Future Add-ons (§4.4). See [ADR-0035](./decisions/0035-add-on-taxonomy-and-construction.md).
+
+---
+
+### 4.1 Catalog  [add-on]
+
+#### 4.1.1 Overview
+
+The Catalog add-on owns the tenant's master item catalog, the Bill of Materials (BOM) that composes those items into assemblies, vendor SKU matching, and vendor pricing. Catalog items are tenant-curated material reference records. The BOM feature links a parent item to its component items with quantities, so an assembly explodes into its parts and rolls up its cost. Vendor SKUs are pulled from vendor price lists and matched back to a catalog item, either manually or via pgvector similarity search. Cost lines select a `(vendor, vendor_sku)` pair and inherit the pricing.
+
+#### 4.1.2 Data Tables
+
+##### 4.1.2.1 Catalog Items
+
+###### 4.1.2.1.1 `catalog_items`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `catalog_sku` | varchar(64) | Unique catalog SKU code. |
+| `description` | text | Full description. |
+| `description_normalized` | text | Normalized for matching. |
+| `category` | varchar(64) | Material category. |
+| `sub_category` | varchar(64) | Sub-category. |
+| `model` | varchar(32) | Embedding model used. |
+| `embedding` | vector(3072) | pgvector embedding for similarity search. |
+
+##### 4.1.2.2 BOM Components
+
+###### 4.1.2.2.1 `bom_components`
+
+The BOM is an adjacency-list self-reference on `catalog_items`: each row is one edge linking a parent item (the assembly) to a child item (the component) with a quantity. An item is an *assembly* when it owns `bom_components` rows and a *leaf* when it owns none — there is no separate type column. The same child item is reused across many parents (one master definition, many edges), which is the whole point of the master catalog.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `parent_item_id` | uuid | FK to `catalog_items` (CASCADE). The assembly. |
+| `child_item_id` | uuid | FK to `catalog_items` (RESTRICT). The component item. |
+| `quantity` | numeric(12,4) | Quantity of the child per one parent. |
+
+##### 4.1.2.3 Vendor SKUs
+
+###### 4.1.2.3.1 `vendor_skus`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `vendor_id` | uuid | FK to `vendors` (RESTRICT). |
+| `vendor_sku` | varchar(64) | Vendor's SKU code. |
+| `description` | text | Vendor's description. |
+| `description_normalized` | text | Normalized description. |
+| `catalog_sku_id` | uuid | FK to `catalog_items` (SET NULL). The matched catalog item. |
+| `confidence` | real | Match confidence score (0.0–1.0). |
+| `model` | varchar(32) | Embedding model (default `text-embedding-3-large`). |
+| `embedding` | vector(3072) | pgvector embedding. |
+
+Custom model methods: `findBySku(vendor_id, vendor_sku)`, `getUnmatched()`, `refreshEmbeddings(batches)`.
+
+##### 4.1.2.4 Vendor Pricing
+
+###### 4.1.2.4.1 `vendor_pricing`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key. |
+| `vendor_sku_id` | uuid | FK to `vendor_skus` (CASCADE). |
+| `unit_price` | numeric(12,4) | Price per unit. |
+| `unit` | varchar(32) | Unit of measure. |
+| `effective_date` | date | Price effective date. |
+
+#### 4.1.3 API
+
+All endpoints under `/api/catalog/v1/` provide standard CRUD (§7.1).
+
+| Method | Path | Description |
+| --- | --- | --- |
+| CRUD | `/api/catalog/v1/catalog-items` | Manage catalog items. |
+| CRUD | `/api/catalog/v1/bom-components` | Manage BOM component edges. |
+| CRUD | `/api/catalog/v1/vendor-skus` | Manage vendor SKUs. |
+| CRUD | `/api/catalog/v1/vendor-pricing` | Manage vendor pricing. |
+| GET | `/api/catalog/v1/catalog-items/:id/explode` | Read-only BOM explosion / cost roll-up for an assembly. |
+
+#### 4.1.4 Business Rules
+
+1. The Catalog module loads only when `catalog` appears in `tenants.allowed_modules` (see §3.0.2).
+2. Catalog items are tenant-curated. Vendor SKUs originate from vendor price lists.
+3. The BOM is materials-only. An assembly is a `catalog_items` row that owns `bom_components` rows; assembly *labor* is never a component — it is a separate cost line (§3.4).
+4. Cycle prevention is enforced in application code: an item may not contain itself directly or transitively. Inserting a `bom_components` edge rejects the case where the parent is already reachable beneath the child.
+5. Explosion and cost roll-up use recursive traversal: a leaf's cost comes from vendor pricing; an assembly's cost is the sum of each child's rolled-up cost times its quantity. Quantity multiplies down the tree, so the total of a leaf equals the product of quantities along each path. When exploding into cost lines, sum only top-level lines to avoid double-counting the parent and its children.
+6. Matching produces a `vendor_skus.catalog_sku_id` link with a `confidence` score. The match review log (§3.10.4) records every accept/reject/defer decision.
+7. Auto-match thresholds are tenant-configurable. Below the lower threshold, matches are deferred for manual review; above the upper threshold, matches auto-accept; in between, they queue for review.
+8. Cost lines select a `(vendor, vendor_sku)` pair to inherit pricing (§3.4.4). The link from a core `cost_lines` row to a catalog item is a **soft reference** (no database foreign key): catalog tables do not exist in the schema of a tenant that has not licensed the add-on. BOM explosion runs read-only in the add-on; the resulting lines are written through the existing core cost-lines endpoint.
+9. The core `vendor_parts` table (§3.4) and the catalog `vendor_skus` / `vendor_pricing` tables are an intentional split: `vendor_parts` is the activities module's local per-vendor pricing cache, available without the add-on; `vendor_skus` / `vendor_pricing` is the richer matched registry with time-phased pricing that the Catalog add-on layers on top.
+
+---
+
+### 4.2 Scheduling  [add-on] [deferred]
+
+#### 4.2.1 Overview
+
+The Scheduling add-on owns resource, crew, and milestone scheduling across projects and units. It consumes tasks (§3.3.2.3) and produces a time-phased plan.
+
+#### 4.2.2 Data Tables
+
+Deferred.
+
+#### 4.2.3 API
+
+Deferred.
+
+#### 4.2.4 Business Rules
+
+Deferred.
+
+---
+
+### 4.3 Construction  [add-on] [deferred]
+
+#### 4.3.1 Overview
+
+The Construction add-on is the construction industry vertical. It owns subdivision-unit sales, **closing (settlement) statements**, draw schedules, and lien-waiver tracking. The closing statement is the document that consummates a unit sale; posting it is the unit's sale event. Services Statements of Work are not here — they are billing agreements in AR (§3.6.2.4). Production work orders belong to a future manufacturing vertical.
+
+#### 4.3.2 Data Tables
+
+Deferred — schema lands when the module graduates from spec to code. Intended documents: subdivision sales / unit records, closing statements, draw schedules, lien waivers.
+
+#### 4.3.3 API
+
+Deferred.
+
+#### 4.3.4 Business Rules
+
+1. The Construction module loads only when `construction` appears in `tenants.allowed_modules` (§3.0.2).
+2. Construction subdivision sales do **not** flow through `ar_invoices`. They use closing statements owned by this add-on.
+3. Posting a closing statement is the unit's sale event. It fires the `wip_release` event and recognizes revenue under `completed_contract`, resolving on the **accrual** ledger to a single balanced entry through the cross-module posting contract ([ADR-0019](./decisions/0019-cross-module-posting-contract.md)):
+
+   | Leg | DR | CR |
+   | --- | --- | --- |
+   | Recognize sale | A/R (sale price) | Revenue (sale price) |
+   | Relieve build cost (`wip_release`) | COGS | WIP |
+   | Relieve land / lot | COGS | Inventory |
+   | Intercompany funding, where applicable | due-to / due-from per §3.7.2.9 | |
+
+   On the **cash** ledger the closing statement is a credit sale, so its account roles are null and it posts nothing; cash-basis revenue recognizes later at receipt (DR Cash, CR Revenue), as the AR-receipt row already does. WIP and Inventory are accrual-only and never appear in the cash ledger.
+4. The posting uses **core** machinery only — the generic role-based posting contract and the company's policy enums `wip_policy` and `revenue_recognition_policy` (§3.7.2.2.1). It is not a configuration flag and not a user-defined journal-workflow engine; the recipe above is the fixed construction recipe. The core `ar`, `accounting`, and `inventory` definitions are not modified.
+
+---
+
+### 4.4 Future Add-ons  [add-on] [deferred]
+
+These modules are planned but not yet specified. Each loads only when listed in `tenants.allowed_modules` (§3.0.2).
+
+- **`timesheets`** (capability) — labor capture by employee, project, activity, and date; approved timesheets generate labor cost lines (§3.4).
+- **`procurement`** (capability) — purchase orders, vendor Requests for Quote (RFQs), and expediting; POs draw from Catalog items and vendor SKUs and feed AP invoice three-way matching.
+- **`inventory`** (capability) — on-hand stock, lot/serial tracking, and project issues; the construction add-on’s unit sale relieves inventory.
+- **`manufacturing`** (industry vertical) — production work orders and BOM-driven production.
+
+---
+
+## 5. Planned Integrations  [in-scope]
+
+AXERRA connects to no external payment or banking services today. The general ledger is the system of record, and money movement is recorded through approved postings inside the application. The integrations below are deferred until a customer or commercial need justifies them; they are documented here to record that the architecture is designed to accommodate them without core changes.
+
+### 5.1 Scope and order
+
+Planned money-movement integrations, in implementation order:
+
+1. **Bank reconciliation** — ingest an external bank-transaction feed and match it against ledger entries.
+2. **ACH** — originate and manage ACH debits and credits.
+3. **Wires** — originate outbound wire (Fedwire) payments.
+
+Later candidates tracked in the roadmap (not yet scoped): sales tax, payroll. See ROADMAP Phase 7.
+
+### 5.2 Architectural fit
+
+These are integration modules that *feed* the ledger; they do not replace it.
+
+- **Reconciliation** matches an external bank feed against the GL through a cash/clearing account, summarising into journal entries via the cross-module posting contract ([ADR-0019](./decisions/0019-cross-module-posting-contract.md)) that every other money-touching module already uses.
+- **Outbound payments** (ACH, wire) reuse the `approvals` two-step workflow (§3.3.4) for authorisation, and post their cash movements through the same contract.
+- Because external feeds enter through the posting contract rather than by writing to the ledger directly, the Accounting module’s "does not source events from external systems" property (§3.7.1) is preserved: the integration module is the event source, and the GL receives ordinary postings.
+
+### 5.3 Vendor selection
+
+Vendor selection is deliberately deferred until the need is real. Candidates evaluated: Plaid (bank feed, ACH); Modern Treasury, Increase, and Column (ACH, wires, and reconciliation). Listing them implies no commitment.
+
+---
+
+## 6. Demo Tenants  [in-scope]
+
+Two named demo tenants exercise the full product surface. Both are referenced by name in screenshots, walkthroughs, and seed scripts.
+
+### 6.1 Meridian Group (MG) — Consulting Use Case
+
+#### 6.1.1 Profile
+
+Holding company with three legal entities. Professional services and consulting. No construction. No manufacturing. Exists to prove out the core product on a realistic multi-entity services book and to exercise intercompany accounting (§3.7.2.9).
+
+#### 6.1.2 Active Modules
+
+| Kind | Modules |
+| --- | --- |
+| Core | All ten core modules (§3.0.1). |
+| Add-on | `scheduling`, `timesheets`. |
+
+#### 6.1.3 Data Requirements
+
+Realistic volume for a mid-size consulting firm:
+
+- 3 companies (legal entities under one tenant).
+- 20+ projects across the three companies.
+- 50+ vendors, 30+ clients, 40+ employees.
+- 200+ AP invoices, 150+ AR invoices.
+- 500+ journal entries with realistic intercompany activity.
+
+#### 6.1.4 Key Workflows
+
+- Project budgeting through the budget approval gate.
+- Billing-agreement milestones (core, §3.6.2.4) gating AR invoice generation.
+- Timesheet entries flowing into cost lines via the labor cost path.
+- Intercompany billing between the three legal entities, with elimination on consolidation.
+
+#### 6.1.5 Seed Script Reference
+
+`apps/server/scripts/seedDemoMG.js`. Reproducible — drops and recreates the MG tenant schema, then populates it from fixtures under `apps/server/scripts/fixtures/mg/`.
+
+### 6.2 Sterling Ridge Homes (SRH) — Construction Use Case
+
+#### 6.2.1 Profile
+
+Homebuilder and property developer with three companies. Uses construction-specific workflows: unit-level cost tracking, BOM-driven procurement, contracted draw schedules, and subcontractor AP with lien-waiver tracking. Exists to drive out the construction add-on requirements and stress-test the cross-module posting contract.
+
+#### 6.2.2 Active Modules
+
+| Kind | Modules |
+| --- | --- |
+| Core | All ten core modules (§3.0.1). |
+| Add-on | `catalog`, `construction`, `scheduling`, `timesheets`, `procurement`, `inventory`. |
+
+#### 6.2.3 Data Requirements
+
+Realistic volume for a mid-size homebuilder:
+
+- 3 companies.
+- 15+ projects (each with multiple units).
+- 80+ vendors, 20+ clients, 30+ employees.
+- 300+ AP invoices, 100+ AR invoices.
+- 500+ catalog items.
+- 200+ vendor SKUs mapped to catalog items.
+
+#### 6.2.4 Key Workflows
+
+- Unit-level cost tracking and budget variance reporting.
+- BOM-to-PO flow: select catalog items, resolve to vendor SKUs, issue purchase orders through the `procurement` add-on.
+- Draw schedule (construction add-on) gating closing-statement posting (§4.3).
+- Subcontractor AP with lien-waiver tracking attached to AP invoices.
+- Closing-statement posting (revenue, WIP, inventory, intercompany) via the cross-module contract.
+
+#### 6.2.5 Seed Script Reference
+
+`apps/server/scripts/seedDemoSRH.js`. Reproducible — drops and recreates the SRH tenant schema, then populates it from fixtures under `apps/server/scripts/fixtures/srh/`.
+
+---
+
+## 7. Standard API Patterns  [in-scope]
 
 All API routes are built from scratch using pg-schemata's TableModel and QueryModel as the data layer.
 
-### 4.1 CRUD Operations  [in-scope]
+### 7.1 CRUD Operations  [in-scope]
 
 Every resource entity uses `createRouter` to generate a consistent REST API backed by pg-schemata:
 
@@ -1885,9 +2695,9 @@ Every resource entity uses `createRouter` to generate a consistent REST API back
 | `DELETE /archive`   | Soft-delete                       | `addAuditFields`, `moduleEntitlement`                                                    | `model.updateWhere()` (manually sets `deactivated_at = new Date()`)                         |                    |
 | `PATCH /restore`    | Restore soft-deleted record       | `addAuditFields`, `moduleEntitlement`                                                    | `model.updateWhere()` (manually clears `deactivated_at`, with `includeDeactivated: true`) |                    |
 
-> **Note:** `withMeta` is not auto-applied by `createRouter` — each router passes it via per-method middleware arrays (e.g., `getMiddlewares: [meta]`). `rbac()` is not included in the standard CRUD chain; it must be explicitly added on custom endpoints that need per-action permission level checks. All standard routes can be individually disabled via `disable*` flags (e.g., `disablePost: true`).
+`withMeta` is not auto-applied by `createRouter`. Each router passes it via per-method middleware arrays (e.g., `getMiddlewares: [meta]`). `rbac()` is not included in the standard CRUD chain. It must be added explicitly on custom endpoints that need per-action permission-level checks. Standard routes can be individually disabled via `disable*` flags (e.g., `disablePost: true`).
 
-### 4.2 Pagination  [in-scope]
+### 7.2 Pagination  [in-scope]
 
 Keyset-based pagination via pg-schemata's `findAfterCursor()`:
 
@@ -1897,21 +2707,21 @@ Keyset-based pagination via pg-schemata's `findAfterCursor()`:
 - `columnWhitelist`: Restrict returned columns
 - `includeDeactivated`: Include soft-deleted records
 
-### 4.3 Audit Fields  [in-scope]
+### 7.3 Audit Fields  [in-scope]
 
-Most models define `hasAuditFields: { enabled: true, userFields: { type: 'uuid' } }`. Exceptions: `policy_catalog` (`hasAuditFields: { enabled: false }` — seed-only reference data). pg-schemata manages `created_at`/`updated_at` timestamps automatically. **Audit actor resolution** (`created_by` / `updated_by`) is handled by the ALS resolver registered through `registerAuditResolver` (see Request-context plumbing below) — these columns are no longer threaded through `req.body`. The `addAuditFields` Express middleware retains its name for historical reasons but now only injects **tenant context** (`tenant_code` and `tenant_id` from `req.user`) on POST requests, with skip logic for tenant creation and user registration. It still acts as the guard that rejects mutation requests with no user context.
+Most models define `hasAuditFields: { enabled: true, userFields: { type: 'uuid' } }`. The exception is `policy_catalog`, which uses `hasAuditFields: { enabled: false }` because it is seed-only reference data. pg-schemata manages `created_at` and `updated_at` automatically. **Audit actor resolution** (`created_by` / `updated_by`) is handled by the ALS resolver registered through `registerAuditResolver` (see Request-context plumbing below). These columns are no longer threaded through `req.body`. The `addAuditFields` Express middleware keeps its name for historical reasons. It now only injects **tenant context** (`tenant_code` and `tenant_id` from `req.user`) on POST requests, with skip logic for tenant creation and user registration. It still acts as the guard that rejects mutation requests with no user context.
 
-**Request-context plumbing (as of 2026-05-21, gaps 2.9 / 2.11):**
+**Request-context plumbing:**
 
 - `apps/server/src/middleware/auditContext.js` — wraps each request in an AsyncLocalStorage context carrying the audit identity. Runs after `authRedis` so `req.user` is hydrated before the store is populated.
-- `apps/server/src/lib/requestContext.js` + `apps/server/src/lib/registerAuditResolver.js` — register a tenant-aware resolver with pg-schemata that pulls the current user id from the ALS context. pg-schemata invokes this resolver for every insert/update, so `created_by`/`updated_by` are filled at the model layer regardless of whether the controller touched `req.body`.
-- Direct model calls inside services therefore do not need to thread the user id manually — the ALS store carries it as long as the call originated inside an Express request.
+- `apps/server/src/lib/requestContext.js` + `apps/server/src/lib/registerAuditResolver.js` — register a tenant-aware resolver with pg-schemata that pulls the current user id from the ALS context. pg-schemata invokes the resolver for every insert and update. As a result, `created_by` and `updated_by` are filled at the model layer regardless of whether the controller touched `req.body`.
+- Direct model calls inside services do not need to thread the user id manually. The ALS store carries it as long as the call originated inside an Express request.
 
-### 4.4 Soft Deletes  [in-scope]
+### 7.4 Soft Deletes  [in-scope]
 
 Most models define `softDelete: true`. Exceptions: `roles` (`softDelete: false`), `ledger_balances` and `posting_queues` (`softDelete: false` — append-only), `policy_catalog` (`softDelete: false`). pg-schemata automatically excludes records where `deactivated_at IS NOT NULL` from all read queries. Archive and restore are implemented manually in `BaseController` using `model.updateWhere()` — setting or clearing `deactivated_at` directly rather than using pg-schemata's `removeWhere()`/`restoreWhere()` methods.
 
-### 4.5 Validation  [in-scope]
+### 7.5 Validation  [in-scope]
 
 pg-schemata auto-generates Zod validators from schema definitions:
 
@@ -1919,30 +2729,30 @@ pg-schemata auto-generates Zod validators from schema definitions:
 - Update validation: excludes `immutable` columns, partial validation
 - Custom validators can be attached per-column via `colProps.validator`
 
-### 4.6 Excel Import/Export  [in-scope]
+### 7.6 Excel Import / Export  [in-scope]
 
 > **ADR Reference:** [ADR-0023](./decisions/0023-excel-import-export.md)
 
 Built into pg-schemata's TableModel and exposed as a full-stack feature across all `createRouter`-generated resources.
 
-#### 4.6.1 Backend (pg-schemata + Controller Layer)
+#### 7.6.1 Backend
 
-- **Import**: `importFromSpreadsheet(filePath, sheetIndex, callbackFn?, _returning?, { previewOnly })` — parses XLSX, validates against schema, bulk inserts with audit fields. `BaseController.importXls()` handles file upload via multer (`/tmp/uploads/`), injects `tenant_code` and `created_by` via the callback. Default commit return shape is `{ inserted: number }` (legacy single-sheet) or `{ inserted, updated, ... }` (flat-format importers).
-- **Import preview mode (`?preview=1`)**: Importers that go through `importSimpleTable` (in `lib/spreadsheetHelpers.js`) or the flat combined / multi-sheet paths honor `previewOnly` and return a **counts-only classification payload** without writing:
+- **Import.** `importFromSpreadsheet(filePath, sheetIndex, callbackFn?, _returning?, { previewOnly })` parses XLSX, validates against schema, and bulk-inserts with audit fields. `BaseController.importXls()` handles file upload via multer (`/tmp/uploads/`) and injects `tenant_code` and `created_by` via the callback. The default commit return shape is `{ inserted: number }` for legacy single-sheet importers, or `{ inserted, updated, ... }` for flat-format importers.
+- **Import preview mode (`?preview=1`).** Importers that go through `importSimpleTable` (in `lib/spreadsheetHelpers.js`) or the flat-combined / multi-sheet paths honor `previewOnly`. They return a counts-only classification payload without writing:
 
   ```json
   { "preview": true, "inserts": 0, "updates": 0, "noops": 0, "omitted": 0, "errors": [] }
   ```
 
-  Flat-combined and multi-sheet variants extend the shape with `restores`, `phones`, `addresses`, `taxIds`, `appUserSkipped` where relevant. `BaseController.importXls` toggles preview when the request carries `?preview=1` or `?preview=true`. Validation errors short-circuit to a 422 with the same `errors` array — preview and commit see identical row classification, so a clean preview commits without surprises. Preview is honored by ~16 entities currently on the `importSimpleTable` path plus the Vendors flat-combined path and the Tenants importer; multi-sheet legacy importers that have not been migrated still write on `?preview=1` (a no-op flag for them).
-- **Export**: `exportToSpreadsheet(filePath, where?, joinType?, options?)` — queries with filtering, writes to XLSX. `ViewController.exportXls()` generates a temp file, sends it via `res.download()`, and cleans up the temp file after transfer. Accepts optional `where` array and `joinType` (`AND`/`OR`) in the request body for filtered exports.
+  Flat-combined and multi-sheet variants extend the shape with `restores`, `phones`, `addresses`, `taxIds`, `appUserSkipped` where relevant. `BaseController.importXls` toggles preview when the request carries `?preview=1` or `?preview=true`. Validation errors short-circuit to a 422 with the same `errors` array. Preview and commit see identical row classification, so a clean preview commits without surprises. Preview is honored by ~16 entities on the `importSimpleTable` path plus the Vendors flat-combined path and the Tenants importer. Multi-sheet legacy importers that have not been migrated still write on `?preview=1` (the flag is a no-op for them).
+- **Export.** `exportToSpreadsheet(filePath, where?, joinType?, options?)` queries with filtering and writes to XLSX. `ViewController.exportXls()` generates a temp file, sends it via `res.download()`, and cleans up the temp file after transfer. It accepts an optional `where` array and a `joinType` (`AND`/`OR`) in the request body for filtered exports.
 
 **Core Entity Override — Multi-Sheet Import/Export:**
 
 The 5 core entity models (Vendors, Clients, Employees, Contacts, Companies) override the default pg-schemata `importFromSpreadsheet()` / `exportToSpreadsheet()` methods with custom multi-sheet logic via `spreadsheetHelpers.js`. These entities use the polymorphic `sources` pattern with child tables (phone numbers, addresses, tax identifiers), which requires:
 
 - **Export** (`exportSourceEntity`): Queries the parent table, strips internal columns (audit fields, `tenant_id`, `source_id`, `deactivated_at`), appends a derived `status` column, and writes child data (phones, addresses, tax IDs) to separate sheets in a single XLSX workbook via `@nap-sft/tablsx` WorkbookBuilder.
-- **Import** (`importSourceEntity`): Parses multi-sheet workbooks, partitions rows into inserts vs updates (by `id` presence), executes updates with soft-delete/restore logic, bulk inserts new records with auto-generated source records and numbering-service codes, optionally provisions `portal_users` login records (when `appUserProvisioning` is enabled), and imports child sheets with delete-and-reinsert per parent. Returns an extended result: `{ inserted, updated, phones, addresses, taxIds, appUserSkipped }`.
+- **Import** (`importSourceEntity`): Parses multi-sheet workbooks and partitions rows into inserts vs. updates by `id` presence. Updates run with soft-delete/restore logic. New records bulk-insert with auto-generated source records and numbering-service codes. When `appUserProvisioning` is enabled, it also provisions `portal_users` login records. Child sheets import via delete-and-reinsert per parent. Returns `{ inserted, updated, phones, addresses, taxIds, appUserSkipped }`.
 - **Config-driven**: Each entity defines a `SourceEntityConfig` specifying `entityName`, `sheetName`, `sourceType`, `idType`, `buildLabel`, `boolCols`, `childSheets`, and `appUserProvisioning`.
 
 All other entities (non-source) use the default pg-schemata single-sheet import/export path.
@@ -1955,7 +2765,7 @@ All other entities (non-source) use the default pg-schemata single-sheet import/
 
 **Disabling:** Individual resources can disable import/export via `disableImportXls: true` or `disableExportXls: true` in the `createRouter` options.
 
-#### 4.6.2 Frontend (Hooks + Components)
+#### 7.6.2 Frontend
 
 **Custom Hooks** (`hooks/useImportExport.js`):
 
@@ -1980,7 +2790,7 @@ All pages with import/export follow this pattern:
 
 > **Stability note**: Destructure `mutateAsync` directly from mutations (e.g., `const { mutateAsync: importAsync } = useImportXls(...)`) — `mutateAsync` is a stable reference. Never pass the whole mutation object as a `useCallback` dependency (causes infinite re-renders via the toolbar registration cycle).
 
-#### 4.6.3 Pages with Import/Export
+#### 7.6.3 Pages with Import / Export
 
 All resources using `createRouter` have import/export endpoints. The following pages have full client-side import/export wiring:
 
@@ -2006,16 +2816,16 @@ All resources using `createRouter` have import/export endpoints. The following p
 | CreditMemosPage      | ap         | ap-credit-memos   | `apCreditMemoApi`    | `apCreditMemos`   |
 | ArInvoicesPage       | ar         | ar-invoices       | `arInvoiceApi`       | `arInvoices`      |
 | ReceiptsPage         | ar         | receipts          | `receiptApi`         | `receipts`        |
-| CatalogPage          | bom        | catalog-skus      | `catalogSkuApi`      | `catalogSkus`     |
+| CatalogPage          | catalog    | catalog-items     | `catalogItemApi`     | `catalogItems`    |
 | VendorContactsPanel  | core       | vendor-contacts   | `vendorContactApi`   | `vendorContacts`  |
 
 > **Vendor Contacts** are imported/exported from the parent Vendor edit dialog rather than a stand-alone page — see §3.3.1a. The router exposes `/api/core/v1/vendor-contacts/import-xls` and `/export-xls`.
 
 ---
 
-## 5. Database Design  [in-scope]
+## 8. Database Design  [in-scope]
 
-### 5.1 Common Columns  [in-scope]
+### 8.1 Common Columns  [in-scope]
 
 Aggregate-root tables include (managed by pg-schemata schema definitions):
 
@@ -2029,14 +2839,14 @@ Aggregate-root tables include (managed by pg-schemata schema definitions):
 
 > **Column listing conventions in §3:** Many tables in §3 omit `id` (uuid PK) and `tenant_id` (uuid, not null, immutable) from their column listings for brevity — these columns are present in the actual schema files. The `id` column follows the standard pattern: `{ name: 'id', type: 'uuid', default: 'gen_random_uuid()', notNull: true, immutable: true, colProps: { cnd: true } }`. Check the actual schema file for the definitive column list.
 
-### 5.2 Naming Conventions  [in-scope]
+### 8.2 Naming Conventions  [in-scope]
 
 - Tables: plural `snake_case` (e.g., `vendor_skus`)
 - Columns: `snake_case`
 - Foreign keys: must specify `onDelete` behavior in schema definition
 - All FK columns are indexed via schema `constraints.indexes`
 
-### 5.3 Generated Columns  [in-scope]
+### 8.3 Generated Columns  [in-scope]
 
 Generated columns are deliberately excluded from pg-schemata schema definitions (to keep them out of INSERT/UPDATE ColumnSets) and added via `ALTER TABLE ... ADD COLUMN ... GENERATED ALWAYS AS ... STORED` in migration files:
 
@@ -2044,7 +2854,7 @@ Generated columns are deliberately excluded from pg-schemata schema definitions 
 - `cost_lines.amount = quantity * unit_price`
 - `cost_items.amount = quantity * unit_cost`
 
-### 5.4 Schema Management & Migrations  [in-scope]
+### 8.4 Schema Management & Migrations  [in-scope]
 
 **Table Creation:**
 
@@ -2070,10 +2880,10 @@ Generated columns are deliberately excluded from pg-schemata schema definitions 
 4. `202502250012` — Numbering system tables (tenant_numbering_config, tenant_number_sequence_state).
 5. `202502110020` — Project tables (projects, project_clients, units, task_groups, tasks_master, tasks, cost_items, change_orders, template_units, template_tasks, template_cost_items, template_change_orders). Note: `projects.client_id` removed; replaced by `project_clients` junction table.
 6. `202502110040` — Activity tables (categories, activities, deliverables, deliverable_assignments, budgets, cost_lines, actual_costs, vendor_parts)
-7. `202502110030` — BOM tables (catalog_skus, vendor_skus, vendor_pricing) with pgvector
-8. `202502110070` — Accounting tables (chart_of_accounts, journal_entries, journal_entry_lines, ledger_balances, posting_queues, category_account_map, company_accounts, company_transactions, internal_transfers). Note: accounting runs before AP/AR because `ap_invoice_lines` and `ar_invoice_lines` FK to `chart_of_accounts`.
-9. `202502110050` — AP tables (ap_invoices, ap_invoice_lines, payments, ap_credit_memos)
-10. `202502110060` — AR tables (ar_invoices, ar_invoice_lines, receipts). Note: `ar_clients` removed — AR invoices reference the unified `clients` table directly.
+7. `202502110030` — Catalog tables (catalog_items, bom_components, vendor_skus, vendor_pricing) with pgvector
+8. `202502110070` — Accounting tables (ledgers, company_accounting_config, chart_of_accounts, journal_entries, journal_entry_lines, ledger_balances, posting_queues, category_account_map, posting_rules, company_accounts, company_transactions, internal_transfers, fiscal_periods). Note: `ledgers` is created first because `journal_entries`, `fiscal_periods`, and `posting_rules` FK to it; accounting runs before AP/AR because `ap_invoice_lines` and `ar_invoice_lines` FK to `chart_of_accounts`.
+9. `202502110050` — AP tables (ap_invoices, ap_invoice_lines, payments, payment_allocations, ap_credit_memos)
+10. `202502110060` — AR tables (ar_invoices, ar_invoice_lines, receipts, receipt_allocations). Note: `ar_clients` removed — AR invoices reference the unified `clients` table directly.
 11. `202502120080` — SQL views (export views, profitability views, cashflow views, aging views)
 12. `202603150013` — Import/export policy-catalog rows (`importExportCatalog`)
 13. `202603270015` — Tenant preferences table + seeder (`tenantPreferences`)
@@ -2086,9 +2896,9 @@ Generated columns are deliberately excluded from pg-schemata schema definitions 
 
 ---
 
-## 6. UI Components & Theming  [in-scope]
+## 9. UI Components & Theming  [in-scope]
 
-### 6.1 Theme System  [in-scope]
+### 9.1 Theme System  [in-scope]
 
 Dual-mode theming with automatic OS preference detection:
 
@@ -2106,7 +2916,7 @@ Dual-mode theming with automatic OS preference detection:
 
 Custom background tokens: `sidebar`, `header`, `surface` for layout zones.
 
-#### 6.1.1 Component Override Strategy
+#### 9.1.1 Component Override Strategy
 
 Styling decisions follow a three-tier hierarchy:
 
@@ -2122,7 +2932,7 @@ Styling decisions follow a three-tier hierarchy:
 | Is it a structural dimension or position for layout chrome? | Layout token   | ↓             |
 | Is it dynamic (depends on props, state, or route)?          | Inline `sx`  | Theme override |
 
-#### 6.1.2 Design Tokens (`tokens.js` + `layoutTokens.js`)
+#### 9.1.2 Design Tokens
 
 **Mode-independent tokens (`tokens.js`):**
 
@@ -2165,7 +2975,7 @@ Styling decisions follow a three-tier hierarchy:
 | `masterPanelSx`         | `width: 38%`, `minWidth: 340`, `display: flex`, `flexDirection: column`                     | Left panel of master-detail                                  |
 | `detailPanelSx`         | `flex: 1`, `minWidth: 0`, `display: flex`, `flexDirection: column`, `overflow: auto`      | Right panel of master-detail                                 |
 
-#### 6.1.3 Theme Overrides Reference
+#### 9.1.3 Theme Overrides Reference
 
 All MUI component overrides defined in `theme.js`:
 
@@ -2199,7 +3009,7 @@ All MUI component overrides defined in `theme.js`:
 | `MuiAvatar`         | named variant `"header"`    | 32 × 32, primary colours, cursor pointer, 0.8rem bold                                                                                                                                                                                                                                               |
 | `MuiDataGrid`       | defaultProps + styleOverrides | `density: compact`, token `rowHeight`, `columnHeaderHeight: 40`, `disableColumnMenu: false`; border, transparent bg, token fontSize, focus ring, `.row-archived { opacity: 0.5 }`, row-actions kebab hidden until hover, header bg/border, row hover/selected, cell padding, footer border |
 
-### 6.2 Navigation System  [in-scope]
+### 9.2 Navigation System  [in-scope]
 
 Navigation is configured via `navigationConfig.js` with capability-based filtering. Each top-level nav group has an icon, label, optional `capability` guard, and an array of child items with `path` and optional per-item `capability`.
 
@@ -2216,9 +3026,9 @@ Primary Group -> Leaf items
     +-- Manage Users (/tenant/manage-users, capability: tenants::)
 ```
 
-Extensible design: add new groups/modules to `NAV_ITEMS` array with optional `capability` guards and `rootTenantOnly` flag. Groups with `rootTenantOnly: true` are only visible to Axerra users. The example above shows only 2 of 14 nav groups — see §7 for the complete navigation structure.
+Extensible design: add new groups/modules to `NAV_ITEMS` array with optional `capability` guards and `rootTenantOnly` flag. Groups with `rootTenantOnly: true` are only visible to Axerra users. The example above shows only 2 of 14 nav groups — see §10 for the complete navigation structure.
 
-### 6.3 Module Bar (Dynamic Toolbar)  [in-scope]
+### 9.3 Module Bar  [in-scope]
 
 The Module Bar has two zones:
 
@@ -2228,7 +3038,7 @@ The Module Bar has two zones:
   - **Filters**: Text fields or select dropdowns
   - **Primary Actions**: Action buttons (Create, Edit, Archive, Restore, Import, Export, etc.)
 
-### 6.4 Dependencies (Client)  [in-scope]
+### 9.4 Client Dependencies  [in-scope]
 
 | Package                   | Version  | Purpose                                                  |
 | ------------------------- | -------- | -------------------------------------------------------- |
@@ -2243,7 +3053,7 @@ The Module Bar has two zones:
 | `@tanstack/react-query` | ^5.28.0  | Server state management                                  |
 | `react-router-dom`      | ^7.9.6   | Client-side routing                                      |
 
-### 6.5 Reusable Component Patterns  [in-scope]
+### 9.5 Reusable Component Patterns  [in-scope]
 
 Guidelines for maintaining consistency as the UI grows:
 
@@ -2286,7 +3096,7 @@ All DataGrid CRUD pages use `useListSelection` + `DataTable` as the standard sel
 - Data-grid column definitions that repeat across modules should be centralised in a `columnDefs/` config folder.
 - Form field groupings that appear in multiple create/edit dialogs should become reusable form section components.
 
-**Shared Components (`apps/client/src/components/shared/`, as of 2026-05-21, gap 2.15):** Concrete inventory of shared components in use today. Additions land via PR — when extracting a new shared component, add it here.
+**Shared Components (`apps/client/src/components/shared/`):** Concrete inventory of shared components in use today. Additions land via PR — when extracting a new shared component, add it here.
 
 | Component                          | Purpose                                                                                  |
 | ---------------------------------- | ---------------------------------------------------------------------------------------- |
@@ -2298,7 +3108,7 @@ All DataGrid CRUD pages use `useListSelection` + `DataTable` as the standard sel
 | `DataTable`                        | Standardised MUI X Data Grid v6 wrapper with `useListSelection` integration              |
 | `DetailDialog`                     | Read-only detail dialog (matches `FormDialog` styling)                                   |
 | `EditableAddressesSection`         | Diffed, persistable addresses editor                                                     |
-| `EditableEmailsSection`            | Diffed, persistable emails editor (writes to the `emails` table — see §3.14.1)           |
+| `EditableEmailsSection`            | Diffed, persistable emails editor (writes to the `emails` table — see §3.10.1.1)         |
 | `EditablePhoneNumbersSection`      | Diffed, persistable phone numbers editor                                                 |
 | `EditableTaxIdentifiersSection`    | Diffed, persistable tax identifiers editor                                               |
 | `EmailRow`                         | Single-row email renderer used by Editable / read-only Emails sections                   |
@@ -2326,7 +3136,7 @@ All DataGrid CRUD pages use `useListSelection` + `DataTable` as the standard sel
 
 ---
 
-## 7. Navigation Structure  [in-scope]
+## 10. Navigation Structure  [in-scope]
 
 Based on the sidebar navigation config (`navigationConfig.js`) and client-side routes (`App.jsx`):
 
@@ -2342,8 +3152,8 @@ Based on the sidebar navigation config (`navigationConfig.js`) and client-side r
 | **AR**                        | Clients (→`/core/clients`), AR Invoices, Receipts, AR Aging                                                                                                                     | `/ar`                         | `ar::`                    |
 | **Accounting & GL**           | Chart of Accounts, Journal Entries, Ledger                                                                                                                                         | `/accounting`                 | `accounting::`            |
 | **Reports**                   | Budget vs Actual, Profitability, Cashflow, Margin Analysis, P&L*(nav-only)*, Balance Sheet*(nav-only)*                                                                           | `/reports`                    | `reports::`               |
-| **BOM**                       | Catalog SKUs (`bom::catalog-skus`), Vendor SKU Matching (`bom::vendor-skus`)                                                                                                   | `/bom`                        | `bom::`                   |
-| **Settings**                  | Numbering (`core::numbering-config`), Payment Terms (`core::payment-terms`)                                                                                                    | `/settings`                   | `core::`                  |
+| **Catalog**                   | Catalog Items (`catalog::catalog-items`), BOM (`catalog::bom-components`), Vendor SKU Matching (`catalog::vendor-skus`)                                                         | `/catalog`                    | `catalog::`               |
+| **Settings**                  | Numbering (`core::numbering-config`), Payment Terms (`core::payment-terms`), Approvals (`core::approval-config`)                                                                | `/settings`                   | `core::`                  |
 | **Admin**                     | Vendors (`core::vendors`), Clients (`core::clients`), Employees (`core::employees`), Contacts (`core::contacts`), Companies (`core::companies`), Roles (`core::roles`) | `/core`, `/tenant`          | `core::`                  |
 | **Tenants** *(Axerra only)* | Manage Tenants (`tenants::`), Manage Users (`tenants::`)                                                                                                                       | `/tenant`                     | `tenants::`               |
 
@@ -2357,7 +3167,7 @@ Based on the sidebar navigation config (`navigationConfig.js`) and client-side r
 
 ---
 
-## 8. Environment Configuration  [in-scope]
+## 11. Environment Configuration  [in-scope]
 
 | Variable                       | Purpose                                                                         | Default                   |
 | ------------------------------ | ------------------------------------------------------------------------------- | ------------------------- |
@@ -2379,13 +3189,13 @@ Based on the sidebar navigation config (`navigationConfig.js`) and client-side r
 | `PORT`                       | Express server port                                                             | `3000`                  |
 | `HOST`                       | Express server host                                                             | `localhost`             |
 | `NODE_ENV`                   | Runtime environment (`development`, `test`, `production`)                 | —                        |
-| `OPENAI_API_KEY`             | OpenAI API key for BOM embedding service (`bom/services/embeddingService.js`) | —                        |
+| `OPENAI_API_KEY`             | OpenAI API key for the Catalog embedding service (`catalog/services/embeddingService.js`) | —                        |
 | `ROOT_TENANT_CODE`           | Root tenant code for bootstrap migration (falls back directly to `'AXERRA'`)  | `AXERRA`                |
 | `ROOT_COMPANY`               | Root company name for bootstrap migration                                       | `Axerra LLC`            |
 
 ---
 
-## 9. Testing Strategy  [in-scope]
+## 12. Testing Strategy  [in-scope]
 
 | Suite                 | Location               | Purpose                                                                  |
 | --------------------- | ---------------------- | ------------------------------------------------------------------------ |
@@ -2398,9 +3208,9 @@ All tests use Vitest with dependency injection for controllers. `tests/setup.js`
 
 ---
 
-## 10. Coding Standards & Best Practices  [in-scope]
+## 13. Coding Standards & Best Practices  [in-scope]
 
-### 10.1 Naming Conventions  [in-scope]
+### 13.1 Naming Conventions  [in-scope]
 
 | Context                               | Convention                                             | Example                                                             |
 | ------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------- |
@@ -2417,7 +3227,7 @@ All tests use Vitest with dependency injection for controllers. `tests/setup.js`
 | **Boolean variables**           | `is`/`has`/`can`/`should` prefix               | `isActive`, `hasPermission`, `canApprove`                     |
 | **Enums / status values**       | snake_case strings                                     | `'in_progress'`, `'change_order'`, `'pending'`                |
 
-### 10.1.1 Single Canonical Names (No Aliases)  [in-scope]
+### 13.1.1 Single Canonical Names  [in-scope]
 
 Every concept, variable, parameter, and config key must have **exactly one name** throughout the codebase. Never accept multiple synonyms for the same value or create alias maps to normalize variant spellings. Ambiguity in naming is a bug factory.
 
@@ -2456,7 +3266,7 @@ const { max_by_groups } = rule;
 - Never silently accept misspellings or abbreviations; fail loudly so the caller fixes the source
 - Environment variables, config keys, and request parameters each have exactly one accepted name
 
-### 10.2 File & Module Structure  [in-scope]
+### 13.2 File & Module Structure  [in-scope]
 
 **Keep modules small and focused.** Each file should have a single, clear responsibility.
 
@@ -2472,7 +3282,7 @@ const { max_by_groups } = rule;
 
 - **`projects`** — Project management, units, tasks, cost items, change orders, templates
 - **`activities`** — Activity tracking
-- **`bom`** — Bill of Materials
+- **`catalog`** — Catalog (master items, Bill of Materials, vendor matching & pricing)
 - **`ar`** — Accounts Receivable
 - **`ap`** — Accounts Payable
 - **`accounting`** — General Ledger, Chart of Accounts
@@ -2525,7 +3335,7 @@ src/
 - Maximum ~200–300 lines per file; refactor if larger
 - Group related exports via barrel `index.js` files at the module level
 
-### 10.3 Copyright & File Headers  [in-scope]
+### 13.3 Copyright & File Headers  [in-scope]
 
 Every source file must include a copyright header as the first content:
 
@@ -2548,7 +3358,7 @@ Every source file must include a copyright header as the first content:
 -- Copyright (c) 2025 – present Axerra LLC. All rights reserved.
 ```
 
-### 10.4 Code Reuse & DRY Principles  [in-scope]
+### 13.4 Code Reuse  [in-scope]
 
 **Function reuse hierarchy (prefer higher over lower):**
 
@@ -2564,7 +3374,7 @@ Every source file must include a copyright header as the first content:
 - Reimplementing CRUD — use `createRouter`; only override specific routes when business rules differ
 - Inline SQL strings in controllers — use model methods or named service functions
 
-### 10.5 Classes vs Functions  [in-scope]
+### 13.5 Classes vs Functions  [in-scope]
 
 | Use Case                    | Pattern                                                               | Rationale                                                                                                                                                 |
 | --------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -2582,7 +3392,7 @@ Every source file must include a copyright header as the first content:
 - `class` for React components (use function components exclusively)
 - Singletons beyond `DB.init()` (use dependency injection instead)
 
-### 10.6 Error Handling  [in-scope]
+### 13.6 Error Handling  [in-scope]
 
 **Server-side:**
 
@@ -2606,7 +3416,7 @@ Every source file must include a copyright header as the first content:
 - Toast/snackbar notifications for user-facing errors
 - Never swallow errors silently — always log or display
 
-### 10.7 Import & Export Style  [in-scope]
+### 13.7 Import & Export Style  [in-scope]
 
 **ES Modules only** (no CommonJS):
 
@@ -2631,14 +3441,14 @@ import { rbac } from '../../middleware/rbac.js';
 import { vendorsSchema } from '../schemas/vendorsSchema.js';
 ```
 
-### 10.8 Comments & Documentation  [in-scope]
+### 13.8 Comments & Documentation  [in-scope]
 
 - **JSDoc** on all exported functions with `@param`, `@returns`, and `@throws` tags
 - **Inline comments** only for *why*, never *what* — the code should be self-documenting
 - **TODO comments** must include a ticket/issue reference: `// TODO(AXERRA-123): Add retainage support`
 - **No commented-out code** — use version control instead
 
-### 10.9 Async & Concurrency  [in-scope]
+### 13.9 Async & Concurrency  [in-scope]
 
 - All database operations are `async/await` — never use raw `.then()` chains
 - Use `Promise.all()` for independent concurrent operations (e.g., parallel queries)
@@ -2646,7 +3456,7 @@ import { vendorsSchema } from '../schemas/vendorsSchema.js';
 - pg-schemata bulk operations (`bulkInsert`, `bulkUpdate`, `bulkUpsert`) are automatically transaction-wrapped — do not wrap them in an additional transaction
 - For multi-step business transactions (e.g., posting an invoice + creating GL entries), use pg-promise's `db.tx()` to ensure atomicity
 
-### 10.10 Security Practices  [in-scope]
+### 13.10 Security Practices  [in-scope]
 
 - Never log sensitive data (passwords, tokens, PII) — redact before logging
 - Always use parameterized queries (pg-schemata handles this automatically)
@@ -2660,9 +3470,9 @@ import { vendorsSchema } from '../schemas/vendorsSchema.js';
 
 ---
 
-## 11. Developer Tooling  [in-scope]
+## 14. Developer Tooling  [in-scope]
 
-### 11.1 ESLint  [in-scope]
+### 14.1 ESLint  [in-scope]
 
 **Version:** ESLint 9 with flat config (`eslint.config.js` at monorepo root)
 
@@ -2685,7 +3495,7 @@ import { vendorsSchema } from '../schemas/vendorsSchema.js';
 
 **Run:** `npm run lint` (root) or `npm run lint` (per-workspace)
 
-### 11.2 Prettier  [in-scope]
+### 14.2 Prettier  [in-scope]
 
 **Version:** Prettier 3
 
@@ -2710,7 +3520,7 @@ import { vendorsSchema } from '../schemas/vendorsSchema.js';
 
 **Ignored paths (`.prettierignore`):** `node_modules`, `dist`, `build`, `coverage`, lockfiles, framework output directories, large assets
 
-### 11.3 EditorConfig  [in-scope]
+### 14.3 EditorConfig  [in-scope]
 
 **File:** `.editorconfig` at monorepo root
 
@@ -2720,7 +3530,7 @@ Ensures consistent whitespace across all editors/IDEs:
 - Markdown: trailing whitespace preserved (significant for line breaks)
 - Makefiles: tab indentation (required by Make)
 
-### 11.4 Husky & Git Hooks  [in-scope]
+### 14.4 Husky & Git Hooks  [in-scope]
 
 **Version:** Husky 9
 
@@ -2737,7 +3547,7 @@ Ensures consistent whitespace across all editors/IDEs:
 
 **Setup:** `npm run prepare` installs Husky hooks via the `prepare` lifecycle script
 
-### 11.5 VSCode Workspace  [in-scope]
+### 14.5 VSCode Workspace  [in-scope]
 
 **File:** `axerra.code-workspace` (single-root workspace — one folder entry pointing to the monorepo root)
 
@@ -2746,9 +3556,9 @@ Ensures consistent whitespace across all editors/IDEs:
 - JavaScript/TypeScript/JSX/TSX: `esbenp.prettier-vscode` (Prettier extension)
 - JSON/JSONC: VSCode built-in JSON formatter
 
-> **Note:** The workspace file does not currently include an `extensions.recommendations` block. Install extensions manually per §12.4.
+> **Note:** The workspace file does not currently include an `extensions.recommendations` block. Install extensions manually per §15.4.
 
-### 11.6 Vitest (Testing)  [in-scope]
+### 14.6 Vitest  [in-scope]
 
 **Version:** Vitest 3 with `@vitest/coverage-v8`
 
@@ -2775,7 +3585,7 @@ Ensures consistent whitespace across all editors/IDEs:
 | `test:rbac`        | RBAC tests only                        | Permission resolution              |
 | `test:coverage`    | All tests + HTML coverage              | Coverage reporting                 |
 
-### 11.7 Vite (Client Build)  [in-scope]
+### 14.7 Vite  [in-scope]
 
 **Version:** Vite 7 with `@vitejs/plugin-react`
 
@@ -2786,7 +3596,7 @@ Ensures consistent whitespace across all editors/IDEs:
 - API proxy: `/api` requests forwarded to `http://localhost:3000` (Express backend)
 - Build: source maps enabled for debugging
 
-### 11.8 npm Workspaces  [in-scope]
+### 14.8 npm Workspaces  [in-scope]
 
 **Monorepo structure managed by npm workspaces:**
 
@@ -2822,7 +3632,7 @@ Ensures consistent whitespace across all editors/IDEs:
 | `seed:rbac`       | Seed RBAC roles and policies            |
 | `start`           | Production server start                 |
 
-### 11.9 Logging  [in-scope]
+### 14.9 Logging  [in-scope]
 
 **Server-side logging via Winston + Morgan:**
 
@@ -2832,7 +3642,7 @@ Ensures consistent whitespace across all editors/IDEs:
 - Production: `info` and above; Development: `debug` and above
 - pg-schemata accepts an optional `logger` parameter on initialization for query-level logging
 
-### 11.10 Environment Management  [in-scope]
+### 14.10 Environment Management  [in-scope]
 
 **`.env` files (gitignored):**
 
@@ -2846,9 +3656,9 @@ Ensures consistent whitespace across all editors/IDEs:
 
 ---
 
-## 12. Project Setup Guide  [in-scope]
+## 15. Project Setup Guide  [in-scope]
 
-### 12.1 Prerequisites  [in-scope]
+### 15.1 Prerequisites  [in-scope]
 
 Install these before starting:
 
@@ -2867,7 +3677,7 @@ Install these before starting:
 - **pgAdmin** or **DBeaver** — Visual database browser
 - **Redis Insight** — Visual Redis browser
 
-### 12.2 GitHub Repository Setup  [in-scope]
+### 15.2 GitHub Repository Setup  [in-scope]
 
 #### Create the repository
 
@@ -2916,7 +3726,7 @@ Or configure in GitHub → Settings → Branches → Branch protection rules:
 - Require branches to be up to date before merging
 - Do not allow bypassing the above settings
 
-### 12.3 Clone & Install  [in-scope]
+### 15.3 Clone & Install  [in-scope]
 
 ```bash
 # 1. Clone the repository
@@ -2936,7 +3746,7 @@ chmod +x .husky/pre-commit
 - `apps/server/`
 - `packages/shared/`
 
-### 12.4 VSCode Configuration  [in-scope]
+### 15.4 VSCode Configuration  [in-scope]
 
 #### Open the workspace
 
@@ -2991,7 +3801,7 @@ Add to your workspace settings (in `axerra.code-workspace`) or user `settings.js
 }
 ```
 
-### 12.5 Environment Setup  [in-scope]
+### 15.5 Environment Setup  [in-scope]
 
 ```bash
 # 1. Copy the example env file (create one if it doesn't exist)
@@ -3035,7 +3845,7 @@ VITE_ROOT_EMAIL_DOMAIN=axerra.io
 node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 ```
 
-### 12.6 Database Setup  [in-scope]
+### 15.6 Database Setup  [in-scope]
 
 ```bash
 # 1. Create PostgreSQL user and databases
@@ -3055,12 +3865,12 @@ psql -U axe_admin -d axerra_test -c "CREATE EXTENSION IF NOT EXISTS vector;"
 # 3. Run migrations and bootstrap the admin schema
 npm -w apps/server run setupAdmin:dev
 
-# 4. Seed sample data (optional)
+# 6. Seed sample data (optional)
 npm -w apps/server run seed
 npm -w apps/server run seed:rbac
 ```
 
-### 12.7 Start Development  [in-scope]
+### 15.7 Start Development  [in-scope]
 
 ```bash
 # Start both server (port 3000) and client (port 5173) concurrently
@@ -3077,7 +3887,7 @@ npm run dev:client    # Vite React on http://localhost:5173
 2. Log in with the `ROOT_EMAIL` / `ROOT_PASSWORD` from your `.env`
 3. Test the API directly: `curl http://localhost:3000/api/auth/check`
 
-### 12.8 Run Tests  [in-scope]
+### 15.8 Run Tests  [in-scope]
 
 ```bash
 # Full test suite
@@ -3093,7 +3903,7 @@ npm -w apps/server run test:rbac
 npm -w apps/server run test:coverage
 ```
 
-### 12.9 Daily Development Workflow  [in-scope]
+### 15.9 Daily Workflow  [in-scope]
 
 ```bash
 # 1. Pull latest changes
@@ -3107,11 +3917,11 @@ git checkout -b feat/serv-cashflow-reports
 git add apps/server/src/modules/reports/
 git commit -m "feat(serv): add project profitability SQL views"
 
-# 4. Push and create PR
+# 6. Push and create PR
 git push -u origin feat/serv-cashflow-reports
 gh pr create --base dev --title "feat(serv): add project profitability reports"
 
-# 5. After PR is approved and merged, clean up
+# 7. After PR is approved and merged, clean up
 git checkout dev
 git pull origin dev
 git branch -d feat/serv-cashflow-reports
@@ -3157,7 +3967,7 @@ chore(deps): bump pg-schemata to 1.3.1
 docs: update PRD with cashflow module specification
 ```
 
-### 12.10 Husky Commit Rules  [in-scope]
+### 15.10 Husky Commit Rules  [in-scope]
 
 The pre-commit hook enforces:
 
@@ -3182,7 +3992,7 @@ The pre-commit hook enforces:
    ```
 3. **lint-staged** — If configured, runs ESLint and Prettier on staged files only (fast)
 
-### 12.11 Recommended `.nvmrc`  [in-scope]
+### 15.11 Recommended `.nvmrc`  [in-scope]
 
 Create a `.nvmrc` at the monorepo root to pin the Node version:
 
@@ -3192,7 +4002,7 @@ Create a `.nvmrc` at the monorepo root to pin the Node version:
 
 Then any developer can run `nvm use` to switch to the correct version automatically.
 
-### 12.12 `.env.example` Reference  [in-scope]
+### 15.12 `.env.example` Reference  [in-scope]
 
 The `.env.example` file exists at the monorepo root. Keep it in version control as a developer reference:
 
@@ -3233,17 +4043,15 @@ VITE_ROOT_EMAIL_DOMAIN=axerra.io
 
 ---
 
-## 13. Design Decision Records  [in-scope]
+## 16. Architecture Decision Records  [in-scope]
 
-> All decisions captured here serve the product positioning defined in §1.1: AXERRA is a horizontal, project-native, multi-entity ERP. Phase 1 delivers the base ERP core; Phase 2 delivers construction as the reference vertical module.
+### 16.1 Purpose  [in-scope]
 
-### 13.1 Purpose  [in-scope]
+Architecture Decision Records (ADRs) capture the *why* behind architectural and technical choices. Code shows *what* was built; commit messages show *when*; ADRs explain *why one approach was chosen over alternatives*. Without them, future developers waste time reverse-engineering intent, or worse, undo a deliberate choice without understanding the consequences.
 
-Design decisions capture the *why* behind architectural and technical choices. Code shows *what* was built; commit messages show *when*; design decisions explain *why one approach was chosen over alternatives*. Without this, future developers (or your future self) will waste time reverse-engineering intent, or worse, undo a deliberate choice without understanding the consequences.
+### 16.2 Location  [in-scope]
 
-### 13.2 Location  [in-scope]
-
-Design decisions live in a `docs/decisions/` directory at the monorepo root:
+ADRs live in `docs/decisions/` at the monorepo root:
 
 ```
 axerra/
@@ -3271,20 +4079,32 @@ axerra/
       0021-architecture-ci-gates.md
       0022-eslint-module-boundaries.md
       0023-excel-import-export.md
+      0024-modulebar-action-contract.md
+      0025-import-dedup-partial-unique-indexes.md
+      0026-child-restore-via-import.md
+      0027-license-and-contribution.md
+      0028-vertical-module-architecture.md
+      0029-tenant-restore-admin-reactivation.md
+      0030-roles-as-array-on-entity.md
+      0031-add-on-hooks.md
+      0032-multi-ledger-cash-vs-accrual.md
+      0033-catalog-and-bom.md
+      0034-deliverable-effects-and-billing.md
+      0035-add-on-taxonomy-and-construction.md
     PRD.md                      # This file
 ```
 
-> **Note:** ADR 0009 is absent from the sequence (skipped). ADRs are append-only and never renumbered.
+ADR 0009 is absent from the sequence (skipped). ADRs are append-only and never renumbered.
 
-**Rules:**
+Rules:
 
-- Decisions are **numbered sequentially** (`0001`, `0002`, ...) — never renumber
-- Decisions are **append-only** — never edit a past decision; supersede it with a new one
-- Decisions are **committed to the repo** — they travel with the code, not in a wiki or Notation
+1. ADRs are numbered sequentially (`0001`, `0002`, …) — never renumber.
+2. ADRs are append-only — never edit a past ADR; supersede it with a new one.
+3. ADRs are committed to the repo — they travel with the code, not in a wiki.
 
-### 13.3 Template  [in-scope]
+### 16.3 Template  [in-scope]
 
-Every design decision follows a lightweight ADR (Architecture Decision Record) format:
+Every ADR follows this lightweight format:
 
 ```markdown
 # <NUMBER>. <Title>
@@ -3314,25 +4134,25 @@ What are the implications of this decision — both positive and negative?
 What trade-offs were accepted?
 ```
 
-### 13.4 When to Write a Decision Record  [in-scope]
+### 16.4 When to Write an ADR  [in-scope]
 
-Write a decision record when:
+Write an ADR when:
 
-- Choosing between two or more viable approaches (e.g., ORM choice, auth strategy)
-- Adopting a pattern that will be used project-wide (e.g., soft deletes, audit fields)
-- Making a choice that would be non-obvious to a new developer reading the code
-- Reversing or changing a previous decision
-- Adding or removing a significant dependency
+- Choosing between two or more viable approaches (e.g., ORM choice, auth strategy).
+- Adopting a pattern that will be used project-wide (e.g., soft deletes, audit fields).
+- Making a choice that would be non-obvious to a new developer reading the code.
+- Reversing or changing a previous decision.
+- Adding or removing a significant dependency.
 
-Do **not** write a decision record for:
+Do **not** write an ADR for:
 
-- Obvious choices with no realistic alternatives
-- Implementation details that are easily changed later
-- Bug fixes or routine feature work
+- Obvious choices with no realistic alternatives.
+- Implementation details that are easily changed later.
+- Bug fixes or routine feature work.
 
-### 13.5 Initial Decisions to Document  [in-scope]
+### 16.5 Initial ADRs  [in-scope]
 
-The following decisions should be captured as the project is built from scratch:
+The following ADRs are captured under `docs/decisions/`:
 
 | #    | Decision                                                        | Key Rationale                                                                        |
 | ---- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
@@ -3344,7 +4164,7 @@ The following decisions should be captured as the project is built from scratch:
 | 0006 | Express 5 over Fastify/Koa                                      | Mature ecosystem; team familiarity; async error handling improvements in v5          |
 | 0007 | Redis for permission caching over in-memory                     | Shared across server instances; survives process restarts; TTL expiration            |
 | 0008 | Soft deletes over hard deletes                                  | Audit trail; undo capability; referential integrity preserved                        |
-| 0009 | *(Skipped — number not used; see §13.2 note)*               | —                                                                                   |
+| 0009 | *(Skipped — number not used; see §16.2 note)*               | —                                                                                   |
 | 0010 | Conventional Commits over freeform messages                     | Parseable history; automated changelog potential; scope-based filtering              |
 | 0011 | Monorepo with npm workspaces over separate repos                | Shared code; unified tooling; atomic cross-package changes                           |
 | 0012 | pgvector embeddings for SKU matching over fuzzy string matching | Semantic similarity; language-agnostic; scales with catalog size                     |
@@ -3352,17 +4172,20 @@ The following decisions should be captured as the project is built from scratch:
 | 0025 | Import dedup via partial unique indexes (incl. `emails`)        | Database-enforced dedup avoids per-importer business-logic drift                     |
 | 0026 | Child restore via import                                        | Import path drives cascade-restore for child records under restored parents          |
 | 0027 | License, copyright, DCO, and dependency policy                  | AGPLv3 relicense + DCO sign-off + AGPL-incompatibility dependency gate                |
+| 0028 | Add-on module architecture                                      | Add-ons are coded identically to core modules; `allowed_modules` + registry only — no event bus or plugin layer. |
+| 0029 | Tenant restore leaves users locked; admin reactivation is explicit | Restore clears `deactivated_at` on the cohort but not `status`; `POST /tenants/:id/provision-admin` is the only supported re-enable path. |
+| 0030 | Role assignments as `text[]` on the entity row                  | No `role_members` junction; assignments mutate via entity CRUD. Lists triggers (per-company role variance, time bounds, approval, audit history) that would justify a refactor. |
+| 0031 | Synchronous hooks for add-on modules                            | Add-ons extend core workflows via named, in-transaction, throw-to-block hooks. Partially supersedes ADR-0028. Contract lands with the first add-on that needs a hook. |
+| 0032 | Multi-ledger architecture for cash vs accrual                   | `ledger_id` discriminator + data-driven posting rules; cash basis is a posted, lockable book, not derived. N-way for deferred multi-GAAP. |
 
-> (List extended per gap 4.12, 2026-05-21. ADR-0027 also covers gap §5.3.)
+### 16.6 Referencing ADRs  [in-scope]
 
-### 13.6 Referencing Decisions  [in-scope]
-
-When code implements a non-obvious pattern that traces back to a design decision, reference it:
+When code implements a non-obvious pattern that traces back to an ADR, reference it:
 
 **In code comments:**
 
 ```javascript
-// See decision 0005: keyset pagination chosen over offset for stable large-set performance
+// See ADR-0005: keyset pagination chosen over offset for stable large-set performance
 const results = await model.findAfterCursor(cursor, limit, orderBy);
 ```
 
@@ -3383,3 +4206,117 @@ feat(serv): add tenant schema provisioning
 Implements ADR-0001 using pg-schemata bootstrap() for single-transaction
 schema creation with extension setup.
 ```
+
+---
+
+## 17. Scripts  [in-scope]
+
+### 17.1 Conventions  [in-scope]
+
+All operational scripts live under `apps/server/scripts/` and are invoked via the `apps/server` package.json `scripts` block. Three conventions apply:
+
+1. Every script is a top-level Node entry point — `import` from `apps/server/src/`, never required by application code.
+2. Every script walks up from `cwd` to find the monorepo `.env`. Run from the repo root or from `apps/server/`; either works.
+3. Every script wraps work in `runWithContext` (`apps/server/src/lib/requestContext.js`) so pg-schemata audit fields resolve to a known actor (`null` at boot).
+
+Execute scripts via the npm scripts in `apps/server/package.json` whenever one exists. Falling back to `node` direct invocation is supported but requires `cross-env NODE_ENV=…` set manually.
+
+### 17.2 Migration Scripts  [in-scope]
+
+#### 17.2.1 `setupAdmin.js`
+
+- **Purpose.** Bootstrap the `admin` schema on a fresh database. Creates the schema, installs extensions (`pgcrypto`, `uuid-ossp`, `vector`), runs admin migrations, and seeds the root Axerra tenant plus the bootstrap `super_user`.
+- **Usage.** Run once per environment. Subsequent boots are idempotent and skip already-applied steps.
+- **Execute.**
+  ```bash
+  npm -w apps/server run setupAdmin:dev   # development DB
+  npm -w apps/server run setupAdmin:test  # test DB
+  ```
+
+#### 17.2.2 `runMigrate.js`
+
+- **Purpose.** Drive pending migrations against the admin schema and every active tenant schema. Wraps `migrateTenants.js`.
+- **Usage.** Accepts an optional space-separated list of tenant schema names to limit scope. `--dry-run` reports pending migrations without applying them; `NODE_ENV=test` or `--test` implies `--dry-run`.
+- **Execute.**
+  ```bash
+  npm -w apps/server run migrate:dev                # all schemas, dev DB
+  npm -w apps/server run migrate:test               # all schemas, test DB (dry-run)
+  node apps/server/scripts/runMigrate.js axerra cal # only those two schemas
+  node apps/server/scripts/runMigrate.js --dry-run  # report only
+  ```
+
+#### 17.2.3 `migrateTenants.js`
+
+- **Purpose.** Library used by `runMigrate.js`. Resolves the module set for each schema via `getModulesForSchema()` and runs only the migrations for those modules. Exported for programmatic use; not a CLI in its own right.
+
+### 17.3 Bootstrap & Seed Scripts  [in-scope]
+
+#### 17.3.1 `seed.js`
+
+- **Purpose.** Seed development data into the dev database (companies, vendors, projects, sample invoices, chart of accounts).
+- **Usage.** Idempotent — re-running clears non-system tables and reseeds.
+- **Execute.**
+  ```bash
+  npm -w apps/server run seed
+  ```
+
+#### 17.3.2 `seedRbac.js`
+
+- **Purpose.** Seed RBAC reference data (policy catalog, default roles, default policies) into a tenant schema. Re-runs the `policyCatalogReconciler` to sync the in-code `CATALOG_ENTRIES` constant.
+- **Usage.** Runs against `NODE_ENV=development` by default.
+- **Execute.**
+  ```bash
+  npm -w apps/server run seed:rbac
+  ```
+
+#### 17.3.3 `seedDemoMG.js` *(planned)*
+
+- **Purpose.** Build the Meridian Group demo tenant (§6.1). Drops and recreates the MG schema, then loads fixtures from `apps/server/scripts/fixtures/mg/`.
+- **Execute.**
+  ```bash
+  node apps/server/scripts/seedDemoMG.js
+  ```
+
+#### 17.3.4 `seedDemoSRH.js` *(planned)*
+
+- **Purpose.** Build the Sterling Ridge Homes demo tenant (§6.2). Drops and recreates the SRH schema, then loads fixtures from `apps/server/scripts/fixtures/srh/`.
+- **Execute.**
+  ```bash
+  node apps/server/scripts/seedDemoSRH.js
+  ```
+
+### 17.4 Debugging & Diagnostic Scripts  [in-scope]
+
+Debugging scripts live alongside other one-off operational tools and are intentionally undocumented in `package.json` — they're invoked directly. Each prints its own usage with `--help`.
+
+The current diagnostic surface is small; additional scripts land under `apps/server/scripts/diag/` as needs arise.
+
+### 17.5 CLI / Shell Utilities  [in-scope]
+
+#### 17.5.1 `db/provisionTenantCli.js`
+
+- **Purpose.** Run `provisionNewTenant` from the host shell — the same service the HTTP `POST /api/tenants/v1/tenants` endpoint calls. Useful for headless bootstrap and tests that need a fresh tenant outside HTTP.
+- **Usage.** Required: `--tenant-code`, `--company`, plus the admin user fields. Optional: `--schema-name`, `--tier`, `--status`.
+- **Execute.**
+  ```bash
+  node apps/server/scripts/db/provisionTenantCli.js \
+    --tenant-code CAL \
+    --company "Caledonia Holdings" \
+    --schema-name cal \
+    --tier growth \
+    --status active \
+    --admin-email admin@caledonia.example \
+    --admin-password '…' \
+    --admin-first-name Jane \
+    --admin-last-name Doe
+  ```
+
+#### 17.5.2 `db/reconcilePolicyCatalog.js`
+
+- **Purpose.** Run the policy-catalog reconciler against one tenant schema or all tenants. Performs an idempotent diff/apply between in-code `CATALOG_ENTRIES` and the per-tenant `policy_catalog` table. Use when a hotfix changes the catalog without shipping a migration.
+- **Usage.** `--schema <name>` targets a single tenant; omit to walk every active tenant. `--dry-run` reports the planned changes without writing.
+- **Execute.**
+  ```bash
+  node apps/server/scripts/db/reconcilePolicyCatalog.js --schema axerra
+  node apps/server/scripts/db/reconcilePolicyCatalog.js --dry-run
+  ```
